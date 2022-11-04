@@ -2,12 +2,7 @@ APP_NAME: platzky
 DB:
   TYPE: json_file
   PATH: "../tests/e2e_tests/db.json"
-SECRET_KEY: you-will-never-guess
-fields:
-- subscribers_limit
-- mails_limit
-- month_price
-- annual_price
+SECRET_KEY: testing-key
 BABEL_TRANSLATION_DIRECTORIES: locale
 BABEL_DEFAULT_LOCALE: en
 SITEMAP_INCLUDE_RULES_WITHOUT_PARAMS: 'True'
@@ -28,4 +23,3 @@ LANGUAGES:
     flag: pl
     domain: www.platzkypl.localhost:5000
 SESSION_COOKIE_DOMAIN: www.platzky.localhost:5000
-TEMPLATES_AUTO_RELOAD: true
