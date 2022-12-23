@@ -51,3 +51,9 @@ LANGUAGES:
     name: polski
     flag: pl
     domain: www.platzkypl.localhost:5000
+
+SMTP:
+  PORT: 465
+  SERVER: "smtp.gmail.com"
+  ADDRESS:"my@gmail.com"
+  PASSWORD: "PA$$WORD"
