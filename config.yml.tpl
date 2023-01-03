@@ -57,3 +57,7 @@ SMTP:
   SERVER: "smtp.gmail.com"
   ADDRESS:"my@gmail.com"
   PASSWORD: "PA$$WORD"
+
+# list of enabled plugins - to work they also have to be installed
+PLUGINS:
+  - redirections

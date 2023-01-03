@@ -33,7 +33,8 @@ def get_config_mapping(base_config):
         "SEO_PREFIX": "/",
         "BLOG_PREFIX": "/",
         "LANGUAGES": {},
-        "DOMAIN_TO_LANG": {}
+        "DOMAIN_TO_LANG": {},
+        "PLUGINS": []
     }
 
     config = default_config | base_config
