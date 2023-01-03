@@ -1,3 +1,6 @@
+![Github Actions](https://github.com/platzky/platzky/actions/workflows/tests.yml/badge.svg?event=push&branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/platzky/platzky/badge.png)](https://coveralls.io/github/platzky/platzky)
+
 # platzky
 
 Blog engine in python 

@@ -30,11 +30,11 @@ jobs:
       run: |
          poetry run coverage run -m pytest
          poetry run coverage lcov
-#     - name: Coveralls
-#       uses: coverallsapp/github-action@master
-#       with:
-#         path-to-lcov: "./coverage.lcov"
-#         github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Coveralls
+      uses: coverallsapp/github-action@master
+      with:
+        path-to-lcov: "./coverage.lcov"
+        github-token: ${{ secrets.GITHUB_TOKEN }}
 # End to end tests:
     - name: Install cypress
       working-directory: "./tests/e2e_tests"
