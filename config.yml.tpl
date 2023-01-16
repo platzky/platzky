@@ -11,6 +11,11 @@ APP_NAME: platzky
 # - graph_ql has:
 #   - CMS_ENDPOINT
 #   - CMS_TOKEN
+
+# Wheather it should to www or to use non-www as canonical
+USE_WWW: True
+
+
 DB:
   TYPE: json_file
   PATH: "../tests/e2e_tests/db.json"
