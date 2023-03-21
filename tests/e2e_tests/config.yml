@@ -16,7 +16,7 @@ DOMAIN_TO_LANG:
 LANGUAGES:
   en:
     name: English
-    flag: uk
+    flag: gb
     domain: www.platzky.localhost:5000
   pl:
     name: polski

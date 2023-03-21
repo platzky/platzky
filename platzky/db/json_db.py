@@ -19,8 +19,8 @@ class Json(DB):
         return post
 
     def get_page(self, slug):
-        post = next(filter(lambda x: x["slug"] == slug, self.data["pages"]), None)
-        return post
+        page = next(filter(lambda x: x["slug"] == slug, self.data["pages"]), None)
+        return page
 
     def get_menu_items(self):
         post = self.data.get("menu_items", [])

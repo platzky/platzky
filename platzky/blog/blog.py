@@ -2,6 +2,7 @@ from flask import request, render_template,\
     make_response, Blueprint, Markup
 from platzky.blog import comment_form, post_formatter
 from os.path import dirname
+from markdown import markdown as markdown_function
 
 
 def create_blog_blueprint(db, config, babel):
@@ -13,7 +14,7 @@ def create_blog_blueprint(db, config, babel):
 
     @blog.app_template_filter()
     def markdown(text):
-        return Markup(text)
+        return Markup(markdown_function(text))
 
     @blog.errorhandler(404)
     def page_not_found(e):

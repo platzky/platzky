@@ -89,7 +89,10 @@ class GraphQL(DB):
             query MyQuery ($slug: String!){
               page(where: {slug: $slug}, stage: PUBLISHED) {
                 title
-                contentInMarkdown
+                contentInRichText {
+                  text
+                  markdown
+                }
                 coverImage
                 {
                     url
