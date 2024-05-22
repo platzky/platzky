@@ -44,10 +44,19 @@ class Config(StrictBaseModel):
     testing: bool = Field(default=False, alias="TESTING")
 
     @classmethod
-    def model_validate(cls, obj: t.Any):
+    def model_validate(
+        cls,
+        obj: t.Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: dict[str, t.Any] | None = None,
+    ) -> "Config":
         db_cfg_type = get_db_module(obj["DB"]["TYPE"]).db_config_type()
         obj["DB"] = db_cfg_type.model_validate(obj["DB"])
-        return super().model_validate(obj)
+        return super().model_validate(
+            obj, strict=strict, from_attributes=from_attributes, context=context
+        )
 
     @classmethod
     def parse_yaml(cls, path: str) -> "Config":

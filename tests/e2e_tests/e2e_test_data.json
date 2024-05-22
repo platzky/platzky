@@ -1,1 +1,109 @@
-{"site_content": {"posts": [{"title": "The Fellowship of the Ring", "author": "J.R.R. Tolkien", "language": "en", "slug": "fellows", "tags": ["tag/1"], "contentInMarkdown": "Once upon a time...", "date": "1954-01-29", "coverImage": {"alternateText": "The Fellowship of the Ring cover", "url": "https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif"}, "comments": [{"date": "2021-02-19T00:00:00", "comment": "My precious!", "author": "Gollum"}]}, {"title": "title", "author": "autor", "language": "en", "slug": "slug", "tags": ["tag/3"], "contentInMarkdown": "content", "date": "2021-02-19", "coverImage": {"alternateText": "alternate text", "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"}, "comments": [{"date": "2021-02-19T00:00:00", "comment": "content", "author": "author"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T00:27:19"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T00:36:53"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T01:13:34"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T01:16:39"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T01:53:38"}, {"author": "commenting user", "comment": "comment content", "date": "2024-05-21T01:54:20"}]}], "pages": [{"title": "page title", "author": "autor", "slug": "page", "contentInMarkdown": "page content", "coverImage": {"alternateText": "alternate text", "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"}}], "menu_items": [{"name": "Home", "url": "/"}, {"name": "The Fellowship of the Ring", "url": "/blog/fellows"}, {"name": "Non-existing page", "url": "/non-existing"}], "redirections": {"/slugo": "/slug"}}}
+{
+  "site_content": {
+    "posts": [
+      {
+        "title": "The Fellowship of the Ring",
+        "author": "J.R.R. Tolkien",
+        "language": "en",
+        "slug": "fellows",
+        "tags": [
+          "tag/1"
+        ],
+        "contentInMarkdown": "Once upon a time...",
+        "date": "1954-01-29",
+        "coverImage": {
+          "alternateText": "The Fellowship of the Ring cover",
+          "url": "https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif"
+        },
+        "comments": [
+          {
+            "date": "2021-02-19T00:00:00",
+            "comment": "My precious!",
+            "author": "Gollum"
+          }
+        ]
+      },
+      {
+        "title": "title",
+        "author": "autor",
+        "language": "en",
+        "slug": "slug",
+        "tags": [
+          "tag/3"
+        ],
+        "contentInMarkdown": "content",
+        "date": "2021-02-19",
+        "coverImage": {
+          "alternateText": "alternate text",
+          "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
+        },
+        "comments": [
+          {
+            "date": "2021-02-19T00:00:00",
+            "comment": "content",
+            "author": "author"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T00:27:19"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T00:36:53"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T01:13:34"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T01:16:39"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T01:53:38"
+          },
+          {
+            "author": "commenting user",
+            "comment": "comment content",
+            "date": "2024-05-21T01:54:20"
+          }
+        ]
+      }
+    ],
+    "pages": [
+      {
+        "title": "page title",
+        "author": "autor",
+        "slug": "page",
+        "contentInMarkdown": "page content",
+        "coverImage": {
+          "alternateText": "alternate text",
+          "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
+        }
+      }
+    ],
+    "menu_items": [
+      {
+        "name": "Home",
+        "url": "/"
+      },
+      {
+        "name": "The Fellowship of the Ring",
+        "url": "/fellows"
+      },
+      {
+        "name": "Non-existing page",
+        "url": "/non-existing"
+      }
+    ],
+    "redirections": {
+      "/slugo": "/slug"
+    }
+  }
+}
