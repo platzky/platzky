@@ -6,6 +6,7 @@ from pydantic import Field
 from .db import DB, DBConfig
 from ..models import MenuItem, Post
 
+
 def db_config_type():
     return JsonDbConfig
 
@@ -31,7 +32,11 @@ class Json(DB):
         self.db_name = "JsonDb"
 
     def get_all_posts(self, lang):
-        return [Post.model_validate(post) for post in self.get_site_content().get("posts", ()) if post["language"] == lang]
+        return [
+            Post.model_validate(post)
+            for post in self.get_site_content().get("posts", ())
+            if post["language"] == lang
+        ]
 
     def get_post(self, slug: str) -> Post:
         """Returns a post matching the given slug."""
@@ -45,17 +50,23 @@ class Json(DB):
 
     # TODO: add test for non-existing page
     def get_page(self, slug):
-        list_of_pages = (page for page in self.get_site_content().get("pages") if page["slug"] == slug)
+        list_of_pages = (
+            page
+            for page in self.get_site_content().get("pages")
+            if page["slug"] == slug
+        )
         page = Post.model_validate(next(list_of_pages))
         return page
 
     def get_menu_items(self) -> list[MenuItem]:
         menu_items_raw = self.get_site_content().get("menu_items", [])
-        menu_items_list = [ MenuItem.model_validate(x) for x in menu_items_raw]
+        menu_items_list = [MenuItem.model_validate(x) for x in menu_items_raw]
         return menu_items_list
 
     def get_posts_by_tag(self, tag, lang):
-        return (post for post in self.get_site_content()["posts"] if tag in post["tags"])
+        return (
+            post for post in self.get_site_content()["posts"] if tag in post["tags"]
+        )
 
     def get_all_providers(self):
         return self.data["providers"]

@@ -1,20 +1,22 @@
 from pydantic import BaseModel
-from typing import Any, Dict
 import datetime
 import humanize
+
 
 class Image(BaseModel):
     url: str
     alternateText: str
 
+
 class MenuItem(BaseModel):
     name: str
     url: str
 
+
 class Comment(BaseModel):
     author: str
     comment: str
-    date: str #TODO change its type to datetime
+    date: str  # TODO change its type to datetime
 
     @property
     def time_delta(self) -> str:
@@ -39,7 +41,6 @@ class Post(BaseModel):
         if isinstance(other, Post):
             return self.date < other.date
         return NotImplemented
-
 
     # def format_post(post):
     #     now = datetime.datetime.now()

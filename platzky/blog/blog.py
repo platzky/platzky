@@ -56,11 +56,11 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         try:
             post = db.get_post(post_slug)
             return render_template(
-                    "post.html",
-                    post=post,
-                    post_slug=post_slug,
-                    form=comment_form.CommentForm(),
-                    comment_sent=request.args.get("comment_sent")
+                "post.html",
+                post=post,
+                post_slug=post_slug,
+                form=comment_form.CommentForm(),
+                comment_sent=request.args.get("comment_sent"),
             )
         except ValueError:
             return page_not_found(f"no post with slug {post_slug}")

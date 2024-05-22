@@ -11,7 +11,7 @@ import pytest
 from platzky.blog import blog
 from platzky.config import Config
 from platzky.platzky import create_engine
-from platzky.models import Post, Page
+from platzky.models import Post
 
 from freezegun import freeze_time
 
@@ -155,9 +155,9 @@ def test_page_without_cover_image(test_app):
 @freeze_time("2022-01-01")
 def test_comment_formatting():
     comment_raw = {
-             "date": "2021-02-19T00:00:00",
-             "comment": "komentarz",
-             "author": "autor"
+        "date": "2021-02-19T00:00:00",
+        "comment": "komentarz",
+        "author": "autor",
     }
     comment = Comment.model_validate(comment_raw)
     assert comment.time_delta == "10 months ago"
