@@ -42,22 +42,22 @@ class Post(BaseModel):
             return self.date < other.date
         return NotImplemented
 
-    # def format_post(post):
-    #     now = datetime.datetime.now()
-    #     def comment_sort_key(comment_: Dict[str, Any]) -> Any:
-    #         return comment_["date"]
-    #
-    #     for comment in post["comments"]:
-    #         comment.update({"time_delta": get_delta(now, comment["date"])})
-    #
-    #     post["comments"].sort(key=comment_sort_key, reverse=True)
-    #     return post
-
 
 Page = Post
 
 
 class Color(BaseModel):
+    def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: int = 255):
+        if not (0 <= r <= 255):
+            raise ValueError("r must be between 0 and 255")
+        if not (0 <= g <= 255):
+            raise ValueError("g must be between 0 and 255")
+        if not (0 <= b <= 255):
+            raise ValueError("b must be between 0 and 255")
+        if not (0 <= a <= 255):
+            raise ValueError("a must be between 0 and 255")
+        super().__init__(r=r, g=g, b=b, a=a)
+
     r: int
     g: int
     b: int

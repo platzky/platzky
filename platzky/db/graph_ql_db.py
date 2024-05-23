@@ -7,6 +7,7 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from pydantic import Field
 
 from .db import DB, DBConfig
+from ..models import Color
 
 
 def db_config_type():
@@ -208,11 +209,11 @@ class GraphQL(DB):
     def get_logo_url(self):
         return ""
 
-    def get_primary_color(self):
-        return ""
+    def get_primary_color(self) -> Color:
+        return Color()
 
     def get_secondary_color(self):
-        return ""
+        return Color()
 
     def get_site_content(self):
         return ""
