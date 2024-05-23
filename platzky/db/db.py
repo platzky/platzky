@@ -37,7 +37,9 @@ class DB(ABC):
         function (Callable): The function to add to the DB object.
         """
         if not callable(function):
-            raise ValueError(f"The provided func for '{function_name}' is not callable.")
+            raise ValueError(
+                f"The provided func for '{function_name}' is not callable."
+            )
         try:
             bound_function = partial(function, self)
             # self._dynamic_methods[function_name] = bound_function

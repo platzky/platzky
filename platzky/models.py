@@ -4,8 +4,8 @@ import humanize
 
 
 class Image(BaseModel):
-    url: str
-    alternateText: str
+    url: str = ""
+    alternateText: str = ""
 
 
 class MenuItem(BaseModel):

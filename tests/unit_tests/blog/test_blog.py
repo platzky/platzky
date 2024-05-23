@@ -11,7 +11,7 @@ import pytest
 from platzky.blog import blog
 from platzky.config import Config
 from platzky.platzky import create_engine
-from platzky.models import Post
+from platzky.models import Post, Image
 
 from freezegun import freeze_time
 
@@ -142,7 +142,7 @@ def test_page(test_app):
 
 
 def test_page_without_cover_image(test_app):
-    mocked_post.coverImage = None
+    mocked_post.coverImage = Image()
     test_app.application.db.get_page.return_value = mocked_post
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 200
