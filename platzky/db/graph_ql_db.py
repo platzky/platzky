@@ -9,6 +9,7 @@ from pydantic import Field
 from .db import DB, DBConfig
 from ..models import Color
 
+
 def db_config_type():
     return GraphQlDbConfig
 
