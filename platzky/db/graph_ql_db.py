@@ -9,7 +9,6 @@ from pydantic import Field
 from .db import DB, DBConfig
 from ..models import Color
 
-
 def db_config_type():
     return GraphQlDbConfig
 
@@ -42,7 +41,7 @@ class GraphQL(DB):
         all_posts = gql(
             """
             query MyQuery($lang: Lang!) {
-             < posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
+              posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
                 createdAt
                 date
                 title
