@@ -27,8 +27,6 @@ jobs:
         poetry install
     - name: Run linters
       run: make lint-check
-    - name: Run tests without coverage
-      run: make unit-tests-no-coverage
     - name: Run tests with coverage
       run: make coverage
     - name: Coveralls
