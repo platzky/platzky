@@ -30,10 +30,12 @@ def test_db_extension():
         }
     )
 
+    # TODO remove ignores with proper plugin system
     with pytest.raises(AttributeError):
-        db.test()
+
+        db.test()  # type: ignore
     db.extend("test", lambda x: "test")
-    result = db.test()
+    result = db.test()  # type: ignore
     assert result == "test"
 
 
