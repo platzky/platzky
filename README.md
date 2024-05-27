@@ -3,19 +3,13 @@
 
 # platzky
 
-Blog engine in python
+Platzky is engine which aims to provide simple and easy way to create and run web applications in python.
 
-# How to run?
+# How to use?
 
-1. Install platzky with your favorite dependency management tool (`pip install platzky`)
-2. run `flask --app "platzky:create_app(PATH_TO_YOUR_CONFIG_FILE)" run`
+1. Install platzky with your favorite dependency management tool (`pip install platzky` or `poetry add platzky`).
+2. Copy `config-template.yml` to your project directory and fill it with your data.
+3. Run `flask --app "platzky.platzky:create_app(config_path='PATH_TO_YOUR_CONFIG_FILE')`
 
-## Configuration
-
-For details check `config.yml.tpl` file.
-
-
-# API
-`platzky.config.from_file(path_to_config)` - creates _platzky_ config from file (see __config.yml.tpl__)
-`platzky.create_app_from_config(config)` - creates _platzky_ application.
-`platzky.sendmail(receiver_email, subject, message)`- sends email from configured account
+For details check Makefile.
+g
