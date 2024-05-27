@@ -31,7 +31,7 @@ class Post(BaseModel):
     title: str
     contentInMarkdown: str
     comments: list[Comment]
-    # excerpt: str
+    excerpt: str
     tags: list[str]
     language: str
     coverImage: Image

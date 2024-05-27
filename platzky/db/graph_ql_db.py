@@ -7,7 +7,7 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from pydantic import Field
 
 from .db import DB, DBConfig
-from ..models import Color
+from ..models import Color, Post
 
 
 def db_config_type():
@@ -27,6 +27,23 @@ def db_from_config(config: GraphQlDbConfig):
     return GraphQL(config.endpoint, config.token)
 
 
+def _standarize_post(post):
+    return {
+        "author": post["author"]["name"],
+        "slug": post["slug"],
+        "title": post["title"],
+        "excerpt": post["excerpt"],
+        "contentInMarkdown": post["contentInRichText"]["html"],
+        "comments": post["comments"],
+        "tags": post["tags"],
+        "language": post["language"],
+        "coverImage": {
+            "url": post["coverImage"]["image"]["url"],
+        },
+        "date": post["date"],
+    }
+
+
 class GraphQL(DB):
     def __init__(self, endpoint, token):
         self.module_name = "graph_ql_db"
@@ -44,11 +61,23 @@ class GraphQL(DB):
             query MyQuery($lang: Lang!) {
               posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
                 createdAt
+                author {
+                    name
+                }
+                contentInRichText {
+                    html
+                    }
+                comments {
+                  comment
+                  author
+                  createdAt
+                  }
                 date
                 title
                 excerpt
                 slug
                 tags
+                language
                 coverImage {
                   alternateText
                   image {
@@ -59,7 +88,11 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(all_posts, variable_values={"lang": lang})["posts"]
+        raw_ql_posts = self.client.execute(all_posts, variable_values={"lang": lang})[
+            "posts"
+        ]
+
+        return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
     def get_menu_items(self):
         menu_items = gql(
@@ -79,10 +112,16 @@ class GraphQL(DB):
             """
             query MyQuery($slug: String!) {
               post(where: {slug: $slug}, stage: PUBLISHED) {
+                date
+                language
                 title
+                slug
+                author {
+                    name
+                }                
                 contentInRichText {
-                  text
                   markdown
+                  html
                 }
                 excerpt
                 tags
@@ -101,7 +140,9 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(post, variable_values={"slug": slug})["post"]
+
+        post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
+        return Post.model_validate(_standarize_post(post_raw))
 
     # TODO Cleanup page logic of internationalization (now it depends on translation of slugs)
     def get_page(self, slug):
