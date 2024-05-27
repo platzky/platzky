@@ -21,6 +21,7 @@ mocked_post_json = {
     "title": "post title",
     "language": "en",
     "slug": "slug",
+    "excerpt": "excerpt",
     "author": "author",
     "tags": ["tag/1", "tagtag"],
     "contentInMarkdown": "This is some content",

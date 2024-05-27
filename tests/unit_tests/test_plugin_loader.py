@@ -18,6 +18,7 @@ def test_plugin_loader():
                         {
                             "title": "test",
                             "slug": "test",
+                            "excerpt": "test",
                             "contentInMarkdown": "",
                             "contentInRichText": "test",
                             "comments": [],
