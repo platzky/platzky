@@ -11,5 +11,6 @@ Platzky is engine which aims to provide simple and easy way to create and run we
 2. Copy `config-template.yml` to your project directory and fill it with your data.
 3. Run `flask --app "platzky.platzky:create_app(config_path='PATH_TO_YOUR_CONFIG_FILE')`
 
-For details check Makefile.
-g
+## Example
+
+For examples check e2e tests in `tests/e2e` directory and Makefile.
