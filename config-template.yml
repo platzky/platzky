@@ -1,5 +1,5 @@
 # -- Basic app configuration
-APP_NAME: My awesome goodmap application
+APP_NAME: My awesome platzky application
 
 SECRET_KEY: secret
 ## -- Flask's SECRET_KEY. In production environment you should set it and keep secret.

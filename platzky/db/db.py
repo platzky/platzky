@@ -42,7 +42,6 @@ class DB(ABC):
             )
         try:
             bound_function = partial(function, self)
-            # self._dynamic_methods[function_name] = bound_function
             setattr(self, function_name, bound_function)
         except Exception as e:
             raise ValueError(f"Failed to extend DB with function {function_name}: {e}")
@@ -92,11 +91,11 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_all_providers(self):  # TODO this should belong in plugin
+    def get_all_providers(self):  # TODO providers are not part of the DB
         pass
 
     @abstractmethod
-    def get_all_questions(self):  # TODO this should belong in plugin
+    def get_all_questions(self):  # TODO questions are not part of the DB
         pass
 
     @abstractmethod
