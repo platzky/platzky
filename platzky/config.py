@@ -8,8 +8,6 @@ from .db.db_loader import get_db_module
 
 
 class StrictBaseModel(BaseModel):
-    # TODO[pydantic]: The following keys were removed: `allow_mutation`.
-    # Check https://docs.pydantic.dev/dev-v2/migration/#changes-to-config for more information.
     model_config = ConfigDict(frozen=True)
 
 
