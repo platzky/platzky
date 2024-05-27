@@ -4,6 +4,7 @@
       {
         "title": "The Fellowship of the Ring",
         "author": "J.R.R. Tolkien",
+        "excerpt": "The Fellowship of the Ring is the first of three volumes of the epic novel The Lord of the Rings by the English author J. R. R. Tolkien. It is followed by The Two Towers and The Return of the King.",
         "language": "en",
         "slug": "fellows",
         "tags": [
@@ -26,6 +27,7 @@
       {
         "title": "title",
         "author": "autor",
+        "excerpt": "post excerpt",
         "language": "en",
         "slug": "slug",
         "tags": [
@@ -82,6 +84,7 @@
         "author": "autor",
         "slug": "page",
         "contentInMarkdown": "page content",
+        "excerpt": "page excerpt",
         "coverImage": {
           "alternateText": "alternate text",
           "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
