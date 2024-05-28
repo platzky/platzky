@@ -2,6 +2,7 @@
 Released on 2024-05-27
 
 - fix: moved pydantic to requirements
+- fix: removed questions from core logic
 
 # Version 0.2.0
 Released on 2024-05-27
