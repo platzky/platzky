@@ -3,8 +3,6 @@ import urllib.parse
 from os.path import dirname
 from flask import Blueprint, current_app, make_response, render_template, request
 
-from flask import Blueprint, current_app, make_response, render_template, request
-
 def create_seo_blueprint(db, config: dict[str, t.Any]):
     seo = Blueprint(
         "seo",
