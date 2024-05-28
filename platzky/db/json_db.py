@@ -68,12 +68,6 @@ class Json(DB):
             post for post in self.get_site_content()["posts"] if tag in post["tags"]
         )
 
-    def get_all_providers(self):
-        return self.data["providers"]
-
-    def get_all_questions(self):
-        return self.data["questions"]
-
     def get_site_content(self):
         content = self.data.get("site_content")
         if content is None:

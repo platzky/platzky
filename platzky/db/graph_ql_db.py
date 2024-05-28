@@ -1,6 +1,5 @@
 # TODO rename file, extract it to another library, remove qgl and aiohttp from dependencies
 
-import json
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
