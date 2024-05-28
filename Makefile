@@ -26,5 +26,5 @@ coverage:
 html-cov: coverage
 	poetry run coverage html
 
-run-e2e-env:
-	poetry run flask --app "platzky.platzky:create_app(config_path='tests/e2e_tests/e2e_test_config.yml')" --debug run
+run-e2e-instance:
+	poetry run flask --app "platzky.platzky:create_app(config_path='tests/e2e_tests/e2e_test_config.yml')" run --debug

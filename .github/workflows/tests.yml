@@ -8,7 +8,6 @@ on:
     branches:
       - main
 
-
 permissions:
   contents: 'read'
 
@@ -24,24 +23,24 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install poetry
+        pip install poetry==1.3
         poetry install
-    - name: Test with pytest
-      run: |
-         poetry run coverage run -m pytest
-         poetry run coverage lcov
+    - name: Run linters
+      run: make lint-check
+    - name: Run tests with coverage
+      run: make coverage
     - name: Coveralls
       uses: coverallsapp/github-action@master
       with:
         path-to-lcov: "./coverage.lcov"
         github-token: ${{ secrets.GITHUB_TOKEN }}
-# End to end tests:
+# End-to-end tests:
     - name: Install cypress
       working-directory: "./tests/e2e_tests"
       run: |
         npm install cypress
     - name: Run e2e tests
       run: |
-        cd platzky && poetry run flask --app "platzky:create_app('../tests/e2e_tests/config.yml')" --debug run &
+        make run-e2e-instance &
         sleep 3
-        cd ./tests/e2e_tests && node_modules/cypress/bin/cypress run
+        make e2e-tests

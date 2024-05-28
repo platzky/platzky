@@ -3,7 +3,7 @@
 
   <channel>
     <title>{{_(app_name)}}</title>
-    <link>{{ url_for("blog.index", _external=True) }}</link>
+    <link>{{ url_for("blog.all_posts", _external=True) }}</link>
     <description>{{_("Everything about mailings and newsletters")}}</description>
     {% for post in posts %}
     <item>

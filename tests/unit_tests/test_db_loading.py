@@ -2,17 +2,15 @@ from platzky.config import Config
 from platzky.db import db_loader
 from unittest.mock import patch, mock_open, MagicMock
 
+
 def test_loading_json_db_dynamically():
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
-        "DB": {
-            "TYPE": "json",
-            "DATA": {}
-            },
-        }
+        "DB": {"TYPE": "json", "DATA": {}},
+    }
 
-    config = Config.parse_obj(config_data)
+    config = Config.model_validate(config_data)
 
     db = db_loader.get_db(config.db)
     assert db.__class__.__name__ == "Json"
@@ -25,10 +23,10 @@ def test_loading_json_file_db_dynamically():
         "DB": {
             "TYPE": "json_file",
             "PATH": "some/path",
-            },
-        }
+        },
+    }
 
-    config = Config.parse_obj(config_data)
+    config = Config.model_validate(config_data)
 
     with patch("builtins.open", mock_open(read_data="data")):
         with patch("json.load", return_value={"site_content": {}}):
@@ -61,7 +59,7 @@ def test_loading_google_json_db_dynamically():
 
         mock_client.return_value = client_mock
 
-        config = Config.parse_obj(config_data)
+        config = Config.model_validate(config_data)
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
@@ -72,7 +70,6 @@ def test_loading_google_json_db_dynamically():
         mock_blob.download_as_text.assert_called_once()
 
 
-
 def test_loading_graph_db_dynamically():
     config_data = {
         "APP_NAME": "testingApp",
@@ -80,11 +77,10 @@ def test_loading_graph_db_dynamically():
         "DB": {
             "TYPE": "graph_ql",
             "CMS_ENDPOINT": "http://localhost:1337/graphql",
-            "CMS_TOKEN": "token"
+            "CMS_TOKEN": "token",
         },
     }
-    expected_data = {"site_content": {}}
 
-    config = Config.parse_obj(config_data)
+    config = Config.model_validate(config_data)
     db = db_loader.get_db(config.db)
     assert db.__class__.__name__ == "GraphQL"

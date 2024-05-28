@@ -113,7 +113,7 @@
         <ul class="navbar-nav">
           {% for menu_item in menu_items %}
           <li class="nav-item">
-            <a class="nav-link" href={{menu_item["url"]}} >{{_(menu_item["name"])}}</a>
+            <a class="nav-link" href={{menu_item.url}} >{{_(menu_item.name)}}</a>
           </li>
           {% endfor %}
         </ul>

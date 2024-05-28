@@ -1,9 +1,9 @@
 import typing as t
 import urllib.parse
 from os.path import dirname
-
 from flask import Blueprint, current_app, make_response, render_template, request
 
+from flask import Blueprint, current_app, make_response, render_template, request
 
 def create_seo_blueprint(db, config: dict[str, t.Any]):
     seo = Blueprint(
@@ -11,6 +11,7 @@ def create_seo_blueprint(db, config: dict[str, t.Any]):
         __name__,
         url_prefix=config["SEO_PREFIX"],
         template_folder=f"{dirname(__file__)}/../templates",
+    )
     )
 
     @seo.route("/robots.txt")

@@ -1,6 +1,5 @@
 import sys
 import typing as t
-
 import yaml
 from pydantic import ConfigDict, BaseModel, Field
 
@@ -9,7 +8,7 @@ from .db.db_loader import get_db_module
 
 
 class StrictBaseModel(BaseModel):
-    # TODO[pydantic]: The following keys were removed: `allow_mutation`.
+    model_config = ConfigDict(frozen=True)
     # Check https://docs.pydantic.dev/dev-v2/migration/#changes-to-config for more information.
     model_config = ConfigDict(frozen=True)
 
@@ -25,7 +24,7 @@ LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
 
 
 def languages_dict(languages: Languages) -> LanguagesMapping:
-    return {name: lang.dict() for name, lang in languages.items()}
+    return {name: lang.model_dump() for name, lang in languages.items()}
 
 
 class Config(StrictBaseModel):
@@ -45,16 +44,25 @@ class Config(StrictBaseModel):
     testing: bool = Field(default=False, alias="TESTING")
 
     @classmethod
-    def parse_obj(cls, obj: t.Any):
+    def model_validate(
+        cls,
+        obj: t.Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: dict[str, t.Any] | None = None,
+    ) -> "Config":
         db_cfg_type = get_db_module(obj["DB"]["TYPE"]).db_config_type()
-        obj["DB"] = db_cfg_type.parse_obj(obj["DB"])
-        return super().parse_obj(obj)
+        obj["DB"] = db_cfg_type.model_validate(obj["DB"])
+        return super().model_validate(
+            obj, strict=strict, from_attributes=from_attributes, context=context
+        )
 
     @classmethod
     def parse_yaml(cls, path: str) -> "Config":
         try:
             with open(path, "r") as f:
-                return cls.parse_obj(yaml.safe_load(f))
+                return cls.model_validate(yaml.safe_load(f))
         except FileNotFoundError:
             print(f"Config file not found: {path}", file=sys.stderr)
             raise SystemExit(1)

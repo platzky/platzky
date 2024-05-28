@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
-
 from flask import Flask
-
 from platzky.seo import seo
 
 

@@ -18,13 +18,27 @@ def test_app():
             "DATA": {
                 "site_content": {
                     "pages": [
-                        {"title": "test", "slug": "test", "contentInMarkdown": "test"}
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "",
+                            "contentInRichText": "test",
+                            "comments": [],
+                            "tags": [],
+                            "coverImage": {
+                                "alternateText": "text which is alternative",
+                                "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
+                            },
+                            "language": "en",
+                            "date": "2021-01-01",
+                            "author": "author",
+                        }
                     ],
                 }
             },
         },
     }
-    config = Config.parse_obj(config_data)
+    config = Config.model_validate(config_data)
     app = create_app_from_config(config)
     assert isinstance(app, Flask)
     return app
@@ -67,3 +81,40 @@ def test_dynamic_content(test_app, content_type):
     content = get_content_text(response, content_type)
     assert "test1" in content
     assert "test2" in content
+
+
+@pytest.mark.parametrize("use_www", [True, False])
+def test_www_redirects(test_app, use_www):
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",
+        "USE_WWW": use_www,
+        "BLOG_PREFIX": "/blog",
+        "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
+        "DB": {
+            "TYPE": "json",
+            "DATA": {
+                "site_content": {
+                    "pages": [
+                        {"title": "test", "slug": "test", "contentInMarkdown": "test"}
+                    ],
+                }
+            },
+        },
+    }
+    config = Config.model_validate(config_data)
+    app = create_app_from_config(config)
+    client = app.test_client()
+    client.allow_subdomain_redirects = True
+
+    if use_www:
+        url = "http://localhost/blog/page/test"
+        expected_redirect = "http://www.localhost/blog/page/test"
+    else:
+        url = "http://www.localhost/blog/page/test"
+        expected_redirect = "http://localhost/blog/page/test"
+
+    response = client.get(url, follow_redirects=False)
+
+    assert response.request.url == url
+    assert response.location == expected_redirect

@@ -26,7 +26,7 @@ class SendMailConfig(BaseModel):
 
 
 def process(app, config):
-    plugin_config = SendMailConfig.parse_obj(config)
+    plugin_config = SendMailConfig.model_validate(config)
 
     def notify(message):
         send_mail(

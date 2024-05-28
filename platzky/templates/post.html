@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block content %}
-<header class="masthead" style="background-image: url({{post.coverImage.image.url}})">
+<header class="masthead" style="background-image: url({{post.coverImage.url}})">
   <div class="overlay"></div>
   <div class="container">
     <div class="row">
@@ -23,7 +23,7 @@
   <div class="container">
     <div class="row">
       <div class="col-lg-8 col-md-10 mx-auto post-content">
-        {{post.contentInRichText.markdown | markdown}}
+        {{post.contentInMarkdown | markdown}}
       </div>
     </div>
   </div>
