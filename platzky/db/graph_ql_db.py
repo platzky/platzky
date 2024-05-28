@@ -186,39 +186,6 @@ class GraphQL(DB):
             "posts"
         ]
 
-    def get_all_providers(self):
-        all_providers = gql(
-            """
-            query MyQuery {
-              providers(stage: PUBLISHED) {
-                link
-                name
-                offer
-                currency
-              }
-            }
-            """
-        )
-        providers = self.client.execute(all_providers)["providers"]
-        for provider in providers:
-            provider["offer"] = json.loads(provider["offer"])
-        return providers
-
-    def get_all_questions(self):
-        all_questions = gql(
-            """
-            query MyQuery {
-              questions(stage: PUBLISHED) {
-                question
-                field
-                inputType
-              }
-            }
-            """
-        )
-        query = self.client.execute(all_questions)
-        return query["questions"]
-
     def add_comment(self, author_name, comment, post_slug):
         add_comment = gql(
             """

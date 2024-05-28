@@ -91,14 +91,6 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_all_providers(self):  # TODO providers are not part of the DB
-        pass
-
-    @abstractmethod
-    def get_all_questions(self):  # TODO questions are not part of the DB
-        pass
-
-    @abstractmethod
     def get_site_content(self) -> str:
         pass
 
