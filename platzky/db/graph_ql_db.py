@@ -26,14 +26,24 @@ def db_from_config(config: GraphQlDbConfig):
     return GraphQL(config.endpoint, config.token)
 
 
-def _standarize_post(post):
+def _standarize_comment(
+    comment,
+):  # TODO add tests for checking stadarization of comments
+    return {
+        "author": comment["author"],
+        "comment": comment["comment"],
+        "date": comment["createdAt"],
+    }
+
+
+def _standarize_post(post):  # TODO add tests for checking stadarization of posts
     return {
         "author": post["author"]["name"],
         "slug": post["slug"],
         "title": post["title"],
         "excerpt": post["excerpt"],
         "contentInMarkdown": post["contentInRichText"]["html"],
-        "comments": post["comments"],
+        "comments": [_standarize_comment(comment) for comment in post["comments"]],
         "tags": post["tags"],
         "language": post["language"],
         "coverImage": {

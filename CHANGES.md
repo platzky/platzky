@@ -1,3 +1,8 @@
+# Version 0.2.2
+Released on 2024-05-29
+
+- fix: fixed standardization of comments in gql db
+
 # Version 0.2.1
 Released on 2024-05-27
 
