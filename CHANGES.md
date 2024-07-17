@@ -1,3 +1,8 @@
+# Version 0.2.3
+Released on 2024-07-17
+
+- fix: added necessary interface
+
 # Version 0.2.2
 Released on 2024-05-29
 
