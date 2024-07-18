@@ -8,7 +8,7 @@ from platzky.platzky import create_app_from_config
 @pytest.fixture
 def test_app():
     config_data = {
-        "APP_NAME": "testingApp",
+        "APP_NAME": "testing App Name",
         "SECRET_KEY": "secret",
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
@@ -118,3 +118,8 @@ def test_www_redirects(test_app, use_www):
 
     assert response.request.url == url
     assert response.location == expected_redirect
+
+def test_that_default_page_title_is_app_name(test_app):
+    response = test_app.test_client().get("/")
+    soup = BeautifulSoup(response.data, "html.parser")
+    assert soup.title.string == "testing App Name"
