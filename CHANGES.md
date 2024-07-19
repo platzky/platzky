@@ -1,7 +1,13 @@
-# Version 0.2.3
-Released on 2024-07-17
+# Version
+Released on
 
-- fix: added necessary interface
+- fix: set default page title as app name
+- fix: added missing google tag manager plugin
+
+# Version 0.2.3
+Released on 2024-06-17
+
+- fix: added necessary interface for platzky
 
 # Version 0.2.2
 Released on 2024-05-29
