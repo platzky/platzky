@@ -1,7 +1,7 @@
 def process(app, plugin_config):
     gtm_id = plugin_config["ID"]
 
-    header = (
+    head_code = (
         """<!-- Google Tag Manager -->
         <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
         new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -13,7 +13,7 @@ def process(app, plugin_config):
         <!-- End Google Tag Manager -->
     """
     )
-    app.add_dynamic_header(header)
+    app.add_dynamic_head(head_code)
 
     body = (
         """<!-- Google Tag Manager (noscript) -->
