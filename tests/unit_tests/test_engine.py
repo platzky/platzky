@@ -127,14 +127,11 @@ def test_that_default_page_title_is_app_name(test_app):
     assert soup.title.string == "testing App Name"
 
 
-def test_that_hreflang_is_set(test_app):
+@pytest.mark.parametrize(
+    "tag, subtag, value", [("link", "hreflang", "en"), ("html", "lang", "en")]
+)
+def test_that_tag_has_proper_value(test_app, tag, subtag, value):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
-    assert soup.link is not None
-    assert soup.link["hreflang"] == "en"
-
-def test_that_html_lang_is_set(test_app):
-    response = test_app.test_client().get("/")
-    soup = BeautifulSoup(response.data, "html.parser")
-    assert soup.html is not None
-    assert soup.html["lang"] == "en"
+    assert getattr(soup, tag) is not None
+    assert getattr(soup, tag).get(subtag) == value
