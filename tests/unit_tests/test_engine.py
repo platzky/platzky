@@ -125,3 +125,10 @@ def test_that_default_page_title_is_app_name(test_app):
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
     assert soup.title.string == "testing App Name"
+
+
+def test_that_hreflang_is_set(test_app):
+    response = test_app.test_client().get("/")
+    soup = BeautifulSoup(response.data, "html.parser")
+    assert soup.link is not None
+    assert soup.link["hreflang"] == "en"
