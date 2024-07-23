@@ -3,6 +3,7 @@ Released on
 
 - fix: set default page title as app name
 - fix: added missing google tag manager plugin
+- fix: fixed hreflang
 
 # Version 0.2.3
 Released on 2024-06-17
