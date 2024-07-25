@@ -1,5 +1,7 @@
-# Version
-Released on
+# Version 0.2.5
+Released on 2024-07-25
+
+- fix: plugin loader now loads plugins when db is set to graphql
 
 # Version 0.2.4
 Released on 2024-07-23

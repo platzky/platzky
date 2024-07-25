@@ -232,8 +232,15 @@ class GraphQL(DB):
     def get_secondary_color(self):
         return Color()
 
-    def get_site_content(self):
-        return ""
-
     def get_plugins_data(self):
-        return []
+        plugins_data = gql(
+            """
+            query MyQuery {
+              pluginConfigs(stage: PUBLISHED) {
+                name
+                config
+              }
+            }
+            """
+        )
+        return self.client.execute(plugins_data)["pluginConfigs"]

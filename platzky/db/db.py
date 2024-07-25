@@ -90,10 +90,6 @@ class DB(ABC):
     def get_font(self) -> str:
         pass
 
-    @abstractmethod
-    def get_site_content(self) -> str:
-        pass
-
 
 class DBConfig(BaseModel):
     type: str = Field(alias="TYPE")
