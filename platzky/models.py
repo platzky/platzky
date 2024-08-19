@@ -40,7 +40,7 @@ class Post(BaseModel):
     def __lt__(self, other):
         if isinstance(other, Post):
             return self.date < other.date
-        return NotImplemented
+        raise NotImplementedError("Posts can only be compared with other posts")
 
 
 Page = Post
