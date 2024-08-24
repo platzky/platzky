@@ -1,5 +1,5 @@
 # Version 0.2.6
-Released on
+Released on 2024-08-24
 
 - feature: add support for favicons
 
