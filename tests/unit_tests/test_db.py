@@ -11,7 +11,6 @@ def dummy_function_taking_one_argument(_: Any):
 
 
 def test_db_extension():
-
     db = Json(
         {
             "DB": {
