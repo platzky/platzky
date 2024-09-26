@@ -1,11 +1,10 @@
 <!doctype html>
 <html lang="{{ current_language }}">
 <head>
-  {% block head_meta %}
   {% include "head_meta.html" %}
+  {% block head_meta %}{% endblock %}
+  {{ dynamic_head | safe }}
 
-  <link rel="stylesheet" href="{{ font.url }}">
-  {% endblock %}
   <title>{% block title %}{{app_name}}{% endblock %}</title>
   <meta name="description" content=" {% block description %} {% endblock %} ">
   <style>
