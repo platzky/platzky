@@ -130,7 +130,9 @@ def create_app_from_config(config: Config) -> Engine:
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
     )
-    seo_blueprint = seo.create_seo_blueprint(db=engine.db, config=engine.config)
+    seo_blueprint = seo.create_seo_blueprint(
+        db=engine.db, config=engine.config, locale_func=engine.get_locale
+    )
     engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)
 

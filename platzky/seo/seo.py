@@ -5,7 +5,7 @@ from os.path import dirname
 from flask import Blueprint, current_app, make_response, render_template, request
 
 
-def create_seo_blueprint(db, config: dict[str, t.Any]):
+def create_seo_blueprint(db, config: dict[str, t.Any], locale_func: t.Callable[[], str]):
     seo = Blueprint(
         "seo",
         __name__,
@@ -27,7 +27,7 @@ def create_seo_blueprint(db, config: dict[str, t.Any]):
         lastmod and priority tags omitted on static pages.
         lastmod included on dynamic content such as seo posts.
         """
-        lang = current_app.get_locale()
+        lang = locale_func()
 
         global url
         host_components = urllib.parse.urlparse(request.host_url)
