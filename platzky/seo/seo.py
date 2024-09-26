@@ -21,20 +21,13 @@ def create_seo_blueprint(db, config: dict[str, t.Any]):
         return response
 
     @seo.route("/sitemap.xml")
-    def main_sitemap():
-        if domain_to_lang := config["DOMAIN_TO_LANG"]:
-            return sitemap(domain_to_lang[request.host])
-        else:
-            return sitemap(
-                config.get("TRANSLATION_DIRECTORIES")
-            )  # TODO should be based on localization not on config
-
-    def sitemap(lang):
+    def sitemap():
         """
         Route to dynamically generate a sitemap of your website/application.
         lastmod and priority tags omitted on static pages.
         lastmod included on dynamic content such as seo posts.
         """
+        lang = current_app.get_locale()
 
         global url
         host_components = urllib.parse.urlparse(request.host_url)
@@ -43,17 +36,16 @@ def create_seo_blueprint(db, config: dict[str, t.Any]):
         # Static routes with static content
         static_urls = list()
         for rule in current_app.url_map.iter_rules():
-            if not str(rule).startswith("/admin") and not str(rule).startswith("/user"):
-                if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0:
-                    url = {"loc": f"{host_base}{rule!s}"}
-                    static_urls.append(url)
+            if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0:
+                url = {"loc": f"{host_base}{rule!s}"}
+                static_urls.append(url)
 
         # Dynamic routes with dynamic content
         dynamic_urls = list()
         seo_posts = db.get_all_posts(lang)
         for post in seo_posts:
-            slug = post["slug"]
-            datet = post["date"].split("T")[0]
+            slug = post.slug
+            datet = post.date.split("T")[0]
             url = {"loc": f"{host_base}/{slug}", "lastmod": datet}
             dynamic_urls.append(url)
 

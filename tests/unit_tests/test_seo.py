@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+from platzky.models import Post, Comment, Image
 
 from flask import Flask
 
@@ -19,30 +20,31 @@ def test_config_creation_with_incorrect_mappings():
     assert b"Sitemap: https://localhost/sitemap.xml" in response.data
     assert response.status_code == 200
 
-
 def test_sitemap():
     db_mock = MagicMock()
     db_mock.get_all_posts.return_value = [
-        {
-            "title": "title",
-            "language": "en",
-            "slug": "slug",
-            "tags": ["tag/1"],
-            "contentInRichText": {"markdown": "content"},
-            "date": "2021-02-19",
-            "coverImage": {
-                "alternateText": "text which is alternative",
-                "image": {"url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"},
-            },
-            "comments": [
-                {
-                    "time_delta": "10 months ago",
-                    "date": "2021-02-19T00:00:00",
-                    "comment": "komentarz",
-                    "author": "autor",
-                }
+        Post(
+            title="title",
+            language="en",
+            slug="slug",
+            tags=["tag/1"],
+            contentInMarkdown="content",
+            date="2021-02-19",
+            author="author",
+            excerpt="excerpt",
+            coverImage=Image(
+                alternateText="text which is alternative",
+                url="https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
+            ),
+            comments=[
+                Comment(
+                    time_delta="10 months ago",
+                    date="2021-02-19T00:00:00",
+                    comment="komentarz",
+                    author="autor",
+                )
             ],
-        }
+        )
     ]
     config_mock = MagicMock()
     config = {"SEO_PREFIX": "/prefix", "DOMAIN_TO_LANG": {"localhost": "en"}}

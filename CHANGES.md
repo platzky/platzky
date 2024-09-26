@@ -1,3 +1,8 @@
+# Version 0.2.8
+Released on 2024-09-26
+
+- fix: sitemap no longer crashes site
+
 # Version 0.2.7
 Released on 2024-09-26
 
