@@ -1,3 +1,9 @@
+# Version 0.2.7
+Released on 2024-09-26
+
+- fix: add alt text for logo
+- fix: removed leaflet dependency
+
 # Version 0.2.6
 Released on 2024-08-24
 
