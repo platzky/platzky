@@ -23,14 +23,14 @@ def create_seo_blueprint(db, config: dict[str, t.Any], locale_func: t.Callable[[
     def get_blog_entries(host_base, lang, db, blog_prefix):
         dynamic_urls = list()
         print(blog_prefix)
-        for post in db.get_all_posts(lang):  # TODO add get_list_of_posts for faster getting just list of it
+        for post in db.get_all_posts(
+            lang
+        ):  # TODO add get_list_of_posts for faster getting just list of it
             slug = post.slug
             datet = post.date.split("T")[0]
             url = {"loc": f"{host_base}{blog_prefix}/{slug}", "lastmod": datet}
             dynamic_urls.append(url)
         return dynamic_urls
-
-
 
     @seo.route("/sitemap.xml")  # TODO try to replace sitemap logic with flask-sitemap module
     def sitemap():

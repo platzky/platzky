@@ -47,7 +47,11 @@ def test_sitemap():
         )
     ]
     config_mock = MagicMock()
-    config = {"SEO_PREFIX": "/prefix", "BLOG_PREFIX": "/blog", "DOMAIN_TO_LANG": {"localhost": "en"}}
+    config = {
+        "SEO_PREFIX": "/prefix",
+        "BLOG_PREFIX": "/blog",
+        "DOMAIN_TO_LANG": {"localhost": "en"},
+    }
     config_mock.__getitem__.side_effect = config.__getitem__
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
