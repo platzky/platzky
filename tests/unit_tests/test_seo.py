@@ -47,14 +47,13 @@ def test_sitemap():
         )
     ]
     config_mock = MagicMock()
-    config = {"SEO_PREFIX": "/prefix", "DOMAIN_TO_LANG": {"localhost": "en"}}
+    config = {"SEO_PREFIX": "/prefix", "BLOG_PREFIX": "/blog", "DOMAIN_TO_LANG": {"localhost": "en"}}
     config_mock.__getitem__.side_effect = config.__getitem__
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
-    app.config.update({"TESTING": True, "DEBUG": True})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/sitemap.xml")
     assert response.status_code == 200
-    assert b"http://localhost/slug" in response.data
+    assert b"http://localhost/blog/slug" in response.data
