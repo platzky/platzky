@@ -1,3 +1,8 @@
+# Version 0.2.9
+Released on 2024-09-27
+
+- fix: sitemap gives proper links for blog posts
+
 # Version 0.2.8
 Released on 2024-09-26
 
