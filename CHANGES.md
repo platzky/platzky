@@ -1,3 +1,13 @@
+# Version 0.2.10
+Released on 2024-10-13
+
+- fix: broken iframe attr
+- fix: adds some zIndex to ensure that left panel is always on top
+- feat: add proper html lang
+- feat: reduce top bar height
+- feat: change color of language change selection
+- feat: change size of title bar in the subpages
+
 # Version 0.2.9
 Released on 2024-09-27
 
