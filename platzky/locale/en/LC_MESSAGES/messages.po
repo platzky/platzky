@@ -22,6 +22,10 @@ msgstr ""
 msgid "Link to home page"
 msgstr ""
 
+#: platzky/templates/base.html:136
+msgid "Language switch icon, used to change the language of the website"
+msgstr ""
+
 #: platzky/templates/blog.html:5
 msgid ""
 "Find out our tips and tricks about email marketing. We prepared some soft"
