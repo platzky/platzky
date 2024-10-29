@@ -1,4 +1,21 @@
-dist
-.coverage
 **/__pycache__
-*.config.json
+data.json
+config.yml
+
+# coverage based artifacts
+htmlcov
+.coverage
+coverage.lcov
+
+# build specific artifacts
+dist
+
+
+# IDE-specific directories
+.vscode
+.idea
+*~
+
+# translation specific files
+goodmap/locale/*/LC_MESSAGES/*.mo
+*.pot

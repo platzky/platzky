@@ -28,3 +28,11 @@ html-cov: coverage
 
 run-e2e-instance:
 	poetry run flask --app "platzky.platzky:create_app(config_path='tests/e2e_tests/e2e_test_config.yml')" run --debug
+
+extract-translations:
+	poetry run pybabel extract ./platzky -o extracted.pot -F ./babel.cfg --project=platzky
+	poetry run pybabel update -i extracted.pot -d platzky/locale --ignore-pot-creation-date --ignore-obsolete
+
+build:
+	poetry run pybabel compile -d platzky/locale
+	poetry build

@@ -1,0 +1,47 @@
+# Polish translations for platzky.
+# Copyright (C) 2024 ORGANIZATION
+# This file is distributed under the same license as the platzky project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2024.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: platzky VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2024-10-29 19:00+0100\n"
+"PO-Revision-Date: 2024-10-29 19:00+0100\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: pl\n"
+"Language-Team: pl <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && "
+"(n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#: platzky/templates/blog.html:5
+msgid ""
+"Find out our tips and tricks about email marketing. We prepared some soft"
+" and some hard skills here. Ready to dive in?"
+msgstr ""
+
+#: platzky/templates/blog.html:7
+msgid "You're interested in"
+msgstr ""
+
+#: platzky/templates/blog.html:7
+msgid "We're here to serve you:"
+msgstr ""
+
+#: platzky/templates/post.html:36
+msgid "Leave your comment here:"
+msgstr ""
+
+#: platzky/templates/post.html:53
+msgid "Your comment has been sent for moderation"
+msgstr ""
+
+#: platzky/templates/post.html:63
+msgid "said"
+msgstr ""
+
