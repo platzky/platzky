@@ -4,7 +4,7 @@ function posts() {
 
 describe('Blog test', () => {
   beforeEach(() => {
-    cy.visit('/');
+    cy.visit('/blog');
   });
 
   it('display posts and leave comment in one of them', () => {

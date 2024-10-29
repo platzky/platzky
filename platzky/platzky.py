@@ -1,3 +1,4 @@
+import os
 import typing as t
 import urllib.parse
 
@@ -24,6 +25,10 @@ class Engine(Flask):
         self.notifiers = []
         self.dynamic_body = ""
         self.dynamic_head = ""
+        directory = os.path.dirname(os.path.realpath(__file__))
+        locale_dir = os.path.join(directory, "locale")
+        config.translation_directories.append(locale_dir)
+
         babel_translation_directories = ";".join(config.translation_directories)
         self.babel = Babel(
             self,

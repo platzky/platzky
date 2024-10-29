@@ -1,6 +1,6 @@
 APP_NAME: Literature
 SECRET_KEY: SECRET
-BLOG_PREFIX: "/"
+BLOG_PREFIX: "/blog"
 DB:
   TYPE: json_file
   PATH: tests/e2e_tests/e2e_test_data.json
