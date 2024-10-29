@@ -49,7 +49,14 @@
       max-width: 80vw;
       overflow-y: auto;
       color: white;
+      inline-size: 80vw;
+      overflow-wrap: break-word;
       z-index: 999999999;
+    }
+
+    @media only screen and (min-width: 768px) {
+      #left-panel {
+        inline-size: calc(100vw * 0.1666666667);
     }
 
     .language-indicator-text {
