@@ -106,7 +106,7 @@
         <i class="fas fa-sliders-h"></i>
       </button>
       {% endif %}
-      <a class="navbar-brand" href="/">{% if logo_url %}<img src="{{ logo_url }}" alt="{{ app_name }} logo" class="logo">{% else %}{{_(app_name)}}{% endif %}</a>
+      <a class="navbar-brand" href="/" aria-label="{{_(link_to_home_page_aria_label)}}">{% if logo_url %}<img src="{{ logo_url }}" alt="{{ app_name }} logo" class="logo">{% else %}{{_(app_name)}}{% endif %}</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
               aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
         <i class="fas fa-bars"></i>

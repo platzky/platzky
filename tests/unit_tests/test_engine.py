@@ -178,6 +178,15 @@ def test_that_logo_has_proper_alt_text(test_app):
     assert logo_img.get("alt") == "testing App Name logo"
 
 
+# TODO: add test when link_to_home_page_aria_label is filled
+# def test_that_logo_link_has_proper_aria_label_text(test_app):
+#     response = test_app.test_client().get("/")
+#     soup = BeautifulSoup(response.data, "html.parser")
+#     logo_link = soup.find("a", class_="navbar-brand")
+#     assert isinstance(logo_link, Tag)
+#     assert logo_link.get("aria-label") == "Link to the home page."
+
+
 def test_that_language_menu_has_proper_code(test_app):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
