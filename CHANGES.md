@@ -1,3 +1,11 @@
+# Version 0.2.11
+Released on 2024-10-29
+
+- feat: add alt text for language icons
+- fix: insufficient sidebar responsiveness
+- feat: add alt text for link in logo
+
+
 # Version 0.2.10
 Released on 2024-10-13
 
