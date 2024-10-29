@@ -199,7 +199,10 @@ def test_that_language_switch_has_proper_aria_label_text(test_app):
     soup = BeautifulSoup(response.data, "html.parser")
     logo_link = soup.find("button", id="languages-menu")
     assert isinstance(logo_link, Tag)
-    assert logo_link.get("aria-label") == "Language switch icon, used to change the language of the website"
+    assert (
+        logo_link.get("aria-label")
+        == "Language switch icon, used to change the language of the website"
+    )
 
 
 def test_that_page_has_proper_html_lang_attribute(test_app):
