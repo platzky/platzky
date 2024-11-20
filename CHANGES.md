@@ -1,3 +1,9 @@
+# Version 0.2.12
+Released on 2024-11-20
+
+- feat: added feature flags
+
+
 # Version 0.2.11
 Released on 2024-10-29
 
