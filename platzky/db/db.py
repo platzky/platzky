@@ -49,7 +49,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_menu_items(self, lang) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
         pass
 
     @abstractmethod

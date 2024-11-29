@@ -107,7 +107,7 @@ def create_engine(config: Config, db) -> Engine:
             "current_lang_country": country,
             "current_language": locale,
             "url_link": url_link,
-            "menu_items": app.db.get_menu_items(locale),
+            "menu_items": app.db.get_menu_items_in_lang(locale),
             "logo_url": app.db.get_logo_url(),
             "favicon_url": app.db.get_favicon_url(),
             "font": app.db.get_font(),

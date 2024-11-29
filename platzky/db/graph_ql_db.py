@@ -99,18 +99,18 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items(self, lang):
+    def get_menu_items_in_lang(self, lang):
         menu_items = gql(
             """
-            query MyQuery {
-              menuItems(stage: PUBLISHED){
+            query MyQuery($lang: Lang!) {
+              menuItems(where: {language: $lang}, stage: PUBLISHED){
                 name
                 url
               }
             }
             """
         )
-        return self.client.execute(menu_items)["menuItems"]
+        return self.client.execute(menu_items, variable_values={"lang": lang})["menuItems"]
 
     def get_post(self, slug):
         post = gql(
