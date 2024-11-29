@@ -22,43 +22,43 @@ def test_app():
             "TYPE": "json",
             "DATA": {
                 "site_content": {
-                            "logo_url": "https://example.com/logo.png",
-                            "pages": [
-                                {
-                                    "title": "test",
-                                    "slug": "test",
-                                    "contentInMarkdown": "",
-                                    "contentInRichText": "test",
-                                    "comments": [],
-                                    "tags": [],
-                                    "coverImage": {
-                                        "alternateText": "text which is alternative",
-                                        "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
-                                    },
-                                    "language": "en",
-                                    "date": "2021-01-01",
-                                    "author": "author",
-                                },
-                                {
-                                    "title": "test",
-                                    "slug": "test",
-                                    "contentInMarkdown": "",
-                                    "contentInRichText": "test pl",
-                                    "comments": [],
-                                    "tags": [],
-                                    "coverImage": {
-                                        "alternateText": "text which is alternative",
-                                        "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
-                                    },
-                                    "language": "en",
-                                    "date": "2021-01-01",
-                                    "author": "author",
-                                }
-                            ],
+                    "logo_url": "https://example.com/logo.png",
+                    "pages": [
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "",
+                            "contentInRichText": "test",
+                            "comments": [],
+                            "tags": [],
+                            "coverImage": {
+                                "alternateText": "text which is alternative",
+                                "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
+                            },
+                            "language": "en",
+                            "date": "2021-01-01",
+                            "author": "author",
                         },
-                    }
-                }
-            }
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "",
+                            "contentInRichText": "test pl",
+                            "comments": [],
+                            "tags": [],
+                            "coverImage": {
+                                "alternateText": "text which is alternative",
+                                "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
+                            },
+                            "language": "en",
+                            "date": "2021-01-01",
+                            "author": "author",
+                        },
+                    ],
+                },
+            },
+        },
+    }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
     assert isinstance(app, Flask)
@@ -225,6 +225,7 @@ def test_that_page_has_proper_html_lang_attribute(test_app):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.html and soup.html.get("lang") == "en-GB"
+
 
 #
 # def test_that_internationalization_works(test_app):
