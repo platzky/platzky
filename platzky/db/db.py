@@ -57,7 +57,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_page(self, slug, lang) -> Page:
+    def get_page(self, slug) -> Page:
         pass
 
     @abstractmethod
@@ -69,7 +69,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_logo_url(self, lang) -> str:  # TODO provide alternative text along with the URL of logo
+    def get_logo_url(self) -> str:  # TODO provide alternative text along with the URL of logo
         pass
 
     @abstractmethod

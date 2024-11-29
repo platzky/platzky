@@ -16,8 +16,6 @@ def test_plugin_loader():
             "TYPE": "json",
             "DATA": {
                 "site_content": {
-                    "internationalized": {
-                        "en": {
                             "pages": [
                                 {
                                     "title": "test",
@@ -36,8 +34,6 @@ def test_plugin_loader():
                                     "author": "author",
                                 }
                             ],
-                        }
-                    }
                 }
             },
         },

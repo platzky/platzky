@@ -22,8 +22,6 @@ def test_app():
             "TYPE": "json",
             "DATA": {
                 "site_content": {
-                    "internationalized": {
-                        "en": {
                             "logo_url": "https://example.com/logo.png",
                             "pages": [
                                 {
@@ -40,12 +38,7 @@ def test_app():
                                     "language": "en",
                                     "date": "2021-01-01",
                                     "author": "author",
-                                }
-                            ],
-                        },
-                        "pl": {
-                            "logo_url": "https://example.com/logo.png?lang=pl",
-                            "pages": [
+                                },
                                 {
                                     "title": "test",
                                     "slug": "test",
@@ -65,9 +58,7 @@ def test_app():
                         },
                     }
                 }
-            },
-        },
-    }
+            }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
     assert isinstance(app, Flask)
@@ -90,7 +81,7 @@ def test_logo_has_set_src(test_app):
 
 
 def test_if_name_is_shown_if_there_is_no_logo(test_app):
-    test_app.db.data["site_content"]["internationalized"]["en"].pop("logo_url")
+    test_app.db.data["site_content"].pop("logo_url")
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -235,10 +226,10 @@ def test_that_page_has_proper_html_lang_attribute(test_app):
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.html and soup.html.get("lang") == "en-GB"
 
-
-def test_that_internationalization_works(test_app):
-    response = test_app.test_client().get("/", headers={"Accept-Language": "pl-PL"})
-    soup = BeautifulSoup(response.data, "html.parser")
-    logo_img = soup.find("img", class_="logo")
-    assert isinstance(logo_img, Tag)
-    assert logo_img.get("src") == "https://example.com/logo.png?lang=pl"
+#
+# def test_that_internationalization_works(test_app):
+#     response = test_app.test_client().get("/", headers={"Accept-Language": "pl-PL"})
+#     soup = BeautifulSoup(response.data, "html.parser")
+#     logo_img = soup.find("img", class_="logo")
+#     assert isinstance(logo_img, Tag)
+#     assert logo_img.get("src") == "https://example.com/logo.png?lang=pl"

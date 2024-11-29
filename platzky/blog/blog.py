@@ -71,8 +71,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         page_slug,
     ):  # TODO refactor to share code with get_post since they are very similar
         try:
-            lang = locale_func()
-            page = db.get_page(page_slug, lang)
+            page = db.get_page(page_slug)
             if cover_image := page.coverImage:
                 cover_image_url = cover_image.url
             else:

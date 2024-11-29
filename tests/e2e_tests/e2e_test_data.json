@@ -1,37 +1,17 @@
 {
   "site_content": {
-    "internationalized": {
-      "pl": {
         "pages": [
           {
             "title": "tytuł strony",
             "author": "autor",
-            "slug": "page",
+            "slug": "strona",
             "contentInMarkdown": "zawartość strony",
             "excerpt": "fragment strony",
             "coverImage": {
               "alternateText": "tekst alternatywny strony",
               "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
             }
-          }
-        ],
-        "menu_items": [
-          {
-            "name": "Strona domowa",
-            "url": "/"
           },
-          {
-            "name": "Drużyna pierścienia",
-            "url": "/fellows"
-          },
-          {
-            "name": "Nieistniejąca strona",
-            "url": "/non-existing"
-          }
-        ]
-      },
-      "en": {
-        "pages": [
           {
             "title": "page title",
             "author": "autor",
@@ -44,7 +24,22 @@
             }
           }
         ],
-        "menu_items": [
+        "menu_items": {
+          "pl": [
+            {
+              "name": "Strona domowa",
+              "url": "/"
+            },
+            {
+              "name": "Drużyna pierścienia",
+              "url": "/druzyna"
+            },
+            {
+              "name": "Nieistniejąca strona",
+              "url": "/nie-dziala"
+            }
+          ],
+          "en": [
           {
             "name": "Home",
             "url": "/"

@@ -49,18 +49,24 @@ class Json(DB):
         return Post.model_validate(wanted_post)
 
     # TODO: add test for non-existing page
-    def get_page(self, slug, lang):
+    def get_page(self, slug):
         list_of_pages = (
             page
-            for page in self._get_site_content_internationalized_lang(lang).get("pages")
+            for page in self._get_site_content().get("pages")
             if page["slug"] == slug
         )
         page = Post.model_validate(next(list_of_pages))
         return page
 
+    def get_menu_items(self) -> list[MenuItem]:
+        default_lang = "en"
+        menu_items_raw = self.get_menu_items(default_lang)
+
     def get_menu_items(self, lang) -> list[MenuItem]:
-        menu_items_raw = self._get_site_content_internationalized_lang(lang).get("menu_items", [])
-        menu_items_list = [MenuItem.model_validate(x) for x in menu_items_raw]
+        menu_items_raw = self._get_site_content().get("menu_items", {})
+        items_in_lang = menu_items_raw.get(lang, {})
+
+        menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
         return menu_items_list
 
     def get_posts_by_tag(self, tag, lang):
@@ -78,14 +84,8 @@ class Json(DB):
             raise Exception("Internationalized should not be None")
         return internationalized
 
-    def _get_site_content_internationalized_lang(self, lang):
-        internationalized_lang = self._get_site_content_internationalized().get(lang)
-        if internationalized_lang is None:
-            raise Exception("Internationalized lang should not be None")
-        return internationalized_lang
-
-    def get_logo_url(self, lang):
-        return self._get_site_content_internationalized_lang(lang).get("logo_url", "")
+    def get_logo_url(self):
+        return self._get_site_content().get("logo_url", "")
 
     def get_favicon_url(self):
         return self._get_site_content().get("favicon_url", "")
