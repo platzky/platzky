@@ -3,6 +3,7 @@
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
+from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from ..models import Color, Post
@@ -99,18 +100,39 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items(self):
-        menu_items = gql(
-            """
-            query MyQuery {
-              menuItems(stage: PUBLISHED){
-                name
-                url
-              }
-            }
-            """
-        )
-        return self.client.execute(menu_items)["menuItems"]
+    def get_menu_items_in_lang(self, lang):
+        menu_items = []
+        try:
+            menu_items_with_lang = gql(
+                """
+                query MyQuery($lang: Lang!) {
+                  menuItems(where: {language: $lang}, stage: PUBLISHED){
+                    name
+                    url
+                  }
+                }
+                """
+            )
+            menu_items = self.client.execute(
+                menu_items_with_lang, variable_values={"language": lang}
+            )
+
+        # TODO remove try except block after bumping up version
+        # now it's backwards compatible with older versions
+        except TransportQueryError:
+            menu_items_without_lang = gql(
+                """
+                query MyQuery {
+                  menuItems(stage: PUBLISHED){
+                    name
+                    url
+                  }
+                }
+                """
+            )
+            menu_items = self.client.execute(menu_items_without_lang)
+
+        return menu_items["menuItems"]
 
     def get_post(self, slug):
         post = gql(

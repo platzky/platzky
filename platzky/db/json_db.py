@@ -56,9 +56,11 @@ class Json(DB):
         page = Post.model_validate(next(list_of_pages))
         return page
 
-    def get_menu_items(self) -> list[MenuItem]:
-        menu_items_raw = self._get_site_content().get("menu_items", [])
-        menu_items_list = [MenuItem.model_validate(x) for x in menu_items_raw]
+    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+        menu_items_raw = self._get_site_content().get("menu_items", {})
+        items_in_lang = menu_items_raw.get(lang, {})
+
+        menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
         return menu_items_list
 
     def get_posts_by_tag(self, tag, lang):

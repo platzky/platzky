@@ -15,7 +15,8 @@ def test_app():
         "BLOG_PREFIX": "/blog",
         "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
         "LANGUAGES": {
-            "en": {"name": "English", "flag": "uk", "domain": "localhost", "country": "GB"}
+            "en": {"name": "English", "flag": "uk", "domain": "localhost", "country": "GB"},
+            "pl": {"name": "Polski", "flag": "pl", "domain": "localhost", "country": "PL"},
         },
         "DB": {
             "TYPE": "json",
@@ -37,9 +38,24 @@ def test_app():
                             "language": "en",
                             "date": "2021-01-01",
                             "author": "author",
-                        }
+                        },
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "",
+                            "contentInRichText": "test pl",
+                            "comments": [],
+                            "tags": [],
+                            "coverImage": {
+                                "alternateText": "text which is alternative",
+                                "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
+                            },
+                            "language": "en",
+                            "date": "2021-01-01",
+                            "author": "author",
+                        },
                     ],
-                }
+                },
             },
         },
     }

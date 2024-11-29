@@ -49,7 +49,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_menu_items(self) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
         pass
 
     @abstractmethod
@@ -69,9 +69,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_logo_url(
-        self,
-    ) -> str:  # TODO provide alternative text along with the URL of logo
+    def get_logo_url(self) -> str:  # TODO provide alternative text along with the URL of logo
         pass
 
     @abstractmethod
