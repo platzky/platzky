@@ -3,6 +3,7 @@ import os
 import sys
 from os.path import abspath, dirname
 
+
 # TODO remove find_local_plugin after all plugins will be extracted
 def find_local_plugin(plugin_name):
     """Find plugin by name and return it as module.
@@ -29,7 +30,6 @@ def find_installed_plugin(plugin_name):
     """
 
     return importlib.import_module(f"platzky_{plugin_name}")
-
 
 
 def plugify(app):
