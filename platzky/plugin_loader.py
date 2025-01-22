@@ -1,7 +1,7 @@
 import importlib.util
+import logging
 import os
 import sys
-import logging
 from os.path import abspath, dirname
 
 logger = logging.getLogger(__name__)
@@ -54,14 +54,11 @@ def plugify(app):
         plugin_name = plugin_data["name"]
         try:
             plugin = find_local_plugin(plugin_name)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             logger.info(f"Local plugin {plugin_name} not found, trying installed version")
             plugin = find_installed_plugin(plugin_name)
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to load plugin {plugin_name}. "
-                f"Error: {str(e)}"
-            ) from e
+            raise RuntimeError(f"Failed to load plugin {plugin_name}. " f"Error: {e!s}") from e
 
         plugin.process(app, plugin_config)
 
