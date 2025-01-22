@@ -26,10 +26,16 @@ def find_local_plugin(plugin_name):
 def find_installed_plugin(plugin_name):
     """Find plugin by name and return it as module.
     :param plugin_name: name of plugin to find
+    :raises ImportError: if plugin cannot be imported or doesn't follow the naming convention
     :return: module of plugin
     """
-
-    return importlib.import_module(f"platzky_{plugin_name}")
+    try:
+        return importlib.import_module(f"platzky_{plugin_name}")
+    except ImportError as e:
+        raise ImportError(
+            f"Plugin {plugin_name} not found. Ensure it's installed and follows "
+            f"the 'platzky_<plugin_name>' naming convention"
+        ) from e
 
 
 def plugify(app):
