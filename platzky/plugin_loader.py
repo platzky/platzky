@@ -6,8 +6,10 @@ from os.path import abspath, dirname
 
 logger = logging.getLogger(__name__)
 
+
 class PluginError(Exception):
     pass
+
 
 # TODO remove find_local_plugin after all plugins will be extracted
 def find_local_plugin(plugin_name):
@@ -42,6 +44,7 @@ def find_installed_plugin(plugin_name):
             f"the 'platzky_<plugin_name>' naming convention"
         ) from e
 
+
 def find_plugin(plugin_name):
     """Find plugin by name and return it as module.
     :param plugin_name: name of plugin to find
@@ -61,6 +64,7 @@ def find_plugin(plugin_name):
             ) from e
 
     return plugin
+
 
 def plugify(app):
     """Load plugins and run their entrypoints.

@@ -1,8 +1,11 @@
 import os
+
 import pytest
+
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
 from platzky.plugin_loader import PluginError
+
 
 def test_invalid_plugin_config():
     invalid_plugin_config_data = {
@@ -13,17 +16,14 @@ def test_invalid_plugin_config():
         "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
         "DB": {
             "TYPE": "json",
-            "DATA": {
-                "plugins": [
-                    {"name": "redirections", "config": None}  # Invalid config
-                ]
-            },
+            "DATA": {"plugins": [{"name": "redirections", "config": None}]},  # Invalid config
         },
     }
 
     config = Config.model_validate(invalid_plugin_config_data)
     with pytest.raises(PluginError):
         create_app_from_config(config)
+
 
 def test_non_existent_plugin():
     non_existent_plugin_config_data = {
@@ -35,9 +35,7 @@ def test_non_existent_plugin():
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "plugins": [
-                    {"name": "non_existent_plugin", "config": {}}  # Non-existent plugin
-                ]
+                "plugins": [{"name": "non_existent_plugin", "config": {}}]  # Non-existent plugin
             },
         },
     }
