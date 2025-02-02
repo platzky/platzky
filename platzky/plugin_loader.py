@@ -48,6 +48,7 @@ def find_installed_plugin(plugin_name):
 def find_plugin(plugin_name):
     """Find plugin by name and return it as module.
     :param plugin_name: name of plugin to find
+    :raises PluginError: if plugin cannot be found or imported
     :return: module of plugin
     """
     plugin = None
@@ -55,13 +56,7 @@ def find_plugin(plugin_name):
         plugin = find_local_plugin(plugin_name)
     except FileNotFoundError:
         logger.info(f"Local plugin {plugin_name} not found, trying installed version")
-        try:
-            plugin = find_installed_plugin(plugin_name)
-        except ImportError as e:
-            raise ImportError(
-                f"Plugin {plugin_name} not found. Ensure it's installed and follows "
-                f"the 'platzky_<plugin_name>' naming convention"
-            ) from e
+        plugin = find_installed_plugin(plugin_name)
 
     return plugin
 
