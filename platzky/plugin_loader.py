@@ -6,6 +6,8 @@ from os.path import abspath, dirname
 
 logger = logging.getLogger(__name__)
 
+class PluginError(Exception):
+    pass
 
 # TODO remove find_local_plugin after all plugins will be extracted
 def find_local_plugin(plugin_name):
@@ -40,6 +42,25 @@ def find_installed_plugin(plugin_name):
             f"the 'platzky_<plugin_name>' naming convention"
         ) from e
 
+def find_plugin(plugin_name):
+    """Find plugin by name and return it as module.
+    :param plugin_name: name of plugin to find
+    :return: module of plugin
+    """
+    plugin = None
+    try:
+        plugin = find_local_plugin(plugin_name)
+    except FileNotFoundError:
+        logger.info(f"Local plugin {plugin_name} not found, trying installed version")
+        try:
+            plugin = find_installed_plugin(plugin_name)
+        except ImportError as e:
+            raise ImportError(
+                f"Plugin {plugin_name} not found. Ensure it's installed and follows "
+                f"the 'platzky_<plugin_name>' naming convention"
+            ) from e
+
+    return plugin
 
 def plugify(app):
     """Load plugins and run their entrypoints.
@@ -53,13 +74,9 @@ def plugify(app):
         plugin_config = plugin_data["config"]
         plugin_name = plugin_data["name"]
         try:
-            plugin = find_local_plugin(plugin_name)
-        except FileNotFoundError:
-            logger.info(f"Local plugin {plugin_name} not found, trying installed version")
-            plugin = find_installed_plugin(plugin_name)
+            plugin = find_plugin(plugin_name)
+            plugin.process(app, plugin_config)
         except Exception as e:
-            raise RuntimeError(f"Failed to load plugin {plugin_name}. " f"Error: {e!s}") from e
-
-        plugin.process(app, plugin_config)
+            raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
     return app
