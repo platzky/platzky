@@ -270,7 +270,9 @@ class GraphQL(DB):
             """
         )
 
-        return self.client.execute(description_query, variable_values={"lang": lang})["applicationSetups"][0].get("applicationDescription", None)
+        return self.client.execute(description_query, variable_values={"lang": lang})[
+            "applicationSetups"
+        ][0].get("applicationDescription", None)
 
         ][0].get("applicationDescription", None)
 
