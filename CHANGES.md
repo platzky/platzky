@@ -1,3 +1,9 @@
+# Version 0.2.17
+Released on 2025-02-05
+
+- fix: fixed dynamic css
+
+
 # Version 0.2.16
 Released on 2025-02-05
 
