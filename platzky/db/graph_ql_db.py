@@ -274,8 +274,6 @@ class GraphQL(DB):
             "applicationSetups"
         ][0].get("applicationDescription", None)
 
-        ][0].get("applicationDescription", None)
-
     def get_favicon_url(self):
         favicon = gql(
             """
