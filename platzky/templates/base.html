@@ -2,8 +2,10 @@
 <html lang="{{ current_language }}-{{ current_lang_country }}">
 <head>
   {% include "head_meta.html" %}
+  {% include "dynamic_css.html" %}
   {% block head_meta %}{% endblock %}
   {{ dynamic_head | safe }}
+
   <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
   <title>{% block title %}{{app_name}}{% endblock %}</title>
   <meta name="description" content="{% block description %} {{ app_description }} {% endblock %}">

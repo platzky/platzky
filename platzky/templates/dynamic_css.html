@@ -1,0 +1,38 @@
+<style>
+
+body {
+  font-family: {{ font.name }};
+}
+
+.left-panel {
+  background-color: {{ secondary_color }};
+}
+
+#left-panel {
+  background-color: {{ secondary_color }};
+  position: absolute;
+  height: 100%;
+  max-width: 80vw;
+  overflow-y: auto;
+  color: white;
+  inline-size: 80vw;
+  overflow-wrap: break-word;
+  z-index: 999999999;
+}
+
+#languages-menu {
+  background-color: {{ secondary_color }};
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: white;
+}
+
+.header-row {
+  z-index: 1;
+  background-color: {{ primary_color }};
+  height: min-content;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+</style>

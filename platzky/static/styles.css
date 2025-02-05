@@ -3,22 +3,9 @@ body {
   height: 100%;
 }
 
-body {
-  font-family: {{ font.name }};
-}
-
 .logo {
   max-height: 6rem;
   max-width: 50vw;
-}
-
-.header-row {
-  z-index: 1;
-  background-color: {{ primary_color }};
-  height: min-content;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 #main-row {
@@ -31,22 +18,6 @@ body {
   padding: 16px;
 }
 
-.left-panel {
-  background-color: {{ secondary_color }};
-}
-
-#left-panel {
-  background-color: {{ secondary_color }};
-  position: absolute;
-  height: 100%;
-  max-width: 80vw;
-  overflow-y: auto;
-  color: white;
-  inline-size: 80vw;
-  overflow-wrap: break-word;
-  z-index: 999999999;
-}
-
 @media only screen and (min-width: 768px) {
   #left-panel {
     inline-size: calc(100vw * 0.1666666667);
@@ -56,13 +27,6 @@ body {
 .language-indicator-text {
   color: white;
   font-weight: normal;
-}
-
-#languages-menu {
-  background-color: {{ secondary_color }};
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: white;
 }
 
 .offcanvas-lg.offcanvas-start {
