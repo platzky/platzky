@@ -1,3 +1,9 @@
+# Version 0.2.18
+Released on 2025-02-06
+
+- fix: UTF emails working
+
+
 # Version 0.2.17
 Released on 2025-02-05
 
