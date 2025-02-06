@@ -18,6 +18,7 @@ Flask-Minify = "^0.42"
 google-cloud-storage = "^2.5.0"
 humanize = "^4.9.0"
 pydantic = "^2.7.1"
+platzky-sendmail = "^0.1.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
