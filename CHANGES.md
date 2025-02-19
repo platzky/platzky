@@ -1,3 +1,9 @@
+# Version 0.3.0
+Released on 2025-02-19
+
+- removed deprecated plugins import (now they are only loaded if they are installed)
+
+
 # Version 0.2.18
 Released on 2025-02-06
 
