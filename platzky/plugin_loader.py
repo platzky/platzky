@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 class PluginError(Exception):
     pass
 
+
 def find_plugin(plugin_name):
     """Find plugin by name and return it as module.
     :param plugin_name: name of plugin to find
