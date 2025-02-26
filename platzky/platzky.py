@@ -138,7 +138,9 @@ def create_engine(config: Config, db) -> Engine:
 
 def create_app_from_config(config: Config) -> Engine:
     engine = create_engine_from_config(config)
-    admin_blueprint = admin.create_admin_blueprint(login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale)
+    admin_blueprint = admin.create_admin_blueprint(
+        login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale
+    )
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
         blog_prefix=config.blog_prefix,

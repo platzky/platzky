@@ -1,5 +1,6 @@
 from os.path import dirname
-from flask import Blueprint, render_template, request, session
+
+from flask import Blueprint, render_template, session
 
 
 def create_admin_blueprint(login_methods, db, locale_func):
@@ -17,9 +18,7 @@ def create_admin_blueprint(login_methods, db, locale_func):
         if not user:
             return render_template("login.html", login_methods=login_methods)
 
-
-        cms_modules = {"plugins": [ plugin.get("name") for plugin in db.get_plugins_data() ]}
+        cms_modules = {"plugins": [plugin.get("name") for plugin in db.get_plugins_data()]}
         return render_template("admin.html", user=user, cms_modules=cms_modules)
-
 
     return admin
