@@ -25,7 +25,7 @@
   <div class="cms-module mb-2">
     <a href="{{ cms_module_name }}" class="btn btn-primary btn-block">{{ cms_module_name }}</a>
     {% for cms_entry in cms_entries %}
-    <a href="{{ cms_entry }}" class="cms-entry btn btn-primary btn-block mb-2">{{ cms_entry }}</a>
+    <a href="{{ url_for('admin.module', name=cms_entry) }}" class="cms-entry btn btn-primary btn-block mb-2">{{ cms_entry }}</a>
     {% endfor %}
   </div>
   {% endfor %}
