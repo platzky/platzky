@@ -1,13 +1,4 @@
 from unittest.mock import Mock, patch
-
-import pytest
-from flask import Flask, session
-
-from platzky.admin.admin import create_admin_blueprint
-
-# tests/unit_tests/admin/test_admin.py
-
-from unittest.mock import Mock, patch
 import pytest
 from flask import Flask, session
 from platzky.admin.admin import create_admin_blueprint
