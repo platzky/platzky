@@ -19,7 +19,7 @@
 <div id="admin-panel">
   {% for cms_module_name, cms_entries in cms_modules.items() %}
   <div class="cms-module mb-2">
-    <a href="{{ cms_module_name }}" class="btn btn-primary btn-block">{{ cms_module_name }}</a>
+    <p>{{ cms_module_name }}</p>
     {% for cms_entry in cms_entries %}
     <a href="{{ url_for('admin.module', name=cms_entry) }}" class="cms-entry btn btn-primary btn-block mb-2">{{ cms_entry }}</a>
     {% endfor %}
