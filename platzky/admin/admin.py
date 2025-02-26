@@ -12,7 +12,7 @@ def create_admin_blueprint(login_methods, db, locale_func):
     )
 
     @admin.route("/", methods=["GET"])
-    def admin_panel():
+    def admin_panel_home():
         user = session.get("user", None)
 
         if not user:
@@ -20,5 +20,16 @@ def create_admin_blueprint(login_methods, db, locale_func):
 
         cms_modules = {"plugins": [plugin.get("name") for plugin in db.get_plugins_data()]}
         return render_template("admin.html", user=user, cms_modules=cms_modules)
+
+    @admin.route("/module/<name>", methods=["GET"])
+    def module_settings():
+        user = session.get("user", None)
+
+        if not user:
+            return render_template("login.html", login_methods=login_methods)
+
+        cms_modules = {"plugins": [plugin.get("name") for plugin in db.get_plugins_data()]}
+        return render_template("admin.html", user=user, cms_modules=cms_modules)
+
 
     return admin
