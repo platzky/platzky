@@ -50,3 +50,21 @@ def test_admin_panel_handles_empty_plugins_data(mock_render_template, admin_blue
         mock_render_template.assert_called_with(
             "admin.html", user="test_user", cms_modules={"plugins": []}
         )
+
+
+@patch("platzky.admin.admin.render_template")
+def module_settings_renders_login_when_no_user(mock_render_template, admin_blueprint):
+    with admin_blueprint.test_request_context("/admin/module/test_module"):
+        session["user"] = None
+        admin_blueprint.view_functions["admin.module_settings"]()
+        mock_render_template.assert_called_with("login.html", login_methods=mock_login_methods)
+
+
+@patch("platzky.admin.admin.render_template")
+def module_settings_renders_module_when_user_exists(mock_render_template, admin_blueprint):
+    with admin_blueprint.test_request_context("/admin/module/test_module"):
+        session["user"] = "test_user"
+        admin_blueprint.view_functions["admin.module_settings"]()
+        mock_render_template.assert_called_with(
+            "module.html", user="test_user", module_name="test_module"
+        )
