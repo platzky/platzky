@@ -14,8 +14,8 @@ def admin_blueprint():
     mock_locale_func = Mock()
     blueprint = create_admin_blueprint(mock_login_methods, mock_db, mock_locale_func)
     app.register_blueprint(blueprint)
-    app.mock_db = mock_db
-    app.login_methods = mock_login_methods
+    blueprint.mock_db = mock_db
+    blueprint.login_methods = mock_login_methods
     app.secret_key = "test_secret_key"
     return app
 
