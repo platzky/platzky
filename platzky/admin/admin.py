@@ -31,5 +31,4 @@ def create_admin_blueprint(login_methods, db, locale_func):
         cms_modules = {"plugins": [plugin.get("name") for plugin in db.get_plugins_data()]}
         return render_template("admin.html", user=user, cms_modules=cms_modules)
 
-
     return admin
