@@ -160,7 +160,6 @@
       ]
     }
   },
-  "redirections": {
-    "/slugo": "/slug"
-  }
+  "plugins": [
+  ]
 }

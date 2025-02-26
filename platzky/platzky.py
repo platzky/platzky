@@ -6,15 +6,16 @@ from flask import Flask, redirect, render_template, request, session
 from flask_babel import Babel
 from flask_minify import Minify
 
-from .blog import blog
-from .config import (
+from platzky.admin import admin
+from platzky.blog import blog
+from platzky.config import (
     Config,
     languages_dict,
 )
-from .db.db_loader import get_db
-from .plugin_loader import plugify
-from .seo import seo
-from .www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
+from platzky.db.db_loader import get_db
+from platzky.plugin_loader import plugify
+from platzky.seo import seo
+from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
 
 class Engine(Flask):
@@ -23,6 +24,7 @@ class Engine(Flask):
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
         self.notifiers = []
+        self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
         directory = os.path.dirname(os.path.realpath(__file__))
@@ -42,6 +44,9 @@ class Engine(Flask):
 
     def add_notifier(self, notifier):
         self.notifiers.append(notifier)
+
+    def add_login_method(self, login_method):
+        self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str):
         self.dynamic_body += body
@@ -133,6 +138,7 @@ def create_engine(config: Config, db) -> Engine:
 
 def create_app_from_config(config: Config) -> Engine:
     engine = create_engine_from_config(config)
+    admin_blueprint = admin.create_admin_blueprint(login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale)
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
         blog_prefix=config.blog_prefix,
@@ -141,6 +147,7 @@ def create_app_from_config(config: Config) -> Engine:
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale
     )
+    engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)
 

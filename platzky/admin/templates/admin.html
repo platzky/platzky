@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block description %}
+{{ _("This is the admin page. You can manage your posts here.") }}
+{% endblock %}
+
+{% block content %}
+
+<div class="admin-contents mx-auto w-75">
+  <h1>{% block title %}Admin{% endblock %}</h1>
+  {% if user %}
+  {% endif %}
+    <div class="alert alert-success" role="alert">You're logged in</div>
+  <div class="row align-items-center">
+  </div>
+</div>
+
+{% endblock %}
+
+{% block left_panel %}
+<div id="admin-panel">
+  {% for cms_module_name, cms_entries in cms_modules.items() %}
+  <div class="cms-module mb-2">
+    <a href="{{ cms_module_name }}" class="btn btn-primary btn-block">{{ cms_module_name }}</a>
+    {% for cms_entry in cms_entries %}
+    <a href="{{ cms_entry }}" class="cms-entry btn btn-primary btn-block mb-2">{{ cms_entry }}</a>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

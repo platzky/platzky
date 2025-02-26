@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block description %}
+{{ _("This is the login page. You can log in here.") }}
+
+{% endblock %}
+
+{% block content %}
+
+<div class="login-contents mx-auto w-75">
+  <h1>{% block title %}Login{% endblock %}</h1>
+
+  <div class="row align-items-center">
+
+{% for login_method in login_methods %}
+    {{ login_method | safe }}
+{% endfor %}
+  </div>
+</div>
+
+{% endblock %}
