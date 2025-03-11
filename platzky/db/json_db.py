@@ -73,8 +73,11 @@ class Json(DB):
         return menu_items_list
 
     def get_posts_by_tag(self, tag, lang):
-        return (post for post in self._get_site_content()["posts"]
-                if tag in post["tags"] and post["language"] == lang)
+        return (
+            post
+            for post in self._get_site_content()["posts"]
+            if tag in post["tags"] and post["language"] == lang
+        )
 
     def _get_site_content(self):
         content = self.data.get("site_content")

@@ -1,9 +1,10 @@
 import json
-import pytest
-from unittest.mock import patch, mock_open, call
 from datetime import datetime
+from unittest.mock import mock_open, patch
 
-from platzky.db.json_file_db import JsonFile, JsonFileDbConfig, get_db, db_from_config
+import pytest
+
+from platzky.db.json_file_db import JsonFile, JsonFileDbConfig, db_from_config, get_db
 
 
 class TestJsonFileDb:
@@ -11,10 +12,7 @@ class TestJsonFileDb:
     def sample_data(self):
         return {
             "site_content": {
-                "app_description": {
-                    "en": "English description",
-                    "de": "Deutsche Beschreibung"
-                },
+                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
                 "posts": [
                     {
                         "title": "Post 1",
@@ -27,10 +25,10 @@ class TestJsonFileDb:
                         "tags": ["tag1", "tag2"],
                         "language": "en",
                         "coverImage": {"url": "/images/post1.jpg"},
-                        "date": "2023-01-01T00:00:00"
+                        "date": "2023-01-01T00:00:00",
                     }
                 ],
-                "logo_url": "/logo.png"
+                "logo_url": "/logo.png",
             }
         }
 
@@ -59,13 +57,13 @@ class TestJsonFileDb:
         mock_file = mock_open(read_data=json_str)
 
         test_date = datetime(2023, 2, 1, 10, 0)
-        with patch("builtins.open", mock_file), patch('datetime.datetime') as mock_datetime:
+        with patch("builtins.open", mock_file), patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
             db = JsonFile(mock_file_path)
             db.add_comment("Test User", "New comment", "post-1")
 
         # Check that the file was opened for writing
-        mock_file.assert_called_with(mock_file_path, 'w')
+        mock_file.assert_called_with(mock_file_path, "w")
 
         # Instead of parsing the written data, check if write was called
         # and verify the expected data is in the updated db object
@@ -79,11 +77,17 @@ class TestJsonFileDb:
         assert comments[0]["date"] == "2023-02-01T10:00:00"
 
     def test_init_file_not_found(self, mock_file_path):
-        with patch("builtins.open", side_effect=FileNotFoundError), pytest.raises(FileNotFoundError):
+        with (
+            patch("builtins.open", side_effect=FileNotFoundError),
+            pytest.raises(FileNotFoundError),
+        ):
             JsonFile(mock_file_path)
 
     def test_malformed_json_file(self, mock_file_path):
-        with patch("builtins.open", mock_open(read_data="This is not valid JSON")), pytest.raises(json.JSONDecodeError):
+        with (
+            patch("builtins.open", mock_open(read_data="This is not valid JSON")),
+            pytest.raises(json.JSONDecodeError),
+        ):
             JsonFile(mock_file_path)
 
     def test_json_file_db_config(self):

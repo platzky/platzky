@@ -1,21 +1,25 @@
-import pytest
-from unittest.mock import Mock, patch
 import datetime
+from unittest.mock import patch
 
+import pytest
+
+from platzky.db.json_db import Json, JsonDbConfig, db_from_config, get_db
 from platzky.models import MenuItem, Post
-from platzky.db.json_db import Json, JsonDbConfig, get_db, db_from_config
 
 
 class TestJsonDbConfig:
     def test_model_validation(self):
-        config_data = {"TYPE":"json_db", "DATA": {"site_content": {"app_description": {"en": "Test"}}}}
+        config_data = {
+            "TYPE": "json_db",
+            "DATA": {"site_content": {"app_description": {"en": "Test"}}},
+        }
         config = JsonDbConfig.model_validate(config_data)
         assert config.data == {"site_content": {"app_description": {"en": "Test"}}}
 
 
 class TestFactoryFunctions:
     def test_get_db(self):
-        config_data = {"TYPE":"json_db", "DATA": {"test": "data"}}
+        config_data = {"TYPE": "json_db", "DATA": {"test": "data"}}
         db = get_db(config_data)
         assert isinstance(db, Json)
         assert db.data == {"test": "data"}
@@ -32,10 +36,7 @@ class TestJsonDb:
     def sample_data(self):
         return {
             "site_content": {
-                "app_description": {
-                    "en": "English description",
-                    "de": "Deutsche Beschreibung"
-                },
+                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
                 "posts": [
                     {
                         "title": "Post 1",
@@ -48,7 +49,7 @@ class TestJsonDb:
                         "contentInMarkdown": "# Post 1",
                         "excerpt": "Post 1 excerpt",
                         "coverImage": {"url": "/images/post1.jpg"},
-                        "date": "2023-01-01T00:00:00"
+                        "date": "2023-01-01T00:00:00",
                     },
                     {
                         "title": "Post 2",
@@ -61,8 +62,8 @@ class TestJsonDb:
                         "contentInMarkdown": "# Post 2",
                         "excerpt": "Post 2 excerpt",
                         "coverImage": {"url": "/images/post2.jpg"},
-                        "date": "2023-01-02T00:00:00"
-                    }
+                        "date": "2023-01-02T00:00:00",
+                    },
                 ],
                 "pages": [
                     {
@@ -76,34 +77,20 @@ class TestJsonDb:
                         "tags": [],
                         "language": "en",
                         "coverImage": {"url": "/images/page1.jpg"},
-                        "date": "2023-01-03T00:00:00"
+                        "date": "2023-01-03T00:00:00",
                     }
                 ],
                 "menu_items": {
-                    "en": [
-                        {
-                            "name": "Home",
-                            "url": "/",
-                            "weight": 1
-                        }
-                    ],
-                    "de": [
-                        {
-                            "name": "Startseite",
-                            "url": "/",
-                            "weight": 1
-                        }
-                    ]
+                    "en": [{"name": "Home", "url": "/", "weight": 1}],
+                    "de": [{"name": "Startseite", "url": "/", "weight": 1}],
                 },
                 "logo_url": "/logo.png",
                 "favicon_url": "/favicon.ico",
                 "font": "Arial",
                 "primary_color": "blue",
-                "secondary_color": "green"
+                "secondary_color": "green",
             },
-            "plugins": [
-                {"name": "plugin1", "config": {}}
-            ]
+            "plugins": [{"name": "plugin1", "config": {}}],
         }
 
     @pytest.fixture
@@ -192,10 +179,17 @@ class TestJsonDb:
         tag1_fr_posts = list(db.get_posts_by_tag("tag1", "fr"))
         assert len(tag1_fr_posts) == 0
 
-    def test_get_site_content_exception(self):
+    def test_empty_db_raises_exception_on_operations(self):
         db = Json({})
+        # Test through public methods that rely on _get_site_content() internally
         with pytest.raises(Exception, match="Content should not be None"):
-            db._get_site_content()
+            db.get_all_posts("en")
+
+        with pytest.raises(Exception, match="Content should not be None"):
+            db.get_logo_url()
+
+        with pytest.raises(Exception, match="Content should not be None"):
+            db.get_post("any-slug")
 
     def test_get_logo_url(self, db):
         assert db.get_logo_url() == "/logo.png"
@@ -224,7 +218,7 @@ class TestJsonDb:
         # Create a real datetime object for the test
         test_date = datetime.datetime(2023, 1, 1, 12, 0)
 
-        with patch('datetime.datetime') as mock_datetime:
+        with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
             db.add_comment("Test User", "Great post!", "post-1")
 
