@@ -6,8 +6,8 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
-from ..models import Color, Post
-from .db import DB, DBConfig
+from platzky.db.db import DB, DBConfig
+from platzky.models import Color, Post
 
 
 def db_config_type():
