@@ -107,7 +107,7 @@ class TestJsonFileDb:
     def test_db_from_config(self, sample_data, mock_file_path):
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
-            config = JsonFileDbConfig(TYPE="json_file_db", PATH=mock_file_path)
+            config = JsonFileDbConfig(TYPE="json_file", PATH=mock_file_path)
             db = db_from_config(config)
             assert isinstance(db, JsonFile)
             assert db.data_file_path == mock_file_path
