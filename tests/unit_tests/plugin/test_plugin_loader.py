@@ -4,7 +4,7 @@ import pytest
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
-from platzky.plugin_loader import PluginError
+from platzky.plugin.plugin_loader import PluginError
 
 
 def test_invalid_plugin_config():

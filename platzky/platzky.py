@@ -13,7 +13,7 @@ from platzky.config import (
     languages_dict,
 )
 from platzky.db.db_loader import get_db
-from platzky.plugin_loader import plugify
+from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
