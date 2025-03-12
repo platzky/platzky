@@ -1,11 +1,9 @@
 import importlib.util
 import logging
 
+from platzky.plugin.plugin import PluginError
+
 logger = logging.getLogger(__name__)
-
-
-class PluginError(Exception):
-    pass
 
 
 def find_plugin(plugin_name):

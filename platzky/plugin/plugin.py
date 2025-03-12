@@ -1,21 +1,23 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TypeVar, Generic, Type
+from typing import Any, Dict, Generic, Type, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
-import platzky
+from platzky.platzky import Engine as PlatzkyEngine
 
 logger = logging.getLogger(__name__)
 
 
 class PluginError(Exception):
     """Exception raised for plugin-related errors."""
+
     pass
 
 
 class ConfigPluginError(PluginError):
     """Exception raised for plugin configuration-related errors."""
+
     pass
 
 
@@ -24,10 +26,11 @@ class PluginBaseConfig(BaseModel):
 
     Plugin developers should extend this class to define their own configuration schema.
     """
+
     model_config = ConfigDict(extra="forbid")  # Prevent extra fields by default
 
 
-T = TypeVar('T', bound=PluginBaseConfig)
+T = TypeVar("T", bound=PluginBaseConfig)
 
 
 class PluginBase(Generic[T], ABC):
@@ -35,6 +38,7 @@ class PluginBase(Generic[T], ABC):
 
     Plugin developers must extend this class to implement their plugins.
     """
+
     config_model: Type[T] = PluginBaseConfig
 
     def __init__(self, config: Dict[str, Any]):
@@ -44,7 +48,7 @@ class PluginBase(Generic[T], ABC):
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
 
     @abstractmethod
-    def process(self, app: platzky.Engine) -> platzky.Engine:
+    def process(self, app: PlatzkyEngine) -> PlatzkyEngine:
         """Process the plugin with the given app.
 
         Args:
