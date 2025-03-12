@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
-from ..models import Color, MenuItem, Page, Post
+from platzky.models import Color, MenuItem, Page, Post
 
 
 class DB(ABC):
