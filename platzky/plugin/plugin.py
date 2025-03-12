@@ -27,7 +27,7 @@ class PluginBaseConfig(BaseModel):
     Plugin developers should extend this class to define their own configuration schema.
     """
 
-    model_config = ConfigDict(extra="forbid")  # Prevent extra fields by default
+    model_config = ConfigDict(extra="allow")
 
 
 T = TypeVar("T", bound=PluginBaseConfig)

@@ -1,8 +1,9 @@
 import importlib.util
 import inspect
 import logging
+from typing import Any, Optional, Type
+
 import deprecation
-from typing import Any, Dict, Optional, Union, Type
 
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginError
@@ -42,18 +43,18 @@ def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase]]:
     """
     # Look for classes in the module that inherit from PluginBase
     for name, obj in inspect.getmembers(plugin_module):
-        if (inspect.isclass(obj) and
-            issubclass(obj, PluginBase) and
-            obj != PluginBase):
+        if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
             return obj
     return None
 
 
-@deprecation.deprecated(deprecated_in="0.3.0",
-                       removed_in="0.4.0",
-                       current_version=None,  # You should replace this with the current version
-                       details="Legacy plugin style using the entrypoint process() function is deprecated. "
-                               "Please migrate to the PluginBase interface.")
+@deprecation.deprecated(
+    deprecated_in="0.3.1",
+    removed_in="0.4.0",
+    current_version=None,  # You should replace this with the current version
+    details="Legacy plugin style using the entrypoint process() function is deprecated. "
+    "Please migrate to the PluginBase interface.",
+)
 def _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name):
     """Process a legacy plugin using the entrypoint approach."""
     app = plugin_module.process(app, plugin_config)
