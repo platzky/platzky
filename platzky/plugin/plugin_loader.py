@@ -32,7 +32,7 @@ def find_plugin(plugin_name: str) -> Any:
         ) from e
 
 
-def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase]]:
+def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase[Any]]]:
     """Check if the plugin module contains a PluginBase implementation.
 
     Args:
@@ -42,7 +42,7 @@ def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase]]:
         The plugin class if found, None otherwise
     """
     # Look for classes in the module that inherit from PluginBase
-    for name, obj in inspect.getmembers(plugin_module):
+    for _, obj in inspect.getmembers(plugin_module):
         if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
             return obj
     return None
