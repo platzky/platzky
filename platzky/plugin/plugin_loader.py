@@ -1,16 +1,26 @@
 import importlib.util
+import inspect
 import logging
+import deprecation
+from typing import Any, Dict, Optional, Union, Type
 
-from platzky.plugin.plugin import PluginError
+from platzky.engine import Engine
+from platzky.plugin.plugin import PluginBase, PluginError
 
 logger = logging.getLogger(__name__)
 
 
-def find_plugin(plugin_name):
+def find_plugin(plugin_name: str) -> Any:
     """Find plugin by name and return it as module.
-    :param plugin_name: name of plugin to find
-    :raises PluginError: if plugin cannot be imported
-    :return: module of plugin
+
+    Args:
+        plugin_name: name of plugin to find
+
+    Raises:
+        PluginError: if plugin cannot be imported
+
+    Returns:
+        module of plugin
     """
     try:
         return importlib.import_module(f"platzky_{plugin_name}")
@@ -21,21 +31,78 @@ def find_plugin(plugin_name):
         ) from e
 
 
-def plugify(app):
-    """Load plugins and run their entrypoints.
-    :param app: Flask app
-    :return: Flask app
-    """
+def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase]]:
+    """Check if the plugin module contains a PluginBase implementation.
 
+    Args:
+        plugin_module: The imported plugin module
+
+    Returns:
+        The plugin class if found, None otherwise
+    """
+    # Look for classes in the module that inherit from PluginBase
+    for name, obj in inspect.getmembers(plugin_module):
+        if (inspect.isclass(obj) and
+            issubclass(obj, PluginBase) and
+            obj != PluginBase):
+            return obj
+    return None
+
+
+@deprecation.deprecated(deprecated_in="0.3.0",
+                       removed_in="0.4.0",
+                       current_version=None,  # You should replace this with the current version
+                       details="Legacy plugin style using the entrypoint process() function is deprecated. "
+                               "Please migrate to the PluginBase interface.")
+def _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name):
+    """Process a legacy plugin using the entrypoint approach."""
+    app = plugin_module.process(app, plugin_config)
+    logger.info(f"Processed legacy plugin: {plugin_name}")
+    return app
+
+
+def plugify(app: Engine) -> Engine:
+    """Load plugins and run their entrypoints.
+
+    Supports both class-based plugins (PluginBase) and legacy entrypoint plugins.
+
+    Args:
+        app: Platzky Engine instance
+
+    Returns:
+        Platzky Engine with processed plugins
+
+    Raises:
+        PluginError: if plugin processing fails
+    """
     plugins_data = app.db.get_plugins_data()
 
     for plugin_data in plugins_data:
         plugin_config = plugin_data["config"]
         plugin_name = plugin_data["name"]
+
         try:
-            plugin = find_plugin(plugin_name)
-            plugin.process(app, plugin_config)
+            plugin_module = find_plugin(plugin_name)
+
+            # Check if this is a class-based plugin
+            plugin_class = _is_class_plugin(plugin_module)
+
+            if plugin_class:
+                # Handle new class-based plugins
+                plugin_instance = plugin_class(plugin_config)
+                app = plugin_instance.process(app)
+                logger.info(f"Processed class-based plugin: {plugin_name}")
+            elif hasattr(plugin_module, "process"):
+                # Handle legacy entrypoint plugins with deprecation warning
+                app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
+            else:
+                raise PluginError(
+                    f"Plugin {plugin_name} doesn't implement either the PluginBase interface "
+                    f"or provide a process() function"
+                )
+
         except Exception as e:
+            logger.error(f"Error processing plugin {plugin_name}: {e}")
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
     return app
