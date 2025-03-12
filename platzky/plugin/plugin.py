@@ -39,11 +39,14 @@ class PluginBase(Generic[T], ABC):
     Plugin developers must extend this class to implement their plugins.
     """
 
-    config_model: Type[T] = PluginBaseConfig
+    @classmethod
+    def get_config_model(cls) -> Type[PluginBaseConfig]:
+        return PluginBaseConfig
 
     def __init__(self, config: Dict[str, Any]):
         try:
-            self.config = self.config_model.model_validate(config)
+            config_class = self.get_config_model()
+            self.config = config_class.model_validate(config)
         except Exception as e:
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
 
