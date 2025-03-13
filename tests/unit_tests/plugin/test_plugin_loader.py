@@ -1,10 +1,12 @@
 import os
 from unittest import mock
+
 import pytest
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
-from platzky.plugin.plugin_loader import PluginError, PluginBase
+from platzky.plugin.plugin_loader import PluginBase, PluginError
+
 
 def test_invalid_plugin_config():
     invalid_plugin_config_data = {
@@ -55,8 +57,10 @@ def test_plugin_loading_success():
             return app
 
     # Mock the find_plugin and _is_class_plugin functions
-    with mock.patch('platzky.plugin.plugin_loader.find_plugin') as mock_find_plugin, \
-         mock.patch('platzky.plugin.plugin_loader._is_class_plugin') as mock_is_class_plugin:
+    with (
+        mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
+        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+    ):
 
         # Create a mock module
         mock_module = mock.MagicMock()
@@ -72,9 +76,7 @@ def test_plugin_loading_success():
             "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
             "DB": {
                 "TYPE": "json",
-                "DATA": {
-                    "plugins": [{"name": "test_plugin", "config": {"setting": "value"}}]
-                },
+                "DATA": {"plugins": [{"name": "test_plugin", "config": {"setting": "value"}}]},
             },
         }
 
@@ -105,8 +107,10 @@ def test_multiple_plugins_loading():
             return app
 
     # Mock the find_plugin and _is_class_plugin functions
-    with mock.patch('platzky.plugin.plugin_loader.find_plugin') as mock_find_plugin, \
-         mock.patch('platzky.plugin.plugin_loader._is_class_plugin') as mock_is_class_plugin:
+    with (
+        mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
+        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+    ):
 
         # Configure mocks to return different values for different calls
         mock_find_plugin.side_effect = [mock.MagicMock(), mock.MagicMock()]
@@ -124,7 +128,7 @@ def test_multiple_plugins_loading():
                 "DATA": {
                     "plugins": [
                         {"name": "first_plugin", "config": {"setting": "one"}},
-                        {"name": "second_plugin", "config": {"setting": "two"}}
+                        {"name": "second_plugin", "config": {"setting": "two"}},
                     ]
                 },
             },
@@ -149,8 +153,10 @@ def test_plugin_execution_error():
             raise RuntimeError("Plugin execution failed")
 
     # Mock the find_plugin and _is_class_plugin functions
-    with mock.patch('platzky.plugin.plugin_loader.find_plugin') as mock_find_plugin, \
-         mock.patch('platzky.plugin.plugin_loader._is_class_plugin') as mock_is_class_plugin:
+    with (
+        mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
+        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+    ):
 
         mock_module = mock.MagicMock()
         mock_find_plugin.return_value = mock_module
@@ -165,9 +171,7 @@ def test_plugin_execution_error():
             "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
             "DB": {
                 "TYPE": "json",
-                "DATA": {
-                    "plugins": [{"name": "error_plugin", "config": {}}]
-                },
+                "DATA": {"plugins": [{"name": "error_plugin", "config": {}}]},
             },
         }
 
@@ -180,16 +184,20 @@ def test_plugin_execution_error():
 
 def test_legacy_plugin_processing():
     # Mock the find_plugin function
-    with mock.patch('platzky.plugin.plugin_loader.find_plugin') as mock_find_plugin, \
-         mock.patch('platzky.plugin.plugin_loader._is_class_plugin') as mock_is_class_plugin:
+    with (
+        mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
+        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+    ):
 
         # Create a mock module with a process function but no PluginBase implementation
         mock_module = mock.MagicMock()
         mock_module.process = mock.MagicMock()
+
         # When the module's process function is called, modify the app
         def side_effect(app, config):
             app.add_dynamic_body("Legacy plugin content")
             return app
+
         mock_module.process.side_effect = side_effect
 
         # Return the mock module and None for _is_class_plugin
@@ -205,9 +213,7 @@ def test_legacy_plugin_processing():
             "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
             "DB": {
                 "TYPE": "json",
-                "DATA": {
-                    "plugins": [{"name": "legacy_plugin", "config": {"setting": "legacy"}}]
-                },
+                "DATA": {"plugins": [{"name": "legacy_plugin", "config": {"setting": "legacy"}}]},
             },
         }
 
@@ -221,7 +227,7 @@ def test_legacy_plugin_processing():
 
 
 def test_is_class_plugin_detection():
-    with mock.patch('platzky.plugin.plugin_loader.inspect') as mock_inspect:
+    with mock.patch("platzky.plugin.plugin_loader.inspect") as mock_inspect:
         from platzky.plugin.plugin_loader import _is_class_plugin
 
         # Create a mock plugin module
@@ -237,10 +243,10 @@ def test_is_class_plugin_detection():
 
         # Set up the mock to return a mix of classes, including our plugin class
         mock_inspect.getmembers.return_value = [
-            ('regular_function', lambda x: x),
-            ('non_plugin_class', NotAPlugin),
-            ('plugin_class', MockPluginClass),
-            ('plugin_base', PluginBase)
+            ("regular_function", lambda x: x),
+            ("non_plugin_class", NotAPlugin),
+            ("plugin_class", MockPluginClass),
+            ("plugin_base", PluginBase),
         ]
 
         # Mock isclass and issubclass behavior
@@ -270,18 +276,21 @@ def test_is_class_plugin_detection():
 
         # Test case where no plugin class exists
         mock_inspect.getmembers.return_value = [
-            ('regular_function', lambda x: x),
-            ('non_plugin_class', NotAPlugin),
-            ('plugin_base', PluginBase)
+            ("regular_function", lambda x: x),
+            ("non_plugin_class", NotAPlugin),
+            ("plugin_base", PluginBase),
         ]
 
         result = _is_class_plugin(mock_module)
         assert result is None
 
+
 def test_plugin_without_implementation():
     # Mock the find_plugin and _is_class_plugin functions
-    with mock.patch('platzky.plugin.plugin_loader.find_plugin') as mock_find_plugin, \
-         mock.patch('platzky.plugin.plugin_loader._is_class_plugin') as mock_is_class_plugin:
+    with (
+        mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
+        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+    ):
 
         # Create a mock module without a process function or PluginBase implementation
         mock_module = mock.MagicMock()
@@ -300,9 +309,7 @@ def test_plugin_without_implementation():
             "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
             "DB": {
                 "TYPE": "json",
-                "DATA": {
-                    "plugins": [{"name": "invalid_plugin", "config": {}}]
-                },
+                "DATA": {"plugins": [{"name": "invalid_plugin", "config": {}}]},
             },
         }
 
@@ -313,4 +320,7 @@ def test_plugin_without_implementation():
             create_app_from_config(config)
 
         # Verify the error message
-        assert "doesn't implement either the PluginBase interface or provide a process() function" in str(excinfo.value)
+        assert (
+            "doesn't implement either the PluginBase interface or provide a process() function"
+            in str(excinfo.value)
+        )
