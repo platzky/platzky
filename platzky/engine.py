@@ -43,8 +43,7 @@ class Engine(Flask):
         self.dynamic_head += body
 
     def get_locale(self) -> str:
--        domain = request.headers["Host"]
-+        domain = request.headers.get("Host", "localhost")
+        domain = request.headers.get("Host", "localhost")
         domain_to_lang = self.config.get("DOMAIN_TO_LANG")
 
         languages = self.config.get("LANGUAGES", {}).keys()
