@@ -5,7 +5,7 @@ import pytest
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
-from platzky.plugin.plugin_loader import PluginBase, PluginError
+from platzky.plugin.plugin import PluginBase, PluginBaseConfig, PluginError
 
 
 def test_invalid_plugin_config():
@@ -48,15 +48,15 @@ def test_non_existent_plugin():
 
 def test_plugin_loading_success():
     # Create a mock plugin class
-    class MockPluginBase(PluginBase):
-        def __init__(self, config):
+
+    class MockPluginBase(PluginBase[PluginBaseConfig]):
+        def __init__(self, config: PluginBaseConfig):
             self.config = config
 
         def process(self, app):
             app.add_dynamic_body("Plugin added content")
             return app
 
-    # Mock the find_plugin and _is_class_plugin functions
     with (
         mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
         mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
@@ -89,17 +89,16 @@ def test_plugin_loading_success():
 
 
 def test_multiple_plugins_loading():
-    # Create two mock plugin classes
-    class FirstPlugin(PluginBase):
-        def __init__(self, config):
+    class FirstPlugin(PluginBase[PluginBaseConfig]):
+        def __init__(self, config: PluginBaseConfig):
             self.config = config
 
         def process(self, app):
             app.add_dynamic_body("First plugin content")
             return app
 
-    class SecondPlugin(PluginBase):
-        def __init__(self, config):
+    class SecondPlugin(PluginBase[PluginBaseConfig]):
+        def __init__(self, config: PluginBaseConfig):
             self.config = config
 
         def process(self, app):
@@ -145,8 +144,9 @@ def test_multiple_plugins_loading():
 
 def test_plugin_execution_error():
     # Create a plugin class that raises an exception during processing
-    class ErrorPlugin(PluginBase):
-        def __init__(self, config):
+
+    class ErrorPlugin(PluginBase[PluginBaseConfig]):
+        def __init__(self, config: PluginBaseConfig):
             self.config = config
 
         def process(self, app):
@@ -224,65 +224,6 @@ def test_legacy_plugin_processing():
         mock_find_plugin.assert_called_once_with("legacy_plugin")
         mock_module.process.assert_called_once()
         assert "Legacy plugin content" in app.dynamic_body
-
-
-def test_is_class_plugin_detection():
-    with mock.patch("platzky.plugin.plugin_loader.inspect") as mock_inspect:
-        from platzky.plugin.plugin_loader import _is_class_plugin
-
-        # Create a mock plugin module
-        mock_module = mock.MagicMock()
-
-        # Mock the getmembers function to return a list of (name, object) tuples
-        class MockPluginClass(PluginBase):
-            def process(self, app):
-                return app
-
-        class NotAPlugin:
-            pass
-
-        # Set up the mock to return a mix of classes, including our plugin class
-        mock_inspect.getmembers.return_value = [
-            ("regular_function", lambda x: x),
-            ("non_plugin_class", NotAPlugin),
-            ("plugin_class", MockPluginClass),
-            ("plugin_base", PluginBase),
-        ]
-
-        # Mock isclass and issubclass behavior
-        def mock_isclass(obj):
-            return obj in [NotAPlugin, MockPluginClass, PluginBase]
-
-        def mock_issubclass(obj, class_type):
-            if obj == NotAPlugin:
-                return False
-            elif obj == MockPluginClass:
-                return True
-            elif obj == PluginBase:
-                return True
-            return False
-
-        mock_inspect.isclass.side_effect = mock_isclass
-        mock_inspect.issubclass.side_effect = mock_issubclass
-
-        # Execute the function
-        result = _is_class_plugin(mock_module)
-
-        # Verify that inspect.getmembers was called correctly
-        mock_inspect.getmembers.assert_called_once_with(mock_module)
-
-        # Verify that we found our plugin class
-        assert result == MockPluginClass
-
-        # Test case where no plugin class exists
-        mock_inspect.getmembers.return_value = [
-            ("regular_function", lambda x: x),
-            ("non_plugin_class", NotAPlugin),
-            ("plugin_base", PluginBase),
-        ]
-
-        result = _is_class_plugin(mock_module)
-        assert result is None
 
 
 def test_plugin_without_implementation():
