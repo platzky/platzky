@@ -168,3 +168,17 @@ def test_that_page_has_proper_html_lang_attribute(test_app):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.html and soup.html.get("lang") == "en-GB"
+
+
+def test_add_login_method(test_app):
+    engine = test_app
+
+    sample_login_method = "Login Method"
+    engine.add_login_method(sample_login_method)
+    assert sample_login_method in engine.login_methods
+
+    app = test_app.test_client()
+    response = app.get("/admin/", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert b"Login Method" in response.data
