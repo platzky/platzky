@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable, cast
 
 import pytest
 
@@ -62,8 +62,10 @@ def test_db_extend_error_cases():
         }
     )
 
+    non_callable = cast(Callable[..., Any], object())
+
     with pytest.raises(ValueError, match="not callable"):
-        db.extend("test_non_callable", "not a function")
+        db.extend("test_non_callable", non_callable)
 
 
 def test_db_extend_with_existing_name():
