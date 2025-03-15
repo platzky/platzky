@@ -33,6 +33,7 @@ class Engine(Flask):
     def add_notifier(self, notifier):
         self.notifiers.append(notifier)
 
+    # TODO login_method should be interface
     def add_login_method(self, login_method):
         self.login_methods.append(login_method)
 
