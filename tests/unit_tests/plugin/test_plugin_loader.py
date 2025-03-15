@@ -292,7 +292,7 @@ def test_real_fake_plugin_loading():
         app = create_app_from_config(config)
 
         assert hasattr(app, "test_value")
-        #TODO fix linting problem with expanding engine with plugins
+        # TODO fix linting problem with expanding engine with plugins
         assert app.test_value == "custom_value"  # type: ignore
 
         mock_find_plugin.assert_called_once_with("fake-plugin")
