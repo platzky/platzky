@@ -265,3 +265,34 @@ def test_plugin_without_implementation():
             "doesn't implement either the PluginBase interface or provide a process() function"
             in str(excinfo.value)
         )
+
+
+def test_real_fake_plugin_loading():
+    with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin:
+        # Set up the mock to return our fake_plugin module
+        from tests.unit_tests.plugin import fake_plugin
+
+        mock_find_plugin.return_value = fake_plugin
+
+        plugin_config_data = {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "test_secret",
+            "USE_WWW": False,
+            "BLOG_PREFIX": "/",
+            "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
+            "DB": {
+                "TYPE": "json",
+                "DATA": {
+                    "plugins": [{"name": "fake-plugin", "config": {"test_value": "custom_value"}}]
+                },
+            },
+        }
+
+        config = Config.model_validate(plugin_config_data)
+        app = create_app_from_config(config)
+
+        assert hasattr(app, "test_value")
+        #TODO fix linting problem with expanding engine with plugins
+        assert app.test_value == "custom_value"  # type: ignore
+
+        mock_find_plugin.assert_called_once_with("fake-plugin")

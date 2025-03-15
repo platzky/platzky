@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
@@ -9,9 +7,6 @@ class FakePluginConfig(PluginBaseConfig):
 
     test_value: str = "default"
     optional_value: int = 42
-    add_route: bool = False
-    add_template_context: bool = False
-    dynamic_content: Optional[str] = None
 
 
 class FakePlugin(PluginBase[FakePluginConfig]):
@@ -26,7 +21,6 @@ class FakePlugin(PluginBase[FakePluginConfig]):
     def __init__(self, config):
         super().__init__(config)
         self.process_called = False
-        self.processed_apps: List[Engine] = []
 
     @classmethod
     def get_config_model(cls):
@@ -42,7 +36,6 @@ class FakePlugin(PluginBase[FakePluginConfig]):
             The processed application
         """
         self.process_called = True
-        self.processed_apps.append(app)
 
         setattr(app, "test_value", self.config.test_value)
 
