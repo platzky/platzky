@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "platzky"
-version = "0.3.0"
+version = "0.3.1"
 description = "Not only blog engine"
 authors = []
 license = "MIT"
@@ -18,6 +18,7 @@ Flask-Minify = "^0.42"
 google-cloud-storage = "^2.5.0"
 humanize = "^4.9.0"
 pydantic = "^2.7.1"
+deprecation = "^2.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
