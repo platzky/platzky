@@ -5,7 +5,8 @@ import pytest
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
-from platzky.plugin.plugin import PluginBase, PluginBaseConfig, PluginError
+from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginBaseConfig, PluginError
+from tests.unit_tests.plugin import fake_plugin
 
 
 def test_invalid_plugin_config():
@@ -269,8 +270,6 @@ def test_plugin_without_implementation():
 
 def test_real_fake_plugin_loading():
     with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin:
-        # Set up the mock to return our fake_plugin module
-        from tests.unit_tests.plugin import fake_plugin
 
         mock_find_plugin.return_value = fake_plugin
 
@@ -296,3 +295,37 @@ def test_real_fake_plugin_loading():
         assert app.test_value == "custom_value"  # type: ignore
 
         mock_find_plugin.assert_called_once_with("fake-plugin")
+
+
+def test_config_plugin_error():
+    class CustomPluginConfig(PluginBaseConfig):
+        required_field: str  # This field is required but will be missing
+
+    class CustomPlugin(PluginBase[CustomPluginConfig]):
+        @classmethod
+        def get_config_model(cls):
+            return CustomPluginConfig
+
+        def process(self, app):
+            return app
+
+    with pytest.raises(ConfigPluginError) as excinfo:
+        CustomPlugin({})
+
+    assert "Invalid configuration" in str(excinfo.value)
+    assert "required_field" in str(excinfo.value)
+
+
+def test_plugin_base_default_config_model():
+    """Test the default implementation of get_config_model() in PluginBase."""
+
+    class MinimalPlugin(PluginBase[PluginBaseConfig]):  # Provide the type argument
+        def process(self, app):
+            return app
+
+    # Verify the default implementation returns PluginBaseConfig
+    assert MinimalPlugin.get_config_model() == PluginBaseConfig
+
+    # Create an instance with an empty config to ensure it works
+    plugin = MinimalPlugin({})
+    assert isinstance(plugin.config, PluginBaseConfig)
