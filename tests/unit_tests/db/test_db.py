@@ -50,3 +50,58 @@ def test_db_doesnt_allow_its_children_to_add_new_methods():
         class TestDB(DB):
             def test(self):
                 return "test"
+
+
+def test_db_extend_error_cases():
+    db = Json(
+        {
+            "DB": {
+                "TYPE": "json",
+                "DATA": {"site_content": {"pages": []}},
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match="not callable"):
+        db.extend("test_non_callable", "not a function")
+
+
+def test_db_extend_with_existing_name():
+    db = Json(
+        {
+            "DB": {
+                "TYPE": "json",
+                "DATA": {"site_content": {"pages": []}},
+            }
+        }
+    )
+
+    # First extension works fine
+    db.extend("test_function", dummy_function_taking_one_argument)
+
+    # For the test to fail, we need to mock setattr to make it raise an exception
+    # when attempting to set an existing attribute
+    original_setattr = setattr
+
+    def mocked_setattr(*args, **kwargs):
+        # Simulate an exception when setting an existing attribute
+        if args[1] == "test_function" or args[1] == "extend":
+            raise AttributeError("Cannot set attribute - already exists")
+        return original_setattr(*args, **kwargs)
+
+    # Apply the mock
+    import builtins
+
+    original = builtins.setattr
+    builtins.setattr = mocked_setattr
+
+    try:
+        # Now these should raise ValueError from the try/except in extend
+        with pytest.raises(ValueError, match="Failed to extend DB"):
+            db.extend("test_function", dummy_function_taking_one_argument)
+
+        with pytest.raises(ValueError, match="Failed to extend DB"):
+            db.extend("extend", dummy_function_taking_one_argument)
+    finally:
+        # Restore original setattr
+        builtins.setattr = original
