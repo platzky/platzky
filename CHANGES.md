@@ -1,3 +1,9 @@
+# Version 0.3.1
+Released on 2025-03-15
+
+- feat: Added a new plugin loading mechanism to manage and process plugins effectively.
+
+
 # Version 0.3.0
 Released on 2025-02-19
 
