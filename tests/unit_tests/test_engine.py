@@ -171,11 +171,9 @@ def test_that_page_has_proper_html_lang_attribute(test_app):
 
 
 def test_add_login_method(test_app):
-    engine = test_app
-
     sample_login_method = "Login Method"
-    engine.add_login_method(sample_login_method)
-    assert sample_login_method in engine.login_methods
+    test_app.add_login_method(sample_login_method)
+    assert sample_login_method in test_app.login_methods
 
     app = test_app.test_client()
     response = app.get("/admin/", follow_redirects=True)
