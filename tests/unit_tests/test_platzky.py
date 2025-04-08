@@ -20,11 +20,11 @@ class TestPlatzky:
         mock_config = MagicMock()
         mock_config.languages = {
             "en": LanguageConfig(name="English", flag="gb", country="GB", domain="example.com"),
-            "de": LanguageConfig(name="German", flag="de", country="DE", domain="example.de")
+            "de": LanguageConfig(name="German", flag="de", country="DE", domain="example.de"),
         }
-        
+
         app = create_engine(mock_config, mock_db)
-        
+
         # Test the function
         with app.test_request_context():
             mock_config.use_www = False
@@ -39,11 +39,11 @@ class TestPlatzky:
         mock_config = MagicMock()
         mock_config.languages = {
             "en": LanguageConfig(name="English", flag="gb", country="GB", domain=None),
-            "de": LanguageConfig(name="German", flag="de", country="DE", domain=None)
+            "de": LanguageConfig(name="German", flag="de", country="DE", domain=None),
         }
-    
+
         app = create_engine(mock_config, mock_db)
-    
+
         # Test the function
         with app.test_request_context():
             mock_config.use_www = False
@@ -54,17 +54,17 @@ class TestPlatzky:
 
     def test_url_link(self, mock_db):
         """Test the url_link function."""
+
         # Mock the context processor functions
         mock_config = MagicMock()
-        mock_config.context_processor_functions = [lambda: {"url_link": lambda x: x}]
-        
+        mock_config.context_processor_functions = [lambda: {"url_link": lambda x: str(x)}]
+
         app = create_engine(mock_config, mock_db)
-        
+
         # Mock the context processor
         mock_processor = MagicMock()
-        mock_processor.return_value = {"url_link": lambda x: x}
-        app.context_processor(mock_processor)
-        
+        mock_processor.return_value = {"url_link": lambda x: str(x)}
+
         # Test the function
         with app.test_request_context():
             url_link = mock_processor.return_value["url_link"]

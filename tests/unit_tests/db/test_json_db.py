@@ -255,12 +255,12 @@ class TestJsonDb:
             "author": "Test Author",
             "contentInMarkdown": "# Test Post",
             "excerpt": "Test excerpt",
-            "date": "2023-01-01T00:00:00"
+            "date": "2023-01-01T00:00:00",
         }
-        
+
         # Add the post to the database
         db.data["site_content"]["posts"].append(post)
-        
+
         # Test that get_post raises ValueError when required data is missing
         with pytest.raises(ValueError):
             db.get_post("test-post")
@@ -278,12 +278,12 @@ class TestJsonDb:
             "contentInMarkdown": "# Test Page",
             "excerpt": "Test excerpt",
             "date": "2023-01-01T00:00:00",
-            "coverImage": {"url": "/test.jpg"}
+            "coverImage": {"url": "/test.jpg"},
         }
-        
+
         # Add the page to the database
         db.data["site_content"]["pages"].append(page)
-        
+
         # Test that get_page raises StopIteration when required data is missing
         with pytest.raises(StopIteration):
             db.get_page("non-existent-page")
@@ -292,7 +292,7 @@ class TestJsonDb:
         """Test that get_posts_by_tag returns empty generator when posts list is empty."""
         # Clear the posts list
         db.data["site_content"]["posts"] = []
-        
+
         # Test that get_posts_by_tag returns empty generator
         posts = list(db.get_posts_by_tag("tag1", "en"))
         assert len(posts) == 0
@@ -301,7 +301,7 @@ class TestJsonDb:
         """Test that get_primary_color returns default value when data is missing."""
         # Remove primary_color from site_content
         del db.data["site_content"]["primary_color"]
-        
+
         # Test that get_primary_color returns default value
         assert db.get_primary_color() == "white"
 
@@ -309,7 +309,7 @@ class TestJsonDb:
         """Test that get_secondary_color returns default value when data is missing."""
         # Remove secondary_color from site_content
         del db.data["site_content"]["secondary_color"]
-        
+
         # Test that get_secondary_color returns default value
         assert db.get_secondary_color() == "navy"
 
@@ -325,12 +325,12 @@ class TestJsonDb:
             "author": "Test Author",
             "contentInMarkdown": "# Test Post",
             "excerpt": "Test excerpt",
-            "date": "2023-01-01T00:00:00"
+            "date": "2023-01-01T00:00:00",
         }
-        
+
         # Add the post to the database
         db.data["site_content"]["posts"].append(post)
-        
+
         # Test that add_comment raises StopIteration when post is invalid
         with pytest.raises(StopIteration):
             db.add_comment("Test Author", "Test Comment", "test-post")

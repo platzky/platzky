@@ -139,7 +139,7 @@ def test_post_view_generic_exception(test_app):
     """Test that post view handles generic exceptions correctly."""
     # Set up the mock to raise an exception
     test_app.application.db.get_post.side_effect = Exception("Missing required field: 'title'")
-    
+
     # Call the endpoint
     response = test_app.get("/prefix/slug")
     assert response.status_code == 404
@@ -150,7 +150,7 @@ def test_page_generic_exception(test_app):
     """Test that page view handles generic exceptions correctly."""
     # Set up the mock to raise an exception
     test_app.application.db.get_page.side_effect = Exception("Missing required field: 'title'")
-    
+
     # Call the endpoint
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 404
