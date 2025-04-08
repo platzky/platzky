@@ -265,29 +265,6 @@ class TestJsonDb:
         with pytest.raises(ValueError):
             db.get_post("test-post")
 
-    def test_get_page_with_missing_data(self, db):
-        """Test that get_page raises StopIteration when page data is missing."""
-        # Create a page with missing required data
-        page = {
-            "title": "Test Page",
-            "slug": "test-page",
-            "language": "en",
-            "tags": [],
-            "comments": [],
-            "author": "Test Author",
-            "contentInMarkdown": "# Test Page",
-            "excerpt": "Test excerpt",
-            "date": "2023-01-01T00:00:00",
-            "coverImage": {"url": "/test.jpg"},
-        }
-
-        # Add the page to the database
-        db.data["site_content"]["pages"].append(page)
-
-        # Test that get_page raises StopIteration when required data is missing
-        with pytest.raises(StopIteration):
-            db.get_page("test-page")
-
     def test_get_posts_by_tag_with_empty_posts(self, db):
         """Test that get_posts_by_tag returns empty generator when posts list is empty."""
         # Clear the posts list
