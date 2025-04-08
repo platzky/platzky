@@ -1,3 +1,4 @@
+from typing import Any, Callable, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,15 +56,25 @@ class TestPlatzky:
     def test_url_link(self, mock_db):
         """Test the url_link function."""
 
-        # Mock the context processor functions
+        # Mock the context processor functions with proper type hints
+        def url_link_func(x: Any) -> str:
+            return str(x)
+
+        def context_proc() -> Dict[str, Callable[[Any], str]]:
+            return {"url_link": url_link_func}
+
         mock_config = MagicMock()
-        mock_config.context_processor_functions = [lambda: {"url_link": lambda x: str(x)}]
+        mock_config.context_processor_functions = [context_proc]
 
         app = create_engine(mock_config, mock_db)
 
         # Mock the context processor
         mock_processor = MagicMock()
-        mock_processor.return_value = {"url_link": lambda x: str(x)}
+
+        def url_link_func2(x: Any) -> str:
+            return str(x)
+
+        mock_processor.return_value = {"url_link": url_link_func2}
 
         # Test the function
         with app.test_request_context():
