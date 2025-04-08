@@ -17,6 +17,7 @@
 
 {% block left_panel %}
 <div id="admin-panel">
+  <p>User:{{ user.username }}</p>
   {% for cms_module_name, cms_entries in cms_modules.items() %}
   <div class="cms-module mb-2">
     <p>{{ cms_module_name }}</p>
