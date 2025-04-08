@@ -125,12 +125,13 @@ def test_all_posts_sorted(test_app):
     # Since we can't easily check the order in the HTML, we'll verify
     # the mock was called correctly
     assert test_app.application.db.get_all_posts.called
-    
+
     # Directly test the sorting logic to ensure posts are in reverse chronological order
     sorted_posts = sorted(test_app.application.db.get_all_posts.return_value, reverse=True)
     assert sorted_posts[0].date == "2021-03-01"  # Newest first
     assert sorted_posts[1].date == "2021-02-01"
     assert sorted_posts[2].date == "2021-01-01"
+
 
 def test_tag_filter(test_app):
     response = test_app.get("/prefix/tag/tag1")
