@@ -85,6 +85,13 @@ def create_app_from_config(config: Config) -> Engine:
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale
     )
+
+    # Set up fake login routes if feature flag is enabled
+    if config.feature_flags.get("FAKE_LOGIN"):
+        from platzky.admin.fake_login import setup_fake_login_routes, get_fake_login_html
+        engine.login_methods.append(get_fake_login_html())
+        setup_fake_login_routes(admin_blueprint)
+
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
         blog_prefix=config.blog_prefix,
