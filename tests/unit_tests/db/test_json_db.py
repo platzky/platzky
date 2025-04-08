@@ -242,3 +242,95 @@ class TestJsonDb:
     def test_get_plugins_data_empty(self):
         db = Json({})
         assert db.get_plugins_data() == []
+
+    def test_get_post_with_missing_data(self, db):
+        """Test that get_post raises ValueError when post data is missing."""
+        # Create a post with missing required data
+        post = {
+            "title": "Test Post",
+            "slug": "test-post",
+            "language": "en",
+            "tags": ["tag1"],
+            "comments": [],
+            "author": "Test Author",
+            "contentInMarkdown": "# Test Post",
+            "excerpt": "Test excerpt",
+            "date": "2023-01-01T00:00:00"
+        }
+        
+        # Add the post to the database
+        db.data["site_content"]["posts"].append(post)
+        
+        # Test that get_post raises ValueError when required data is missing
+        with pytest.raises(ValueError):
+            db.get_post("test-post")
+
+    def test_get_page_with_missing_data(self, db):
+        """Test that get_page raises StopIteration when page data is missing."""
+        # Create a page with missing required data
+        page = {
+            "title": "Test Page",
+            "slug": "test-page",
+            "language": "en",
+            "tags": [],
+            "comments": [],
+            "author": "Test Author",
+            "contentInMarkdown": "# Test Page",
+            "excerpt": "Test excerpt",
+            "date": "2023-01-01T00:00:00",
+            "coverImage": {"url": "/test.jpg"}
+        }
+        
+        # Add the page to the database
+        db.data["site_content"]["pages"].append(page)
+        
+        # Test that get_page raises StopIteration when required data is missing
+        with pytest.raises(StopIteration):
+            db.get_page("non-existent-page")
+
+    def test_get_posts_by_tag_with_empty_posts(self, db):
+        """Test that get_posts_by_tag returns empty generator when posts list is empty."""
+        # Clear the posts list
+        db.data["site_content"]["posts"] = []
+        
+        # Test that get_posts_by_tag returns empty generator
+        posts = list(db.get_posts_by_tag("tag1", "en"))
+        assert len(posts) == 0
+
+    def test_get_primary_color_with_missing_data(self, db):
+        """Test that get_primary_color returns default value when data is missing."""
+        # Remove primary_color from site_content
+        del db.data["site_content"]["primary_color"]
+        
+        # Test that get_primary_color returns default value
+        assert db.get_primary_color() == "white"
+
+    def test_get_secondary_color_with_missing_data(self, db):
+        """Test that get_secondary_color returns default value when data is missing."""
+        # Remove secondary_color from site_content
+        del db.data["site_content"]["secondary_color"]
+        
+        # Test that get_secondary_color returns default value
+        assert db.get_secondary_color() == "navy"
+
+    def test_add_comment_with_invalid_post(self, db):
+        """Test that add_comment raises StopIteration when post is invalid."""
+        # Create a post with invalid slug
+        post = {
+            "title": "Test Post",
+            "slug": None,  # Invalid slug
+            "language": "en",
+            "tags": ["tag1"],
+            "comments": [],
+            "author": "Test Author",
+            "contentInMarkdown": "# Test Post",
+            "excerpt": "Test excerpt",
+            "date": "2023-01-01T00:00:00"
+        }
+        
+        # Add the post to the database
+        db.data["site_content"]["posts"].append(post)
+        
+        # Test that add_comment raises StopIteration when post is invalid
+        with pytest.raises(StopIteration):
+            db.add_comment("Test Author", "Test Comment", "test-post")

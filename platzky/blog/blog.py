@@ -51,7 +51,6 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/<post_slug>", methods=["GET"])
     def get_post(post_slug):
-        post = db.get_post(post_slug)
         try:
             post = db.get_post(post_slug)
             return render_template(
