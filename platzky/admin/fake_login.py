@@ -1,7 +1,9 @@
-#TODO consider moving this to a separate module, maybe in tests directory
-from flask import url_for, session, redirect
+from typing import Any
 
-def get_fake_login_html():
+from flask import Blueprint, redirect, session, url_for
+
+
+def get_fake_login_html() -> str:
     """Generate HTML for fake login buttons."""
     html = """
     <div class="col-md-6 mb-4">
@@ -21,12 +23,14 @@ def get_fake_login_html():
     """
     return html
 
-def setup_fake_login_routes(blueprint):
+
+def setup_fake_login_routes(blueprint: Blueprint) -> None:
     """Add fake login routes to the provided blueprint."""
+
     @blueprint.route("/fake-login/<role>")
-    def fake_login(role):
-        if role == 'admin':
-            session['user'] = {'username': 'admin', 'role': 'admin'}
+    def fake_login(role: str) -> Any:
+        if role == "admin":
+            session["user"] = {"username": "admin", "role": "admin"}
         else:
-            session['user'] = {'username': 'user', 'role': 'nonadmin'}
-        return redirect(url_for('admin.admin_panel_home'))
+            session["user"] = {"username": "user", "role": "nonadmin"}
+        return redirect(url_for("admin.admin_panel_home"))
