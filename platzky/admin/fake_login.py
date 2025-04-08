@@ -14,15 +14,14 @@ def get_fake_login_html() -> str:
         <div class="card-body">
           <p class="text-danger"><strong>Warning:</strong> For development only</p>
           <div class="d-flex justify-content-around">
-            <a href="/admin/fake-login/admin" class="btn btn-primary">Login as Admin</a>
-            <a href="/admin/fake-login/nonadmin" class="btn btn-secondary">Login as Non-Admin</a>
+            <a href="{{ url_for('admin.fake_login', role='admin') }}" class="btn btn-primary">Login as Admin</a>
+            <a href="{{ url_for('admin.fake_login', role='nonadmin') }}" class="btn btn-secondary">Login as Non-Admin</a>
           </div>
         </div>
       </div>
     </div>
     """
     return html
-
 
 def setup_fake_login_routes(blueprint: Blueprint) -> None:
     """Add fake login routes to the provided blueprint."""
