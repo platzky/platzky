@@ -30,6 +30,15 @@ def get_fake_login_html() -> str:
 
 def setup_fake_login_routes(blueprint: Blueprint) -> None:
     """Add fake login routes to the provided blueprint."""
+    
+    import os
+    if os.environ.get("FLASK_ENV") == "production":
+        import warnings
+        warnings.warn(
+            "Fake login routes are enabled in a production environment! "
+            "This is a serious security risk and should be disabled immediately.",
+            UserWarning, stacklevel=2
+        )
 
     @blueprint.route("/fake-login/<role>")
     def fake_login(role: str) -> Any:
