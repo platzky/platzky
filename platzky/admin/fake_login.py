@@ -17,8 +17,10 @@ def get_fake_login_html() -> str:
         <div class="card-body">
           <p class="text-danger"><strong>Warning:</strong> For development only</p>
           <div class="d-flex justify-content-around">
-            <a href="{{ url_for('admin.fake_login', role='admin') }}" class="btn btn-primary">Login as Admin</a>
-            <a href="{{ url_for('admin.fake_login', role='nonadmin') }}" class="btn btn-secondary">Login as Non-Admin</a>
+            <a href="{{ url_for('admin.fake_login', role='admin') }}" 
+               class="btn btn-primary">Login as Admin</a>
+            <a href="{{ url_for('admin.fake_login', role='nonadmin') }}" 
+               class="btn btn-secondary">Login as Non-Admin</a>
           </div>
         </div>
       </div>
