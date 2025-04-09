@@ -16,3 +16,6 @@ LANGUAGES:
     name: polski
     flag: pl
     country: PL
+
+FEATURE_FLAGS:
+  FAKE_LOGIN: true
