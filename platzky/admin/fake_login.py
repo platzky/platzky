@@ -4,9 +4,7 @@ Fake login functionality for development environments only.
 WARNING: This module provides fake login functionality and should NEVER be used in production
 environments as it bypasses proper authentication and authorization controls.
 """
-from typing import Any
-
-from flask import Blueprint, flash, redirect, session, url_for, Response
+from flask import Blueprint, flash, redirect, session, url_for
 
 def get_fake_login_html() -> str:
     """Generate HTML for fake login buttons."""
