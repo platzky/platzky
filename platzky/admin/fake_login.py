@@ -41,13 +41,14 @@ def setup_fake_login_routes(blueprint: Blueprint) -> None:
         )
 
     @blueprint.route("/fake-login/<role>")
-    def handle_fake_login(role: str) -> flask.Response:
-        valid_roles = ["admin", "nonadmin"]
-        if role not in valid_roles:
-            flash(f"Invalid role: {role}. Must be one of: {', '.join(valid_roles)}", "error")
-            return redirect(url_for("admin.admin_panel_home"))
-        if role == "admin":
-            session["user"] = {"username": "admin", "role": "admin"}
-        else:
-            session["user"] = {"username": "user", "role": "nonadmin"}
-        return redirect(url_for("admin.admin_panel_home"))
+-    def handle_fake_login(role: str) -> flask.Response:
++    def fake_login(role: str) -> flask.Response:
+         valid_roles = ["admin", "nonadmin"]
+         if role not in valid_roles:
+             flash(f"Invalid role: {role}. Must be one of: {', '.join(valid_roles)}", "error")
+             return redirect(url_for("admin.admin_panel_home"))
+         if role == "admin":
+             session["user"] = {"username": "admin", "role": "admin"}
+         else:
+             session["user"] = {"username": "user", "role": "nonadmin"}
+         return redirect(url_for("admin.admin_panel_home"))
