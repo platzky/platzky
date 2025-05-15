@@ -12,9 +12,11 @@
 
   <div class="row align-items-center">
 
-{% for login_method in login_methods %}
-    {{ login_method | safe }}
+{% for method in login_methods %}
+        {{ method()|safe }}
+
 {% endfor %}
+
   </div>
 </div>
 

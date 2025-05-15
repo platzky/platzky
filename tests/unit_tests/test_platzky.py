@@ -17,7 +17,6 @@ class TestPlatzky:
 
     def test_change_language_with_domain(self, mock_db):
         """Test the change_language function when a domain is specified."""
-        # Mock the languages
         mock_config = MagicMock()
         mock_config.languages = {
             "en": LanguageConfig(name="English", flag="gb", country="GB", domain="example.com"),
@@ -26,7 +25,6 @@ class TestPlatzky:
 
         app = create_engine(mock_config, mock_db)
 
-        # Test the function
         with app.test_request_context():
             mock_config.use_www = False
             app.secret_key = "test_secret_key"
@@ -36,7 +34,6 @@ class TestPlatzky:
 
     def test_change_language_without_domain(self, mock_db):
         """Test the change_language function when no domain is specified."""
-        # Mock the languages
         mock_config = MagicMock()
         mock_config.languages = {
             "en": LanguageConfig(name="English", flag="gb", country="GB", domain=None),
@@ -45,7 +42,6 @@ class TestPlatzky:
 
         app = create_engine(mock_config, mock_db)
 
-        # Test the function
         with app.test_request_context():
             mock_config.use_www = False
             app.secret_key = "test_secret_key"
@@ -56,7 +52,6 @@ class TestPlatzky:
     def test_url_link(self, mock_db):
         """Test the url_link function."""
 
-        # Mock the context processor functions with proper type hints
         def url_link_func(x: Any) -> str:
             return str(x)
 
@@ -68,7 +63,6 @@ class TestPlatzky:
 
         app = create_engine(mock_config, mock_db)
 
-        # Mock the context processor
         mock_processor = MagicMock()
 
         def url_link_func2(x: Any) -> str:
@@ -76,7 +70,6 @@ class TestPlatzky:
 
         mock_processor.return_value = {"url_link": url_link_func2}
 
-        # Test the function
         with app.test_request_context():
             url_link = mock_processor.return_value["url_link"]
             assert url_link("test") == "test"
@@ -85,18 +78,44 @@ class TestPlatzky:
         """Test the create_app function."""
         with patch("platzky.platzky.Config.parse_yaml") as mock_parse_yaml:
             with patch("platzky.platzky.create_app_from_config") as mock_create_app_from_config:
-                # Set up the mocks
                 mock_config = MagicMock()
                 mock_parse_yaml.return_value = mock_config
                 mock_engine = MagicMock()
                 mock_create_app_from_config.return_value = mock_engine
 
-                # Call the function
                 result = create_app("test_config.yml")
 
-                # Verify the calls
                 mock_parse_yaml.assert_called_once_with("test_config.yml")
                 mock_create_app_from_config.assert_called_once_with(mock_config)
-
-                # Verify the result
                 assert result == mock_engine
+
+    def test_fake_login_routes(self, mock_db):
+        """Test the fake login routes."""
+        mock_config = MagicMock()
+        mock_config.feature_flags = {"FAKE_LOGIN": True}
+
+        app = create_engine(mock_config, mock_db)
+
+        app.secret_key = "test_secret_key"
+        client = app.test_client()
+
+        with app.test_request_context():
+            response = client.get("/admin/fake-login/admin")
+            assert response.status_code == 301
+            with client.session_transaction() as sess:
+                import pdb; pdb.set_trace()
+                assert "user" in sess
+                assert sess["user"]["username"] == "admin"
+                assert sess["user"]["role"] == "admin"
+
+            response = client.get("/fake-login/nonadmin")
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert "user" in sess
+                assert sess["user"]["username"] == "user"
+                assert sess["user"]["role"] == "nonadmin"
+
+            response = client.get("/fake-login/invalidrole")
+            assert response.status_code == 302
+            with client.session_transaction() as sess:
+                assert "user" not in sess

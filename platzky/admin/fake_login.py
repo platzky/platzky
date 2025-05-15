@@ -5,33 +5,39 @@ WARNING: This module provides fake login functionality and should NEVER be used 
 environments as it bypasses proper authentication and authorization controls.
 """
 
-from typing import Any
+from typing import Any, Callable
 
 from flask import Blueprint, flash, redirect, session, url_for
 
 
-def get_fake_login_html() -> str:
-    """Generate HTML for fake login buttons."""
-    html = """
-    <div class="col-md-6 mb-4">
-      <div class="card">
-        <div class="card-header">
-          Development Login
-        </div>
-        <div class="card-body">
-          <p class="text-danger"><strong>Warning:</strong> For development only</p>
-          <div class="d-flex justify-content-around">
-            <a href="{{ url_for('admin.fake_login', role='admin') }}"
-               class="btn btn-primary">Login as Admin</a>
-            <a href="{{ url_for('admin.fake_login', role='nonadmin') }}"
-               class="btn btn-secondary">Login as Non-Admin</a>
+def get_fake_login_html() -> Callable[[], str]:
+    """Return a callable that generates HTML for fake login buttons."""
+    def generate_html() -> str:
+        from flask import url_for
+        admin_url = url_for('admin.handle_fake_login', role='admin')
+        nonadmin_url = url_for('admin.handle_fake_login', role='nonadmin')
+
+        # Rest of the code remains the same
+        return f"""
+        <div class="col-md-6 mb-4">
+          <div class="card">
+            <div class="card-header">
+              Development Login
+            </div>
+            <div class="card-body">
+              <p class="text-danger"><strong>Warning:</strong> For development only</p>
+              <div class="d-flex justify-content-around">
+                <a href="{admin_url}"
+                   class="btn btn-primary">Login as Admin</a>
+                <a href="{nonadmin_url}"
+                   class="btn btn-secondary">Login as Non-Admin</a>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-    """
-    return html
+        """
 
+    return generate_html
 
 def setup_fake_login_routes(blueprint: Blueprint) -> None:
     """Add fake login routes to the provided blueprint."""
