@@ -3,3 +3,7 @@ source = platzky
 omit =
     tests/*
     */site-packages/*
+
+[report]
+exclude_lines =
+    @abstractmethod
