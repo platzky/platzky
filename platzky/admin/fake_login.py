@@ -12,10 +12,12 @@ from flask import Blueprint, flash, redirect, session, url_for
 
 def get_fake_login_html() -> Callable[[], str]:
     """Return a callable that generates HTML for fake login buttons."""
+
     def generate_html() -> str:
         from flask import url_for
-        admin_url = url_for('admin.handle_fake_login', role='admin')
-        nonadmin_url = url_for('admin.handle_fake_login', role='nonadmin')
+
+        admin_url = url_for("admin.handle_fake_login", role="admin")
+        nonadmin_url = url_for("admin.handle_fake_login", role="nonadmin")
 
         # Rest of the code remains the same
         return f"""
@@ -38,6 +40,7 @@ def get_fake_login_html() -> Callable[[], str]:
         """
 
     return generate_html
+
 
 def setup_fake_login_routes(blueprint: Blueprint) -> None:
     """Add fake login routes to the provided blueprint."""

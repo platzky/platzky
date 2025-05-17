@@ -103,7 +103,9 @@ class TestPlatzky:
             response = client.get("/admin/fake-login/admin")
             assert response.status_code == 301
             with client.session_transaction() as sess:
-                import pdb; pdb.set_trace()
+                import pdb
+
+                pdb.set_trace()
                 assert "user" in sess
                 assert sess["user"]["username"] == "admin"
                 assert sess["user"]["role"] == "admin"

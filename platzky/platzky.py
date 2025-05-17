@@ -88,6 +88,7 @@ def create_app_from_config(config: Config) -> Engine:
 
     if config.feature_flags is not None and config.feature_flags.get("FAKE_LOGIN", False):
         from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
+
         engine.login_methods.append(get_fake_login_html())
         setup_fake_login_routes(admin_blueprint)
 
