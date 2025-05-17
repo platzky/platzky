@@ -39,6 +39,7 @@ jobs:
       with:
         path-to-lcov: "./coverage.lcov"
         github-token: ${{ secrets.GITHUB_TOKEN }}
+        debug: true
 
     - name: Install Cypress
       working-directory: "./tests/e2e_tests"
