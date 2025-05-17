@@ -128,3 +128,24 @@ class TestPlatzky:
                 assert "user" in sess
                 assert sess["user"]["username"] == "user"
                 assert sess["user"]["role"] == "nonadmin"
+
+    def test_fake_login_is_blocked_on_nondev_env(self):
+        """Test that fake login is blocked on non-development environments."""
+        config_raw = {
+            "USE_WWW": False,
+            "APP_NAME": "testing App Name",
+            "SECRET_KEY": "secret",
+            "SEO_PREFIX": "/seo",
+            "DB": {"TYPE": "json", "DATA": {}},
+            "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+        }
+
+        import os
+
+        os.environ.pop("PYTEST_CURRENT_TEST", None)
+
+        config = Config.model_validate(config_raw)
+
+        # check that create_app_from_config raises an error
+        with pytest.raises(RuntimeError):
+            create_app_from_config(config)

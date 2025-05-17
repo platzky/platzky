@@ -47,14 +47,13 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
 
     import os
 
-    if os.environ.get("FLASK_ENV") == "production":
-        import warnings
+    env = os.environ
+    is_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") == "1"
 
-        warnings.warn(
-            "Fake login routes are enabled in a production environment! "
-            "This is a serious security risk and should be disabled immediately.",
-            UserWarning,
-            stacklevel=2,
+    if not is_testing:
+        raise RuntimeError(
+            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
+            "This functionality must only be used during development or testing."
         )
 
     @admin_blueprint.route("/fake-login/<role>")
