@@ -20,7 +20,7 @@ e2e-tests:
 	cd tests/e2e_tests && node_modules/cypress/bin/cypress run --browser chromium
 
 coverage:
-	poetry run coverage run --branch --source=platzky -m pytest -m "not skip_coverage"
+	poetry run coverage run --branch -m pytest -m "not skip_coverage"
 	poetry run coverage lcov
 
 html-cov: coverage
