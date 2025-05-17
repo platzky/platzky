@@ -1,0 +1,5 @@
+[run]
+source = platzky
+omit =
+    tests/*
+    */site-packages/*
