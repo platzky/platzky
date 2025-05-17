@@ -81,16 +81,17 @@ def create_engine(config: Config, db) -> Engine:
 
 
 def create_app_from_config(config: Config) -> Engine:
-    engine = create_engine_from_config(config)
+    db = get_db(config.db)
+    engine = create_engine(config, db)
+
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale
     )
-
-    if config.feature_flags is not None and config.feature_flags.get("FAKE_LOGIN", False):
+    if config.feature_flags is not None and config.feature_flags.get("FAKE_LOGIN", True):
         from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
 
         engine.login_methods.append(get_fake_login_html())
-        setup_fake_login_routes(admin_blueprint)
+        admin_blueprint = setup_fake_login_routes(admin_blueprint)
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
@@ -106,12 +107,6 @@ def create_app_from_config(config: Config) -> Engine:
 
     Minify(app=engine, html=True, js=True, cssless=True)
     return engine
-
-
-def create_engine_from_config(config: Config) -> Engine:
-    """Create an engine from a config."""
-    db = get_db(config.db)
-    return create_engine(config, db)
 
 
 def create_app(config_path: str) -> Engine:

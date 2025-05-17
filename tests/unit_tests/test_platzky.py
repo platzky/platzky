@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from platzky.config import LanguageConfig
+from platzky import create_app_from_config
+from platzky.config import Config, LanguageConfig
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -91,33 +92,39 @@ class TestPlatzky:
 
     def test_fake_login_routes(self, mock_db):
         """Test the fake login routes."""
-        mock_config = MagicMock()
-        mock_config.feature_flags = {"FAKE_LOGIN": True}
+        with patch("platzky.platzky.get_db") as mock_get_db:
+            mock_get_db.return_value = mock_db
 
-        app = create_engine(mock_config, mock_db)
+            config_raw = {
+                "USE_WWW": False,
+                "APP_NAME": "testing App Name",
+                "SECRET_KEY": "secret",
+                "SEO_PREFIX": "/seo",
+                "DB": {"TYPE": "json", "DATA": {}},
+                "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+            }
+            config = Config.model_validate(config_raw)
 
-        app.secret_key = "test_secret_key"
-        client = app.test_client()
+            app = create_app_from_config(config)
 
-        with app.test_request_context():
-            response = client.get("/admin/fake-login/admin")
-            assert response.status_code == 301
+            app.secret_key = "test_secret_key"
+            client = app.test_client()
+
+            response = client.get("/admin/fake-login/invalidrole", follow_redirects=True)
+            assert response.status_code == 200
             with client.session_transaction() as sess:
-                import pdb
+                assert "user" not in sess
 
-                pdb.set_trace()
+            response = client.get("/admin/fake-login/admin", follow_redirects=True)
+            assert response.status_code == 200
+            with client.session_transaction() as sess:
                 assert "user" in sess
                 assert sess["user"]["username"] == "admin"
                 assert sess["user"]["role"] == "admin"
 
-            response = client.get("/fake-login/nonadmin")
-            assert response.status_code == 302
+            response = client.get("/admin/fake-login/nonadmin", follow_redirects=True)
+            assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" in sess
                 assert sess["user"]["username"] == "user"
                 assert sess["user"]["role"] == "nonadmin"
-
-            response = client.get("/fake-login/invalidrole")
-            assert response.status_code == 302
-            with client.session_transaction() as sess:
-                assert "user" not in sess

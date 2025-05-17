@@ -171,7 +171,9 @@ def test_that_page_has_proper_html_lang_attribute(test_app):
 
 
 def test_add_login_method(test_app):
-    sample_login_method = "Login Method"
+    def sample_login_method():
+        return "Login Method"
+
     test_app.add_login_method(sample_login_method)
     assert sample_login_method in test_app.login_methods
 

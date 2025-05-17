@@ -42,8 +42,8 @@ def get_fake_login_html() -> Callable[[], str]:
     return generate_html
 
 
-def setup_fake_login_routes(blueprint: Blueprint) -> None:
-    """Add fake login routes to the provided blueprint."""
+def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
+    """Add fake login routes to the provided admin_blueprint."""
 
     import os
 
@@ -57,7 +57,7 @@ def setup_fake_login_routes(blueprint: Blueprint) -> None:
             stacklevel=2,
         )
 
-    @blueprint.route("/fake-login/<role>")
+    @admin_blueprint.route("/fake-login/<role>")
     def handle_fake_login(role: str) -> Any:
         valid_roles = ["admin", "nonadmin"]
         if role not in valid_roles:
@@ -68,3 +68,5 @@ def setup_fake_login_routes(blueprint: Blueprint) -> None:
         else:
             session["user"] = {"username": "user", "role": "nonadmin"}
         return redirect(url_for("admin.admin_panel_home"))
+
+    return admin_blueprint
