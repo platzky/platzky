@@ -60,7 +60,7 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
             "This functionality must only be used during development or testing."
         )
 
-    @admin_blueprint.route("/fake-login/<role>",methods=["POST"])
+    @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Any:
         valid_roles = ["admin", "nonadmin"]
         if role not in valid_roles:
