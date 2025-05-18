@@ -8,19 +8,18 @@ environments as it bypasses proper authentication and authorization controls.
 from typing import Any, Callable
 
 from flask import Blueprint, flash, redirect, session, url_for
+from markupsafe import Markup
 
 
 def get_fake_login_html() -> Callable[[], str]:
     """Return a callable that generates HTML for fake login buttons."""
 
     def generate_html() -> str:
-        from flask import url_for
-
         admin_url = url_for("admin.handle_fake_login", role="admin")
         nonadmin_url = url_for("admin.handle_fake_login", role="nonadmin")
 
         # Rest of the code remains the same
-        return f"""
+        html = f"""
         <div class="col-md-6 mb-4">
           <div class="card">
             <div class="card-header">
@@ -38,6 +37,7 @@ def get_fake_login_html() -> Callable[[], str]:
           </div>
         </div>
         """
+        return Markup(html)
 
     return generate_html
 

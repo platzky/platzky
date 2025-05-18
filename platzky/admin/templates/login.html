@@ -13,7 +13,7 @@
   <div class="row align-items-center">
 
 {% for method in login_methods %}
-        {{ method()|safe }}
+        {{ method() }}
 
 {% endfor %}
 
