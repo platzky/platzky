@@ -110,19 +110,27 @@ class TestPlatzky:
             app.secret_key = "test_secret_key"
             client = app.test_client()
 
-            response = client.get("/admin/fake-login/invalidrole", follow_redirects=True)
+            response = client.post("/admin/fake-login/invalidrole", follow_redirects=True)
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
-            response = client.get("/admin/fake-login/admin", follow_redirects=True)
+            # Test that GET requests to the fake login endpoints fail
+            response = client.get("/admin/fake-login/admin")
+            assert response.status_code == 405  # Method Not Allowed
+
+            # Ensure no user is set in the session after attempting GET request
+            with client.session_transaction() as sess:
+                assert "user" not in sess
+
+            response = client.post("/admin/fake-login/admin", follow_redirects=True)
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" in sess
                 assert sess["user"]["username"] == "admin"
                 assert sess["user"]["role"] == "admin"
 
-            response = client.get("/admin/fake-login/nonadmin", follow_redirects=True)
+            response = client.post("/admin/fake-login/nonadmin", follow_redirects=True)
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" in sess

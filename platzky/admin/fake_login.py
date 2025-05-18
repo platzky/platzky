@@ -28,10 +28,14 @@ def get_fake_login_html() -> Callable[[], str]:
             <div class="card-body">
               <p class="text-danger"><strong>Warning:</strong> For development only</p>
               <div class="d-flex justify-content-around">
-                <a href="{admin_url}"
-                   class="btn btn-primary">Login as Admin</a>
-                <a href="{nonadmin_url}"
-                   class="btn btn-secondary">Login as Non-Admin</a>
+                <form method="post" action="{admin_url}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-primary">Login as Admin</button>
+                </form>
+                <form method="post" action="{nonadmin_url}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-secondary">Login as Non-Admin</button>
+                </form>
               </div>
             </div>
           </div>
@@ -56,7 +60,7 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
             "This functionality must only be used during development or testing."
         )
 
-    @admin_blueprint.route("/fake-login/<role>")
+    @admin_blueprint.route("/fake-login/<role>",methods=["POST"])
     def handle_fake_login(role: str) -> Any:
         valid_roles = ["admin", "nonadmin"]
         if role not in valid_roles:
