@@ -153,7 +153,7 @@ class TestPlatzky:
 
         with pytest.raises(
             RuntimeError,
-            match="SECURITY ERROR: Fake login routes are enabled outside of a testing environment!"
-            + "This functionality must only be used during development or testing.",
+            match="SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
+            "This functionality must only be used during development or testing.",
         ):
             create_app_from_config(config)

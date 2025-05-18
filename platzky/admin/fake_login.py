@@ -5,10 +5,15 @@ WARNING: This module provides fake login functionality and should NEVER be used 
 environments as it bypasses proper authentication and authorization controls.
 """
 
+import os
 from typing import Any, Callable
 
 from flask import Blueprint, flash, redirect, session, url_for
 from markupsafe import Markup
+
+ROLE_ADMIN = "admin"
+ROLE_NONADMIN = "nonadmin"
+VALID_ROLES = [ROLE_ADMIN, ROLE_NONADMIN]
 
 
 def get_fake_login_html() -> Callable[[], str]:
@@ -49,27 +54,29 @@ def get_fake_login_html() -> Callable[[], str]:
 def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
     """Add fake login routes to the provided admin_blueprint."""
 
-    import os
-
     env = os.environ
-    is_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") == "1"
+    is_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") in (
+        "1",
+        "true",
+        "True",
+        True,
+    )
 
     if not is_testing:
         raise RuntimeError(
-            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment!"
+            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
             "This functionality must only be used during development or testing."
         )
 
     @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Any:
-        valid_roles = ["admin", "nonadmin"]
-        if role not in valid_roles:
-            flash(f"Invalid role: {role}. Must be one of: {', '.join(valid_roles)}", "error")
+        if role not in VALID_ROLES:
+            flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
             return redirect(url_for("admin.admin_panel_home"))
-        if role == "admin":
-            session["user"] = {"username": "admin", "role": "admin"}
+        if role == ROLE_ADMIN:
+            session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
         else:
-            session["user"] = {"username": "user", "role": "nonadmin"}
+            session["user"] = {"username": "user", "role": ROLE_NONADMIN}
         return redirect(url_for("admin.admin_panel_home"))
 
     return admin_blueprint
