@@ -129,7 +129,7 @@ class TestPlatzky:
                 assert sess["user"]["username"] == "user"
                 assert sess["user"]["role"] == "nonadmin"
 
-    def test_fake_login_is_blocked_on_nondev_env(self):
+    def test_fake_login_is_blocked_on_nondev_env(self, monkeypatch):
         """Test that fake login is blocked on non-development environments."""
         config_raw = {
             "USE_WWW": False,
@@ -140,12 +140,12 @@ class TestPlatzky:
             "FEATURE_FLAGS": {"FAKE_LOGIN": True},
         }
 
-        import os
-
-        os.environ.pop("PYTEST_CURRENT_TEST", None)
-
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
         config = Config.model_validate(config_raw)
 
-        # check that create_app_from_config raises an error
-        with pytest.raises(RuntimeError):
+        with pytest.raises(
+            RuntimeError,
+            match="SECURITY ERROR: Fake login routes are enabled outside of a testing environment!"
+            + "This functionality must only be used during development or testing.",
+        ):
             create_app_from_config(config)

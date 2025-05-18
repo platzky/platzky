@@ -52,7 +52,7 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
 
     if not is_testing:
         raise RuntimeError(
-            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
+            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment!"
             "This functionality must only be used during development or testing."
         )
 
