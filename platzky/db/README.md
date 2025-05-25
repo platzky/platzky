@@ -2,11 +2,9 @@
 
 This directory contains the database abstraction layer for the Platzky application. The database modules provide a consistent interface for accessing content regardless of where it's stored.
 
-
 ## Architecture
 
 The database layer is built on an abstract base class (DB) that defines a common interface. Multiple implementations are provided for different storage backends:
-
 
 - **Json**: Base implementation for JSON data sources
 - **JsonFile**: Local JSON file storage
@@ -14,7 +12,9 @@ The database layer is built on an abstract base class (DB) that defines a common
 - **GoogleJsonDb**: JSON files stored in Google Cloud Storage
 - **GraphQL**: Content stored in a GraphQL API
 
+
 ## Configuration
+
 Database configuration is specified in your application config file. Each database type has its own configuration schema.
 
 ### JSON File Database
