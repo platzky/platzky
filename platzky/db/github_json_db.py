@@ -52,7 +52,7 @@ class GithubJsonDb(JsonDB):
             else:
 
                 download_url = file_content.download_url
-                response = requests.get(download_url)
+                response = requests.get(download_url, timeout=40)
                 response.raise_for_status()
                 raw_data = response.text
 
