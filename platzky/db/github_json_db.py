@@ -58,8 +58,10 @@ class GithubJsonDb(JsonDB):
 
             self.data = json.loads(raw_data)
 
+        except (json.JSONDecodeError, requests.RequestException) as e:
+            raise ValueError(f"Error parsing JSON content: {e}")
         except Exception as e:
-            raise ValueError(f"Error retrieving or processing GitHub content: {e!s}")
+            raise ValueError(f"Error retrieving GitHub content: {e}")
 
         super().__init__(self.data)
 
