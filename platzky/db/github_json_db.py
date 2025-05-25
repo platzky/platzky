@@ -36,7 +36,7 @@ def get_db(config):
 
 
 class GithubJsonDb(JsonDB):
-    def __init__(self, github_token, repo_name, branch_name, path_to_file):
+    def __init__(self, github_token: str, repo_name: str, branch_name: str, path_to_file: str):
         self.branch_name = branch_name
         self.repo = Github(github_token).get_repo(repo_name)
         self.file_path = path_to_file

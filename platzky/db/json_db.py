@@ -3,8 +3,8 @@ from typing import Any, Dict
 
 from pydantic import Field
 
-from platzky.models import MenuItem, Post
 from platzky.db.db import DB, DBConfig
+from platzky.models import MenuItem, Post
 
 
 def db_config_type():
