@@ -1,5 +1,6 @@
 import json
 
+import requests
 from github import Github
 from pydantic import Field
 
@@ -41,16 +42,14 @@ class GithubJsonDb(JsonDB):
         self.file_path = path_to_file
 
         try:
-            # Try to get the file content
             file_content = self.repo.get_contents(self.file_path, ref=self.branch_name)
 
-            # Check if it's a regular file or a large file
-            if hasattr(file_content, "content") and file_content.content:
-                # Regular file
+            if isinstance(file_content, list):
+                raise ValueError(f"Path '{self.file_path}' points to a directory, not a file")
+
+            if file_content.content:
                 raw_data = file_content.decoded_content.decode("utf-8")
             else:
-                # Large file - use Git Data API to get the raw content
-                import requests
 
                 download_url = file_content.download_url
                 response = requests.get(download_url)
