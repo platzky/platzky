@@ -1,0 +1,52 @@
+import json
+
+from github import Github
+from platzky.db.db import DBConfig
+from pydantic import Field
+
+from platzky.db.json_db import Json as JsonDB
+
+
+def db_config_type():
+    return GithubJsonDbConfig
+
+class GithubJsonDbConfig(DBConfig):
+    github_token: str = Field(alias="GITHUB_TOKEN")
+    repo_name: str = Field(alias="REPO_NAME")
+    path_to_file: str = Field(alias="PATH_TO_FILE")
+    branch_name: str = Field(alias="BRANCH_NAME", default="main")
+
+
+def db_from_config(config: GithubJsonDbConfig):
+    return GithubJsonDb(config.github_token, config.repo_name, config.branch_name, config.path_to_file)
+
+
+def get_db(config):
+    github_json_db_config = GithubJsonDbConfig.model_validate(config)
+    return GithubJsonDb(
+        github_json_db_config.github_token,
+        github_json_db_config.repo_name,
+        github_json_db_config.branch_name,
+        github_json_db_config.path_to_file
+    )
+
+
+class GithubJsonDb(JsonDB):
+    def __init__(self, github_token, repo_name, branch_name, path_to_file):
+        self.branch_name = branch_name
+        self.repo = Github(github_token).get_repo(repo_name)
+        self.file_path = path_to_file
+
+        try:
+            file_content = self.repo.get_contents(self.file_path, ref=self.branch_name)
+            raw_data = file_content.decoded_content.decode('utf-8')
+            print(f"Successfully retrieved file: {self.file_path}")
+        except Exception as e:
+            print(f"Error retrieving file: {e}")
+            raw_data = "{}"  # Default empty JSON
+
+        data = json.loads(raw_data)
+        super().__init__(data)
+
+        self.module_name = "github_json_db"
+        self.db_name = "GithubJsonDb"
