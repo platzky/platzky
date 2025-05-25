@@ -115,5 +115,5 @@ def test_raises_error_for_invalid_json_content():
         mock_repo.get_contents.return_value = mock_file
         MockGithub.return_value.get_repo.return_value = mock_repo
 
-        with pytest.raises(ValueError, match="Error retrieving or processing GitHub content"):
+        with pytest.raises(ValueError, match="Error parsing JSON content: Expecting value"):
             GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
