@@ -38,15 +38,27 @@ class GithubJsonDb(JsonDB):
         self.file_path = path_to_file
 
         try:
+            # Try to get the file content
             file_content = self.repo.get_contents(self.file_path, ref=self.branch_name)
-            raw_data = file_content.decoded_content.decode('utf-8')
-            print(f"Successfully retrieved file: {self.file_path}")
-        except Exception as e:
-            print(f"Error retrieving file: {e}")
-            raw_data = "{}"  # Default empty JSON
 
-        data = json.loads(raw_data)
-        super().__init__(data)
+            # Check if it's a regular file or a large file
+            if hasattr(file_content, 'content') and file_content.content:
+                # Regular file
+                raw_data = file_content.decoded_content.decode('utf-8')
+            else:
+                # Large file - use Git Data API to get the raw content
+                import requests
+                download_url = file_content.download_url
+                response = requests.get(download_url)
+                response.raise_for_status()
+                raw_data = response.text
+
+            self.data = json.loads(raw_data)
+
+        except Exception as e:
+            raise ValueError(f"Error retrieving or processing GitHub content: {str(e)}")
+        
+        super().__init__(self.data)
 
         self.module_name = "github_json_db"
         self.db_name = "GithubJsonDb"
