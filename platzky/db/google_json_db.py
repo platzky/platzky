@@ -6,6 +6,7 @@ from pydantic import Field
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json
 
+
 def db_config_type():
     return GoogleJsonDbConfig
 
