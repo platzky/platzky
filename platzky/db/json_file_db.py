@@ -2,8 +2,8 @@ import json
 
 from pydantic import Field
 
-from .db import DBConfig
-from .json_db import Json
+from platzky.db.db import DBConfig
+from platzky.db.json_db import Json
 
 
 def db_config_type():
