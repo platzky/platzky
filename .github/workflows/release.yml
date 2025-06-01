@@ -11,6 +11,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment: pypi
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
