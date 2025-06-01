@@ -20,11 +20,13 @@ VALID_ROLES = [ROLE_ADMIN, ROLE_NONADMIN]
 class FakeLoginForm(FlaskForm):
     """
     Empty form class that inherits CSRF protection from FlaskForm.
-    
+
     Used specifically for the fake login functionality to enable
     CSRF token validation on form submissions.
     """
+
     pass
+
 
 def get_fake_login_html() -> Callable[[], str]:
     """Return a callable that generates HTML for fake login buttons."""
