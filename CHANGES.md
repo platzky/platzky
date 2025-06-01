@@ -1,6 +1,6 @@
 # Changes
 
-## Version 0.3.4
+## Version 0.3.5
 Released on 2025-06-01
 - fix: fake login and whole engine now uses csrf
 
