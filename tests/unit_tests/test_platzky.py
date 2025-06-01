@@ -112,7 +112,7 @@ class TestPlatzky:
             response = client.get("/admin/")
             html = response.data.decode("utf-8")
 
-            match = re.search(r'name="csrf_token".+value="(.+?)"', html)
+            match = re.search(r'name="csrf_token" type="hidden" value="(.+?)"', html)
             csrf_token = match.group(1) if match else None
 
             assert csrf_token, "CSRF token not found in response"
