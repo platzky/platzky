@@ -8,7 +8,7 @@ environments as it bypasses proper authentication and authorization controls.
 import os
 from typing import Any, Callable
 
-from flask import Blueprint, flash, redirect, session, url_for, render_template_string
+from flask import Blueprint, flash, redirect, render_template_string, session, url_for
 from flask_wtf import FlaskForm
 from markupsafe import Markup
 
@@ -31,7 +31,8 @@ def get_fake_login_html() -> Callable[[], str]:
         # Create a form instance to get the CSRF token
         form = FakeLoginForm()
 
-        html = render_template_string("""
+        html = render_template_string(
+            """
         <div class="col-md-6 mb-4">
           <div class="card">
             <div class="card-header">
@@ -52,7 +53,11 @@ def get_fake_login_html() -> Callable[[], str]:
             </div>
           </div>
         </div>
-        """, form=form, admin_url=admin_url, nonadmin_url=nonadmin_url)
+        """,
+            form=form,
+            admin_url=admin_url,
+            nonadmin_url=nonadmin_url,
+        )
 
         return Markup(html)
 
