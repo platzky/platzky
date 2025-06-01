@@ -11,7 +11,6 @@ jobs:
       name: pypi
       url: https://pypi.org/p/platzky
     permissions:
-      contents: 'read'
       id-token: 'write'
     steps:
     - uses: actions/checkout@v4
