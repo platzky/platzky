@@ -3,6 +3,7 @@ import urllib.parse
 
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
+from flask_wtf import CSRFProtect
 
 from platzky.admin import admin
 from platzky.blog import blog
@@ -107,6 +108,7 @@ def create_app_from_config(config: Config) -> Engine:
     engine.register_blueprint(seo_blueprint)
 
     Minify(app=engine, html=True, js=True, cssless=True)
+    CSRFProtect(app=engine)
     return engine
 
 

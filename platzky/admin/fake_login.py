@@ -8,12 +8,17 @@ environments as it bypasses proper authentication and authorization controls.
 import os
 from typing import Any, Callable
 
-from flask import Blueprint, flash, redirect, session, url_for
+from flask import Blueprint, flash, redirect, session, url_for, render_template_string
+from flask_wtf import FlaskForm
 from markupsafe import Markup
 
 ROLE_ADMIN = "admin"
 ROLE_NONADMIN = "nonadmin"
 VALID_ROLES = [ROLE_ADMIN, ROLE_NONADMIN]
+
+
+class FakeLoginForm(FlaskForm):
+    pass
 
 
 def get_fake_login_html() -> Callable[[], str]:
@@ -23,8 +28,10 @@ def get_fake_login_html() -> Callable[[], str]:
         admin_url = url_for("admin.handle_fake_login", role="admin")
         nonadmin_url = url_for("admin.handle_fake_login", role="nonadmin")
 
-        # Rest of the code remains the same
-        html = f"""
+        # Create a form instance to get the CSRF token
+        form = FakeLoginForm()
+
+        html = render_template_string("""
         <div class="col-md-6 mb-4">
           <div class="card">
             <div class="card-header">
@@ -33,19 +40,20 @@ def get_fake_login_html() -> Callable[[], str]:
             <div class="card-body">
               <p class="text-danger"><strong>Warning:</strong> For development only</p>
               <div class="d-flex justify-content-around">
-                <form method="post" action="{admin_url}" style="display: inline;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <form method="post" action="{{ admin_url }}" style="display: inline;">
+                  {{ form.csrf_token }}
                   <button type="submit" class="btn btn-primary">Login as Admin</button>
                 </form>
-                <form method="post" action="{nonadmin_url}" style="display: inline;">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <form method="post" action="{{ nonadmin_url }}" style="display: inline;">
+                  {{ form.csrf_token }}
                   <button type="submit" class="btn btn-secondary">Login as Non-Admin</button>
                 </form>
               </div>
             </div>
           </div>
         </div>
-        """
+        """, form=form, admin_url=admin_url, nonadmin_url=nonadmin_url)
+
         return Markup(html)
 
     return generate_html
@@ -70,13 +78,15 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
 
     @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Any:
-        if role not in VALID_ROLES:
-            flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
+        form = FakeLoginForm()
+        if form.validate_on_submit() and role in VALID_ROLES:
+            if role == ROLE_ADMIN:
+                session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
+            else:
+                session["user"] = {"username": "user", "role": ROLE_NONADMIN}
             return redirect(url_for("admin.admin_panel_home"))
-        if role == ROLE_ADMIN:
-            session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
-        else:
-            session["user"] = {"username": "user", "role": ROLE_NONADMIN}
+
+        flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
         return redirect(url_for("admin.admin_panel_home"))
 
     return admin_blueprint
