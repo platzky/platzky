@@ -1,5 +1,9 @@
 # Changes
 
+## Version 0.3.4
+Released on 2025-06-01
+- fix: fake login and whole engine now uses csrf
+
 ## Version 0.3.3
 Released on 2025-05-26
 - feat: added support for using github as database

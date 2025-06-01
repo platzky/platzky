@@ -1,3 +1,4 @@
+import re
 from typing import Any, Callable, Dict
 from unittest.mock import MagicMock, patch
 
@@ -63,7 +64,6 @@ class TestPlatzky:
         mock_config.context_processor_functions = [context_proc]
 
         app = create_engine(mock_config, mock_db)
-
         mock_processor = MagicMock()
 
         def url_link_func2(x: Any) -> str:
@@ -106,16 +106,25 @@ class TestPlatzky:
             config = Config.model_validate(config_raw)
 
             app = create_app_from_config(config)
-
             app.secret_key = "test_secret_key"
             client = app.test_client()
 
-            response = client.post("/admin/fake-login/invalidrole", follow_redirects=True)
+            response = client.get("/admin/")
+            html = response.data.decode("utf-8")
+
+            match = re.search(r'name="csrf_token" type="hidden" value="(.+?)"', html)
+            csrf_token = match.group(1) if match else None
+            assert csrf_token is not None
+
+            response = client.post(
+                "/admin/fake-login/invalidrole",
+                follow_redirects=True,
+                data={"csrf_token": csrf_token},
+            )
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
-            # Test that GET requests to the fake login endpoints fail
             response = client.get("/admin/fake-login/admin")
             assert response.status_code == 405  # Method Not Allowed
 
@@ -123,14 +132,18 @@ class TestPlatzky:
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
-            response = client.post("/admin/fake-login/admin", follow_redirects=True)
+            response = client.post(
+                "/admin/fake-login/admin", follow_redirects=True, data={"csrf_token": csrf_token}
+            )
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" in sess
                 assert sess["user"]["username"] == "admin"
                 assert sess["user"]["role"] == "admin"
 
-            response = client.post("/admin/fake-login/nonadmin", follow_redirects=True)
+            response = client.post(
+                "/admin/fake-login/nonadmin", follow_redirects=True, data={"csrf_token": csrf_token}
+            )
             assert response.status_code == 200
             with client.session_transaction() as sess:
                 assert "user" in sess
