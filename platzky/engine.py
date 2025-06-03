@@ -1,9 +1,11 @@
 import os
+from typing import List
 
 from flask import Flask, request, session
 from flask_babel import Babel
 
 from platzky.config import Config
+from platzky.models import CmsModule, CmsModuleGroup
 
 
 class Engine(Flask):
@@ -24,6 +26,16 @@ class Engine(Flask):
             locale_selector=self.get_locale,
             default_translation_directories=babel_translation_directories,
         )
+        plugins_cms_module = CmsModuleGroup(
+            name="plugins",
+            description="Plugins management",
+            slug="plugins",
+            modules=[
+                CmsModule(name=plugin.get("name"), description="", slug="", template="")
+                for plugin in db.get_plugins_data()
+            ],
+        )
+        self.cms_modules: List[CmsModule] = [plugins_cms_module]
 
     def notify(self, message: str):
         for notifier in self.notifiers:
@@ -31,6 +43,9 @@ class Engine(Flask):
 
     def add_notifier(self, notifier):
         self.notifiers.append(notifier)
+
+    def add_cms_module(self, module: CmsModule):
+        self.cms_modules.append(module)
 
     # TODO login_method should be interface
     def add_login_method(self, login_method):

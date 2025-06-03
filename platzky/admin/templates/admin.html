@@ -18,12 +18,14 @@
 {% block left_panel %}
 <div id="admin-panel">
   <p>User: {{ user.username }}</p>
-  {% for cms_module_name, cms_entries in cms_modules.items() %}
+  {% for cms_module in cms_modules %}
   <div class="cms-module mb-2">
-    <p>{{ cms_module_name }}</p>
-    {% for cms_entry in cms_entries %}
-    <a href="{{ url_for('admin.module', name=cms_entry) }}" class="cms-entry btn btn-primary btn-block mb-2">{{ cms_entry }}</a>
-    {% endfor %}
+    <p>{{ cms_module.name }}</p>
+    <ul>
+        <li>
+            <a href="/{{ cms_module.slug }}"> {{ cms_module.name }} </a>
+        </li>
+    </ul>
   </div>
   {% endfor %}
 </div>
