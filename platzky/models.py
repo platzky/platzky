@@ -19,10 +19,6 @@ class CmsModuleGroup(CmsModule):
 
     modules: list[CmsModule] = []
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.modules: list[CmsModule] = data.get("modules", [])
-
 
 class Image(BaseModel):
     url: str = ""
