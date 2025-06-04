@@ -32,8 +32,11 @@ def test_admin_panel_renders_admin_when_user_exists(mock_render_template, admin_
     with admin_blueprint.test_request_context("/admin/"):
         session["user"] = "test_user"
         admin_blueprint.view_functions["admin.admin_panel_home"]()
-        mock_render_template.assert_called_with("admin.html", user="test_user", cms_modules=[CmsModule(slug="module1", template="module1.html")])
-
+        mock_render_template.assert_called_with(
+            "admin.html",
+            user="test_user",
+            cms_modules=[CmsModule(slug="module1", template="module1.html")],
+        )
 
 
 @patch("platzky.admin.admin.render_template")
@@ -50,7 +53,9 @@ def test_admin_panel_renders_cms_modules(mock_render_template, admin_blueprint):
         response = client.get("/admin/module/module1")
 
         # Verify the template was rendered with correct arguments
-        mock_render_template.assert_called_with("module1.html", module=CmsModule(slug="module1", template="module1.html"))
+        mock_render_template.assert_called_with(
+            "module1.html", module=CmsModule(slug="module1", template="module1.html")
+        )
 
         # Check response
         assert response.status_code == 200
