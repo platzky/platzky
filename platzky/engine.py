@@ -31,7 +31,8 @@ class Engine(Flask):
             description="Plugins management",
             slug="plugins",
             modules=[
-                CmsModule(name=plugin.get("name"), description="", slug="", template="")
+                CmsModule(name=plugin.get("name"),
+                          description="plugins", slug=f"/plugin/{plugin.get('name')}", template="module.html")
                 for plugin in db.get_plugins_data()
             ],
         )
