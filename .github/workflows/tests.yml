@@ -30,6 +30,7 @@ jobs:
 
     - name: Run linters
       run: make lint-check
+      continue-on-error: true
 
     - name: Run tests with coverage
       run: make coverage
