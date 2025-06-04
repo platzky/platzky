@@ -4,6 +4,13 @@ from flask import Blueprint, render_template, session
 
 
 def create_admin_blueprint(login_methods, cms_modules):
+    """Create admin blueprint with dynamic module routes.
+
+    Args:
+        login_methods: Available login methods
+        cms_modules: List of CMS modules to register routes for
+    """
+    # …rest of the function…
     admin = Blueprint(
         "admin",
         __name__,
