@@ -26,22 +26,9 @@ class Engine(Flask):
             locale_selector=self.get_locale,
             default_translation_directories=babel_translation_directories,
         )
-        plugins_cms_module = CmsModuleGroup(
-            name="plugins",
-            description="Plugins management",
-            slug="plugins",
-            template="module.html",
-            modules=[
-                CmsModule(
-                    name=plugin.get("name"),
-                    description="plugins",
-                    slug=f"/plugin/{plugin.get('name')}",
-                    template="module.html",
-                )
-                for plugin in db.get_plugins_data()
-            ],
-        )
-        self.cms_modules: List[CmsModule] = [plugins_cms_module]
+
+        self.cms_modules: List[CmsModule] = []
+        # TODO add plugins as CMS Module - all plugins should be visible from admin page at least as configuration
 
     def notify(self, message: str):
         for notifier in self.notifiers:
