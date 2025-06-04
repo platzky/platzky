@@ -161,5 +161,28 @@
     }
   },
   "plugins": [
+    {
+      "name": "redirections",
+        "config": {
+            "redirections": [
+            {
+                "from": "/druzyna",
+                "to": "/blog/druzyna"
+            },
+            {
+                "from": "/fellows",
+                "to": "/blog/fellows"
+            },
+            {
+                "from": "/strona",
+                "to": "/page/strona"
+            },
+            {
+                "from": "/page",
+                "to": "/page/page"
+            }
+            ]
+        }
+    }
   ]
 }
