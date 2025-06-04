@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class CmsModule(BaseModel):
+    """Represents a CMS module with basic metadata."""
     name: str = ""
     description: str = ""
     template: str = ""
@@ -13,12 +14,12 @@ class CmsModule(BaseModel):
 
 # CmsModuleGroup is also a CmsModule, but it contains other CmsModules
 class CmsModuleGroup(CmsModule):
+    """Represents a group of CMS modules, inheriting module properties."""
     modules: list[CmsModule] = []
 
     def __init__(self, **data):
         super().__init__(**data)
         self.modules: list[CmsModule] = data.get("modules", [])
-
 
 class Image(BaseModel):
     url: str = ""
