@@ -20,7 +20,6 @@
   <p>User: {{ user.username }}</p>
   {% for cms_module in cms_modules %}
   <div class="cms-module mb-2">
-    <p>{{ cms_module.name }}</p>
     <ul>
         <li>
             <a href="/{{ cms_module.slug }}"> {{ cms_module.name }} </a>
