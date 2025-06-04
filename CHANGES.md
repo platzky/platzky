@@ -1,7 +1,9 @@
 # Changes
 
+ 
 ## Version 0.3.6
 Released on 2025-06-03
+
 - fix: fixed issue with not displaying plugins in the admin panel
 
 ## Version 0.3.5
