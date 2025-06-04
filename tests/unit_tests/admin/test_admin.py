@@ -31,6 +31,4 @@ def test_admin_panel_renders_admin_when_user_exists(mock_render_template, admin_
     with admin_blueprint.test_request_context("/admin/"):
         session["user"] = "test_user"
         admin_blueprint.view_functions["admin.admin_panel_home"]()
-        mock_render_template.assert_called_with(
-            "admin.html", user="test_user", cms_modules=[]
-        )
+        mock_render_template.assert_called_with("admin.html", user="test_user", cms_modules=[])
