@@ -2,6 +2,7 @@ import pytest
 from bs4 import BeautifulSoup, Tag
 
 from platzky.config import Config
+from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
 
@@ -182,3 +183,11 @@ def test_add_login_method(test_app):
 
     assert response.status_code == 200
     assert b"Login Method" in response.data
+
+
+def test_add_cms_module(test_app):
+    module = CmsModule(
+        slug="test-module", template="test.html", name="Test Module", description="Test Description"
+    )
+    test_app.add_cms_module(module)
+    assert module in test_app.cms_modules
