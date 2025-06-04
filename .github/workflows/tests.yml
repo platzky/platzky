@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   tests:
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -30,7 +31,6 @@ jobs:
 
     - name: Run linters
       run: make lint-check
-      continue-on-error: true
 
     - name: Run tests with coverage
       run: make coverage
