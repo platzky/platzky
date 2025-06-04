@@ -1494,22 +1494,6 @@ test = ["appdirs (==1.4.4)", "covdefaults (>=2.3)", "pytest (>=8.3.2)", "pytest-
 type = ["mypy (>=1.11.2)"]
 
 [[package]]
-name = "platzky-redirections"
-version = "0.1.0"
-description = ""
-optional = false
-python-versions = "<4.0,>=3.10"
-groups = ["main"]
-files = [
-    {file = "platzky_redirections-0.1.0-py3-none-any.whl", hash = "sha256:ce4ab1c594f4fb4bfd4275d710117a3e1dbaa039cdf6b295078727d6c3941164"},
-    {file = "platzky_redirections-0.1.0.tar.gz", hash = "sha256:0496e672306932f3b8c1c0e31b81e7964b57045345ddc62107656b87a8e9ab19"},
-]
-
-[package.dependencies]
-gql = ">=3.5.0,<4.0.0"
-pydantic = ">=2.10.3,<3.0.0"
-
-[[package]]
 name = "pluggy"
 version = "1.5.0"
 description = "plugin and hook calling mechanisms for python"
@@ -2662,4 +2646,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "10131be9a690a3e0eb5a08426b75aac8314241509ffaec0f77fa1fc9b91984fe"
+content-hash = "37f8c0109d0d26c4fe804eadea058d75dbccbfe57d88e1a2bea1e49b4ad097ca"
