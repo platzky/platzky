@@ -12,8 +12,16 @@ mock_login_methods = Mock()
 @pytest.fixture
 def admin_blueprint():
     app = Flask(__name__)
-    cms_modules = [CmsModule.model_validate({"slug": "module1", "template": "module1.html",
-                                             "name": "Module 1", "description": "Test Module 1"})]
+    cms_modules = [
+        CmsModule.model_validate(
+            {
+                "slug": "module1",
+                "template": "module1.html",
+                "name": "Module 1",
+                "description": "Test Module 1",
+            }
+        )
+    ]
     blueprint = create_admin_blueprint(mock_login_methods, cms_modules)
     app.register_blueprint(blueprint)
     app.secret_key = "test_secret_key"
@@ -36,7 +44,14 @@ def test_admin_panel_renders_admin_when_user_exists(mock_render_template, admin_
         mock_render_template.assert_called_with(
             "admin.html",
             user="test_user",
-            cms_modules=[CmsModule(slug="module1", template="module1.html", name="Module 1", description="Test Module 1")],
+            cms_modules=[
+                CmsModule(
+                    slug="module1",
+                    template="module1.html",
+                    name="Module 1",
+                    description="Test Module 1",
+                )
+            ],
         )
 
 
@@ -55,7 +70,13 @@ def test_admin_panel_renders_cms_modules(mock_render_template, admin_blueprint):
 
         # Verify the template was rendered with correct arguments
         mock_render_template.assert_called_with(
-            "module1.html", module=CmsModule(slug="module1", template="module1.html", name="Module 1", description="Test Module 1")
+            "module1.html",
+            module=CmsModule(
+                slug="module1",
+                template="module1.html",
+                name="Module 1",
+                description="Test Module 1",
+            ),
         )
 
         # Check response
