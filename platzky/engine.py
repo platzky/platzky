@@ -45,6 +45,7 @@ class Engine(Flask):
         self.notifiers.append(notifier)
 
     def add_cms_module(self, module: CmsModule):
+        """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
 
     # TODO login_method should be interface
