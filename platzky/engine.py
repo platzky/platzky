@@ -30,6 +30,7 @@ class Engine(Flask):
             name="plugins",
             description="Plugins management",
             slug="plugins",
+            template="module.html",
             modules=[
                 CmsModule(
                     name=plugin.get("name"),

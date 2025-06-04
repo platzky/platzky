@@ -7,10 +7,10 @@ from pydantic import BaseModel
 class CmsModule(BaseModel):
     """Represents a CMS module with basic metadata."""
 
-    name: str = ""
-    description: str = ""
-    template: str = ""
-    slug: str = ""
+    name: str
+    description: str
+    template: str
+    slug: str
 
 
 # CmsModuleGroup is also a CmsModule, but it contains other CmsModules
