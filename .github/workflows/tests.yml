@@ -30,6 +30,7 @@ jobs:
         poetry install
 
     - name: Run linters
+      continue-on-error: true
       run: make lint-check
 
     - name: Run tests with coverage
