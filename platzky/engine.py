@@ -5,7 +5,7 @@ from flask import Flask, request, session
 from flask_babel import Babel
 
 from platzky.config import Config
-from platzky.models import CmsModule, CmsModuleGroup
+from platzky.models import CmsModule
 
 
 class Engine(Flask):
