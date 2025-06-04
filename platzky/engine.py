@@ -28,7 +28,8 @@ class Engine(Flask):
         )
 
         self.cms_modules: List[CmsModule] = []
-        # TODO add plugins as CMS Module - all plugins should be visible from admin page at least as configuration
+        # TODO add plugins as CMS Module - all plugins should be visible from 
+        # admin page at least as configuration
 
     def notify(self, message: str):
         for notifier in self.notifiers:
