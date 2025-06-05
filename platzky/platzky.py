@@ -86,7 +86,7 @@ def create_app_from_config(config: Config) -> Engine:
     engine = create_engine(config, db)
 
     admin_blueprint = admin.create_admin_blueprint(
-        login_methods=engine.login_methods, db=engine.db, locale_func=engine.get_locale
+        login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
 
     if config.feature_flags and config.feature_flags.get("FAKE_LOGIN", False):

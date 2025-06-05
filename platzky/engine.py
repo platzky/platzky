@@ -1,9 +1,11 @@
 import os
+from typing import List
 
 from flask import Flask, request, session
 from flask_babel import Babel
 
 from platzky.config import Config
+from platzky.models import CmsModule
 
 
 class Engine(Flask):
@@ -25,12 +27,20 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
 
+        self.cms_modules: List[CmsModule] = []
+        # TODO add plugins as CMS Module - all plugins should be visible from
+        # admin page at least as configuration
+
     def notify(self, message: str):
         for notifier in self.notifiers:
             notifier(message)
 
     def add_notifier(self, notifier):
         self.notifiers.append(notifier)
+
+    def add_cms_module(self, module: CmsModule):
+        """Add a CMS module to the modules list."""
+        self.cms_modules.append(module)
 
     # TODO login_method should be interface
     def add_login_method(self, login_method):

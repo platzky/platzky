@@ -1,5 +1,11 @@
 # Changes
 
+ 
+## Version 0.3.6
+Released on 2025-06-05
+
+- fix: fixed issue with not displaying plugins in the admin panel
+
 ## Version 0.3.5
 Released on 2025-06-01
 - fix: fake login and whole engine now uses csrf

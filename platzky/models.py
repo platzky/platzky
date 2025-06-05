@@ -4,6 +4,22 @@ import humanize
 from pydantic import BaseModel
 
 
+class CmsModule(BaseModel):
+    """Represents a CMS module with basic metadata."""
+
+    name: str
+    description: str
+    template: str
+    slug: str
+
+
+# CmsModuleGroup is also a CmsModule, but it contains other CmsModules
+class CmsModuleGroup(CmsModule):
+    """Represents a group of CMS modules, inheriting module properties."""
+
+    modules: list[CmsModule] = []
+
+
 class Image(BaseModel):
     url: str = ""
     alternateText: str = ""
