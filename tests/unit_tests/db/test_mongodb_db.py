@@ -281,9 +281,3 @@ class TestMongoDB:
     def test_close_connection(self, db):
         db._close_connection()
         db.client.close.assert_called_once()
-
-    def test_del_calls_close_connection(self, db):
-        # This test is tricky because del doesn't necessarily call __del__ immediately
-        # Let's just test that _close_connection works when called directly
-        db._close_connection()
-        db.client.close.assert_called_once()
