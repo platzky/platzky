@@ -32,8 +32,12 @@ class TestFactoryFunctions:
 
     @patch("platzky.db.mongodb_db.MongoClient")
     def test_db_from_config(self, mock_client):
-        config = MongoDbConfig(
-            TYPE="mongodb", CONNECTION_STRING="mongodb://localhost:27017", DATABASE_NAME="test_db"
+        config = MongoDbConfig.model_validate(
+            {
+                "TYPE": "mongodb",
+                "CONNECTION_STRING": "mongodb://localhost:27017",
+                "DATABASE_NAME": "test_db",
+            }
         )
         db = db_from_config(config)
         assert isinstance(db, MongoDB)
