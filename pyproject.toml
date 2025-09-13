@@ -20,6 +20,7 @@ humanize = "^4.9.0"
 pydantic = "^2.7.1"
 deprecation = "^2.1.0"
 pygithub = "^2.6.1"
+pymongo = "^4.7.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"

@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
-from platzky.models import Color, MenuItem, Page, Post
+from platzky.models import MenuItem, Page, Post
 
 
 class DB(ABC):
@@ -81,11 +81,11 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_primary_color(self) -> Color:
+    def get_primary_color(self) -> str:
         pass
 
     @abstractmethod
-    def get_secondary_color(self) -> Color:
+    def get_secondary_color(self) -> str:
         pass
 
     @abstractmethod
