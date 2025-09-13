@@ -78,14 +78,16 @@ class MongoDB(DB):
         return posts_cursor
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
+        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         comment_doc = {
             "author": str(author_name),
             "comment": str(comment),
-            "date": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "date": now_utc,
         }
 
-        self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
-
+        result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
+        if result.matched_count == 0:
+            raise ValueError(f"Post with slug {post_slug} not found")
     def get_logo_url(self) -> str:
         site_content = self.site_content.find_one({"_id": "config"})
         if site_content:
