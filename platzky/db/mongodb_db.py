@@ -88,6 +88,7 @@ class MongoDB(DB):
         result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
         if result.matched_count == 0:
             raise ValueError(f"Post with slug {post_slug} not found")
+
     def get_logo_url(self) -> str:
         site_content = self.site_content.find_one({"_id": "config"})
         if site_content:
