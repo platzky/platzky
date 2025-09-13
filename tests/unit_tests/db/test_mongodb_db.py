@@ -213,7 +213,7 @@ class TestMongoDB:
     def test_add_comment(self, db):
         with patch("platzky.db.mongodb_db.datetime.datetime") as mock_datetime:
             test_date = Mock()
-            test_date.strftime.return_value = "2023-01-01T12:00:00"
+            test_date.isoformat.return_value = "2023-01-01T12:00:00"
             mock_datetime.now.return_value = test_date
 
             db.add_comment("Test User", "Great post!", "post-1")
