@@ -1,4 +1,3 @@
-import datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -59,11 +58,11 @@ class TestMongoDB:
 
     @pytest.fixture
     def db(self, mock_client):
-        mock_client_instance, mock_db = mock_client
+        _, _ = mock_client  # Unpack but acknowledge unused variables
         return MongoDB("mongodb://localhost:27017", "test_db")
 
     def test_init(self, mock_client):
-        mock_client_instance, mock_db = mock_client
+        mock_client_instance, _ = mock_client
         db = MongoDB("mongodb://localhost:27017", "test_db")
 
         assert db.connection_string == "mongodb://localhost:27017"
@@ -209,9 +208,9 @@ class TestMongoDB:
 
     def test_add_comment(self, db):
         with patch("platzky.db.mongodb_db.datetime.datetime") as mock_datetime:
-            test_date = datetime.datetime(2023, 1, 1, 12, 0)
+            test_date = Mock()
+            test_date.strftime.return_value = "2023-01-01T12:00:00"
             mock_datetime.now.return_value = test_date
-            mock_datetime.now.return_value.strftime.return_value = "2023-01-01T12:00:00"
 
             db.add_comment("Test User", "Great post!", "post-1")
 
