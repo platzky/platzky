@@ -10,7 +10,7 @@ from platzky.db.graph_ql_db import (
     db_from_config,
     get_db,
 )
-from platzky.models import Color, Post
+from platzky.models import Post
 
 
 @pytest.fixture
@@ -285,12 +285,12 @@ def test_get_favicon_url(graph_ql_db, mock_client):
 
 def test_get_primary_color(graph_ql_db):
     color = graph_ql_db.get_primary_color()
-    assert isinstance(color, Color)
+    assert color == "white"
 
 
 def test_get_secondary_color(graph_ql_db):
     color = graph_ql_db.get_secondary_color()
-    assert isinstance(color, Color)
+    assert color == "navy"
 
 
 def test_get_plugins_data(graph_ql_db, mock_client):

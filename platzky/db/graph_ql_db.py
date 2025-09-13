@@ -7,7 +7,7 @@ from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.models import Color, Post
+from platzky.models import Post
 
 
 def db_config_type():
@@ -289,11 +289,11 @@ class GraphQL(DB):
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
-    def get_primary_color(self) -> Color:
-        return Color()
+    def get_primary_color(self) -> str:
+        return "white"  # Default color as string
 
-    def get_secondary_color(self):
-        return Color()
+    def get_secondary_color(self) -> str:
+        return "navy"  # Default color as string
 
     def get_plugins_data(self):
         plugins_data = gql(
