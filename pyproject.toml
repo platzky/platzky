@@ -31,6 +31,7 @@ black = "^24.8.0"
 ruff = "^0.4.4"
 pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
+python-semantic-release = "^9.0.0"
 
 
 [build-system]
@@ -88,3 +89,12 @@ lint.ignore = []
 markers = [
     "skip_coverage: skip coverage for this test"
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:tool.poetry.version"]
+build_command = "poetry build"
+dist_path = "dist/"
+upload_to_pypi = false
+upload_to_release = true
+remove_dist = false
+commit_author = "semantic-release <semantic-release>"
