@@ -40,5 +40,3 @@ jobs:
         run: |
           poetry run semantic-release version
 
-      - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e
