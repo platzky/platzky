@@ -98,6 +98,9 @@ upload_to_pypi = true
 upload_to_release = true
 remove_dist = false
 commit_author = "semantic-release <semantic-release>"
+commit_message = "chore(release): {version}\n\n{changelog}"
+tag_format = "{version}"
+commit_parser = "angular"
 
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
