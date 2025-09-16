@@ -8,7 +8,19 @@
 - Clean up naming ([#96](https://github.com/platzky/platzky/pull/96),
   [`c649f87`](https://github.com/platzky/platzky/commit/c649f87a403095405a1a83e5d6506716858fe973))
 
+- Fix semantic release ([#99](https://github.com/platzky/platzky/pull/99),
+  [`ae9a76c`](https://github.com/platzky/platzky/commit/ae9a76c54e815780cb71865ba73ef8e68c2d6a9a))
+
+- Release test fix ([#100](https://github.com/platzky/platzky/pull/100),
+  [`7a93082`](https://github.com/platzky/platzky/commit/7a93082b28f28296e7ae91e5b7b5aa8b5cc3d450))
+
 ### Chores
+
+- Added semantic-release version to pipeline ([#97](https://github.com/platzky/platzky/pull/97),
+  [`6606434`](https://github.com/platzky/platzky/commit/6606434d89b6901bcdc672a95fb95f74f7e87d1f))
+
+- Changelog fix ([#98](https://github.com/platzky/platzky/pull/98),
+  [`22339f8`](https://github.com/platzky/platzky/commit/22339f8c014e4e4f79a7be20c6dce19e3db4aeb6))
 
 - Fix semantic release ([#94](https://github.com/platzky/platzky/pull/94),
   [`a27df36`](https://github.com/platzky/platzky/commit/a27df3637bc24bff0fcc7001e8a7a2b34d94f8b2))
