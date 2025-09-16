@@ -94,7 +94,10 @@ markers = [
 version_toml = ["pyproject.toml:tool.poetry.version"]
 build_command = "poetry build"
 dist_path = "dist/"
-upload_to_pypi = false
+upload_to_pypi = true
 upload_to_release = true
 remove_dist = false
 commit_author = "semantic-release <semantic-release>"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
