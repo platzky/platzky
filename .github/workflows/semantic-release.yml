@@ -41,7 +41,6 @@ jobs:
       - name: Run semantic release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           git config --global user.name "semantic-release"
           git config --global user.email "semantic-release@users.noreply.github.com"
