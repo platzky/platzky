@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2025-09-30)
+
+### Bug Fixes
+
+- Fixed publishing in pipeline ([#101](https://github.com/platzky/platzky/pull/101),
+  [`9adce07`](https://github.com/platzky/platzky/commit/9adce079fe056c2f93678991e2fba8a141c787e3))
+
+
 ## v0.4.0 (2025-09-30)
 
 ### Bug Fixes
