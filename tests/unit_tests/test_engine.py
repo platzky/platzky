@@ -300,8 +300,8 @@ def test_multiple_health_checks(test_app):
 
 def test_health_check_db_timeout(test_app):
     """Test that database health check times out and doesn't block"""
-    from unittest.mock import patch
     import concurrent.futures
+    from unittest.mock import patch
 
     with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
         mock_executor = mock_executor_class.return_value
@@ -323,8 +323,8 @@ def test_health_check_db_timeout(test_app):
 
 def test_health_check_custom_timeout(test_app):
     """Test that custom health check times out and doesn't block"""
-    from unittest.mock import patch, MagicMock
     import concurrent.futures
+    from unittest.mock import MagicMock, patch
 
     def dummy_check():
         pass
