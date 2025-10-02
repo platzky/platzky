@@ -96,6 +96,15 @@ class DB(ABC):
     def get_font(self) -> str:
         pass
 
+    @abstractmethod
+    def health_check(self) -> None:
+        """Perform a health check on the database.
+
+        Should raise an exception if the database is not healthy.
+        This should be a lightweight operation suitable for health checks.
+        """
+        pass
+
 
 class DBConfig(BaseModel):
     type: str = Field(alias="TYPE")

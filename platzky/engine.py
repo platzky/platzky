@@ -1,5 +1,7 @@
+import concurrent.futures
 import os
-from typing import Any, Dict, List
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, List, Tuple
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
@@ -7,17 +9,6 @@ from flask_babel import Babel
 from platzky.config import Config
 from platzky.models import CmsModule
 
-
-class Engine(Flask):
-    def __init__(self, config: Config, db, import_name):
-        super().__init__(import_name)
-        self.config.from_mapping(config.model_dump(by_alias=True))
-        self.db = db
-        self.notifiers = []
-        self.login_methods = []
-        self.dynamic_body = ""
-        self.dynamic_head = ""
-from typing import List, Callable, Tuple
 
 class Engine(Flask):
     def __init__(self, config: Config, db, import_name):
@@ -83,8 +74,6 @@ class Engine(Flask):
         session["language"] = lang
         return lang
 
-from typing import Callable
-
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""
         if not callable(check_function):
@@ -95,6 +84,7 @@ from typing import Callable
         """Register default health endpoints"""
 
         health_bp = Blueprint("health", __name__)
+        HEALTH_CHECK_TIMEOUT = 10  # seconds
 
         @health_bp.route("/health/liveness")
         def liveness():
@@ -107,9 +97,16 @@ from typing import Callable
             health_status: Dict[str, Any] = {"status": "ready", "checks": {}}
             status_code = 200
 
+            # Database health check with timeout
             try:
-                self.db.get_plugins_data()
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(self.db.health_check)
+                    future.result(timeout=HEALTH_CHECK_TIMEOUT)
                 health_status["checks"]["database"] = "ok"
+            except concurrent.futures.TimeoutError:
+                health_status["checks"]["database"] = "failed: timeout"
+                health_status["status"] = "not_ready"
+                status_code = 503
             except Exception as e:
                 health_status["checks"]["database"] = f"failed: {e!s}"
                 health_status["status"] = "not_ready"
@@ -118,8 +115,14 @@ from typing import Callable
             # Run application-registered health checks
             for check_name, check_func in self.health_checks:
                 try:
-                    check_func()
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(check_func)
+                        future.result(timeout=HEALTH_CHECK_TIMEOUT)
                     health_status["checks"][check_name] = "ok"
+                except concurrent.futures.TimeoutError:
+                    health_status["checks"][check_name] = "failed: timeout"
+                    health_status["status"] = "not_ready"
+                    status_code = 503
                 except Exception as e:
                     health_status["checks"][check_name] = f"failed: {e!s}"
                     health_status["status"] = "not_ready"

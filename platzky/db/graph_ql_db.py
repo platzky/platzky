@@ -307,3 +307,18 @@ class GraphQL(DB):
             """
         )
         return self.client.execute(plugins_data)["pluginConfigs"]
+
+    def health_check(self) -> None:
+        """Perform a health check on the GraphQL database.
+
+        Raises an exception if the database is not accessible.
+        """
+        # Simple query to check connectivity
+        health_query = gql(
+            """
+            query {
+              __typename
+            }
+            """
+        )
+        self.client.execute(health_query)

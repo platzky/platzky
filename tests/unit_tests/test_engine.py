@@ -224,10 +224,12 @@ def test_health_readiness_endpoint_healthy(test_app):
 def test_health_readiness_endpoint_db_failure(test_app):
     """Test that /health/readiness returns not_ready when database fails"""
     # Make the database raise an error
-    original_method = test_app.db.get_plugins_data
+    original_method = test_app.db.health_check
+
     def mock_db_failure():
         raise Exception("DB connection failed")
-    test_app.db.get_plugins_data = mock_db_failure
+
+    test_app.db.health_check = mock_db_failure
 
     client = test_app.test_client()
     response = client.get("/health/readiness")
@@ -237,7 +239,7 @@ def test_health_readiness_endpoint_db_failure(test_app):
     assert "failed: DB connection failed" in json_data["checks"]["database"]
 
     # Restore original method
-    test_app.db.get_plugins_data = original_method
+    test_app.db.health_check = original_method
 
 
 def test_add_health_check_success(test_app):
@@ -294,3 +296,48 @@ def test_multiple_health_checks(test_app):
     assert json_data["checks"]["service1"] == "ok"
     assert "failed: Service down" in json_data["checks"]["service2"]
     assert json_data["checks"]["database"] == "ok"
+
+
+def test_health_check_db_timeout(test_app):
+    """Test that database health check times out after 10 seconds"""
+    import time
+
+    original_method = test_app.db.health_check
+
+    def slow_health_check():
+        time.sleep(15)  # Sleep longer than timeout
+
+    test_app.db.health_check = slow_health_check
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert json_data["checks"]["database"] == "failed: timeout"
+
+    # Restore original method
+    test_app.db.health_check = original_method
+
+
+def test_health_check_custom_timeout(test_app):
+    """Test that custom health check times out after 10 seconds"""
+    import time
+
+    def slow_check():
+        time.sleep(15)  # Sleep longer than timeout
+
+    test_app.add_health_check("slow_service", slow_check)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert json_data["checks"]["slow_service"] == "failed: timeout"
+
+
+def test_add_health_check_not_callable(test_app):
+    """Test that adding a non-callable health check raises TypeError"""
+    with pytest.raises(TypeError, match="check_function must be callable"):
+        test_app.add_health_check("invalid", "not a function")

@@ -125,6 +125,14 @@ class MongoDB(DB):
             return site_content.get("font", "")
         return ""
 
+    def health_check(self) -> None:
+        """Perform a health check on the MongoDB database.
+
+        Raises an exception if the database is not accessible.
+        """
+        # Simple ping to check if database is accessible
+        self.client.admin.command("ping")
+
     def _close_connection(self) -> None:
         """Close the MongoDB connection"""
         if self.client:

@@ -311,3 +311,15 @@ class TestJsonDb:
         # Test that add_comment raises StopIteration when post is invalid
         with pytest.raises(StopIteration):
             db.add_comment("Test Author", "Test Comment", "test-post")
+
+    def test_health_check_success(self, db):
+        """Test health check when database is accessible"""
+        # Should not raise any exception
+        db.health_check()
+
+    def test_health_check_failure_no_site_content(self):
+        """Test health check when site_content is missing"""
+        db_no_content = Json({"other_data": "value"})
+
+        with pytest.raises(Exception, match="Content should not be None"):
+            db_no_content.health_check()

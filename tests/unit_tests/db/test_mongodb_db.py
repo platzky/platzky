@@ -285,3 +285,19 @@ class TestMongoDB:
     def test_close_connection(self, db):
         db._close_connection()
         db.client.close.assert_called_once()
+
+    def test_health_check_success(self, db):
+        """Test health check when database is accessible"""
+        db.client.admin.command.return_value = {"ok": 1}
+
+        # Should not raise any exception
+        db.health_check()
+
+        db.client.admin.command.assert_called_once_with("ping")
+
+    def test_health_check_failure(self, db):
+        """Test health check when database is not accessible"""
+        db.client.admin.command.side_effect = Exception("Connection failed")
+
+        with pytest.raises(Exception, match="Connection failed"):
+            db.health_check()
