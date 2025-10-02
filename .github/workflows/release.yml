@@ -48,16 +48,32 @@ jobs:
           poetry install
 
       - name: Run semantic release
+        id: semantic_release
         env:
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
           git config --global user.name "semantic-release"
           git config --global user.email "semantic-release@users.noreply.github.com"
+
+          # Store old version
+          OLD_VERSION=$(poetry version -s)
+
+          # Run semantic release
           poetry run semantic-release version
           poetry run semantic-release publish
-          poetry build
+
+          # Check if version changed
+          NEW_VERSION=$(poetry version -s)
+          if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
+            echo "new_version=true" >> $GITHUB_OUTPUT
+            poetry build
+          else
+            echo "new_version=false" >> $GITHUB_OUTPUT
+            echo "No new version created, skipping build and publish"
+          fi
 
       - name: Publish to PyPI
+        if: steps.semantic_release.outputs.new_version == 'true'
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e
         with:
           packages-dir: dist/
