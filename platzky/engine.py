@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import Any, Dict, List
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
@@ -90,7 +90,7 @@ class Engine(Flask):
         @health_bp.route("/health/readiness")
         def readiness():
             """Readiness check - can the app serve traffic?"""
-            health_status = {"status": "ready", "checks": {}}
+            health_status: Dict[str, Any] = {"status": "ready", "checks": {}}
             status_code = 200
 
             try:
