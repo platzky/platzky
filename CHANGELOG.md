@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.2 (2025-10-02)
+
+### Bug Fixes
+
+- Fix semantic release ([#104](https://github.com/platzky/platzky/pull/104),
+  [`ef9326d`](https://github.com/platzky/platzky/commit/ef9326d9d3303c45c51e2d64d18af28c479cb77d))
+
+
 ## v0.4.1 (2025-09-30)
 
 ### Bug Fixes
