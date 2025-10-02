@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from flask import Flask, request, session
+from flask import Flask, request, session, Blueprint, jsonify, make_response
 from flask_babel import Babel
 
 from platzky.config import Config
@@ -17,6 +17,8 @@ class Engine(Flask):
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
+        self.health_checks = []
+
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
         config.translation_directories.append(locale_dir)
@@ -26,6 +28,7 @@ class Engine(Flask):
             locale_selector=self.get_locale,
             default_translation_directories=babel_translation_directories,
         )
+        self._register_default_health_endpoints()
 
         self.cms_modules: List[CmsModule] = []
         # TODO add plugins as CMS Module - all plugins should be visible from
@@ -69,3 +72,53 @@ class Engine(Flask):
 
         session["language"] = lang
         return lang
+
+    def add_health_check(self, name: str, check_function):
+        """Register a health check function"""
+        self.health_checks.append((name, check_function))
+
+    def _register_default_health_endpoints(self):
+        """Register default health endpoints"""
+
+        health_bp = Blueprint('health', __name__)
+
+        @health_bp.route('/health/liveness')
+        def liveness():
+            """Simple liveness check - is the app running?"""
+            return jsonify({"status": "alive"}), 200
+
+        @health_bp.route('/health/readiness')
+        def readiness():
+            """Readiness check - can the app serve traffic?"""
+            health_status = {
+                "status": "ready",
+                "checks": {}
+            }
+            status_code = 200
+
+            try:
+                self.db.get_plugins_data()
+                health_status["checks"]["database"] = "ok"
+            except Exception as e:
+                health_status["checks"]["database"] = f"failed: {str(e)}"
+                health_status["status"] = "not_ready"
+                status_code = 503
+
+            # Run application-registered health checks
+            for check_name, check_func in self.health_checks:
+                try:
+                    check_func()
+                    health_status["checks"][check_name] = "ok"
+                except Exception as e:
+                    health_status["checks"][check_name] = f"failed: {str(e)}"
+                    health_status["status"] = "not_ready"
+                    status_code = 503
+
+            return make_response(jsonify(health_status), status_code)
+
+        # Simple /health alias for liveness
+        @health_bp.route('/health')
+        def health():
+            return liveness()
+
+        self.register_blueprint(health_bp)
