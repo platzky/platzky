@@ -54,4 +54,4 @@ jobs:
         run: |
           git config --global user.name "semantic-release"
           git config --global user.email "semantic-release@users.noreply.github.com"
-          poetry run semantic-release -v publish
+          poetry run semantic-release -vvv publish
