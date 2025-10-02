@@ -191,3 +191,102 @@ def test_add_cms_module(test_app):
     )
     test_app.add_cms_module(module)
     assert module in test_app.cms_modules
+
+
+def test_health_liveness_endpoint(test_app):
+    """Test that /health/liveness returns alive status"""
+    client = test_app.test_client()
+    response = client.get("/health/liveness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "alive"
+
+
+def test_health_alias_endpoint(test_app):
+    """Test that /health is an alias for /health/liveness"""
+    client = test_app.test_client()
+    response = client.get("/health")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "alive"
+
+
+def test_health_readiness_endpoint_healthy(test_app):
+    """Test that /health/readiness returns ready when database is ok"""
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "ready"
+    assert json_data["checks"]["database"] == "ok"
+
+
+def test_health_readiness_endpoint_db_failure(test_app):
+    """Test that /health/readiness returns not_ready when database fails"""
+    # Make the database raise an error
+    original_method = test_app.db.get_plugins_data
+    test_app.db.get_plugins_data = lambda: (_ for _ in ()).throw(Exception("DB connection failed"))
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert "failed: DB connection failed" in json_data["checks"]["database"]
+
+    # Restore original method
+    test_app.db.get_plugins_data = original_method
+
+
+def test_add_health_check_success(test_app):
+    """Test adding a custom health check that succeeds"""
+    check_called = []
+
+    def custom_check():
+        check_called.append(True)
+
+    test_app.add_health_check("custom_service", custom_check)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "ready"
+    assert json_data["checks"]["custom_service"] == "ok"
+    assert len(check_called) == 1
+
+
+def test_add_health_check_failure(test_app):
+    """Test adding a custom health check that fails"""
+    def failing_check():
+        raise Exception("Custom service unavailable")
+
+    test_app.add_health_check("failing_service", failing_check)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert "failed: Custom service unavailable" in json_data["checks"]["failing_service"]
+
+
+def test_multiple_health_checks(test_app):
+    """Test multiple custom health checks with mixed results"""
+    def check_ok():
+        pass
+
+    def check_fail():
+        raise Exception("Service down")
+
+    test_app.add_health_check("service1", check_ok)
+    test_app.add_health_check("service2", check_fail)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert json_data["checks"]["service1"] == "ok"
+    assert "failed: Service down" in json_data["checks"]["service2"]
+    assert json_data["checks"]["database"] == "ok"
