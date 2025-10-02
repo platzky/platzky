@@ -31,7 +31,7 @@ black = "^24.8.0"
 ruff = "^0.4.4"
 pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
-python-semantic-release = "^9.0.0"
+python-semantic-release = "^9.8.0"
 
 
 [build-system]
@@ -109,6 +109,7 @@ prerelease = false
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
+upload_to_repository = true
 
 [tool.semantic_release.remote]
 type = "github"
