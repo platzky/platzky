@@ -300,14 +300,14 @@ def test_multiple_health_checks(test_app):
 
 def test_health_check_db_timeout(test_app):
     """Test that database health check times out and doesn't block"""
-    import concurrent.futures
+    from concurrent.futures import TimeoutError
     from unittest.mock import patch
 
     with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
         mock_executor = mock_executor_class.return_value
         mock_future = mock_executor.submit.return_value
         # Simulate timeout
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+        mock_future.result.side_effect = TimeoutError()
 
         client = test_app.test_client()
         response = client.get("/health/readiness")
@@ -323,7 +323,7 @@ def test_health_check_db_timeout(test_app):
 
 def test_health_check_custom_timeout(test_app):
     """Test that custom health check times out and doesn't block"""
-    import concurrent.futures
+    from concurrent.futures import TimeoutError
     from unittest.mock import MagicMock, patch
 
     def dummy_check():
@@ -332,15 +332,18 @@ def test_health_check_custom_timeout(test_app):
     test_app.add_health_check("slow_service", dummy_check)
 
     with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
-        # We need to track multiple executor instances (one for db, one for custom check)
-        mock_executors = [MagicMock(), MagicMock()]
-        mock_executor_class.side_effect = mock_executors
+        # Single executor is used for all checks
+        mock_executor = mock_executor_class.return_value
 
-        # First executor (DB check) succeeds
-        mock_executors[0].submit.return_value.result.return_value = None
+        # Create two futures - one for db check, one for custom check
+        mock_futures = [MagicMock(), MagicMock()]
+        mock_executor.submit.side_effect = mock_futures
 
-        # Second executor (custom check) times out
-        mock_executors[1].submit.return_value.result.side_effect = concurrent.futures.TimeoutError()
+        # First future (DB check) succeeds
+        mock_futures[0].result.return_value = None
+
+        # Second future (custom check) times out
+        mock_futures[1].result.side_effect = TimeoutError()
 
         client = test_app.test_client()
         response = client.get("/health/readiness")
@@ -350,9 +353,8 @@ def test_health_check_custom_timeout(test_app):
         assert json_data["status"] == "not_ready"
         assert json_data["checks"]["slow_service"] == "failed: timeout"
 
-        # Verify both executors were shut down with wait=False
-        mock_executors[0].shutdown.assert_called_with(wait=False)
-        mock_executors[1].shutdown.assert_called_with(wait=False)
+        # Verify executor was shut down once with wait=False
+        mock_executor.shutdown.assert_called_once_with(wait=False)
 
 
 def test_add_health_check_not_callable(test_app):

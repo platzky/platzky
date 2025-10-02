@@ -96,34 +96,29 @@ class Engine(Flask):
             health_status: Dict[str, Any] = {"status": "ready", "checks": {}}
             status_code = 200
 
-            # Database health check with timeout
             executor = ThreadPoolExecutor(max_workers=1)
             try:
+                # Database health check with timeout
                 future = executor.submit(self.db.health_check)
-                future.result(timeout=HEALTH_CHECK_TIMEOUT)
-                health_status["checks"]["database"] = "ok"
-            except TimeoutError:
-                health_status["checks"]["database"] = "failed: timeout"
-                health_status["status"] = "not_ready"
-                status_code = 503
-            except Exception as e:
-                health_status["checks"]["database"] = f"failed: {e!s}"
-                health_status["status"] = "not_ready"
-                status_code = 503
-            finally:
-                # Shutdown without waiting if future is still running
-                executor.shutdown(wait=False)
+                try:
+                    future.result(timeout=HEALTH_CHECK_TIMEOUT)
+                    health_status["checks"]["database"] = "ok"
+                except TimeoutError:
+                    health_status["checks"]["database"] = "failed: timeout"
+                    health_status["status"] = "not_ready"
+                    status_code = 503
+                except Exception as e:
+                    health_status["checks"]["database"] = f"failed: {e!s}"
+                    health_status["status"] = "not_ready"
+                    status_code = 503
 
-            # Run application-registered health checks
-            # Run application-registered health checks
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-            try:
+                # Run application-registered health checks
                 for check_name, check_func in self.health_checks:
+                    future = executor.submit(check_func)
                     try:
-                        future = executor.submit(check_func)
                         future.result(timeout=HEALTH_CHECK_TIMEOUT)
                         health_status["checks"][check_name] = "ok"
-                    except concurrent.futures.TimeoutError:
+                    except TimeoutError:
                         health_status["checks"][check_name] = "failed: timeout"
                         health_status["status"] = "not_ready"
                         status_code = 503
@@ -132,6 +127,7 @@ class Engine(Flask):
                         health_status["status"] = "not_ready"
                         status_code = 503
             finally:
+                # Shutdown without waiting if any futures are still running
                 executor.shutdown(wait=False)
 
             return make_response(jsonify(health_status), status_code)
