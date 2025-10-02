@@ -83,8 +83,12 @@ class Engine(Flask):
         session["language"] = lang
         return lang
 
-    def add_health_check(self, name: str, check_function):
+from typing import Callable
+
+    def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""
+        if not callable(check_function):
+            raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))
 
     def _register_default_health_endpoints(self):
