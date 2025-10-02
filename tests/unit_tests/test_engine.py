@@ -225,7 +225,9 @@ def test_health_readiness_endpoint_db_failure(test_app):
     """Test that /health/readiness returns not_ready when database fails"""
     # Make the database raise an error
     original_method = test_app.db.get_plugins_data
-    test_app.db.get_plugins_data = lambda: (_ for _ in ()).throw(Exception("DB connection failed"))
+    def mock_db_failure():
+        raise Exception("DB connection failed")
+    test_app.db.get_plugins_data = mock_db_failure
 
     client = test_app.test_client()
     response = client.get("/health/readiness")
