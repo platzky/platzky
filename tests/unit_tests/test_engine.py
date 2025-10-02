@@ -258,6 +258,7 @@ def test_add_health_check_success(test_app):
 
 def test_add_health_check_failure(test_app):
     """Test adding a custom health check that fails"""
+
     def failing_check():
         raise Exception("Custom service unavailable")
 
@@ -273,6 +274,7 @@ def test_add_health_check_failure(test_app):
 
 def test_multiple_health_checks(test_app):
     """Test multiple custom health checks with mixed results"""
+
     def check_ok():
         pass
 

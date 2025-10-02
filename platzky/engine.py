@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from flask import Flask, request, session, Blueprint, jsonify, make_response
+from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
 
 from platzky.config import Config
@@ -80,27 +80,24 @@ class Engine(Flask):
     def _register_default_health_endpoints(self):
         """Register default health endpoints"""
 
-        health_bp = Blueprint('health', __name__)
+        health_bp = Blueprint("health", __name__)
 
-        @health_bp.route('/health/liveness')
+        @health_bp.route("/health/liveness")
         def liveness():
             """Simple liveness check - is the app running?"""
             return jsonify({"status": "alive"}), 200
 
-        @health_bp.route('/health/readiness')
+        @health_bp.route("/health/readiness")
         def readiness():
             """Readiness check - can the app serve traffic?"""
-            health_status = {
-                "status": "ready",
-                "checks": {}
-            }
+            health_status = {"status": "ready", "checks": {}}
             status_code = 200
 
             try:
                 self.db.get_plugins_data()
                 health_status["checks"]["database"] = "ok"
             except Exception as e:
-                health_status["checks"]["database"] = f"failed: {str(e)}"
+                health_status["checks"]["database"] = f"failed: {e!s}"
                 health_status["status"] = "not_ready"
                 status_code = 503
 
@@ -110,14 +107,14 @@ class Engine(Flask):
                     check_func()
                     health_status["checks"][check_name] = "ok"
                 except Exception as e:
-                    health_status["checks"][check_name] = f"failed: {str(e)}"
+                    health_status["checks"][check_name] = f"failed: {e!s}"
                     health_status["status"] = "not_ready"
                     status_code = 503
 
             return make_response(jsonify(health_status), status_code)
 
         # Simple /health alias for liveness
-        @health_bp.route('/health')
+        @health_bp.route("/health")
         def health():
             return liveness()
 
