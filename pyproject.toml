@@ -119,4 +119,4 @@ env = "GH_TOKEN"
 
 [tool.semantic_release.repository]
 type = "pypi"
-repository = "https://upload.pypi.org/legacy/"
+url = "https://upload.pypi.org/legacy/"
