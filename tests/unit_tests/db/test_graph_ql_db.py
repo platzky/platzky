@@ -303,3 +303,21 @@ def test_get_plugins_data(graph_ql_db, mock_client):
     assert plugins_data[0]["name"] == "plugin1"
     assert plugins_data[0]["config"] == {"key": "value"}
     mock_client.execute.assert_called_once()
+
+
+def test_health_check_success(graph_ql_db, mock_client):
+    """Test health check when GraphQL endpoint is accessible"""
+    mock_client.execute.return_value = {"__typename": "Query"}
+
+    # Should not raise any exception
+    graph_ql_db.health_check()
+
+    mock_client.execute.assert_called_once()
+
+
+def test_health_check_failure(graph_ql_db, mock_client):
+    """Test health check when GraphQL endpoint is not accessible"""
+    mock_client.execute.side_effect = Exception("Connection failed")
+
+    with pytest.raises(Exception, match="Connection failed"):
+        graph_ql_db.health_check()

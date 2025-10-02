@@ -191,3 +191,173 @@ def test_add_cms_module(test_app):
     )
     test_app.add_cms_module(module)
     assert module in test_app.cms_modules
+
+
+def test_health_liveness_endpoint(test_app):
+    """Test that /health/liveness returns alive status"""
+    client = test_app.test_client()
+    response = client.get("/health/liveness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "alive"
+
+
+def test_health_alias_endpoint(test_app):
+    """Test that /health is an alias for /health/liveness"""
+    client = test_app.test_client()
+    response = client.get("/health")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "alive"
+
+
+def test_health_readiness_endpoint_healthy(test_app):
+    """Test that /health/readiness returns ready when database is ok"""
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "ready"
+    assert json_data["checks"]["database"] == "ok"
+
+
+def test_health_readiness_endpoint_db_failure(test_app):
+    """Test that /health/readiness returns not_ready when database fails"""
+    # Make the database raise an error
+    original_method = test_app.db.health_check
+
+    def mock_db_failure():
+        raise Exception("DB connection failed")
+
+    test_app.db.health_check = mock_db_failure
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert "failed: DB connection failed" in json_data["checks"]["database"]
+
+    # Restore original method
+    test_app.db.health_check = original_method
+
+
+def test_add_health_check_success(test_app):
+    """Test adding a custom health check that succeeds"""
+    check_called = []
+
+    def custom_check():
+        check_called.append(True)
+
+    test_app.add_health_check("custom_service", custom_check)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 200
+    json_data = response.get_json()
+    assert json_data["status"] == "ready"
+    assert json_data["checks"]["custom_service"] == "ok"
+    assert len(check_called) == 1
+
+
+def test_add_health_check_failure(test_app):
+    """Test adding a custom health check that fails"""
+
+    def failing_check():
+        raise Exception("Custom service unavailable")
+
+    test_app.add_health_check("failing_service", failing_check)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert "failed: Custom service unavailable" in json_data["checks"]["failing_service"]
+
+
+def test_multiple_health_checks(test_app):
+    """Test multiple custom health checks with mixed results"""
+
+    def check_ok():
+        pass
+
+    def check_fail():
+        raise Exception("Service down")
+
+    test_app.add_health_check("service1", check_ok)
+    test_app.add_health_check("service2", check_fail)
+
+    client = test_app.test_client()
+    response = client.get("/health/readiness")
+    assert response.status_code == 503
+    json_data = response.get_json()
+    assert json_data["status"] == "not_ready"
+    assert json_data["checks"]["service1"] == "ok"
+    assert "failed: Service down" in json_data["checks"]["service2"]
+    assert json_data["checks"]["database"] == "ok"
+
+
+def test_health_check_db_timeout(test_app):
+    """Test that database health check times out and doesn't block"""
+    from concurrent.futures import TimeoutError
+    from unittest.mock import patch
+
+    with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
+        mock_executor = mock_executor_class.return_value
+        mock_future = mock_executor.submit.return_value
+        # Simulate timeout
+        mock_future.result.side_effect = TimeoutError()
+
+        client = test_app.test_client()
+        response = client.get("/health/readiness")
+
+        assert response.status_code == 503
+        json_data = response.get_json()
+        assert json_data["status"] == "not_ready"
+        assert json_data["checks"]["database"] == "failed: timeout"
+
+        # Verify shutdown was called with wait=False
+        mock_executor.shutdown.assert_called_with(wait=False)
+
+
+def test_health_check_custom_timeout(test_app):
+    """Test that custom health check times out and doesn't block"""
+    from concurrent.futures import TimeoutError
+    from unittest.mock import MagicMock, patch
+
+    def dummy_check():
+        pass
+
+    test_app.add_health_check("slow_service", dummy_check)
+
+    with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
+        # Single executor is used for all checks
+        mock_executor = mock_executor_class.return_value
+
+        # Create two futures - one for db check, one for custom check
+        mock_futures = [MagicMock(), MagicMock()]
+        mock_executor.submit.side_effect = mock_futures
+
+        # First future (DB check) succeeds
+        mock_futures[0].result.return_value = None
+
+        # Second future (custom check) times out
+        mock_futures[1].result.side_effect = TimeoutError()
+
+        client = test_app.test_client()
+        response = client.get("/health/readiness")
+
+        assert response.status_code == 503
+        json_data = response.get_json()
+        assert json_data["status"] == "not_ready"
+        assert json_data["checks"]["slow_service"] == "failed: timeout"
+
+        # Verify executor was shut down once with wait=False
+        mock_executor.shutdown.assert_called_once_with(wait=False)
+
+
+def test_add_health_check_not_callable(test_app):
+    """Test that adding a non-callable health check raises TypeError"""
+    with pytest.raises(TypeError, match="check_function must be callable"):
+        test_app.add_health_check("invalid", "not a function")

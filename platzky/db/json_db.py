@@ -116,3 +116,11 @@ class Json(DB):
 
     def get_plugins_data(self):
         return self.data.get("plugins", [])
+
+    def health_check(self) -> None:
+        """Perform a health check on the JSON database.
+
+        Raises an exception if the database is not accessible.
+        """
+        # Try to access site_content to ensure basic structure is valid
+        self._get_site_content()
