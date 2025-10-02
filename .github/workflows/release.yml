@@ -50,6 +50,7 @@ jobs:
       - name: Run semantic release
         env:
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          PSR_VERBOSITY: DEBUG
         run: |
           git config --global user.name "semantic-release"
           git config --global user.email "semantic-release@users.noreply.github.com"
