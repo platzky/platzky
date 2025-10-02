@@ -115,23 +115,24 @@ class Engine(Flask):
                 executor.shutdown(wait=False)
 
             # Run application-registered health checks
-            for check_name, check_func in self.health_checks:
-                executor = ThreadPoolExecutor(max_workers=1)
-                try:
-                    future = executor.submit(check_func)
-                    future.result(timeout=HEALTH_CHECK_TIMEOUT)
-                    health_status["checks"][check_name] = "ok"
-                except TimeoutError:
-                    health_status["checks"][check_name] = "failed: timeout"
-                    health_status["status"] = "not_ready"
-                    status_code = 503
-                except Exception as e:
-                    health_status["checks"][check_name] = f"failed: {e!s}"
-                    health_status["status"] = "not_ready"
-                    status_code = 503
-                finally:
-                    # Shutdown without waiting if future is still running
-                    executor.shutdown(wait=False)
+            # Run application-registered health checks
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            try:
+                for check_name, check_func in self.health_checks:
+                    try:
+                        future = executor.submit(check_func)
+                        future.result(timeout=HEALTH_CHECK_TIMEOUT)
+                        health_status["checks"][check_name] = "ok"
+                    except concurrent.futures.TimeoutError:
+                        health_status["checks"][check_name] = "failed: timeout"
+                        health_status["status"] = "not_ready"
+                        status_code = 503
+                    except Exception as e:
+                        health_status["checks"][check_name] = f"failed: {e!s}"
+                        health_status["status"] = "not_ready"
+                        status_code = 503
+            finally:
+                executor.shutdown(wait=False)
 
             return make_response(jsonify(health_status), status_code)
 
