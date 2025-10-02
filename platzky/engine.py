@@ -1,6 +1,5 @@
-import concurrent.futures
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from typing import Any, Callable, Dict, List, Tuple
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
@@ -103,7 +102,7 @@ class Engine(Flask):
                 future = executor.submit(self.db.health_check)
                 future.result(timeout=HEALTH_CHECK_TIMEOUT)
                 health_status["checks"]["database"] = "ok"
-            except concurrent.futures.TimeoutError:
+            except TimeoutError:
                 health_status["checks"]["database"] = "failed: timeout"
                 health_status["status"] = "not_ready"
                 status_code = 503
@@ -122,7 +121,7 @@ class Engine(Flask):
                     future = executor.submit(check_func)
                     future.result(timeout=HEALTH_CHECK_TIMEOUT)
                     health_status["checks"][check_name] = "ok"
-                except concurrent.futures.TimeoutError:
+                except TimeoutError:
                     health_status["checks"][check_name] = "failed: timeout"
                     health_status["status"] = "not_ready"
                     status_code = 503
