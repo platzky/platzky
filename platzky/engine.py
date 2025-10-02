@@ -17,8 +17,18 @@ class Engine(Flask):
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
-        self.health_checks = []
+from typing import List, Callable, Tuple
 
+class Engine(Flask):
+    def __init__(self, config: Config, db, import_name):
+        super().__init__(import_name)
+        self.config.from_mapping(config.model_dump(by_alias=True))
+        self.db = db
+        self.notifiers = []
+        self.login_methods = []
+        self.dynamic_body = ""
+        self.dynamic_head = ""
+        self.health_checks: List[Tuple[str, Callable[[], None]]] = []
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
         config.translation_directories.append(locale_dir)
