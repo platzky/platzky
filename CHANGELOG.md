@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.3 (2025-10-02)
+
+### Bug Fixes
+
+- Upload to repository added ([#105](https://github.com/platzky/platzky/pull/105),
+  [`43c4c7c`](https://github.com/platzky/platzky/commit/43c4c7c14997aef8fe7c45761706e4a3c8821f26))
+
+
 ## v0.4.2 (2025-10-02)
 
 ### Bug Fixes
