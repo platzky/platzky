@@ -299,42 +299,60 @@ def test_multiple_health_checks(test_app):
 
 
 def test_health_check_db_timeout(test_app):
-    """Test that database health check times out after 10 seconds"""
-    import time
+    """Test that database health check times out and doesn't block"""
+    from unittest.mock import patch
+    import concurrent.futures
 
-    original_method = test_app.db.health_check
+    with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
+        mock_executor = mock_executor_class.return_value
+        mock_future = mock_executor.submit.return_value
+        # Simulate timeout
+        mock_future.result.side_effect = concurrent.futures.TimeoutError()
 
-    def slow_health_check():
-        time.sleep(15)  # Sleep longer than timeout
+        client = test_app.test_client()
+        response = client.get("/health/readiness")
 
-    test_app.db.health_check = slow_health_check
+        assert response.status_code == 503
+        json_data = response.get_json()
+        assert json_data["status"] == "not_ready"
+        assert json_data["checks"]["database"] == "failed: timeout"
 
-    client = test_app.test_client()
-    response = client.get("/health/readiness")
-    assert response.status_code == 503
-    json_data = response.get_json()
-    assert json_data["status"] == "not_ready"
-    assert json_data["checks"]["database"] == "failed: timeout"
-
-    # Restore original method
-    test_app.db.health_check = original_method
+        # Verify shutdown was called with wait=False
+        mock_executor.shutdown.assert_called_with(wait=False)
 
 
 def test_health_check_custom_timeout(test_app):
-    """Test that custom health check times out after 10 seconds"""
-    import time
+    """Test that custom health check times out and doesn't block"""
+    from unittest.mock import patch, MagicMock
+    import concurrent.futures
 
-    def slow_check():
-        time.sleep(15)  # Sleep longer than timeout
+    def dummy_check():
+        pass
 
-    test_app.add_health_check("slow_service", slow_check)
+    test_app.add_health_check("slow_service", dummy_check)
 
-    client = test_app.test_client()
-    response = client.get("/health/readiness")
-    assert response.status_code == 503
-    json_data = response.get_json()
-    assert json_data["status"] == "not_ready"
-    assert json_data["checks"]["slow_service"] == "failed: timeout"
+    with patch("platzky.engine.ThreadPoolExecutor") as mock_executor_class:
+        # We need to track multiple executor instances (one for db, one for custom check)
+        mock_executors = [MagicMock(), MagicMock()]
+        mock_executor_class.side_effect = mock_executors
+
+        # First executor (DB check) succeeds
+        mock_executors[0].submit.return_value.result.return_value = None
+
+        # Second executor (custom check) times out
+        mock_executors[1].submit.return_value.result.side_effect = concurrent.futures.TimeoutError()
+
+        client = test_app.test_client()
+        response = client.get("/health/readiness")
+
+        assert response.status_code == 503
+        json_data = response.get_json()
+        assert json_data["status"] == "not_ready"
+        assert json_data["checks"]["slow_service"] == "failed: timeout"
+
+        # Verify both executors were shut down with wait=False
+        mock_executors[0].shutdown.assert_called_with(wait=False)
+        mock_executors[1].shutdown.assert_called_with(wait=False)
 
 
 def test_add_health_check_not_callable(test_app):
