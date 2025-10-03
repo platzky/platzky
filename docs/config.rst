@@ -246,12 +246,19 @@ Feature Flags
 
 Enable or disable specific features in your application.
 
+Available feature flags:
+
+**FAKE_LOGIN**
+
+Enable fake/test login for the admin panel. Useful for development and testing environments.
+
+.. warning::
+    Never enable FAKE_LOGIN in production as it bypasses authentication.
+
 .. code-block:: yaml
 
     FEATURE_FLAGS:
-      comments: true
-      analytics: false
-      beta_features: false
+      FAKE_LOGIN: true
 
 Telemetry Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~

@@ -41,7 +41,8 @@ telemetry = [
 ]
 docs = [
     "sphinx",
-    "sphinx-rtd-theme"
+    "sphinx-rtd-theme",
+    "myst-parser"
 ]
 
 [tool.poetry.group.dev.dependencies]
