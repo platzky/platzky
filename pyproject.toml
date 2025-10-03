@@ -33,7 +33,6 @@ pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
 python-semantic-release = "^9.8.0"
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -42,18 +41,17 @@ build-backend = "poetry.core.masonry.api"
 omit = [
     "tests/*",
     "*/__init__.py"
-    ]
+]
 
 [tool.coverage.report]
 exclude_lines = [
     "@abstractmethod",
     "@abc.abstractmethod"
-    ]
+]
 
 [tool.pyright]
 pythonVersion = "3.10"
 pythonPlatform = "All"
-
 typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = false
@@ -109,14 +107,9 @@ prerelease = false
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-upload_to_repository = true
 
 [tool.semantic_release.remote]
 type = "github"
 
 [tool.semantic_release.remote.token]
 env = "GH_TOKEN"
-
-[tool.semantic_release.repository]
-type = "pypi"
-url = "https://upload.pypi.org/legacy/"
