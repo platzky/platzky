@@ -54,5 +54,4 @@ What to Do Next
 
 * Read about :doc:`config` to understand all available options
 * Learn about different :doc:`database` backends
-* Set up :doc:`telemetry` to monitor performance
 * Check the :doc:`api` reference for detailed information

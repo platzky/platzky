@@ -29,7 +29,6 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
         self._register_default_health_endpoints()
-        self._setup_telemetry(config)
 
         self.cms_modules: List[CmsModule] = []
         # TODO add plugins as CMS Module - all plugins should be visible from
@@ -139,46 +138,3 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
-
-    def _setup_telemetry(self, config: Config) -> None:
-        """Setup OpenTelemetry tracing based on configuration"""
-        if not config.telemetry.enabled:
-            return
-
-        try:
-            from opentelemetry import trace
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-            from opentelemetry.instrumentation.flask import FlaskInstrumentor
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-            provider = TracerProvider()
-            exporter = OTLPSpanExporter(endpoint=config.telemetry.otlp_endpoint)
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            trace.set_tracer_provider(provider)
-
-            # Instrument Flask app
-            FlaskInstrumentor().instrument_app(self)
-
-            # Instrument pymongo if available
-            try:
-                from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
-
-                PymongoInstrumentor().instrument()
-            except ImportError:
-                pass
-
-            # Instrument requests library if available
-            try:
-                from opentelemetry.instrumentation.requests import RequestsInstrumentor
-
-                RequestsInstrumentor().instrument()
-            except ImportError:
-                pass
-
-        except ImportError:
-            self.logger.warning(
-                "OpenTelemetry packages not installed. "
-                "Install with: poetry add opentelemetry-api opentelemetry-sdk "
-                "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp"
-            )

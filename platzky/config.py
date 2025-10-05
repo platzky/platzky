@@ -27,11 +27,6 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
     return {name: lang.model_dump() for name, lang in languages.items()}
 
 
-class TelemetryConfig(StrictBaseModel):
-    enabled: bool = Field(default=False, alias="enabled")
-    otlp_endpoint: str = Field(default="http://localhost:4317", alias="otlp_endpoint")
-
-
 class Config(StrictBaseModel):
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
@@ -48,7 +43,6 @@ class Config(StrictBaseModel):
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: t.Optional[dict[str, bool]] = Field(default_factory=dict, alias="FEATURE_FLAGS")
-    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
 
     @classmethod
     def model_validate(

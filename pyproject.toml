@@ -21,26 +21,12 @@ pydantic = "^2.7.1"
 deprecation = "^2.1.0"
 pygithub = "^2.6.1"
 pymongo = "^4.7.0"
-opentelemetry-api = {version = "^1.20.0", optional = true}
-opentelemetry-sdk = {version = "^1.20.0", optional = true}
-opentelemetry-instrumentation-flask = {version = "^0.41b0", optional = true}
-opentelemetry-instrumentation-pymongo = {version = "^0.41b0", optional = true}
-opentelemetry-instrumentation-requests = {version = "^0.41b0", optional = true}
-opentelemetry-exporter-otlp = {version = "^1.20.0", optional = true}
 sphinx = {version = "^8.0.0", optional = true}
 sphinx-rtd-theme = {version = "^3.0.0", optional = true}
 tomli = {version = "^2.0.0", optional = true}
 myst-parser = {version = "^4.0.0", optional = true}
 
 [tool.poetry.extras]
-telemetry = [
-    "opentelemetry-api",
-    "opentelemetry-sdk",
-    "opentelemetry-instrumentation-flask",
-    "opentelemetry-instrumentation-pymongo",
-    "opentelemetry-instrumentation-requests",
-    "opentelemetry-exporter-otlp"
-]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",

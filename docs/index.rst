@@ -9,7 +9,6 @@ Platzky is built on Flask and provides additional features like:
 * Multi-language support with automatic locale detection
 * Pluggable database backends (JSON file, Google Cloud Storage, MongoDB)
 * Built-in blog and SEO modules
-* OpenTelemetry integration for performance monitoring
 * Extensible plugin system
 
 User's Guide
@@ -25,7 +24,6 @@ started with Platzky and building applications.
    quickstart
    config
    database
-   telemetry
 
 API Reference
 -------------

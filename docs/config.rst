@@ -260,70 +260,6 @@ Enable fake/test login for the admin panel. Useful for development and testing e
     FEATURE_FLAGS:
       FAKE_LOGIN: true
 
-Telemetry Configuration
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. versionadded:: 0.5.0
-
-``TELEMETRY``
-^^^^^^^^^^^^^
-
-:Type: ``TelemetryConfig``
-:Default: disabled
-
-Configure OpenTelemetry tracing to identify performance bottlenecks.
-
-``TELEMETRY.enabled``
-"""""""""""""""""""""
-
-:Type: ``bool``
-:Default: ``False``
-
-Enable OpenTelemetry tracing.
-
-``TELEMETRY.otlp_endpoint``
-"""""""""""""""""""""""""""
-
-:Type: ``str``
-:Default: ``"http://localhost:4317"``
-
-OTLP gRPC endpoint for exporting traces. This is cloud-agnostic and works with:
-
-* Jaeger
-* Grafana Tempo
-* Google Cloud Trace (with OTLP support)
-* AWS X-Ray (with OTLP support)
-* Azure Monitor
-* Any OTLP-compatible backend
-
-.. code-block:: yaml
-
-    TELEMETRY:
-      enabled: true
-      otlp_endpoint: http://jaeger-collector:4317
-
-**Installing telemetry dependencies:**
-
-Telemetry dependencies are optional and must be installed separately:
-
-.. code-block:: bash
-
-    # With pip
-    $ pip install platzky[telemetry]
-
-    # With poetry
-    $ poetry install -E telemetry
-
-**What gets traced:**
-
-When telemetry is enabled, the following are automatically instrumented:
-
-* All Flask HTTP requests (including latency and status codes)
-* MongoDB queries (if pymongo instrumentation is available)
-* Outgoing HTTP requests (if requests library instrumentation is available)
-
-See :doc:`telemetry` for more details.
-
 Complete Example
 ----------------
 
@@ -364,11 +300,6 @@ Here's a complete configuration example for a production application:
     # URLs
     USE_WWW: true
     BLOG_PREFIX: /blog
-
-    # Telemetry (requires: pip install platzky[telemetry])
-    TELEMETRY:
-      enabled: true
-      otlp_endpoint: http://tempo-collector:4317
 
 Environment-Specific Configuration
 -----------------------------------

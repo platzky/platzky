@@ -21,37 +21,6 @@ Or with Poetry:
 
     $ poetry add platzky
 
-Optional Dependencies
----------------------
-
-Platzky has optional dependencies that can be installed separately:
-
-Telemetry Support
-~~~~~~~~~~~~~~~~~
-
-For OpenTelemetry tracing support:
-
-.. code-block:: bash
-
-    $ pip install platzky[telemetry]
-
-Or with Poetry:
-
-.. code-block:: bash
-
-    $ poetry add platzky -E telemetry
-
-This installs:
-
-* opentelemetry-api
-* opentelemetry-sdk
-* opentelemetry-instrumentation-flask
-* opentelemetry-instrumentation-pymongo
-* opentelemetry-instrumentation-requests
-* opentelemetry-exporter-otlp
-
-See :doc:`telemetry` for more information on configuring telemetry.
-
 Verify Installation
 -------------------
 
