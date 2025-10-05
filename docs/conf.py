@@ -3,9 +3,16 @@
 import sys
 from pathlib import Path
 
+import tomli
+
 # Add project to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+# Read version from pyproject.toml
+with open(project_root / "pyproject.toml", "rb") as f:
+    pyproject = tomli.load(f)
+    version = release = pyproject["tool"]["poetry"]["version"]
 
 # Project information
 project = "Platzky"
@@ -18,6 +25,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
+    "myst_parser",
 ]
 
 templates_path = ["_templates"]
@@ -60,3 +68,8 @@ intersphinx_mapping = {
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 napoleon_include_init_with_doc = True
+
+# Make version available as substitution in RST files
+rst_epilog = f"""
+.. |version| replace:: {version}
+"""

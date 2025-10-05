@@ -29,6 +29,8 @@ opentelemetry-instrumentation-requests = {version = "^0.41b0", optional = true}
 opentelemetry-exporter-otlp = {version = "^1.20.0", optional = true}
 sphinx = {version = "^8.0.0", optional = true}
 sphinx-rtd-theme = {version = "^3.0.0", optional = true}
+tomli = {version = "^2.0.0", optional = true}
+myst-parser = {version = "^4.0.0", optional = true}
 
 [tool.poetry.extras]
 telemetry = [
@@ -42,7 +44,8 @@ telemetry = [
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
-    "myst-parser"
+    "myst-parser",
+    "tomli"
 ]
 
 [tool.poetry.group.dev.dependencies]

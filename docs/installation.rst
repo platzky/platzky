@@ -61,4 +61,4 @@ To verify that Platzky is installed correctly:
 
     >>> import platzky
     >>> print(platzky.__version__)
-    0.4.3
+    |version|
