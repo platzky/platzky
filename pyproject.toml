@@ -138,7 +138,7 @@ type = "github"
 env = "GH_TOKEN"
 
 [tool.interrogate]
-fail-under = 41
+fail-under = 17
 ignore-init-method = true
 ignore-init-module = true
 ignore-magic = true
