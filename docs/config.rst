@@ -296,14 +296,7 @@ Telemetry options:
 
     TELEMETRY:
       enabled: true
-      endpoint: https://telemetry.googleapis.com
-
-Or auto-detect project from environment:
-
-.. code-block:: python
-
-    import os
-    endpoint = "https://telemetry.googleapis.com"
+      endpoint: https://telemetry.googleapis.com/v1/traces
 
 **OTLP Exporter (Jaeger, Tempo, etc.)**
 
