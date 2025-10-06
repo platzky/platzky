@@ -296,7 +296,7 @@ Telemetry options:
 
     TELEMETRY:
       enabled: true
-      endpoint: https://telemetry.googleapis.com/v1/traces
+      endpoint: https://telemetry.googleapis.com
 
 **OTLP Exporter (Jaeger, Tempo, etc.)**
 
