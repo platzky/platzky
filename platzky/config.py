@@ -28,6 +28,14 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
 
 
 class TelemetryConfig(StrictBaseModel):
+    """OpenTelemetry configuration for application tracing.
+
+    Attributes:
+        enabled: Enable or disable telemetry tracing
+        endpoint: OTLP endpoint URL (e.g., http://localhost:4317 or Cloud Trace URL)
+        console_export: Export traces to console for debugging
+    """
+
     enabled: bool = Field(default=False, alias="enabled")
     endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
     console_export: bool = Field(default=False, alias="console_export")

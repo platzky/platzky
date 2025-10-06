@@ -14,7 +14,21 @@ except ImportError:
 
 
 def setup_telemetry(app, telemetry_config: TelemetryConfig):
-    """Setup OpenTelemetry tracing for Flask app"""
+    """Setup OpenTelemetry tracing for Flask application.
+
+    Configures and initializes OpenTelemetry tracing with OTLP and/or console exporters.
+    Automatically instruments Flask to capture HTTP requests and trace information.
+
+    Args:
+        app: Flask application instance
+        telemetry_config: Telemetry configuration specifying endpoint and export options
+
+    Returns:
+        OpenTelemetry tracer instance if enabled, None otherwise
+
+    Raises:
+        ImportError: If OpenTelemetry packages are not installed when telemetry is enabled
+    """
 
     if not telemetry_config.enabled:
         return None

@@ -54,6 +54,7 @@ ruff = "^0.4.4"
 pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
 python-semantic-release = "^9.8.0"
+interrogate = "^1.7.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -135,3 +136,12 @@ type = "github"
 
 [tool.semantic_release.remote.token]
 env = "GH_TOKEN"
+
+[tool.interrogate]
+fail-under = 41
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-private = true
+ignore-semiprivate = false
+exclude = ["tests", "docs"]

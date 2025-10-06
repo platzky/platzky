@@ -9,6 +9,7 @@ lint-check:
 	poetry run black --check .
 	poetry run ruff check .
 	poetry run pyright .
+	poetry run interrogate platzky/
 
 unit-tests:
 	poetry run python -m pytest -v
