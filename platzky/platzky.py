@@ -85,6 +85,11 @@ def create_app_from_config(config: Config) -> Engine:
     db = get_db(config.db)
     engine = create_engine(config, db)
 
+    # Setup telemetry
+    from platzky.telemetry import setup_telemetry
+
+    setup_telemetry(engine, config.telemetry)
+
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )

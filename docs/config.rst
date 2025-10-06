@@ -260,6 +260,74 @@ Enable fake/test login for the admin panel. Useful for development and testing e
     FEATURE_FLAGS:
       FAKE_LOGIN: true
 
+Telemetry Configuration
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``TELEMETRY``
+^^^^^^^^^^^^^
+
+:Type: ``TelemetryConfig``
+:Default: ``{"enabled": false}``
+
+Configure OpenTelemetry tracing to monitor application performance and identify slow code paths.
+
+Telemetry options:
+
+* ``enabled``: Enable/disable telemetry (default: ``false``)
+* ``exporter``: Export destination - ``"console"``, ``"otlp"``, or ``"gcp-trace"`` (default: ``"console"``)
+* ``otlp_endpoint``: OTLP collector endpoint, only needed for ``"otlp"`` exporter (optional)
+* ``console_export``: Also log traces to console alongside other exporters (default: ``false``)
+
+**Console Export (Local Development)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      exporter: console
+
+**Google Cloud Trace (Google App Engine)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      exporter: gcp-trace
+
+Requires the ``GOOGLE_CLOUD_PROJECT`` environment variable to be set (automatically available on GAE).
+
+**OTLP Exporter (Custom Collector)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      exporter: otlp
+      otlp_endpoint: http://localhost:4317
+
+**Multiple Exporters**
+
+You can export to both a backend and console simultaneously:
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      exporter: gcp-trace
+      console_export: true
+
+**Required Dependencies**
+
+Install telemetry dependencies:
+
+.. code-block:: bash
+
+    # For console or OTLP exporters
+    $ poetry add opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc
+
+    # For Google Cloud Trace (alternative to OTLP)
+    $ poetry add opentelemetry-instrumentation-flask opentelemetry-exporter-gcp-trace
+
 Complete Example
 ----------------
 
