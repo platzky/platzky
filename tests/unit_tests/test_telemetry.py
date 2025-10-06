@@ -160,50 +160,22 @@ def test_telemetry_import_error(monkeypatch):
         platzky.telemetry.setup_telemetry(app, config)
 
 
-def test_telemetry_version_not_available(mock_app):
+def test_telemetry_version_not_available(mock_opentelemetry_modules, mock_app, monkeypatch):
     """Test telemetry setup when package version is not available"""
-    # Mock all OpenTelemetry modules
-    mock_modules = {
-        "opentelemetry": MagicMock(),
-        "opentelemetry.trace": MagicMock(),
-        "opentelemetry.instrumentation": MagicMock(),
-        "opentelemetry.instrumentation.flask": MagicMock(),
-        "opentelemetry.sdk": MagicMock(),
-        "opentelemetry.sdk.resources": MagicMock(),
-        "opentelemetry.sdk.trace": MagicMock(),
-        "opentelemetry.sdk.trace.export": MagicMock(),
-        "opentelemetry.exporter": MagicMock(),
-        "opentelemetry.exporter.otlp": MagicMock(),
-        "opentelemetry.exporter.otlp.proto": MagicMock(),
-        "opentelemetry.exporter.otlp.proto.grpc": MagicMock(),
-        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter": MagicMock(),
-        "opentelemetry.semconv": MagicMock(),
-        "opentelemetry.semconv.resource": MagicMock(),
-    }
-
-    # Mock importlib.metadata to raise exception
+    # Mock the version function to raise an exception
     mock_metadata = MagicMock()
     mock_metadata.version.side_effect = Exception("Version not found")
-    mock_modules["importlib.metadata"] = mock_metadata
-
-    for module_name, mock_module in mock_modules.items():
-        sys.modules[module_name] = mock_module
-
-    try:
-        # Force reimport
-        if "platzky.telemetry" in sys.modules:
-            del sys.modules["platzky.telemetry"]
-
-        from platzky.telemetry import setup_telemetry
-
-        config = TelemetryConfig(enabled=True, endpoint="https://localhost:4317")
-
-        # Should not raise an exception, just skip version
-        result = setup_telemetry(mock_app, config)
-
-        assert result is not None
-    finally:
-        # Cleanup
-        for module_name in mock_modules:
-            if module_name in sys.modules:
-                del sys.modules[module_name]
+    monkeypatch.setitem(sys.modules, "importlib.metadata", mock_metadata)
+    
+    # Force reimport to pick up the mocked metadata
+    if "platzky.telemetry" in sys.modules:
+        del sys.modules["platzky.telemetry"]
+    
+    import importlib
+    import platzky.telemetry
+    importlib.reload(platzky.telemetry)
+    
+    config = TelemetryConfig(enabled=True, endpoint="https://localhost:4317")
+    result = platzky.telemetry.setup_telemetry(mock_app, config)
+    
+    assert result is not None
