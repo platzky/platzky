@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false, reportPossiblyUnboundVariable=false, reportAttributeAccessIssue=false
 import os
 
 from platzky.config import TelemetryConfig
@@ -9,9 +10,9 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    OTEL_AVAILABLE = True
+    _otel_available = True
 except ImportError:
-    OTEL_AVAILABLE = False
+    _otel_available = False
 
 
 def setup_telemetry(app, telemetry_config: TelemetryConfig):
@@ -20,7 +21,7 @@ def setup_telemetry(app, telemetry_config: TelemetryConfig):
     if not telemetry_config.enabled:
         return None
 
-    if not OTEL_AVAILABLE:
+    if not _otel_available:
         raise ImportError(
             "OpenTelemetry is not installed. Install with: "
             "poetry add opentelemetry-api opentelemetry-sdk "
