@@ -167,9 +167,7 @@ def test_telemetry_version_not_available(mock_opentelemetry_modules, mock_app, m
         raise Exception("Version not found")
 
     # Mock importlib.metadata.version to raise an exception
-    import importlib.metadata
-
-    # Patch the exact import used by the telemetry implementation
+    monkeypatch.setattr("importlib.metadata.version", mock_get_version)
     monkeypatch.setattr("platzky.telemetry.get_version", mock_get_version)
 
     config = TelemetryConfig(enabled=True, endpoint="http://localhost:4317")
