@@ -90,9 +90,7 @@ def test_telemetry_otlp_exporter(mock_opentelemetry_modules, mock_app):
 
 def test_telemetry_gcp_trace_exporter(mock_opentelemetry_modules, mock_app):
     """Test telemetry setup with GCP Trace exporter"""
-    config = TelemetryConfig(
-        enabled=True, endpoint="https://telemetry.googleapis.com"
-    )
+    config = TelemetryConfig(enabled=True, endpoint="https://telemetry.googleapis.com")
 
     result = mock_opentelemetry_modules(mock_app, config)
 
@@ -148,22 +146,18 @@ def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
     assert result is not None
 
 
-def test_telemetry_import_error():
+def test_telemetry_import_error(monkeypatch):
     """Test that ImportError is raised when OpenTelemetry is not available"""
-    # Temporarily set _otel_available to False
+    # Mock the module to simulate OpenTelemetry not being available
     import platzky.telemetry
 
-    original_otel_available = platzky.telemetry._otel_available
-    platzky.telemetry._otel_available = False
+    monkeypatch.setattr(platzky.telemetry, "_otel_available", False)
 
-    try:
-        app = MagicMock()
-        config = TelemetryConfig(enabled=True)
+    app = MagicMock()
+    config = TelemetryConfig(enabled=True)
 
-        with pytest.raises(ImportError, match="OpenTelemetry is not installed"):
-            platzky.telemetry.setup_telemetry(app, config)
-    finally:
-        platzky.telemetry._otel_available = original_otel_available
+    with pytest.raises(ImportError, match="OpenTelemetry is not installed"):
+        platzky.telemetry.setup_telemetry(app, config)
 
 
 def test_telemetry_version_not_available(mock_opentelemetry_modules, mock_app, monkeypatch):
