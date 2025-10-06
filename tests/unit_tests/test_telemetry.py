@@ -117,10 +117,10 @@ def test_telemetry_config_defaults():
 
 def test_telemetry_config_custom_values():
     """Test TelemetryConfig with custom values"""
-    config = TelemetryConfig(enabled=True, endpoint="http://custom:4317", console_export=True)
+    config = TelemetryConfig(enabled=True, endpoint="https://custom:4317", console_export=True)
 
     assert config.enabled is True
-    assert config.endpoint == "http://custom:4317"
+    assert config.endpoint == "https://custom:4317"
     assert config.console_export is True
 
 
