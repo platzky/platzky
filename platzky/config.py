@@ -50,9 +50,7 @@ class Config(StrictBaseModel):
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: t.Optional[dict[str, bool]] = Field(default_factory=dict, alias="FEATURE_FLAGS")
-    telemetry: TelemetryConfig = Field(
-        default_factory=TelemetryConfig, alias="TELEMETRY"
-    )
+    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
 
     @classmethod
     def model_validate(

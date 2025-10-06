@@ -17,5 +17,11 @@ LANGUAGES:
     flag: pl
     country: PL
 
+
+TELEMETRY:
+    enabled: false
+    exporter: otlp
+    otlp_endpoint: http://localhost:4317
+
 FEATURE_FLAGS:
   FAKE_LOGIN: true

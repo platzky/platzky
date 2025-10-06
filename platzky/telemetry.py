@@ -1,12 +1,17 @@
 import os
 
-from opentelemetry import trace
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
 from platzky.config import TelemetryConfig
+
+try:
+    from opentelemetry import trace
+    from opentelemetry.instrumentation.flask import FlaskInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
 
 
 def setup_telemetry(app, telemetry_config: TelemetryConfig):
@@ -14,6 +19,13 @@ def setup_telemetry(app, telemetry_config: TelemetryConfig):
 
     if not telemetry_config.enabled:
         return None
+
+    if not OTEL_AVAILABLE:
+        raise ImportError(
+            "OpenTelemetry is not installed. Install with: "
+            "poetry add opentelemetry-api opentelemetry-sdk "
+            "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
+        )
 
     service_name = app.config.get("APP_NAME", "platzky")
     resource = Resource.create({"service.name": service_name})
