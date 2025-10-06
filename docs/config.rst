@@ -274,17 +274,16 @@ Configure OpenTelemetry tracing to monitor application performance and identify 
 Telemetry options:
 
 * ``enabled``: Enable/disable telemetry (default: ``false``)
-* ``exporter``: Export destination - ``"console"``, ``"otlp"``, or ``"gcp-trace"`` (default: ``"console"``)
-* ``otlp_endpoint``: OTLP collector endpoint, only needed for ``"otlp"`` exporter (optional)
-* ``console_export``: Also log traces to console alongside other exporters (default: ``false``)
+* ``endpoint``: OTLP endpoint URL (optional). If not set, only console export is used
+* ``console_export``: Log traces to console (default: ``false``)
 
-**Console Export (Local Development)**
+**Console Export Only (Local Development)**
 
 .. code-block:: yaml
 
     TELEMETRY:
       enabled: true
-      exporter: console
+      console_export: true
 
 **Google Cloud Trace (Google App Engine)**
 
@@ -292,28 +291,32 @@ Telemetry options:
 
     TELEMETRY:
       enabled: true
-      exporter: gcp-trace
+      endpoint: https://cloudtrace.googleapis.com/v2/projects/YOUR-PROJECT-ID/traces
 
-Requires the ``GOOGLE_CLOUD_PROJECT`` environment variable to be set (automatically available on GAE).
+Or auto-detect project from environment:
 
-**OTLP Exporter (Custom Collector)**
+.. code-block:: python
+
+    import os
+    endpoint = f"https://cloudtrace.googleapis.com/v2/projects/{os.getenv('GOOGLE_CLOUD_PROJECT')}/traces"
+
+**OTLP Exporter (Jaeger, Tempo, etc.)**
 
 .. code-block:: yaml
 
     TELEMETRY:
       enabled: true
-      exporter: otlp
-      otlp_endpoint: http://localhost:4317
+      endpoint: http://localhost:4317
 
 **Multiple Exporters**
 
-You can export to both a backend and console simultaneously:
+Export to both a backend and console:
 
 .. code-block:: yaml
 
     TELEMETRY:
       enabled: true
-      exporter: gcp-trace
+      endpoint: http://localhost:4317
       console_export: true
 
 **Required Dependencies**

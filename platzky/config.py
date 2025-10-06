@@ -29,8 +29,7 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
 
 class TelemetryConfig(StrictBaseModel):
     enabled: bool = Field(default=False, alias="enabled")
-    exporter: str = Field(default="console", alias="exporter")  # console, otlp, gcp-trace
-    otlp_endpoint: t.Optional[str] = Field(default=None, alias="otlp_endpoint")
+    endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
     console_export: bool = Field(default=False, alias="console_export")
 
 
