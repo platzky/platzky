@@ -276,6 +276,11 @@ Telemetry options:
 * ``enabled``: Enable/disable telemetry (default: ``false``)
 * ``endpoint``: OTLP endpoint URL (optional). If not set, only console export is used
 * ``console_export``: Log traces to console (default: ``false``)
+* ``timeout``: Timeout in seconds for exporter (default: ``10``)
+* ``deployment_environment``: Deployment environment (e.g., ``production``, ``staging``, ``dev``)
+* ``service_instance_id``: Service instance ID (optional, auto-generated if not provided)
+
+**Note:** Service version is automatically detected from package metadata. Instance ID is auto-generated from hostname + UUID if not explicitly provided.
 
 **Console Export Only (Local Development)**
 
@@ -325,11 +330,14 @@ Install telemetry dependencies:
 
 .. code-block:: bash
 
-    # For console or OTLP exporters
-    $ poetry add opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc
+    # Install platzky with telemetry support
+    $ poetry install -E telemetry
 
-    # For Google Cloud Trace (alternative to OTLP)
-    $ poetry add opentelemetry-instrumentation-flask opentelemetry-exporter-gcp-trace
+Or if installing from PyPI:
+
+.. code-block:: bash
+
+    $ pip install platzky[telemetry]
 
 Complete Example
 ----------------
