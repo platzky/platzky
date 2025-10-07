@@ -264,18 +264,17 @@ def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
     assert "custom-instance-123" in resource_attrs.values()
 
 
-def test_telemetry_import_error(monkeypatch):
+def test_telemetry_import_error(mock_app, monkeypatch):
     """Test that ImportError is raised when OpenTelemetry is not available"""
     # Mock the module to simulate OpenTelemetry not being available
     import platzky.telemetry
 
     monkeypatch.setattr(platzky.telemetry, "_otel_available", False)
 
-    app = MagicMock()
     config = TelemetryConfig(enabled=True)
 
     with pytest.raises(ImportError, match="OpenTelemetry is not installed"):
-        platzky.telemetry.setup_telemetry(app, config)
+        platzky.telemetry.setup_telemetry(mock_app, config)
 
 
 def test_telemetry_version_not_available(mock_opentelemetry_modules, mock_app, monkeypatch):
