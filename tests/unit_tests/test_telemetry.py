@@ -10,6 +10,10 @@ from platzky.config import TelemetryConfig
 @pytest.fixture(autouse=True)
 def mock_opentelemetry_modules():
     """Mock OpenTelemetry modules for testing"""
+    # Save original module state for restoration
+    original_telemetry = sys.modules.get("platzky.telemetry")
+    original_config = sys.modules.get("platzky.config")
+
     # Create specific mock instances to track
     mock_tracer = MagicMock()
     mock_tracer_provider = MagicMock()
@@ -86,10 +90,21 @@ def mock_opentelemetry_modules():
         "flask_instrumentor": mock_flask_instrumentor_instance,
     }
 
-    # Cleanup
+    # Cleanup: remove mocked modules
     for module_name in mock_modules:
         if module_name in sys.modules:
             del sys.modules[module_name]
+
+    # Restore original platzky modules
+    if "platzky.telemetry" in sys.modules:
+        del sys.modules["platzky.telemetry"]
+    if "platzky.config" in sys.modules:
+        del sys.modules["platzky.config"]
+
+    if original_telemetry is not None:
+        sys.modules["platzky.telemetry"] = original_telemetry
+    if original_config is not None:
+        sys.modules["platzky.config"] = original_config
 
 
 @pytest.fixture
