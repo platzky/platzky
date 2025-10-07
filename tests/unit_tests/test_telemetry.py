@@ -320,7 +320,7 @@ def test_telemetry_config_invalid_endpoint_bad_scheme():
 def test_telemetry_config_invalid_endpoint_malformed():
     """Test TelemetryConfig rejects malformed endpoint"""
     with pytest.raises(ValueError, match="Invalid endpoint format"):
-        TelemetryConfig(enabled=True, endpoint="http://")
+        TelemetryConfig(enabled=True, endpoint="https://")
 
 
 def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_app):
