@@ -355,7 +355,7 @@ def test_telemetry_config_invalid_endpoint_malformed():
 def test_telemetry_config_invalid_endpoint_no_host():
     """Test TelemetryConfig rejects endpoint without hostname"""
     with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
-        TelemetryConfig(enabled=True, endpoint="http://:4317")
+        TelemetryConfig(enabled=True, endpoint="https://:4317")
 
 
 def test_telemetry_config_invalid_timeout_zero():
