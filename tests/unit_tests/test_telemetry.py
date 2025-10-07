@@ -350,40 +350,31 @@ def test_telemetry_config_custom_values():
     assert config.console_export is True
 
 
-def test_telemetry_config_invalid_endpoint_no_scheme():
-    """Test TelemetryConfig rejects endpoint without scheme"""
-    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
-        TelemetryConfig(enabled=True, endpoint="localhost:4317")
+@pytest.mark.parametrize(
+    "invalid_endpoint,error_match",
+    [
+        ("localhost:4317", "Invalid endpoint.*Must be http"),  # no scheme
+        ("ftp://localhost:4317", "Invalid endpoint.*Must be http"),  # bad scheme
+        ("https://", "Invalid endpoint.*Must be http"),  # malformed
+        ("https://:4317", "Invalid endpoint.*Must be http"),  # no hostname
+    ],
+    ids=["no_scheme", "bad_scheme", "malformed", "no_hostname"],
+)
+def test_telemetry_config_invalid_endpoint(invalid_endpoint, error_match):
+    """Test TelemetryConfig rejects invalid endpoint formats"""
+    with pytest.raises(ValueError, match=error_match):
+        TelemetryConfig(enabled=True, endpoint=invalid_endpoint)
 
 
-def test_telemetry_config_invalid_endpoint_bad_scheme():
-    """Test TelemetryConfig rejects endpoint with invalid scheme"""
-    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
-        TelemetryConfig(enabled=True, endpoint="ftp://localhost:4317")
-
-
-def test_telemetry_config_invalid_endpoint_malformed():
-    """Test TelemetryConfig rejects malformed endpoint"""
-    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
-        TelemetryConfig(enabled=True, endpoint="https://")
-
-
-def test_telemetry_config_invalid_endpoint_no_host():
-    """Test TelemetryConfig rejects endpoint without hostname"""
-    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
-        TelemetryConfig(enabled=True, endpoint="https://:4317")
-
-
-def test_telemetry_config_invalid_timeout_zero():
-    """Test TelemetryConfig rejects zero timeout"""
+@pytest.mark.parametrize(
+    "invalid_timeout",
+    [0, -1, -10],
+    ids=["zero", "negative_one", "negative_ten"],
+)
+def test_telemetry_config_invalid_timeout(invalid_timeout):
+    """Test TelemetryConfig rejects non-positive timeout values"""
     with pytest.raises(ValueError, match="greater than 0"):
-        TelemetryConfig(enabled=True, timeout=0)
-
-
-def test_telemetry_config_invalid_timeout_negative():
-    """Test TelemetryConfig rejects negative timeout"""
-    with pytest.raises(ValueError, match="greater than 0"):
-        TelemetryConfig(enabled=True, timeout=-1)
+        TelemetryConfig(enabled=True, timeout=invalid_timeout)
 
 
 def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_app):
@@ -445,7 +436,7 @@ def test_telemetry_deployment_environment(mock_opentelemetry_modules, mock_app):
     )
 
 
-def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
+def test_telemetry_service_instance_id_custom(mock_opentelemetry_modules, mock_app):
     """Test telemetry setup with custom service_instance_id"""
     config = TelemetryConfig(
         enabled=True,
@@ -464,6 +455,49 @@ def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
     assert (
         resource_attrs[mock_opentelemetry_modules["SERVICE_INSTANCE_ID"]] == "custom-instance-123"
     )
+
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
+
+def test_telemetry_service_instance_id_auto_generated(
+    mock_opentelemetry_modules, mock_app, monkeypatch
+):
+    """Test telemetry setup with auto-generated service_instance_id"""
+    # Mock socket.gethostname and uuid.uuid4 for predictable testing
+    monkeypatch.setattr("socket.gethostname", lambda: "test-host")
+
+    # Create a mock UUID object that returns a predictable string when converted to str
+    mock_uuid_obj = MagicMock()
+    mock_uuid_obj.configure_mock(**{"__str__.return_value": "12345678-abcd-efgh-ijkl-mnopqrstuvwx"})
+
+    mock_uuid = MagicMock(return_value=mock_uuid_obj)
+    monkeypatch.setattr("uuid.uuid4", mock_uuid)
+
+    config = TelemetryConfig(
+        enabled=True,
+        endpoint="https://localhost:4317",
+        # service_instance_id is None (default), should trigger auto-generation
+    )
+
+    result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
+
+    # Verify tracer was returned (get_tracer was called)
+    assert result is not None
+
+    # Verify Resource was created with auto-generated service.instance.id
+    resource_attrs = mock_opentelemetry_modules["Resource"].create.call_args[0][0]
+    assert mock_opentelemetry_modules["SERVICE_INSTANCE_ID"] in resource_attrs
+
+    # Auto-generated ID should follow format: hostname-uuid[:8]
+    instance_id = resource_attrs[mock_opentelemetry_modules["SERVICE_INSTANCE_ID"]]
+    assert instance_id == "test-host-12345678"
+    assert instance_id.startswith("test-host-")
+    # Extract UUID part (everything after last hyphen) and verify it's 8 chars
+    uuid_part = instance_id.rsplit("-", 1)[1]
+    assert len(uuid_part) == 8  # UUID is truncated to 8 chars
 
     # Verify set_tracer_provider was called with the provider
     mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
