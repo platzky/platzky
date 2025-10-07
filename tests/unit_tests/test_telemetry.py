@@ -8,8 +8,13 @@ from platzky.config import TelemetryConfig
 
 # Mock OpenTelemetry modules before importing telemetry
 @pytest.fixture(autouse=True)
-def mock_opentelemetry_modules():
+def mock_opentelemetry_modules(request):
     """Mock OpenTelemetry modules for testing"""
+    # Allow tests to opt out of autouse
+    if "no_mock_otel" in request.keywords:
+        yield None
+        return
+
     # Save original module state for restoration
     original_telemetry = sys.modules.get("platzky.telemetry")
     original_config = sys.modules.get("platzky.config")
@@ -40,6 +45,22 @@ def mock_opentelemetry_modules():
         "opentelemetry.semconv": MagicMock(),
         "opentelemetry.semconv.resource": MagicMock(),
     }
+
+    # Create mock constants for resource attributes
+    mock_service_name = MagicMock()
+    mock_service_version = MagicMock()
+    mock_deployment_env = MagicMock()
+    mock_instance_id = MagicMock()
+
+    # Configure resource attribute mocks
+    mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.SERVICE_NAME = (
+        mock_service_name
+    )
+    mock_modules["opentelemetry.sdk.resources"].SERVICE_VERSION = mock_service_version
+    mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.DEPLOYMENT_ENVIRONMENT = (
+        mock_deployment_env
+    )
+    mock_modules["opentelemetry.sdk.resources"].SERVICE_INSTANCE_ID = mock_instance_id
 
     # Configure mocks with return values
     mock_modules["opentelemetry.trace"].get_tracer.return_value = mock_tracer
@@ -85,9 +106,18 @@ def mock_opentelemetry_modules():
         ].OTLPSpanExporter,
         "ConsoleSpanExporter": mock_modules["opentelemetry.sdk.trace.export"].ConsoleSpanExporter,
         "BatchSpanProcessor": mock_modules["opentelemetry.sdk.trace.export"].BatchSpanProcessor,
-        "set_tracer_provider": mock_modules["opentelemetry.trace"].set_tracer_provider,
+        "trace_module": mock_modules["opentelemetry.trace"],
         "tracer_provider": mock_tracer_provider,
         "flask_instrumentor": mock_flask_instrumentor_instance,
+        "tracer": mock_tracer,
+        "resource": mock_resource,
+        "otlp_exporter": mock_otlp_exporter,
+        "console_exporter": mock_console_exporter,
+        "batch_span_processor": mock_batch_span_processor,
+        "SERVICE_NAME": mock_service_name,
+        "SERVICE_VERSION": mock_service_version,
+        "DEPLOYMENT_ENVIRONMENT": mock_deployment_env,
+        "SERVICE_INSTANCE_ID": mock_instance_id,
     }
 
     # Cleanup: remove mocked modules
@@ -134,25 +164,32 @@ def test_telemetry_console_exporter(mock_opentelemetry_modules, mock_app):
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
-    # Verify Resource was created with service.name
+    # Verify Resource was created with service.name key-value pair
     mock_opentelemetry_modules["Resource"].create.assert_called_once()
     resource_attrs = mock_opentelemetry_modules["Resource"].create.call_args[0][0]
-    # Check that resource_attrs dict contains test-app value
-    assert "test-app" in resource_attrs.values()
+    assert mock_opentelemetry_modules["SERVICE_NAME"] in resource_attrs
+    assert resource_attrs[mock_opentelemetry_modules["SERVICE_NAME"]] == "test-app"
 
     # Verify TracerProvider was created with the resource
-    mock_opentelemetry_modules["TracerProvider"].assert_called_once()
+    mock_opentelemetry_modules["TracerProvider"].assert_called_once_with(
+        resource=mock_opentelemetry_modules["resource"]
+    )
 
     # Verify ConsoleSpanExporter was created
     mock_opentelemetry_modules["ConsoleSpanExporter"].assert_called_once()
 
-    # Verify BatchSpanProcessor was called once (for console exporter only)
-    assert mock_opentelemetry_modules["BatchSpanProcessor"].call_count == 1
+    # Verify BatchSpanProcessor was called with console exporter
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_called_once_with(
+        mock_opentelemetry_modules["console_exporter"]
+    )
 
-    # Verify add_span_processor was called once
-    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once()
+    # Verify add_span_processor was called with the processor
+    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once_with(
+        mock_opentelemetry_modules["batch_span_processor"]
+    )
 
     # Verify FlaskInstrumentor was used
     mock_opentelemetry_modules["FlaskInstrumentor"].assert_called_once()
@@ -167,6 +204,7 @@ def test_telemetry_otlp_exporter(mock_opentelemetry_modules, mock_app):
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
     # Verify OTLPSpanExporter was created with correct endpoint
@@ -174,11 +212,20 @@ def test_telemetry_otlp_exporter(mock_opentelemetry_modules, mock_app):
         endpoint="https://localhost:4317", timeout=10
     )
 
-    # Verify BatchSpanProcessor was called once (for OTLP exporter only)
-    assert mock_opentelemetry_modules["BatchSpanProcessor"].call_count == 1
+    # Verify BatchSpanProcessor was called with OTLP exporter
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_called_once_with(
+        mock_opentelemetry_modules["otlp_exporter"]
+    )
 
-    # Verify add_span_processor was called once
-    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once()
+    # Verify TracerProvider was called with resource
+    mock_opentelemetry_modules["TracerProvider"].assert_called_once_with(
+        resource=mock_opentelemetry_modules["resource"]
+    )
+
+    # Verify add_span_processor was called with processor
+    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once_with(
+        mock_opentelemetry_modules["batch_span_processor"]
+    )
 
     # Verify FlaskInstrumentor was used
     mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
@@ -192,6 +239,7 @@ def test_telemetry_gcp_trace_exporter(mock_opentelemetry_modules, mock_app):
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
     # Verify OTLPSpanExporter was created with GCP endpoint
@@ -199,11 +247,15 @@ def test_telemetry_gcp_trace_exporter(mock_opentelemetry_modules, mock_app):
         endpoint="https://telemetry.googleapis.com", timeout=10
     )
 
-    # Verify BatchSpanProcessor was called once
-    assert mock_opentelemetry_modules["BatchSpanProcessor"].call_count == 1
+    # Verify BatchSpanProcessor was called with OTLP exporter
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_called_once_with(
+        mock_opentelemetry_modules["otlp_exporter"]
+    )
 
-    # Verify add_span_processor was called once
-    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once()
+    # Verify add_span_processor was called with processor
+    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once_with(
+        mock_opentelemetry_modules["batch_span_processor"]
+    )
 
 
 def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules, mock_app):
@@ -212,6 +264,7 @@ def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
     # Verify OTLPSpanExporter was created
@@ -222,8 +275,12 @@ def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules
     # Verify ConsoleSpanExporter was also created
     mock_opentelemetry_modules["ConsoleSpanExporter"].assert_called_once()
 
-    # Verify BatchSpanProcessor was called twice (once for OTLP, once for Console)
+    # Verify BatchSpanProcessor was called twice with correct exporters
     assert mock_opentelemetry_modules["BatchSpanProcessor"].call_count == 2
+    calls = mock_opentelemetry_modules["BatchSpanProcessor"].call_args_list
+    # First call with OTLP exporter, second with console exporter
+    assert calls[0][0][0] == mock_opentelemetry_modules["otlp_exporter"]
+    assert calls[1][0][0] == mock_opentelemetry_modules["console_exporter"]
 
     # Verify add_span_processor was called twice
     assert mock_opentelemetry_modules["tracer_provider"].add_span_processor.call_count == 2
@@ -236,6 +293,7 @@ def test_telemetry_config_defaults():
     assert config.enabled is False
     assert config.endpoint is None
     assert config.console_export is False
+    assert config.timeout == 10
 
 
 def test_telemetry_config_custom_values():
@@ -247,6 +305,53 @@ def test_telemetry_config_custom_values():
     assert config.console_export is True
 
 
+def test_telemetry_config_invalid_endpoint_no_scheme():
+    """Test TelemetryConfig rejects endpoint without scheme"""
+    with pytest.raises(ValueError, match="Invalid endpoint format.*Expected URL with scheme"):
+        TelemetryConfig(enabled=True, endpoint="localhost:4317")
+
+
+def test_telemetry_config_invalid_endpoint_bad_scheme():
+    """Test TelemetryConfig rejects endpoint with invalid scheme"""
+    with pytest.raises(ValueError, match="Invalid endpoint scheme.*Only 'http' and 'https'"):
+        TelemetryConfig(enabled=True, endpoint="ftp://localhost:4317")
+
+
+def test_telemetry_config_invalid_endpoint_malformed():
+    """Test TelemetryConfig rejects malformed endpoint"""
+    with pytest.raises(ValueError, match="Invalid endpoint format"):
+        TelemetryConfig(enabled=True, endpoint="http://")
+
+
+def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_app):
+    """Test telemetry with enabled=True but no exporters (edge case)"""
+    config = TelemetryConfig(enabled=True, endpoint=None, console_export=False)
+
+    result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
+
+    # Verify tracer was returned (get_tracer was called)
+    assert result is not None
+
+    # Verify Resource and TracerProvider were still created
+    mock_opentelemetry_modules["Resource"].create.assert_called_once()
+    mock_opentelemetry_modules["TracerProvider"].assert_called_once_with(
+        resource=mock_opentelemetry_modules["resource"]
+    )
+
+    # Verify NO exporters were created
+    mock_opentelemetry_modules["OTLPSpanExporter"].assert_not_called()
+    mock_opentelemetry_modules["ConsoleSpanExporter"].assert_not_called()
+
+    # Verify NO span processors were added
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_not_called()
+    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_not_called()
+
+    # Verify FlaskInstrumentor was still called
+    mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
+        mock_app
+    )
+
+
 def test_telemetry_deployment_environment(mock_opentelemetry_modules, mock_app):
     """Test telemetry setup with deployment_environment"""
     config = TelemetryConfig(
@@ -255,11 +360,13 @@ def test_telemetry_deployment_environment(mock_opentelemetry_modules, mock_app):
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
-    # Verify Resource was created with deployment.environment
+    # Verify Resource was created with deployment.environment key-value pair
     resource_attrs = mock_opentelemetry_modules["Resource"].create.call_args[0][0]
-    assert "production" in resource_attrs.values()
+    assert mock_opentelemetry_modules["DEPLOYMENT_ENVIRONMENT"] in resource_attrs
+    assert resource_attrs[mock_opentelemetry_modules["DEPLOYMENT_ENVIRONMENT"]] == "production"
 
 
 def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
@@ -272,13 +379,18 @@ def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
 
     result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
+    # Verify tracer was returned (get_tracer was called)
     assert result is not None
 
-    # Verify Resource was created with service.instance.id
+    # Verify Resource was created with service.instance.id key-value pair
     resource_attrs = mock_opentelemetry_modules["Resource"].create.call_args[0][0]
-    assert "custom-instance-123" in resource_attrs.values()
+    assert mock_opentelemetry_modules["SERVICE_INSTANCE_ID"] in resource_attrs
+    assert (
+        resource_attrs[mock_opentelemetry_modules["SERVICE_INSTANCE_ID"]] == "custom-instance-123"
+    )
 
 
+@pytest.mark.no_mock_otel
 def test_telemetry_import_error(mock_app, monkeypatch):
     """Test that ImportError is raised when OpenTelemetry is not available"""
     # Mock the module to simulate OpenTelemetry not being available

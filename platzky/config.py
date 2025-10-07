@@ -7,7 +7,7 @@ import sys
 import typing as t
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .db.db import DBConfig
 from .db.db_loader import get_db_module
@@ -69,6 +69,35 @@ class TelemetryConfig(StrictBaseModel):
     timeout: int = Field(default=10, alias="timeout")
     deployment_environment: t.Optional[str] = Field(default=None, alias="deployment_environment")
     service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: t.Optional[str]) -> t.Optional[str]:
+        """Validate endpoint URL format."""
+        if v is None:
+            return v
+
+        # Check for scheme://host[:port] format
+        if "://" not in v:
+            raise ValueError(
+                f"Invalid endpoint format: '{v}'. "
+                "Expected URL with scheme (e.g., http://localhost:4317 or https://telemetry.googleapis.com)"
+            )
+
+        parts = v.split("://", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValueError(
+                f"Invalid endpoint format: '{v}'. "
+                "Expected URL with scheme (e.g., http://localhost:4317 or https://telemetry.googleapis.com)"
+            )
+
+        scheme = parts[0]
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid endpoint scheme: '{scheme}'. Only 'http' and 'https' are supported."
+            )
+
+        return v
 
 
 class Config(StrictBaseModel):
