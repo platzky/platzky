@@ -10,7 +10,7 @@ try:
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
     from opentelemetry.semconv.resource import ResourceAttributes
 
     _otel_available = True
@@ -100,7 +100,7 @@ def setup_telemetry(app, telemetry_config: TelemetryConfig):
     if telemetry_config.console_export:
         from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)

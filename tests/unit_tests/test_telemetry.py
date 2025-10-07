@@ -27,6 +27,7 @@ def mock_opentelemetry_modules(request):
     mock_otlp_exporter = MagicMock()
     mock_console_exporter = MagicMock()
     mock_batch_span_processor = MagicMock()
+    mock_simple_span_processor = MagicMock()
 
     # Create mock modules structure
     mock_trace_module = MagicMock()
@@ -87,6 +88,9 @@ def mock_opentelemetry_modules(request):
     mock_modules["opentelemetry.sdk.trace.export"].BatchSpanProcessor.return_value = (
         mock_batch_span_processor
     )
+    mock_modules["opentelemetry.sdk.trace.export"].SimpleSpanProcessor.return_value = (
+        mock_simple_span_processor
+    )
 
     for module_name, mock_module in mock_modules.items():
         sys.modules[module_name] = mock_module
@@ -115,6 +119,7 @@ def mock_opentelemetry_modules(request):
         ].OTLPSpanExporter,
         "ConsoleSpanExporter": mock_modules["opentelemetry.sdk.trace.export"].ConsoleSpanExporter,
         "BatchSpanProcessor": mock_modules["opentelemetry.sdk.trace.export"].BatchSpanProcessor,
+        "SimpleSpanProcessor": mock_modules["opentelemetry.sdk.trace.export"].SimpleSpanProcessor,
         "trace_module": mock_trace_module,
         "tracer_provider": mock_tracer_provider,
         "flask_instrumentor": mock_flask_instrumentor_instance,
@@ -123,6 +128,7 @@ def mock_opentelemetry_modules(request):
         "otlp_exporter": mock_otlp_exporter,
         "console_exporter": mock_console_exporter,
         "batch_span_processor": mock_batch_span_processor,
+        "simple_span_processor": mock_simple_span_processor,
         "SERVICE_NAME": mock_service_name,
         "SERVICE_VERSION": mock_service_version,
         "DEPLOYMENT_ENVIRONMENT": mock_deployment_env,
@@ -190,15 +196,18 @@ def test_telemetry_console_exporter(mock_opentelemetry_modules, mock_app):
     # Verify ConsoleSpanExporter was created
     mock_opentelemetry_modules["ConsoleSpanExporter"].assert_called_once()
 
-    # Verify BatchSpanProcessor was called with console exporter
-    mock_opentelemetry_modules["BatchSpanProcessor"].assert_called_once_with(
+    # Verify SimpleSpanProcessor was called with console exporter
+    mock_opentelemetry_modules["SimpleSpanProcessor"].assert_called_once_with(
         mock_opentelemetry_modules["console_exporter"]
     )
 
     # Verify add_span_processor was called with the processor
     mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_called_once_with(
-        mock_opentelemetry_modules["batch_span_processor"]
+        mock_opentelemetry_modules["simple_span_processor"]
     )
+
+    # Verify BatchSpanProcessor was NOT called (console uses SimpleSpanProcessor)
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_not_called()
 
     # Verify set_tracer_provider was called with the provider
     mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
@@ -299,15 +308,22 @@ def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules
     # Verify ConsoleSpanExporter was also created
     mock_opentelemetry_modules["ConsoleSpanExporter"].assert_called_once()
 
-    # Verify BatchSpanProcessor was called twice with correct exporters
-    assert mock_opentelemetry_modules["BatchSpanProcessor"].call_count == 2
-    calls = mock_opentelemetry_modules["BatchSpanProcessor"].call_args_list
-    # First call with OTLP exporter, second with console exporter
-    assert calls[0][0][0] == mock_opentelemetry_modules["otlp_exporter"]
-    assert calls[1][0][0] == mock_opentelemetry_modules["console_exporter"]
+    # Verify BatchSpanProcessor was called once with OTLP exporter
+    mock_opentelemetry_modules["BatchSpanProcessor"].assert_called_once_with(
+        mock_opentelemetry_modules["otlp_exporter"]
+    )
 
-    # Verify add_span_processor was called twice
+    # Verify SimpleSpanProcessor was called once with console exporter
+    mock_opentelemetry_modules["SimpleSpanProcessor"].assert_called_once_with(
+        mock_opentelemetry_modules["console_exporter"]
+    )
+
+    # Verify add_span_processor was called twice (once for each processor)
     assert mock_opentelemetry_modules["tracer_provider"].add_span_processor.call_count == 2
+    calls = mock_opentelemetry_modules["tracer_provider"].add_span_processor.call_args_list
+    # First call with BatchSpanProcessor (OTLP), second with SimpleSpanProcessor (console)
+    assert calls[0][0][0] == mock_opentelemetry_modules["batch_span_processor"]
+    assert calls[1][0][0] == mock_opentelemetry_modules["simple_span_processor"]
 
     # Verify set_tracer_provider was called with the provider
     mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
@@ -393,6 +409,7 @@ def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_ap
 
     # Verify NO span processors were added
     mock_opentelemetry_modules["BatchSpanProcessor"].assert_not_called()
+    mock_opentelemetry_modules["SimpleSpanProcessor"].assert_not_called()
     mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_not_called()
 
     # Verify set_tracer_provider was called with the provider
