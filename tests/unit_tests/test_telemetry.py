@@ -28,9 +28,11 @@ def mock_opentelemetry_modules(request):
     mock_console_exporter = MagicMock()
     mock_batch_span_processor = MagicMock()
 
+    # Create mock modules structure
+    mock_trace_module = MagicMock()
     mock_modules = {
         "opentelemetry": MagicMock(),
-        "opentelemetry.trace": MagicMock(),
+        "opentelemetry.trace": mock_trace_module,
         "opentelemetry.instrumentation": MagicMock(),
         "opentelemetry.instrumentation.flask": MagicMock(),
         "opentelemetry.sdk": MagicMock(),
@@ -46,6 +48,9 @@ def mock_opentelemetry_modules(request):
         "opentelemetry.semconv.resource": MagicMock(),
     }
 
+    # Link trace module to parent opentelemetry module
+    mock_modules["opentelemetry"].trace = mock_trace_module
+
     # Create mock constants for resource attributes
     mock_service_name = MagicMock()
     mock_service_version = MagicMock()
@@ -56,14 +61,18 @@ def mock_opentelemetry_modules(request):
     mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.SERVICE_NAME = (
         mock_service_name
     )
-    mock_modules["opentelemetry.sdk.resources"].SERVICE_VERSION = mock_service_version
+    mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.SERVICE_VERSION = (
+        mock_service_version
+    )
     mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.DEPLOYMENT_ENVIRONMENT = (
         mock_deployment_env
     )
-    mock_modules["opentelemetry.sdk.resources"].SERVICE_INSTANCE_ID = mock_instance_id
+    mock_modules["opentelemetry.semconv.resource"].ResourceAttributes.SERVICE_INSTANCE_ID = (
+        mock_instance_id
+    )
 
     # Configure mocks with return values
-    mock_modules["opentelemetry.trace"].get_tracer.return_value = mock_tracer
+    mock_trace_module.get_tracer.return_value = mock_tracer
     mock_modules["opentelemetry.sdk.trace"].TracerProvider.return_value = mock_tracer_provider
     mock_modules["opentelemetry.sdk.resources"].Resource.create.return_value = mock_resource
     mock_modules["opentelemetry.instrumentation.flask"].FlaskInstrumentor.return_value = (
@@ -106,7 +115,7 @@ def mock_opentelemetry_modules(request):
         ].OTLPSpanExporter,
         "ConsoleSpanExporter": mock_modules["opentelemetry.sdk.trace.export"].ConsoleSpanExporter,
         "BatchSpanProcessor": mock_modules["opentelemetry.sdk.trace.export"].BatchSpanProcessor,
-        "trace_module": mock_modules["opentelemetry.trace"],
+        "trace_module": mock_trace_module,
         "tracer_provider": mock_tracer_provider,
         "flask_instrumentor": mock_flask_instrumentor_instance,
         "tracer": mock_tracer,
@@ -191,6 +200,11 @@ def test_telemetry_console_exporter(mock_opentelemetry_modules, mock_app):
         mock_opentelemetry_modules["batch_span_processor"]
     )
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
     # Verify FlaskInstrumentor was used
     mock_opentelemetry_modules["FlaskInstrumentor"].assert_called_once()
     mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
@@ -227,6 +241,11 @@ def test_telemetry_otlp_exporter(mock_opentelemetry_modules, mock_app):
         mock_opentelemetry_modules["batch_span_processor"]
     )
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
     # Verify FlaskInstrumentor was used
     mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
         mock_app
@@ -257,6 +276,11 @@ def test_telemetry_gcp_trace_exporter(mock_opentelemetry_modules, mock_app):
         mock_opentelemetry_modules["batch_span_processor"]
     )
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
 
 def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules, mock_app):
     """Test that console_export adds console exporter alongside main exporter"""
@@ -285,6 +309,11 @@ def test_telemetry_console_export_with_other_exporter(mock_opentelemetry_modules
     # Verify add_span_processor was called twice
     assert mock_opentelemetry_modules["tracer_provider"].add_span_processor.call_count == 2
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
 
 def test_telemetry_config_defaults():
     """Test TelemetryConfig default values"""
@@ -307,27 +336,47 @@ def test_telemetry_config_custom_values():
 
 def test_telemetry_config_invalid_endpoint_no_scheme():
     """Test TelemetryConfig rejects endpoint without scheme"""
-    with pytest.raises(ValueError, match="Invalid endpoint format.*Expected URL with scheme"):
+    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
         TelemetryConfig(enabled=True, endpoint="localhost:4317")
 
 
 def test_telemetry_config_invalid_endpoint_bad_scheme():
     """Test TelemetryConfig rejects endpoint with invalid scheme"""
-    with pytest.raises(ValueError, match="Invalid endpoint scheme.*Only 'http' and 'https'"):
+    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
         TelemetryConfig(enabled=True, endpoint="ftp://localhost:4317")
 
 
 def test_telemetry_config_invalid_endpoint_malformed():
     """Test TelemetryConfig rejects malformed endpoint"""
-    with pytest.raises(ValueError, match="Invalid endpoint format"):
+    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
         TelemetryConfig(enabled=True, endpoint="https://")
+
+
+def test_telemetry_config_invalid_endpoint_no_host():
+    """Test TelemetryConfig rejects endpoint without hostname"""
+    with pytest.raises(ValueError, match="Invalid endpoint.*Must be http"):
+        TelemetryConfig(enabled=True, endpoint="http://:4317")
+
+
+def test_telemetry_config_invalid_timeout_zero():
+    """Test TelemetryConfig rejects zero timeout"""
+    with pytest.raises(ValueError, match="greater than 0"):
+        TelemetryConfig(enabled=True, timeout=0)
+
+
+def test_telemetry_config_invalid_timeout_negative():
+    """Test TelemetryConfig rejects negative timeout"""
+    with pytest.raises(ValueError, match="greater than 0"):
+        TelemetryConfig(enabled=True, timeout=-1)
 
 
 def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_app):
     """Test telemetry with enabled=True but no exporters (edge case)"""
     config = TelemetryConfig(enabled=True, endpoint=None, console_export=False)
 
-    result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
+    # Should warn about no exporters configured
+    with pytest.warns(UserWarning, match="no exporters are configured"):
+        result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
     # Verify tracer was returned (get_tracer was called)
     assert result is not None
@@ -345,6 +394,11 @@ def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_ap
     # Verify NO span processors were added
     mock_opentelemetry_modules["BatchSpanProcessor"].assert_not_called()
     mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_not_called()
+
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
 
     # Verify FlaskInstrumentor was still called
     mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
@@ -368,6 +422,11 @@ def test_telemetry_deployment_environment(mock_opentelemetry_modules, mock_app):
     assert mock_opentelemetry_modules["DEPLOYMENT_ENVIRONMENT"] in resource_attrs
     assert resource_attrs[mock_opentelemetry_modules["DEPLOYMENT_ENVIRONMENT"]] == "production"
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
 
 def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
     """Test telemetry setup with custom service_instance_id"""
@@ -389,6 +448,11 @@ def test_telemetry_service_instance_id(mock_opentelemetry_modules, mock_app):
         resource_attrs[mock_opentelemetry_modules["SERVICE_INSTANCE_ID"]] == "custom-instance-123"
     )
 
+    # Verify set_tracer_provider was called with the provider
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
+        mock_opentelemetry_modules["tracer_provider"]
+    )
+
 
 @pytest.mark.no_mock_otel
 def test_telemetry_import_error(mock_app, monkeypatch):
@@ -406,26 +470,21 @@ def test_telemetry_import_error(mock_app, monkeypatch):
 
 def test_telemetry_version_not_available(mock_opentelemetry_modules, mock_app, monkeypatch):
     """Test telemetry setup when package version is not available"""
-    # Mock the version function to raise an exception
-    mock_metadata = MagicMock()
-    mock_metadata.version.side_effect = Exception("Version not found")
-    monkeypatch.setitem(sys.modules, "importlib.metadata", mock_metadata)
+    # Patch importlib.metadata.version directly to raise an exception
+    import importlib.metadata
 
-    # Force reimport to pick up the mocked metadata
-    if "platzky.telemetry" in sys.modules:
-        del sys.modules["platzky.telemetry"]
+    def mock_version(package_name):
+        raise Exception("Version not found")
 
-    import importlib
-
-    import platzky.telemetry
-
-    importlib.reload(platzky.telemetry)
+    monkeypatch.setattr(importlib.metadata, "version", mock_version)
 
     config = TelemetryConfig(enabled=True, endpoint="https://localhost:4317")
-    result = platzky.telemetry.setup_telemetry(mock_app, config)
+    result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
     assert result is not None
 
-    # Verify Resource was created - version will be missing or be a mock
-    # Just verify that setup completed without error
-    mock_opentelemetry_modules["Resource"].create.assert_called()
+    # Verify Resource was created without version attribute
+    mock_opentelemetry_modules["Resource"].create.assert_called_once()
+    resource_attrs = mock_opentelemetry_modules["Resource"].create.call_args[0][0]
+    # Version should not be in resource attributes when import fails
+    assert mock_opentelemetry_modules["SERVICE_VERSION"] not in resource_attrs

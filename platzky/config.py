@@ -66,7 +66,7 @@ class TelemetryConfig(StrictBaseModel):
     enabled: bool = Field(default=False, alias="enabled")
     endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
     console_export: bool = Field(default=False, alias="console_export")
-    timeout: int = Field(default=10, alias="timeout")
+    timeout: int = Field(default=10, alias="timeout", gt=0)
     deployment_environment: t.Optional[str] = Field(default=None, alias="deployment_environment")
     service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
 
@@ -77,25 +77,11 @@ class TelemetryConfig(StrictBaseModel):
         if v is None:
             return v
 
-        # Check for scheme://host[:port] format
-        if "://" not in v:
-            raise ValueError(
-                f"Invalid endpoint format: '{v}'. "
-                "Expected URL with scheme (e.g., http://localhost:4317 or https://telemetry.googleapis.com)"
-            )
+        from urllib.parse import urlparse
 
-        parts = v.split("://", 1)
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise ValueError(
-                f"Invalid endpoint format: '{v}'. "
-                "Expected URL with scheme (e.g., http://localhost:4317 or https://telemetry.googleapis.com)"
-            )
-
-        scheme = parts[0]
-        if scheme not in ("http", "https"):
-            raise ValueError(
-                f"Invalid endpoint scheme: '{scheme}'. Only 'http' and 'https' are supported."
-            )
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError(f"Invalid endpoint: '{v}'. Must be http(s)://host[:port]")
 
         return v
 

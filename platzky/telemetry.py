@@ -1,13 +1,14 @@
 # pyright: reportMissingImports=false, reportAttributeAccessIssue=false, reportPossiblyUnboundVariable=false
 import socket
 import uuid
+import warnings
 
 from platzky.config import TelemetryConfig
 
 try:
     from opentelemetry import trace
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
-    from opentelemetry.sdk.resources import SERVICE_INSTANCE_ID, SERVICE_VERSION, Resource
+    from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.semconv.resource import ResourceAttributes
@@ -54,7 +55,7 @@ def setup_telemetry(app, telemetry_config: TelemetryConfig):
     try:
         from importlib.metadata import version as get_version
 
-        resource_attrs[SERVICE_VERSION] = get_version("platzky")
+        resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")
     except Exception:
         pass  # Version not available
 
@@ -65,15 +66,26 @@ def setup_telemetry(app, telemetry_config: TelemetryConfig):
 
     # Add instance ID (user-provided or auto-generated)
     if telemetry_config.service_instance_id:
-        resource_attrs[SERVICE_INSTANCE_ID] = telemetry_config.service_instance_id
+        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = (
+            telemetry_config.service_instance_id
+        )
     else:
         # Generate unique instance ID: hostname + short UUID
         hostname = socket.gethostname()
         instance_uuid = str(uuid.uuid4())[:8]
-        resource_attrs[SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
+        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
 
     resource = Resource.create(resource_attrs)
     provider = TracerProvider(resource=resource)
+
+    # Warn if telemetry is enabled but no exporters configured
+    if not telemetry_config.endpoint and not telemetry_config.console_export:
+        warnings.warn(
+            "Telemetry is enabled but no exporters are configured. "
+            "Set endpoint or console_export=True to export traces.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Configure exporter based on endpoint
     if telemetry_config.endpoint:
