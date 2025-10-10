@@ -18,15 +18,23 @@ try:
     _otel_available = True
 except ImportError:
     # OpenTelemetry not installed - we'll handle this in setup_telemetry()
-    if not TYPE_CHECKING:
-        # Provide stub objects for runtime only (type checkers won't see this branch)
-        trace = None  # type: ignore
-        FlaskInstrumentor = None  # type: ignore
-        Resource = None  # type: ignore
-        TracerProvider = None  # type: ignore
-        BatchSpanProcessor = None  # type: ignore
-        SimpleSpanProcessor = None  # type: ignore
-        ResourceAttributes = None  # type: ignore
+    if TYPE_CHECKING:
+        # Provide type stubs for type checkers when OpenTelemetry is not installed
+        from opentelemetry import trace
+        from opentelemetry.instrumentation.flask import FlaskInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+        from opentelemetry.semconv.resource import ResourceAttributes
+    else:
+        # Provide stub objects for runtime only
+        trace = None
+        FlaskInstrumentor = None
+        Resource = None
+        TracerProvider = None
+        BatchSpanProcessor = None
+        SimpleSpanProcessor = None
+        ResourceAttributes = None
 
 
 def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any]:
@@ -57,37 +65,37 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
         )
 
     # At this point, _otel_available is True, so all OpenTelemetry imports are available
-    # Type checkers can't infer this, so we use type: ignore comments below
+    # Type checkers can now properly infer types through TYPE_CHECKING
 
     # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")
-    resource_attrs = {
-        ResourceAttributes.SERVICE_NAME: service_name,  # type: ignore[attr-defined]
+    resource_attrs: dict[str, str] = {
+        ResourceAttributes.SERVICE_NAME: service_name,
     }
 
     # Auto-detect service version from package metadata
     try:
         from importlib.metadata import version as get_version
 
-        resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")  # type: ignore[attr-defined]
+        resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")
     except Exception:
         pass  # Version not available
 
     if telemetry_config.deployment_environment:
-        resource_attrs[ResourceAttributes.DEPLOYMENT_ENVIRONMENT] = (  # type: ignore[attr-defined]
+        resource_attrs[ResourceAttributes.DEPLOYMENT_ENVIRONMENT] = (
             telemetry_config.deployment_environment
         )
 
     # Add instance ID (user-provided or auto-generated)
     if telemetry_config.service_instance_id:
-        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = (  # type: ignore[attr-defined]
+        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = (
             telemetry_config.service_instance_id
         )
     else:
         # Generate unique instance ID: hostname + short UUID
         hostname = socket.gethostname()
         instance_uuid = str(uuid.uuid4())[:8]
-        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"  # type: ignore[attr-defined]
+        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
 
     # Reject telemetry enabled without exporters (creates overhead without benefit)
     if not telemetry_config.endpoint and not telemetry_config.console_export:
@@ -96,8 +104,8 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
             "Set endpoint or console_export=True to export traces."
         )
 
-    resource = Resource.create(resource_attrs)  # type: ignore[attr-defined]
-    provider = TracerProvider(resource=resource)  # type: ignore[misc]
+    resource = Resource.create(resource_attrs)
+    provider = TracerProvider(resource=resource)
 
     # Configure exporter based on endpoint
     if telemetry_config.endpoint:
@@ -106,15 +114,15 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
         exporter = OTLPSpanExporter(
             endpoint=telemetry_config.endpoint, timeout=telemetry_config.timeout
         )
-        provider.add_span_processor(BatchSpanProcessor(exporter))  # type: ignore[misc]
+        provider.add_span_processor(BatchSpanProcessor(exporter))
 
     # Optional console export
     if telemetry_config.console_export:
         from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
-        provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))  # type: ignore[misc]
+        provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-    trace.set_tracer_provider(provider)  # type: ignore[attr-defined]
-    FlaskInstrumentor().instrument_app(app)  # type: ignore[misc]
+    trace.set_tracer_provider(provider)
+    FlaskInstrumentor().instrument_app(app)
 
-    return trace.get_tracer(__name__)  # type: ignore[attr-defined]
+    return trace.get_tracer(__name__)
