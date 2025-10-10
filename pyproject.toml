@@ -55,6 +55,10 @@ pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
 python-semantic-release = "^9.8.0"
 interrogate = "^1.7.0"
+opentelemetry-api = "^1.27.0"
+opentelemetry-sdk = "^1.27.0"
+opentelemetry-instrumentation-flask = "^0.48b0"
+opentelemetry-exporter-otlp-proto-grpc = "^1.27.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -378,40 +378,22 @@ def test_telemetry_config_invalid_timeout(invalid_timeout):
 
 
 def test_telemetry_enabled_without_exporters(mock_opentelemetry_modules, mock_app):
-    """Test telemetry with enabled=True but no exporters (edge case)"""
+    """Test telemetry with enabled=True but no exporters raises ValueError"""
     config = TelemetryConfig(enabled=True, endpoint=None, console_export=False)
 
-    # Should warn about no exporters configured
-    with pytest.warns(UserWarning, match="no exporters are configured"):
-        result = mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
+    # Should raise ValueError about no exporters configured
+    with pytest.raises(ValueError, match="no exporters are configured"):
+        mock_opentelemetry_modules["setup_telemetry"](mock_app, config)
 
-    # Verify tracer was returned (get_tracer was called)
-    assert result is not None
-
-    # Verify Resource and TracerProvider were still created
-    mock_opentelemetry_modules["Resource"].create.assert_called_once()
-    mock_opentelemetry_modules["TracerProvider"].assert_called_once_with(
-        resource=mock_opentelemetry_modules["resource"]
-    )
-
-    # Verify NO exporters were created
+    # Verify NO OpenTelemetry components were created (fail fast before overhead)
+    mock_opentelemetry_modules["Resource"].create.assert_not_called()
+    mock_opentelemetry_modules["TracerProvider"].assert_not_called()
     mock_opentelemetry_modules["OTLPSpanExporter"].assert_not_called()
     mock_opentelemetry_modules["ConsoleSpanExporter"].assert_not_called()
-
-    # Verify NO span processors were added
     mock_opentelemetry_modules["BatchSpanProcessor"].assert_not_called()
     mock_opentelemetry_modules["SimpleSpanProcessor"].assert_not_called()
-    mock_opentelemetry_modules["tracer_provider"].add_span_processor.assert_not_called()
-
-    # Verify set_tracer_provider was called with the provider
-    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_called_once_with(
-        mock_opentelemetry_modules["tracer_provider"]
-    )
-
-    # Verify FlaskInstrumentor was still called
-    mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_called_once_with(
-        mock_app
-    )
+    mock_opentelemetry_modules["trace_module"].set_tracer_provider.assert_not_called()
+    mock_opentelemetry_modules["flask_instrumentor"].instrument_app.assert_not_called()
 
 
 def test_telemetry_deployment_environment(mock_opentelemetry_modules, mock_app):
