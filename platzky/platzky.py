@@ -85,18 +85,21 @@ def create_app_from_config(config: Config) -> Engine:
     db = get_db(config.db)
     engine = create_engine(config, db)
 
+# at top of module, alongside other constants/imports
+_MISSING_OTEL_MSG = (
+    "OpenTelemetry is not installed. Install with: "
+    "poetry add opentelemetry-api opentelemetry-sdk "
+    "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
+)
+
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:
         try:
             from platzky.telemetry import setup_telemetry
 
             setup_telemetry(engine, config.telemetry)
-        except ImportError:
-            raise ImportError(
-                "OpenTelemetry is not installed. Install with: "
-                "poetry add opentelemetry-api opentelemetry-sdk "
-                "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
-            )
+        except ImportError as e:
+            raise ImportError(_MISSING_OTEL_MSG) from e
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
