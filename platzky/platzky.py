@@ -17,6 +17,12 @@ from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
+_MISSING_OTEL_MSG = (
+    "OpenTelemetry is not installed. Install with: "
+    "poetry add opentelemetry-api opentelemetry-sdk "
+    "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
+)
+
 
 def create_engine(config: Config, db) -> Engine:
     app = Engine(config, db, __name__)
@@ -84,13 +90,6 @@ def create_engine(config: Config, db) -> Engine:
 def create_app_from_config(config: Config) -> Engine:
     db = get_db(config.db)
     engine = create_engine(config, db)
-
-# at top of module, alongside other constants/imports
-_MISSING_OTEL_MSG = (
-    "OpenTelemetry is not installed. Install with: "
-    "poetry add opentelemetry-api opentelemetry-sdk "
-    "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
-)
 
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:
