@@ -37,10 +37,9 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
 
     # Auto-detect service version from package metadata
     try:
-        from importlib.metadata import version as get_version
-
+        from importlib.metadata import version as get_version, PackageNotFoundError
         resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")
-    except Exception:
+    except PackageNotFoundError:
         pass  # Version not available
 
     if telemetry_config.deployment_environment:
