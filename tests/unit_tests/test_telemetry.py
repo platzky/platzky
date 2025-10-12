@@ -112,7 +112,7 @@ def test_telemetry_config_custom_values():
 
 
 @pytest.mark.parametrize(
-    "invalid_endpoint,error_match",
+    ("invalid_endpoint", "error_match"),
     [
         ("localhost:4317", "Invalid endpoint.*Must be http"),  # no scheme
         ("ftp://localhost:4317", "Invalid endpoint.*Must be http"),  # bad scheme
@@ -194,13 +194,13 @@ def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
 
 def test_telemetry_version_not_available(mock_app, monkeypatch):
     """Test telemetry setup when package version is not available."""
-    # Patch importlib.metadata.version to raise an exception
-    import importlib.metadata
+    # Patch importlib.metadata.version to raise PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError
 
-    def mock_version(package_name):
-        raise Exception("Version not found")
+    def mock_version(_package_name: str) -> str:
+        raise PackageNotFoundError
 
-    monkeypatch.setattr(importlib.metadata, "version", mock_version)
+    monkeypatch.setattr("importlib.metadata.version", mock_version)
 
     config = TelemetryConfig(enabled=True, console_export=True)
 

@@ -36,8 +36,10 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
     }
 
     # Auto-detect service version from package metadata
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as get_version
+
     try:
-        from importlib.metadata import version as get_version, PackageNotFoundError
         resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")
     except PackageNotFoundError:
         pass  # Version not available
@@ -85,5 +87,11 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
 
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)
+
+    # Ensure spans are flushed on shutdown to avoid losing data
+    @app.teardown_appcontext
+    def shutdown_telemetry(_exc: Optional[BaseException] = None) -> None:
+        """Flush pending spans before app context teardown."""
+        provider.shutdown()
 
     return trace.get_tracer(__name__)
