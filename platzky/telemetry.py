@@ -1,40 +1,15 @@
 import socket
 import uuid
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
+
+from opentelemetry import trace
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+from opentelemetry.semconv.resource import ResourceAttributes
 
 from platzky.config import TelemetryConfig
-
-# OpenTelemetry is an optional dependency - we check availability at runtime
-_otel_available = False
-
-try:
-    from opentelemetry import trace
-    from opentelemetry.instrumentation.flask import FlaskInstrumentor
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-    from opentelemetry.semconv.resource import ResourceAttributes
-
-    _otel_available = True
-except ImportError:
-    # OpenTelemetry not installed - we'll handle this in setup_telemetry()
-    if TYPE_CHECKING:
-        # Provide type stubs for type checkers when OpenTelemetry is not installed
-        from opentelemetry import trace
-        from opentelemetry.instrumentation.flask import FlaskInstrumentor
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-        from opentelemetry.semconv.resource import ResourceAttributes
-    else:
-        # Provide stub objects for runtime only
-        trace = None
-        FlaskInstrumentor = None
-        Resource = None
-        TracerProvider = None
-        BatchSpanProcessor = None
-        SimpleSpanProcessor = None
-        ResourceAttributes = None
 
 
 def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any]:
@@ -49,23 +24,10 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
 
     Returns:
         OpenTelemetry tracer instance if enabled, None otherwise
-
-    Raises:
-        ImportError: If OpenTelemetry packages are not installed when telemetry is enabled
     """
 
     if not telemetry_config.enabled:
         return None
-
-    if not _otel_available:
-        raise ImportError(
-            "OpenTelemetry is not installed. Install with: "
-            "poetry add opentelemetry-api opentelemetry-sdk "
-            "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
-        )
-
-    # At this point, _otel_available is True, so all OpenTelemetry imports are available
-    # Type checkers can now properly infer types through TYPE_CHECKING
 
     # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")

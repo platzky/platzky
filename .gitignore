@@ -15,8 +15,10 @@ docs/_build
 # IDE-specific directories
 .vscode
 .idea
+.claude
 *~
 
 # translation specific files
 */locale/*/LC_MESSAGES/*.mo
 *.pot
+
