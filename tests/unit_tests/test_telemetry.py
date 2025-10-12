@@ -175,9 +175,9 @@ def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
 
     import uuid
 
-    def mock_uuid4():
+    def mock_uuid4() -> object:
         class MockUUID:
-            def __str__(self):
+            def __str__(self) -> str:
                 return "12345678-abcd-efgh-ijkl-mnopqrstuvwx"
 
         return MockUUID()
