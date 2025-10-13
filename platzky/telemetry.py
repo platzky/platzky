@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from platzky.engine import Engine
 
 # Error messages
+_MISSING_OTEL_MSG = (
+    "OpenTelemetry packages are not installed. Install the telemetry extras "
+    "or disable telemetry in configuration."
+)
 _MISSING_EXPORTERS_MSG = (
     "Telemetry is enabled but no exporters are configured. "
     "Set endpoint or console_export=True to export traces."
@@ -37,22 +41,9 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     Raises:
         ImportError: If OpenTelemetry packages are not installed when telemetry is enabled
     """
-
     if not telemetry_config.enabled:
         return None
 
-# Error messages
-_MISSING_OTEL_MSG = (
-    "OpenTelemetry packages are not installed. Install the telemetry extras "
-    "or disable telemetry in configuration."
-)
-_MISSING_EXPORTERS_MSG = (
-    "Telemetry is enabled but no exporters are configured. "
-    "Set endpoint or console_export=True to export traces."
-)
-
-def setup_telemetry(app: "Flask", telemetry_config: TelemetryConfig) -> Optional["Tracer"]:
-    """Setup OpenTelemetry tracing for Flask application."""
     # Reject telemetry enabled without exporters (creates overhead without benefit)
     if not telemetry_config.endpoint and not telemetry_config.console_export:
         raise ValueError(_MISSING_EXPORTERS_MSG)
@@ -100,10 +91,6 @@ def setup_telemetry(app: "Flask", telemetry_config: TelemetryConfig) -> Optional
         hostname = socket.gethostname()
         instance_uuid = str(uuid.uuid4())[:8]
         resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
-
-    # Reject telemetry enabled without exporters (creates overhead without benefit)
-    if not telemetry_config.endpoint and not telemetry_config.console_export:
-        raise ValueError(_MISSING_EXPORTERS_MSG)
 
     resource = Resource.create(resource_attrs)
     provider = TracerProvider(resource=resource)
