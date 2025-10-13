@@ -24,7 +24,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     Automatically instruments Flask to capture HTTP requests and trace information.
 
     Args:
-        app: Flask application instance
+        app: Engine instance (Flask-based application)
         telemetry_config: Telemetry configuration specifying endpoint and export options
 
     Returns:
