@@ -1,6 +1,6 @@
 import socket
 import uuid
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from opentelemetry import trace
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
@@ -11,8 +11,19 @@ from opentelemetry.semconv.resource import ResourceAttributes
 
 from platzky.config import TelemetryConfig
 
+if TYPE_CHECKING:
+    from opentelemetry.trace import Tracer
 
-def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any]:
+    from platzky.engine import Engine
+
+# Error messages
+_MISSING_EXPORTERS_MSG = (
+    "Telemetry is enabled but no exporters are configured. "
+    "Set endpoint or console_export=True to export traces."
+)
+
+
+def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optional["Tracer"]:
     """Setup OpenTelemetry tracing for Flask application.
 
     Configures and initializes OpenTelemetry tracing with OTLP and/or console exporters.
@@ -62,10 +73,7 @@ def setup_telemetry(app: Any, telemetry_config: TelemetryConfig) -> Optional[Any
 
     # Reject telemetry enabled without exporters (creates overhead without benefit)
     if not telemetry_config.endpoint and not telemetry_config.console_export:
-        raise ValueError(
-            "Telemetry is enabled but no exporters are configured. "
-            "Set endpoint or console_export=True to export traces."
-        )
+        raise ValueError(_MISSING_EXPORTERS_MSG)
 
     resource = Resource.create(resource_attrs)
     provider = TracerProvider(resource=resource)

@@ -33,51 +33,60 @@ def test_telemetry_console_exporter(mock_app):
     """Test telemetry setup with console exporter."""
     config = TelemetryConfig(enabled=True, console_export=True)
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
     # Verify tracer was returned
-    assert result is not None
+    assert tracer is not None
 
-    # Verify we can use the tracer
-    from opentelemetry import trace
-
-    current_span = trace.get_current_span()
-    assert current_span is not None
+    # Verify we can create and use spans
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
 
 
 def test_telemetry_otlp_exporter(mock_app):
     """Test telemetry setup with OTLP exporter."""
     config = TelemetryConfig(enabled=True, endpoint="http://localhost:4317")
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
     # Verify tracer was returned
-    assert result is not None
+    assert tracer is not None
 
-    # Verify tracer provider is set
-    from opentelemetry import trace
-
-    provider = trace.get_tracer_provider()
-    assert provider is not None
+    # Verify we can create and use spans
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
 
 
 def test_telemetry_gcp_trace_exporter(mock_app):
     """Test telemetry setup with GCP Trace exporter."""
     config = TelemetryConfig(enabled=True, endpoint="https://telemetry.googleapis.com")
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
     # Verify tracer was returned
-    assert result is not None
+    assert tracer is not None
+
+    # Verify we can create and use spans
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
 
 
 def test_telemetry_console_export_with_other_exporter(mock_app):
     """Test that console_export adds console exporter alongside main exporter."""
     config = TelemetryConfig(enabled=True, endpoint="http://localhost:4317", console_export=True)
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    assert result is not None
+    # Verify tracer was returned
+    assert tracer is not None
+
+    # Verify we can create and use spans
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
 
 
 def test_telemetry_config_defaults():
@@ -150,10 +159,12 @@ def test_telemetry_deployment_environment(mock_app):
     """Test telemetry setup with deployment_environment."""
     config = TelemetryConfig(enabled=True, console_export=True, deployment_environment="production")
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    # Just verify setup succeeds with deployment_environment set
-    assert result is not None
+    # Verify tracer was returned and is functional
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span.is_recording()
 
 
 def test_telemetry_service_instance_id_custom(mock_app):
@@ -162,10 +173,12 @@ def test_telemetry_service_instance_id_custom(mock_app):
         enabled=True, console_export=True, service_instance_id="custom-instance-123"
     )
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    # Just verify setup succeeds with custom instance ID
-    assert result is not None
+    # Verify tracer was returned and is functional
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span.is_recording()
 
 
 def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
@@ -186,10 +199,12 @@ def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
 
     config = TelemetryConfig(enabled=True, console_export=True)
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    # Just verify setup succeeds with auto-generated instance ID
-    assert result is not None
+    # Verify tracer was returned and is functional
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span.is_recording()
 
 
 def test_telemetry_version_not_available(mock_app, monkeypatch):
@@ -204,10 +219,12 @@ def test_telemetry_version_not_available(mock_app, monkeypatch):
 
     config = TelemetryConfig(enabled=True, console_export=True)
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    # Just verify we don't crash when version is unavailable
-    assert result is not None
+    # Verify we don't crash when version is unavailable and tracer is functional
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span.is_recording()
 
 
 def test_telemetry_service_name_from_app_config(mock_app):
@@ -216,10 +233,12 @@ def test_telemetry_service_name_from_app_config(mock_app):
 
     config = TelemetryConfig(enabled=True, console_export=True)
 
-    result = setup_telemetry(mock_app, config)
+    tracer = setup_telemetry(mock_app, config)
 
-    # Just verify setup succeeds with custom app name
-    assert result is not None
+    # Verify tracer was returned and is functional
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span.is_recording()
 
 
 def test_telemetry_can_create_spans(mock_app):
