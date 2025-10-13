@@ -51,7 +51,11 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     if not _otel_available:
         raise ImportError(_MISSING_OTEL_MSG)
 
-    # ... rest of initialization ...
+    if not _otel_available:
+        raise ImportError(_MISSING_OTEL_MSG)
+
+    # Import OpenTelemetry modules now that we know they're available
+    from opentelemetry import trace
 
     # Import OpenTelemetry modules now that we know they're available
     from opentelemetry import trace
