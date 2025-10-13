@@ -40,6 +40,12 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     if not telemetry_config.endpoint and not telemetry_config.console_export:
         raise ValueError(_MISSING_EXPORTERS_MSG)
 
+    # If already instrumented, return tracer without rebuilding provider/exporters
+    if app.telemetry_instrumented:
+        from opentelemetry import trace
+
+        return trace.get_tracer(__name__)
+
     # Import OpenTelemetry modules (will raise ImportError if not installed)
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -97,9 +103,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     # Optional console export
     if telemetry_config.console_export:
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-
-    if app.telemetry_instrumented:
-        return trace.get_tracer(__name__)
 
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)

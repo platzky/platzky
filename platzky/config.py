@@ -38,17 +38,29 @@ class LanguageConfig(StrictBaseModel):
 Languages = dict[str, LanguageConfig]
 LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
 
+# Validation error messages
+_INVALID_ENDPOINT_FORMAT_MSG = (
+    "Invalid endpoint: '{}'. Must be host:port or [http|https|grpc]://host[:port]"
+)
+_INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http, https, or grpc"
+_MISSING_HOSTNAME_MSG = "Invalid endpoint: '{}'. Missing hostname"
+
 
 def languages_dict(languages: Languages) -> LanguagesMapping:
     """Convert Languages configuration to a mapping dictionary.
+
+    Excludes None values to align with type signature.
 
     Args:
         languages: Dictionary of language configurations
 
     Returns:
-        Mapping of language codes to their configuration dictionaries
+        Mapping of language codes to their configuration dictionaries (excludes None values)
     """
-    return {name: lang.model_dump() for name, lang in languages.items()}
+    return {
+        name: {k: v for k, v in lang.model_dump().items() if v is not None}
+        for name, lang in languages.items()
+    }
 
 
 class TelemetryConfig(StrictBaseModel):
@@ -91,22 +103,18 @@ class TelemetryConfig(StrictBaseModel):
             # Must be host:port format - validate it has a colon
             if ":" in v and not v.startswith("/"):
                 return v
-            raise ValueError(
-                f"Invalid endpoint: '{v}'. Must be host:port or [http|https|grpc]://host[:port]"
-            )
+            raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(v))
 
         # Parse URL with scheme
         parsed = urlparse(v)
 
         # Validate scheme
         if parsed.scheme not in ("http", "https", "grpc"):
-            raise ValueError(
-                f"Invalid endpoint scheme: '{parsed.scheme}'. Must be http, https, or grpc"
-            )
+            raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
 
         # Validate hostname exists
         if not parsed.hostname:
-            raise ValueError(f"Invalid endpoint: '{v}'. Missing hostname")
+            raise ValueError(_MISSING_HOSTNAME_MSG.format(v))
 
         return v
 

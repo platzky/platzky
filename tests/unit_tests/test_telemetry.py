@@ -275,3 +275,31 @@ def test_telemetry_can_create_spans(mock_app):
 
     # Span should be ended
     assert not span.is_recording()
+
+
+def test_telemetry_idempotent_setup(mock_app):
+    """Test that calling setup_telemetry twice returns tracer without errors."""
+    config = TelemetryConfig(enabled=True, console_export=True)
+
+    tracer1 = setup_telemetry(mock_app, config)
+    tracer2 = setup_telemetry(mock_app, config)
+
+    assert tracer1 is not None
+    assert tracer2 is not None
+    # Both tracers should work
+    with tracer1.start_as_current_span("test1") as span:
+        assert span.is_recording()
+    with tracer2.start_as_current_span("test2") as span:
+        assert span.is_recording()
+
+
+def test_telemetry_grpc_scheme_endpoint(mock_app):
+    """Test telemetry setup with grpc:// scheme endpoint."""
+    config = TelemetryConfig(enabled=True, endpoint="grpc://localhost:4317")
+
+    tracer = setup_telemetry(mock_app, config)
+
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
