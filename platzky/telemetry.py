@@ -41,11 +41,26 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     if not telemetry_config.enabled:
         return None
 
+# Error messages
+_MISSING_OTEL_MSG = (
+    "OpenTelemetry packages are not installed. Install the telemetry extras "
+    "or disable telemetry in configuration."
+)
+_MISSING_EXPORTERS_MSG = (
+    "Telemetry is enabled but no exporters are configured. "
+    "Set endpoint or console_export=True to export traces."
+)
+
+def setup_telemetry(app: "Flask", telemetry_config: TelemetryConfig) -> Optional["Tracer"]:
+    """Setup OpenTelemetry tracing for Flask application."""
+    # Reject telemetry enabled without exporters (creates overhead without benefit)
+    if not telemetry_config.endpoint and not telemetry_config.console_export:
+        raise ValueError(_MISSING_EXPORTERS_MSG)
+
     if not _otel_available:
-        raise ImportError(
-            "OpenTelemetry packages are not installed. Install the telemetry extras "
-            "or disable telemetry in configuration."
-        )
+        raise ImportError(_MISSING_OTEL_MSG)
+
+    # ... rest of initialization ...
 
     # Import OpenTelemetry modules now that we know they're available
     from opentelemetry import trace
