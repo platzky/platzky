@@ -157,7 +157,7 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: dict[str, bool] = Field(default_factory=dict, alias="FEATURE_FLAGS")
+    feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
 
     @classmethod
