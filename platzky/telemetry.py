@@ -105,7 +105,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     @app.teardown_appcontext
     def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
         """Flush pending spans after request completion."""
-        provider.force_flush()
+        provider.force_flush(timeout_millis=5000)  # 5 second timeout
 
     # Shutdown provider once at process exit
     atexit.register(provider.shutdown)
