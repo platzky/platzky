@@ -40,9 +40,9 @@ LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
 
 # Validation error messages
 _INVALID_ENDPOINT_FORMAT_MSG = (
-    "Invalid endpoint: '{}'. Must be host:port or [http|https|grpc]://host[:port]"
+    "Invalid endpoint: '{}'. Must be host:port or [http|https]://host[:port]"
 )
-_INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http, https, or grpc"
+_INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http or https"
 _MISSING_HOSTNAME_MSG = "Invalid endpoint: '{}'. Missing hostname"
 
 
@@ -68,11 +68,13 @@ class TelemetryConfig(StrictBaseModel):
 
     Attributes:
         enabled: Enable or disable telemetry tracing
-        endpoint: OTLP gRPC endpoint (e.g., localhost:4317, http://localhost:4317, or grpc://collector:4317)
+        endpoint: OTLP gRPC endpoint (e.g., localhost:4317 or http://localhost:4317)
         console_export: Export traces to console for debugging
         timeout: Timeout in seconds for exporter (default: 10)
         deployment_environment: Deployment environment (e.g., production, staging, dev)
         service_instance_id: Service instance ID (auto-generated if not provided)
+        flush_on_request: Flush spans after each request (default: True, may impact latency)
+        flush_timeout_ms: Timeout in milliseconds for per-request flush (default: 5000)
     """
 
     enabled: bool = Field(default=False, alias="enabled")
@@ -81,17 +83,20 @@ class TelemetryConfig(StrictBaseModel):
     timeout: int = Field(default=10, alias="timeout", gt=0)
     deployment_environment: t.Optional[str] = Field(default=None, alias="deployment_environment")
     service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
+    flush_on_request: bool = Field(default=True, alias="flush_on_request")
+    flush_timeout_ms: int = Field(default=5000, alias="flush_timeout_ms", gt=0)
 
     @field_validator("endpoint")
     @classmethod
     def validate_endpoint(cls, v: t.Optional[str]) -> t.Optional[str]:
         """Validate endpoint URL format.
 
-        Accepts formats for gRPC OTLP exporter:
+        Accepts OTLP/gRPC spec-compliant formats:
         - host:port (e.g., localhost:4317)
         - http://host[:port]
         - https://host[:port]
-        - grpc://host[:port]
+
+        Note: grpc:// scheme is NOT supported per OTLP spec.
         """
         if v is None:
             return v
@@ -108,8 +113,8 @@ class TelemetryConfig(StrictBaseModel):
         # Parse URL with scheme
         parsed = urlparse(v)
 
-        # Validate scheme
-        if parsed.scheme not in ("http", "https", "grpc"):
+        # Validate scheme (only http/https per OTLP spec)
+        if parsed.scheme not in ("http", "https"):
             raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
 
         # Validate hostname exists

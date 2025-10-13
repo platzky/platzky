@@ -122,12 +122,11 @@ def test_telemetry_config_custom_values():
 
 
 def test_telemetry_config_valid_endpoint_formats():
-    """Test TelemetryConfig accepts various valid endpoint formats."""
+    """Test TelemetryConfig accepts OTLP spec-compliant endpoint formats."""
     valid_endpoints = [
         "localhost:4317",  # host:port
         "http://localhost:4317",  # http scheme
         "https://telemetry.example.com:4318",  # https with port
-        "grpc://collector:4317",  # grpc scheme
     ]
 
     for endpoint in valid_endpoints:
@@ -139,11 +138,12 @@ def test_telemetry_config_valid_endpoint_formats():
     ("invalid_endpoint", "error_match"),
     [
         ("ftp://localhost:4317", "Invalid endpoint scheme"),  # bad scheme
+        ("grpc://localhost:4317", "Invalid endpoint scheme"),  # grpc not supported per OTLP spec
         ("https://", "Missing hostname"),  # malformed - no hostname
         ("https://:4317", "Missing hostname"),  # no hostname
         ("/just/a/path", "Invalid endpoint"),  # just a path, no host:port
     ],
-    ids=["bad_scheme", "malformed", "no_hostname", "just_path"],
+    ids=["bad_scheme", "grpc_scheme", "malformed", "no_hostname", "just_path"],
 )
 def test_telemetry_config_invalid_endpoint(invalid_endpoint, error_match):
     """Test TelemetryConfig rejects invalid endpoint formats."""
@@ -293,9 +293,23 @@ def test_telemetry_idempotent_setup(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_grpc_scheme_endpoint(mock_app):
-    """Test telemetry setup with grpc:// scheme endpoint."""
-    config = TelemetryConfig(enabled=True, endpoint="grpc://localhost:4317")
+def test_telemetry_flush_on_request_disabled(mock_app):
+    """Test telemetry setup with flush_on_request disabled."""
+    config = TelemetryConfig(enabled=True, console_export=True, flush_on_request=False)
+
+    tracer = setup_telemetry(mock_app, config)
+
+    assert tracer is not None
+    with tracer.start_as_current_span("test_span") as span:
+        assert span is not None
+        assert span.is_recording()
+
+
+def test_telemetry_custom_flush_timeout(mock_app):
+    """Test telemetry setup with custom flush timeout."""
+    config = TelemetryConfig(
+        enabled=True, console_export=True, flush_on_request=True, flush_timeout_ms=1000
+    )
 
     tracer = setup_telemetry(mock_app, config)
 

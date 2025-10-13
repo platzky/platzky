@@ -8,9 +8,10 @@ def test_parse_template_config() -> None:
     config = Config.parse_yaml("config-template.yml")
     langs_dict = languages_dict(config.languages)
 
+    # languages_dict excludes None values
     wanted_dict = {
-        "en": {"domain": None, "flag": "uk", "name": "English", "country": "GB"},
-        "pl": {"domain": None, "flag": "pl", "name": "polski", "country": "PL"},
+        "en": {"flag": "uk", "name": "English", "country": "GB"},
+        "pl": {"flag": "pl", "name": "polski", "country": "PL"},
     }
     assert langs_dict == wanted_dict
 

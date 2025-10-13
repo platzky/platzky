@@ -108,11 +108,13 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     FlaskInstrumentor().instrument_app(app)
     app.telemetry_instrumented = True
 
-    # Flush spans after each request to avoid losing data
-    @app.teardown_appcontext
-    def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
-        """Flush pending spans after request completion."""
-        provider.force_flush(timeout_millis=5000)  # 5 second timeout
+    # Optionally flush spans after each request (may impact latency)
+    if telemetry_config.flush_on_request:
+
+        @app.teardown_appcontext
+        def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
+            """Flush pending spans after request completion."""
+            provider.force_flush(timeout_millis=telemetry_config.flush_timeout_ms)
 
     # Shutdown provider once at process exit
     atexit.register(provider.shutdown)
