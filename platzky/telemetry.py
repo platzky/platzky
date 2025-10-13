@@ -42,10 +42,15 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     # Import OpenTelemetry modules (will raise ImportError if not installed)
     from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+        SimpleSpanProcessor,
+    )
     from opentelemetry.semconv.resource import ResourceAttributes
 
     # Build resource attributes
@@ -84,8 +89,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     # Configure exporter based on endpoint
     if telemetry_config.endpoint:
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
         exporter = OTLPSpanExporter(
             endpoint=telemetry_config.endpoint, timeout=telemetry_config.timeout
         )
@@ -93,8 +96,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     # Optional console export
     if telemetry_config.console_export:
-        from opentelemetry.sdk.trace.export import ConsoleSpanExporter
-
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
     trace.set_tracer_provider(provider)
