@@ -1,3 +1,4 @@
+import atexit
 import socket
 import uuid
 from typing import TYPE_CHECKING, Optional
@@ -96,10 +97,13 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)
 
-    # Ensure spans are flushed on shutdown to avoid losing data
+    # Flush spans after each request to avoid losing data
     @app.teardown_appcontext
-    def shutdown_telemetry(_exc: Optional[BaseException] = None) -> None:
-        """Flush pending spans before app context teardown."""
-        provider.shutdown()
+    def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
+        """Flush pending spans after request completion."""
+        provider.force_flush()
+
+    # Shutdown provider once at process exit
+    atexit.register(provider.shutdown)
 
     return trace.get_tracer(__name__)
