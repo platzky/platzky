@@ -98,9 +98,12 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     if telemetry_config.console_export:
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
+    if getattr(app, "_telemetry_instrumented", False):
+        return trace.get_tracer(__name__)
+
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)
-
+    setattr(app, "_telemetry_instrumented", True)
     # Flush spans after each request to avoid losing data
     @app.teardown_appcontext
     def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
