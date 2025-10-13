@@ -1,13 +1,9 @@
 import atexit
 import socket
 import uuid
-from importlib.util import find_spec
 from typing import TYPE_CHECKING, Optional
 
 from platzky.config import TelemetryConfig
-
-# Check if OpenTelemetry is available at runtime
-_otel_available = find_spec("opentelemetry") is not None
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -15,10 +11,6 @@ if TYPE_CHECKING:
     from platzky.engine import Engine
 
 # Error messages
-_MISSING_OTEL_MSG = (
-    "OpenTelemetry packages are not installed. Install the telemetry extras "
-    "or disable telemetry in configuration."
-)
 _MISSING_EXPORTERS_MSG = (
     "Telemetry is enabled but no exporters are configured. "
     "Set endpoint or console_export=True to export traces."
@@ -48,16 +40,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     if not telemetry_config.endpoint and not telemetry_config.console_export:
         raise ValueError(_MISSING_EXPORTERS_MSG)
 
-    if not _otel_available:
-        raise ImportError(_MISSING_OTEL_MSG)
-
-    if not _otel_available:
-        raise ImportError(_MISSING_OTEL_MSG)
-
-    # Import OpenTelemetry modules now that we know they're available
-    from opentelemetry import trace
-
-    # Import OpenTelemetry modules now that we know they're available
+    # Import OpenTelemetry modules (will raise ImportError if not installed)
     from opentelemetry import trace
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
     from opentelemetry.sdk.resources import Resource
