@@ -17,5 +17,11 @@ LANGUAGES:
     flag: pl
     country: PL
 
+
+TELEMETRY:
+    enabled: false
+    endpoint: http://localhost:4317
+    console_export: false
+
 FEATURE_FLAGS:
   FAKE_LOGIN: true

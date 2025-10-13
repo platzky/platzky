@@ -9,6 +9,7 @@ lint-check:
 	poetry run black --check .
 	poetry run ruff check .
 	poetry run pyright .
+	poetry run interrogate platzky/ --verbose
 
 unit-tests:
 	poetry run python -m pytest -v
@@ -22,6 +23,7 @@ e2e-tests:
 coverage:
 	poetry run coverage run --branch --source=platzky -m pytest -m "not skip_coverage"
 	poetry run coverage lcov
+	poetry run coverage report
 
 html-cov: coverage
 	poetry run coverage html

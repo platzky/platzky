@@ -24,6 +24,7 @@ started with Platzky and building applications.
    quickstart
    config
    database
+   telemetry
 
 API Reference
 -------------

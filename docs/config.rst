@@ -260,6 +260,78 @@ Enable fake/test login for the admin panel. Useful for development and testing e
     FEATURE_FLAGS:
       FAKE_LOGIN: true
 
+Telemetry Configuration
+~~~~~~~~~~~~~~~~~~~~~~~
+
+``TELEMETRY``
+^^^^^^^^^^^^^
+
+:Type: ``TelemetryConfig``
+:Default: ``{"enabled": false}``
+
+Configure OpenTelemetry tracing to monitor application performance and identify slow code paths.
+
+Telemetry options:
+
+* ``enabled``: Enable/disable telemetry (default: ``false``)
+* ``endpoint``: OTLP endpoint URL (optional). If not set, only console export is used
+* ``console_export``: Log traces to console (default: ``false``)
+* ``timeout``: Timeout in seconds for exporter (default: ``10``)
+* ``deployment_environment``: Deployment environment (e.g., ``production``, ``staging``, ``dev``)
+* ``service_instance_id``: Service instance ID (optional, auto-generated if not provided)
+
+**Note:** Service version is automatically detected from package metadata. Instance ID is auto-generated from hostname + UUID if not explicitly provided.
+
+**Console Export Only (Local Development)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      console_export: true
+
+**Google Cloud Trace (Google App Engine)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      endpoint: https://telemetry.googleapis.com
+
+**OTLP Exporter (Jaeger, Tempo, etc.)**
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      endpoint: http://localhost:4317
+
+**Multiple Exporters**
+
+Export to both a backend and console:
+
+.. code-block:: yaml
+
+    TELEMETRY:
+      enabled: true
+      endpoint: http://localhost:4317
+      console_export: true
+
+**Required Dependencies**
+
+Install telemetry dependencies:
+
+.. code-block:: bash
+
+    # Install platzky with telemetry support
+    $ poetry install -E telemetry
+
+Or if installing from PyPI:
+
+.. code-block:: bash
+
+    $ pip install platzky[telemetry]
+
 Complete Example
 ----------------
 

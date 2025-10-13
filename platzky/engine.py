@@ -19,6 +19,7 @@ class Engine(Flask):
         self.dynamic_body = ""
         self.dynamic_head = ""
         self.health_checks: List[Tuple[str, Callable[[], None]]] = []
+        self.telemetry_instrumented: bool = False
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
         config.translation_directories.append(locale_dir)
