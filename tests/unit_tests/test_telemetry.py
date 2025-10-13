@@ -17,6 +17,7 @@ def mock_app():
     """Create a mock Flask app for testing."""
     app = MagicMock()
     app.config = {"APP_NAME": "test-app"}
+    app.telemetry_instrumented = False
     return app
 
 
@@ -120,15 +121,29 @@ def test_telemetry_config_custom_values():
     assert config.service_instance_id == "custom-id"
 
 
+def test_telemetry_config_valid_endpoint_formats():
+    """Test TelemetryConfig accepts various valid endpoint formats."""
+    valid_endpoints = [
+        "localhost:4317",  # host:port
+        "http://localhost:4317",  # http scheme
+        "https://telemetry.example.com:4318",  # https with port
+        "grpc://collector:4317",  # grpc scheme
+    ]
+
+    for endpoint in valid_endpoints:
+        config = TelemetryConfig(enabled=True, endpoint=endpoint)
+        assert config.endpoint == endpoint
+
+
 @pytest.mark.parametrize(
     ("invalid_endpoint", "error_match"),
     [
-        ("localhost:4317", "Invalid endpoint.*Must be http"),  # no scheme
-        ("ftp://localhost:4317", "Invalid endpoint.*Must be http"),  # bad scheme
-        ("https://", "Invalid endpoint.*Must be http"),  # malformed
-        ("https://:4317", "Invalid endpoint.*Must be http"),  # no hostname
+        ("ftp://localhost:4317", "Invalid endpoint scheme"),  # bad scheme
+        ("https://", "Missing hostname"),  # malformed - no hostname
+        ("https://:4317", "Missing hostname"),  # no hostname
+        ("/just/a/path", "Invalid endpoint"),  # just a path, no host:port
     ],
-    ids=["no_scheme", "bad_scheme", "malformed", "no_hostname"],
+    ids=["bad_scheme", "malformed", "no_hostname", "just_path"],
 )
 def test_telemetry_config_invalid_endpoint(invalid_endpoint, error_match):
     """Test TelemetryConfig rejects invalid endpoint formats."""

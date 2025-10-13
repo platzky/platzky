@@ -56,7 +56,7 @@ class TelemetryConfig(StrictBaseModel):
 
     Attributes:
         enabled: Enable or disable telemetry tracing
-        endpoint: OTLP endpoint URL (e.g., http://localhost:4317 or Cloud Trace URL)
+        endpoint: OTLP gRPC endpoint (e.g., localhost:4317, http://localhost:4317, or grpc://collector:4317)
         console_export: Export traces to console for debugging
         timeout: Timeout in seconds for exporter (default: 10)
         deployment_environment: Deployment environment (e.g., production, staging, dev)
@@ -73,15 +73,40 @@ class TelemetryConfig(StrictBaseModel):
     @field_validator("endpoint")
     @classmethod
     def validate_endpoint(cls, v: t.Optional[str]) -> t.Optional[str]:
-        """Validate endpoint URL format."""
+        """Validate endpoint URL format.
+
+        Accepts formats for gRPC OTLP exporter:
+        - host:port (e.g., localhost:4317)
+        - http://host[:port]
+        - https://host[:port]
+        - grpc://host[:port]
+        """
         if v is None:
             return v
 
         from urllib.parse import urlparse
 
+        # Check if it has a scheme (contains ://)
+        if "://" not in v:
+            # Must be host:port format - validate it has a colon
+            if ":" in v and not v.startswith("/"):
+                return v
+            raise ValueError(
+                f"Invalid endpoint: '{v}'. Must be host:port or [http|https|grpc]://host[:port]"
+            )
+
+        # Parse URL with scheme
         parsed = urlparse(v)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
-            raise ValueError(f"Invalid endpoint: '{v}'. Must be http(s)://host[:port]")
+
+        # Validate scheme
+        if parsed.scheme not in ("http", "https", "grpc"):
+            raise ValueError(
+                f"Invalid endpoint scheme: '{parsed.scheme}'. Must be http, https, or grpc"
+            )
+
+        # Validate hostname exists
+        if not parsed.hostname:
+            raise ValueError(f"Invalid endpoint: '{v}'. Missing hostname")
 
         return v
 
