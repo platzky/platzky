@@ -104,6 +104,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)
     setattr(app, "_telemetry_instrumented", True)
+
     # Flush spans after each request to avoid losing data
     @app.teardown_appcontext
     def flush_telemetry(_exc: Optional[BaseException] = None) -> None:
