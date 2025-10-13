@@ -99,6 +99,11 @@ def create_app_from_config(config: Config) -> Engine:
             setup_telemetry(engine, config.telemetry)
         except ImportError as e:
             raise ImportError(_MISSING_OTEL_MSG) from e
+        except ValueError as e:
+            raise ValueError(
+                f"Telemetry configuration error: {e}. "
+                "Check your telemetry settings in the configuration file."
+            ) from e
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
