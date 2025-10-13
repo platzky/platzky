@@ -96,7 +96,7 @@ class TelemetryConfig(StrictBaseModel):
         - http://host[:port]
         - https://host[:port]
 
-        Note: grpc:// scheme is NOT supported per OTLP spec.
+        Note: grpc:// scheme is NOT supported per OTLP spec and will be rejected.
         """
         if v is None:
             return v
@@ -113,7 +113,7 @@ class TelemetryConfig(StrictBaseModel):
         # Parse URL with scheme
         parsed = urlparse(v)
 
-        # Validate scheme (only http/https per OTLP spec)
+        # Validate scheme (only http/https per OTLP spec, grpc is NOT supported)
         if parsed.scheme not in ("http", "https"):
             raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
 
@@ -157,7 +157,7 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: t.Optional[dict[str, bool]] = Field(default_factory=dict, alias="FEATURE_FLAGS")
+    feature_flags: dict[str, bool] = Field(default_factory=dict, alias="FEATURE_FLAGS")
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
 
     @classmethod

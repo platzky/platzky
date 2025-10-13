@@ -32,6 +32,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     Raises:
         ImportError: If OpenTelemetry packages are not installed when telemetry is enabled
+        ValueError: If telemetry is enabled but no exporters are configured
     """
     if not telemetry_config.enabled:
         return None
