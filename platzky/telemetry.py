@@ -1,16 +1,13 @@
 import atexit
 import socket
 import uuid
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Optional
 
-from opentelemetry import trace
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-from opentelemetry.semconv.resource import ResourceAttributes
-
 from platzky.config import TelemetryConfig
+
+# Check if OpenTelemetry is available at runtime
+_otel_available = find_spec("opentelemetry") is not None
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -36,10 +33,27 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     Returns:
         OpenTelemetry tracer instance if enabled, None otherwise
+
+    Raises:
+        ImportError: If OpenTelemetry packages are not installed when telemetry is enabled
     """
 
     if not telemetry_config.enabled:
         return None
+
+    if not _otel_available:
+        raise ImportError(
+            "OpenTelemetry packages are not installed. Install the telemetry extras "
+            "or disable telemetry in configuration."
+        )
+
+    # Import OpenTelemetry modules now that we know they're available
+    from opentelemetry import trace
+    from opentelemetry.instrumentation.flask import FlaskInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+    from opentelemetry.semconv.resource import ResourceAttributes
 
     # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")
