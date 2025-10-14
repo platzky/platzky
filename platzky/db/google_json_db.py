@@ -14,15 +14,20 @@ def db_config_type():
 class GoogleJsonDbConfig(DBConfig):
     bucket_name: str = Field(alias="BUCKET_NAME")
     source_blob_name: str = Field(alias="SOURCE_BLOB_NAME")
+    cache_ttl: float | None = Field(alias="CACHE_TTL", default=None)
 
 
 def db_from_config(config: GoogleJsonDbConfig):
-    return GoogleJsonDb(config.bucket_name, config.source_blob_name)
+    return GoogleJsonDb(config.bucket_name, config.source_blob_name, config.cache_ttl)
 
 
 def get_db(config):
     google_json_db_config = GoogleJsonDbConfig.model_validate(config)
-    return GoogleJsonDb(google_json_db_config.bucket_name, google_json_db_config.source_blob_name)
+    return GoogleJsonDb(
+        google_json_db_config.bucket_name,
+        google_json_db_config.source_blob_name,
+        google_json_db_config.cache_ttl,
+    )
 
 
 def get_blob(bucket_name, source_blob_name):
@@ -37,13 +42,19 @@ def get_data(blob):
 
 
 class GoogleJsonDb(Json):
-    def __init__(self, bucket_name, source_blob_name):
+    def __init__(self, bucket_name, source_blob_name, cache_ttl=None):
         self.bucket_name = bucket_name
         self.source_blob_name = source_blob_name
 
         self.blob = get_blob(self.bucket_name, self.source_blob_name)
         data = get_data(self.blob)
-        super().__init__(data)
+        super().__init__(data, cache_ttl)
 
         self.module_name = "google_json_db"
         self.db_name = "GoogleJsonDb"
+
+    def refresh_cache(self) -> None:
+        """Refresh the cached data from Google Cloud Storage."""
+        data = get_data(self.blob)
+        self.data = data
+        super().refresh_cache()

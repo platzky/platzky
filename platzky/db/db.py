@@ -105,6 +105,14 @@ class DB(ABC):
         """
         pass
 
+    def refresh_cache(self) -> None:
+        """Refresh the cached data.
+
+        This is an optional method that DB implementations can override
+        to support manual cache invalidation. By default, does nothing.
+        """
+        pass
+
 
 class DBConfig(BaseModel):
     type: str = Field(alias="TYPE")
