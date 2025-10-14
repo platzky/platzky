@@ -1,5 +1,6 @@
 import datetime
-from typing import Any, Dict
+import time
+from typing import Any, Dict, Optional
 
 from pydantic import Field
 
@@ -30,9 +31,11 @@ def db_from_config(config: JsonDbConfig):
 
 
 class Json(DB):
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: Dict[str, Any], cache_ttl: Optional[float] = None):
         super().__init__()
         self.data: Dict[str, Any] = data
+        self.cache_ttl = cache_ttl
+        self._cache_timestamp: Optional[float] = time.time() if cache_ttl is not None else None
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
@@ -79,7 +82,21 @@ class Json(DB):
             if tag in post["tags"] and post["language"] == lang
         )
 
+    def _is_cache_stale(self) -> bool:
+        """Check if the cache has expired based on TTL."""
+        if self.cache_ttl is None or self._cache_timestamp is None:
+            return False
+        return (time.time() - self._cache_timestamp) > self.cache_ttl
+
+    def refresh_cache(self) -> None:
+        """Refresh the cached data. Override in subclasses to reload from source."""
+        # Base implementation just updates timestamp
+        # Subclasses should override this to reload data from their source
+        self._cache_timestamp = time.time()
+
     def _get_site_content(self):
+        if self._is_cache_stale():
+            self.refresh_cache()
         content = self.data.get("site_content")
         if content is None:
             raise Exception("Content should not be None")
