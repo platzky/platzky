@@ -22,6 +22,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     Configures and initializes OpenTelemetry tracing with OTLP and/or console exporters.
     Automatically instruments Flask to capture HTTP requests and trace information.
+    Optionally instruments logging to add trace context to log records.
 
     Args:
         app: Engine instance (Flask-based application)
@@ -51,6 +52,7 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
+    from opentelemetry.instrumentation.logging import LoggingInstrumentor
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import (
@@ -107,6 +109,13 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
 
     trace.set_tracer_provider(provider)
     FlaskInstrumentor().instrument_app(app)
+
+    # Instrument logging to add trace context to log records
+    # Note: set_logging_format=False to avoid modifying existing log formats
+    # Users can access trace context in their custom formatters via log record attributes
+    if telemetry_config.instrument_logging:
+        LoggingInstrumentor().instrument(set_logging_format=False)
+
     app.telemetry_instrumented = True
 
     # Optionally flush spans after each request (may impact latency)
