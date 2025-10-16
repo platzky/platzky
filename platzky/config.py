@@ -75,6 +75,7 @@ class TelemetryConfig(StrictBaseModel):
         service_instance_id: Service instance ID (auto-generated if not provided)
         flush_on_request: Flush spans after each request (default: True, may impact latency)
         flush_timeout_ms: Timeout in milliseconds for per-request flush (default: 5000)
+        instrument_logging: Enable automatic logging instrumentation (default: True)
     """
 
     enabled: bool = Field(default=False, alias="enabled")
@@ -85,6 +86,7 @@ class TelemetryConfig(StrictBaseModel):
     service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
     flush_on_request: bool = Field(default=True, alias="flush_on_request")
     flush_timeout_ms: int = Field(default=5000, alias="flush_timeout_ms", gt=0)
+    instrument_logging: bool = Field(default=True, alias="instrument_logging")
 
     @field_validator("endpoint")
     @classmethod

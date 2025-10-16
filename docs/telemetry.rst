@@ -40,6 +40,7 @@ This installs:
 * ``opentelemetry-api`` - Core OpenTelemetry API
 * ``opentelemetry-sdk`` - OpenTelemetry SDK
 * ``opentelemetry-instrumentation-flask`` - Automatic Flask instrumentation
+* ``opentelemetry-instrumentation-logging`` - Automatic logging instrumentation
 * ``opentelemetry-instrumentation-pymongo`` - Automatic MongoDB instrumentation
 * ``opentelemetry-instrumentation-requests`` - Automatic HTTP client instrumentation
 * ``opentelemetry-exporter-otlp`` - OTLP exporter for sending traces
@@ -109,6 +110,41 @@ resource attribute to help filter traces by environment.
 
 Service instance identifier. If not provided, an ID is automatically generated using
 the hostname and a short UUID.
+
+``instrument_logging``
+^^^^^^^^^^^^^^^^^^^^^^
+
+:Type: ``bool``
+:Default: ``True``
+
+Enable automatic logging instrumentation. When enabled, trace context (trace ID, span ID)
+is automatically added to log records, allowing you to correlate logs with traces in your
+observability platform.
+
+The trace context is added as attributes to log records without modifying your existing
+log format. You can access these attributes in custom log formatters:
+
+* ``otelTraceID`` - The trace ID for the current request
+* ``otelSpanID`` - The span ID for the current operation
+* ``otelServiceName`` - The service name
+
+Example custom formatter that includes trace context:
+
+.. code-block:: python
+
+    import logging
+
+    # Define a custom formatter that includes trace context
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - '
+        '[trace_id=%(otelTraceID)s span_id=%(otelSpanID)s] - '
+        '%(message)s'
+    )
+
+    # Apply to your handlers
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logging.getLogger().addHandler(handler)
 
 What Gets Traced?
 -----------------
