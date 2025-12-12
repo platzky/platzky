@@ -25,16 +25,43 @@ _MISSING_OTEL_MSG = (
 
 
 def create_engine(config: Config, db) -> Engine:
+    """Create and configure a Platzky Engine instance.
+
+    Sets up the core application with database connection, request handlers,
+    route definitions, and context processors for template rendering.
+
+    Args:
+        config: Application configuration object
+        db: Database instance for data persistence
+
+    Returns:
+        Configured Engine instance with plugins loaded
+    """
     app = Engine(config, db, __name__)
 
     @app.before_request
     def handle_www_redirection():
+        """Handle WWW subdomain redirection based on configuration.
+
+        Redirects requests to/from www subdomain based on config.use_www setting.
+
+        Returns:
+            Redirect response if redirection is needed, None otherwise
+        """
         if config.use_www:
             return redirect_nonwww_to_www()
         else:
             return redirect_www_to_nonwww()
 
     def get_langs_domain(lang: str) -> t.Optional[str]:
+        """Get the domain associated with a language.
+
+        Args:
+            lang: Language code to look up
+
+        Returns:
+            Domain string if language has a dedicated domain, None otherwise
+        """
         lang_cfg = config.languages.get(lang)
         if lang_cfg is None:
             return None
@@ -42,6 +69,17 @@ def create_engine(config: Config, db) -> Engine:
 
     @app.route("/lang/<string:lang>", methods=["GET"])
     def change_language(lang):
+        """Change the user's language preference.
+
+        If the language has a dedicated domain, redirects to that domain.
+        Otherwise, sets the language in the session and returns to the referrer.
+
+        Args:
+            lang: Language code to switch to
+
+        Returns:
+            Redirect response to the language domain or referrer page
+        """
         if new_domain := get_langs_domain(lang):
             return redirect("http://" + new_domain, code=301)
         else:
@@ -49,10 +87,24 @@ def create_engine(config: Config, db) -> Engine:
             return redirect(request.referrer)
 
     def url_link(x: str) -> str:
+        """URL-encode a string for safe use in URLs.
+
+        Args:
+            x: String to encode
+
+        Returns:
+            URL-encoded string with all characters except safe ones escaped
+        """
         return urllib.parse.quote(x, safe="")
 
     @app.context_processor
     def utils():
+        """Provide utility variables and functions to all templates.
+
+        Returns:
+            Dictionary of template context variables including app metadata,
+            language settings, styling configuration, and helper functions
+        """
         locale = app.get_locale()
         flag = lang.flag if (lang := config.languages.get(locale)) is not None else ""
         country = lang.country if (lang := config.languages.get(locale)) is not None else ""
@@ -74,20 +126,54 @@ def create_engine(config: Config, db) -> Engine:
 
     @app.context_processor
     def dynamic_body():
+        """Provide dynamic body content to all templates.
+
+        Returns:
+            Dictionary with dynamic_body content for injection into page body
+        """
         return {"dynamic_body": app.dynamic_body}
 
     @app.context_processor
     def dynamic_head():
+        """Provide dynamic head content to all templates.
+
+        Returns:
+            Dictionary with dynamic_head content for injection into page head
+        """
         return {"dynamic_head": app.dynamic_head}
 
     @app.errorhandler(404)
     def page_not_found(e):
+        """Handle 404 Not Found errors.
+
+        Args:
+            e: Exception object containing error details
+
+        Returns:
+            Tuple of rendered 404 template and HTTP 404 status code
+        """
         return render_template("404.html", title="404"), 404
 
     return plugify(app)
 
 
 def create_app_from_config(config: Config) -> Engine:
+    """Create a fully configured Platzky application from a Config object.
+
+    Initializes the database, creates the engine, sets up telemetry (if enabled),
+    registers blueprints (admin, blog, SEO), and configures minification and CSRF
+    protection.
+
+    Args:
+        config: Application configuration object
+
+    Returns:
+        Fully configured Engine instance ready to serve requests
+
+    Raises:
+        ImportError: If telemetry is enabled but OpenTelemetry packages are not installed
+        ValueError: If telemetry configuration is invalid
+    """
     db = get_db(config.db)
     engine = create_engine(config, db)
 
@@ -133,5 +219,21 @@ def create_app_from_config(config: Config) -> Engine:
 
 
 def create_app(config_path: str) -> Engine:
+    """Create a Platzky application from a YAML configuration file.
+
+    Convenience function that loads configuration from a YAML file and
+    creates the application.
+
+    Args:
+        config_path: Path to the YAML configuration file
+
+    Returns:
+        Fully configured Engine instance ready to serve requests
+
+    Raises:
+        FileNotFoundError: If the configuration file doesn't exist
+        yaml.YAMLError: If the configuration file contains invalid YAML
+        ValidationError: If the configuration doesn't match the expected schema
+    """
     config = Config.parse_yaml(config_path)
     return create_app_from_config(config)
