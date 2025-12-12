@@ -1,7 +1,7 @@
 import importlib.util
 import inspect
 import logging
-from typing import Any, Type
+from typing import Any
 
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginError
@@ -30,7 +30,7 @@ def find_plugin(plugin_name: str) -> Any:
         ) from e
 
 
-def _get_plugin_class(plugin_module: Any) -> Type[PluginBase[Any]]:
+def _get_plugin_class(plugin_module: Any) -> type[PluginBase[Any]]:
     """Get the PluginBase class from a plugin module.
 
     Args:
@@ -108,7 +108,7 @@ def plugify(app: Engine) -> Engine:
             logger.info("Processed plugin: %s", plugin_name)
 
         except Exception as e:
-            logger.error("Error processing plugin %s: %s", plugin_name, e)
+            logger.exception("Error processing plugin %s", plugin_name)
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
     return app

@@ -1,7 +1,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, Type, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -61,10 +61,10 @@ class PluginBase(Generic[T], ABC):
         return locale_dir if os.path.isdir(locale_dir) else None
 
     @classmethod
-    def get_config_model(cls) -> Type[PluginBaseConfig]:
+    def get_config_model(cls) -> type[PluginBaseConfig]:
         return PluginBaseConfig
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         try:
             config_class = self.get_config_model()
             self.config = config_class.model_validate(config)
