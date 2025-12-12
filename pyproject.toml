@@ -136,6 +136,11 @@ changelog_file = "CHANGELOG.md"
 match = "main"
 prerelease = false
 
+[tool.semantic_release.branches.next]
+match = "next"
+prerelease = true
+prerelease_token = "alpha"
+
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
