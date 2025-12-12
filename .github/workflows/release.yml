@@ -6,7 +6,6 @@ on:
       - main
       - next
 
-# default: least privileged permissions across all jobs
 permissions:
   contents: read
   id-token: write
@@ -87,8 +86,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: release
-    # Only deploy to PyPI from main branch (not alpha releases from next)
-    if: ${{ needs.release.outputs.released == 'true' && github.ref == 'refs/heads/main' }}
+    if: ${{ needs.release.outputs.released == 'true' }}
 
     environment:
       name: pypi
