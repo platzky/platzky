@@ -19,13 +19,12 @@ def base_config_data():
         "SECRET_KEY": "test_secret",
         "USE_WWW": False,
         "BLOG_PREFIX": "/",
-        "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
+        "TRANSLATION_DIRECTORIES": [],
         "DB": {
             "TYPE": "json",
             "DATA": {"plugins": []},
         },
     }
-
 
 class TestPluginBaseLocaleMethod:
     """Tests for PluginBase.get_locale_directory() method."""
