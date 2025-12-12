@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import logging
+import os
 from typing import Any
 
 from platzky.engine import Engine
@@ -53,6 +54,41 @@ def _get_plugin_class(plugin_module: Any) -> type[PluginBase[Any]]:
     )
 
 
+def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bool:
+    """Validate that a locale directory is safe to use.
+
+    Prevents malicious plugins from exposing arbitrary filesystem paths
+    by ensuring the locale directory is within the plugin's module directory.
+
+    Args:
+        locale_dir: Path to the locale directory
+        plugin_instance: The plugin instance
+
+    Returns:
+        True if the locale directory is safe to use, False otherwise
+    """
+    # Check that the directory exists
+    if not os.path.isdir(locale_dir):
+        return False
+
+    # Get the plugin's module to determine its base directory
+    module = inspect.getmodule(plugin_instance.__class__)
+    if module is None or not hasattr(module, "__file__") or module.__file__ is None:
+        return False
+
+    # Get canonical paths (resolve symlinks)
+    locale_path = os.path.realpath(locale_dir)
+    module_path = os.path.realpath(os.path.dirname(module.__file__))
+
+    # Verify locale_dir is within the plugin's module directory
+    try:
+        common_path = os.path.commonpath([locale_path, module_path])
+        return common_path == module_path
+    except ValueError:
+        # Paths are on different drives (Windows) or one is relative
+        return False
+
+
 def _register_plugin_locale(
     app: Engine, plugin_instance: PluginBase[Any], plugin_name: str
 ) -> None:
@@ -65,6 +101,15 @@ def _register_plugin_locale(
     """
     locale_dir = plugin_instance.get_locale_dir()
     if locale_dir is None:
+        return
+
+    # Validate that the locale directory is safe to use
+    if not _is_safe_locale_dir(locale_dir, plugin_instance):
+        logger.warning(
+            "Skipping locale directory for plugin %s: path validation failed: %s",
+            plugin_name,
+            locale_dir,
+        )
         return
 
     babel_config = app.extensions.get("babel")
