@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import logging
+import os
 from typing import Any, Optional, Type
 
 import deprecation
@@ -48,6 +49,27 @@ def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase[Any]]]:
     return None
 
 
+def _register_plugin_locale(app: Engine, plugin_module: Any, plugin_name: str) -> None:
+    """Register plugin's locale directory with Babel if it exists.
+
+    Args:
+        app: The Platzky Engine instance
+        plugin_module: The plugin module
+        plugin_name: Name of the plugin for logging
+    """
+    if not hasattr(plugin_module, "__file__"):
+        return
+
+    plugin_dir = os.path.dirname(os.path.abspath(plugin_module.__file__))
+    locale_dir = os.path.join(plugin_dir, "locale")
+
+    if os.path.isdir(locale_dir):
+        babel_config = app.extensions.get("babel")
+        if babel_config and locale_dir not in babel_config.translation_directories:
+            babel_config.translation_directories.append(locale_dir)
+            logger.info(f"Registered locale directory for plugin {plugin_name}: {locale_dir}")
+
+
 @deprecation.deprecated(
     deprecated_in="0.3.1",
     removed_in="0.4.0",
@@ -84,6 +106,9 @@ def plugify(app: Engine) -> Engine:
 
         try:
             plugin_module = find_plugin(plugin_name)
+
+            # Auto-register plugin locale directory
+            _register_plugin_locale(app, plugin_module, plugin_name)
 
             # Check if this is a class-based plugin
             plugin_class = _is_class_plugin(plugin_module)

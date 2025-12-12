@@ -1,6 +1,7 @@
 import logging
+import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Type, TypeVar
+from typing import Any, Dict, Generic, Optional, Type, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -49,6 +50,26 @@ class PluginBase(Generic[T], ABC):
             self.config = config_class.model_validate(config)
         except Exception as e:
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
+
+    def get_locale_directory(self) -> Optional[str]:
+        """Get the plugin's locale directory path if it exists.
+
+        Returns:
+            Path to the locale directory if it exists, None otherwise
+        """
+        import inspect
+
+        # Get the module where the plugin class is defined
+        module = inspect.getmodule(self.__class__)
+        if module is None or not hasattr(module, "__file__"):
+            return None
+
+        # Get the directory containing the plugin module
+        plugin_dir = os.path.dirname(os.path.abspath(module.__file__))
+        locale_dir = os.path.join(plugin_dir, "locale")
+
+        # Return the path only if the directory exists
+        return locale_dir if os.path.isdir(locale_dir) else None
 
     @abstractmethod
     def process(self, app: PlatzkyEngine) -> PlatzkyEngine:
