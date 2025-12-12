@@ -26,6 +26,7 @@ def base_config_data():
         },
     }
 
+
 class TestPluginBaseLocaleMethod:
     """Tests for PluginBase.get_locale_directory() method."""
 
