@@ -1,12 +1,10 @@
 import importlib.util
 import inspect
 import logging
-from typing import Any, Optional, Type
-
-import deprecation
+from typing import Any, Type
 
 from platzky.engine import Engine
-from platzky.plugin.plugin import PluginBase, PluginError, get_plugin_locale_dir
+from platzky.plugin.plugin import PluginBase, PluginError
 
 logger = logging.getLogger(__name__)
 
@@ -32,31 +30,40 @@ def find_plugin(plugin_name: str) -> Any:
         ) from e
 
 
-def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase[Any]]]:
-    """Check if the plugin module contains a PluginBase implementation.
+def _get_plugin_class(plugin_module: Any) -> Type[PluginBase[Any]]:
+    """Get the PluginBase class from a plugin module.
 
     Args:
         plugin_module: The imported plugin module
 
     Returns:
-        The plugin class if found, None otherwise
+        The plugin class
+
+    Raises:
+        PluginError: If no PluginBase implementation is found
     """
     # Look for classes in the module that inherit from PluginBase
     for _, obj in inspect.getmembers(plugin_module):
         if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
             return obj
-    return None
+
+    raise PluginError(
+        f"Plugin module {plugin_module.__name__} doesn't implement PluginBase. "
+        "All plugins must extend PluginBase."
+    )
 
 
-def _register_plugin_locale(app: Engine, plugin_module: Any, plugin_name: str) -> None:
+def _register_plugin_locale(
+    app: Engine, plugin_instance: PluginBase[Any], plugin_name: str
+) -> None:
     """Register plugin's locale directory with Babel if it exists.
 
     Args:
         app: The Platzky Engine instance
-        plugin_module: The plugin module
+        plugin_instance: The plugin instance
         plugin_name: Name of the plugin for logging
     """
-    locale_dir = get_plugin_locale_dir(plugin_module)
+    locale_dir = plugin_instance.get_locale_dir()
     if locale_dir is None:
         return
 
@@ -66,24 +73,10 @@ def _register_plugin_locale(app: Engine, plugin_module: Any, plugin_name: str) -
         logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
 
 
-@deprecation.deprecated(
-    deprecated_in="0.3.1",
-    removed_in="0.4.0",
-    current_version=None,  # You should replace this with the current version
-    details="Legacy plugin style using the entrypoint process() function is deprecated. "
-    "Please migrate to the PluginBase interface.",
-)
-def _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name):
-    """Process a legacy plugin using the entrypoint approach."""
-    app = plugin_module.process(app, plugin_config)
-    logger.info(f"Processed legacy plugin: {plugin_name}")
-    return app
-
-
 def plugify(app: Engine) -> Engine:
     """Load plugins and run their entrypoints.
 
-    Supports both class-based plugins (PluginBase) and legacy entrypoint plugins.
+    All plugins must extend PluginBase.
 
     Args:
         app: Platzky Engine instance
@@ -92,7 +85,7 @@ def plugify(app: Engine) -> Engine:
         Platzky Engine with processed plugins
 
     Raises:
-        PluginError: if plugin processing fails
+        PluginError: if plugin processing fails or plugin doesn't extend PluginBase
     """
     plugins_data = app.db.get_plugins_data()
 
@@ -102,29 +95,20 @@ def plugify(app: Engine) -> Engine:
 
         try:
             plugin_module = find_plugin(plugin_name)
+            plugin_class = _get_plugin_class(plugin_module)
+
+            # Create plugin instance
+            plugin_instance = plugin_class(plugin_config)
 
             # Auto-register plugin locale directory
-            _register_plugin_locale(app, plugin_module, plugin_name)
+            _register_plugin_locale(app, plugin_instance, plugin_name)
 
-            # Check if this is a class-based plugin
-            plugin_class = _is_class_plugin(plugin_module)
-
-            if plugin_class:
-                # Handle new class-based plugins
-                plugin_instance = plugin_class(plugin_config)
-                app = plugin_instance.process(app)
-                logger.info(f"Processed class-based plugin: {plugin_name}")
-            elif hasattr(plugin_module, "process"):
-                # Handle legacy entrypoint plugins with deprecation warning
-                app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
-            else:
-                raise PluginError(
-                    f"Plugin {plugin_name} doesn't implement either the PluginBase interface "
-                    f"or provide a process() function"
-                )
+            # Process plugin
+            app = plugin_instance.process(app)
+            logger.info("Processed plugin: %s", plugin_name)
 
         except Exception as e:
-            logger.error(f"Error processing plugin {plugin_name}: {e}")
+            logger.error("Error processing plugin %s: %s", plugin_name, e)
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
     return app

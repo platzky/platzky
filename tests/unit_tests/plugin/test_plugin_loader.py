@@ -29,9 +29,9 @@ def mock_plugin_setup():
     """Setup mocks for plugin loading."""
     with (
         mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
-        mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class_plugin,
+        mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_plugin_class,
     ):
-        yield mock_find_plugin, mock_is_class_plugin
+        yield mock_find_plugin, mock_get_plugin_class
 
 
 class TestPluginErrors:
@@ -50,7 +50,7 @@ class TestPluginErrors:
             create_app_from_config(config)
 
     def test_plugin_execution_error(self, base_config_data, mock_plugin_setup):
-        mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
+        mock_find_plugin, mock_get_plugin_class = mock_plugin_setup
 
         class ErrorPlugin(PluginBase[PluginBaseConfig]):
             def __init__(self, config: PluginBaseConfig):
@@ -61,7 +61,7 @@ class TestPluginErrors:
 
         mock_module = mock.MagicMock()
         mock_find_plugin.return_value = mock_module
-        mock_is_class_plugin.return_value = ErrorPlugin
+        mock_get_plugin_class.return_value = ErrorPlugin
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "error_plugin", "config": {}}]
         config = Config.model_validate(base_config_data)
@@ -72,13 +72,11 @@ class TestPluginErrors:
         assert "Plugin execution failed" in str(excinfo.value)
 
     def test_plugin_without_implementation(self, base_config_data, mock_plugin_setup):
-        mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
+        mock_find_plugin, mock_get_plugin_class = mock_plugin_setup
 
         mock_module = mock.MagicMock()
-        del mock_module.process  # Module without process function
-
         mock_find_plugin.return_value = mock_module
-        mock_is_class_plugin.return_value = None
+        mock_get_plugin_class.side_effect = PluginError("doesn't implement PluginBase")
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "invalid_plugin", "config": {}}]
         config = Config.model_validate(base_config_data)
@@ -86,10 +84,7 @@ class TestPluginErrors:
         with pytest.raises(PluginError) as excinfo:
             create_app_from_config(config)
 
-        assert (
-            "doesn't implement either the PluginBase interface or provide a process() function"
-            in str(excinfo.value)
-        )
+        assert "doesn't implement PluginBase" in str(excinfo.value)
 
 
 class TestPluginConfigValidation:
@@ -124,7 +119,7 @@ class TestPluginConfigValidation:
 
 class TestPluginLoading:
     def test_plugin_loading_success(self, base_config_data, mock_plugin_setup):
-        mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
+        mock_find_plugin, mock_get_plugin_class = mock_plugin_setup
 
         class MockPluginBase(PluginBase[PluginBaseConfig]):
             def __init__(self, config: PluginBaseConfig):
@@ -136,7 +131,7 @@ class TestPluginLoading:
 
         mock_module = mock.MagicMock()
         mock_find_plugin.return_value = mock_module
-        mock_is_class_plugin.return_value = MockPluginBase
+        mock_get_plugin_class.return_value = MockPluginBase
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "test_plugin", "config": {"setting": "value"}}
@@ -148,7 +143,7 @@ class TestPluginLoading:
         assert "Plugin added content" in app.dynamic_body
 
     def test_multiple_plugins_loading(self, base_config_data, mock_plugin_setup):
-        mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
+        mock_find_plugin, mock_get_plugin_class = mock_plugin_setup
 
         class FirstPlugin(PluginBase[PluginBaseConfig]):
             def __init__(self, config: PluginBaseConfig):
@@ -167,7 +162,7 @@ class TestPluginLoading:
                 return app
 
         mock_find_plugin.side_effect = [mock.MagicMock(), mock.MagicMock()]
-        mock_is_class_plugin.side_effect = [FirstPlugin, SecondPlugin]
+        mock_get_plugin_class.side_effect = [FirstPlugin, SecondPlugin]
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "first_plugin", "config": {"setting": "one"}},
@@ -180,29 +175,6 @@ class TestPluginLoading:
         assert mock_find_plugin.call_count == 2
         assert "First plugin content" in app.dynamic_body
         assert "Second plugin content" in app.dynamic_head
-
-    def test_legacy_plugin_processing(self, base_config_data, mock_plugin_setup):
-        mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
-
-        mock_module = mock.MagicMock()
-
-        def side_effect(app, config):
-            app.add_dynamic_body("Legacy plugin content")
-            return app
-
-        mock_module.process.side_effect = side_effect
-        mock_find_plugin.return_value = mock_module
-        mock_is_class_plugin.return_value = None
-
-        base_config_data["DB"]["DATA"]["plugins"] = [
-            {"name": "legacy_plugin", "config": {"setting": "legacy"}}
-        ]
-        config = Config.model_validate(base_config_data)
-        app = create_app_from_config(config)
-
-        mock_find_plugin.assert_called_once_with("legacy_plugin")
-        mock_module.process.assert_called_once()
-        assert "Legacy plugin content" in app.dynamic_body
 
     def test_real_fake_plugin_loading(self, base_config_data):
         with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin:
