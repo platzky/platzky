@@ -4,6 +4,7 @@ import urllib.parse
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
+from werkzeug.wrappers import Response
 
 from platzky.admin import admin
 from platzky.blog import blog
@@ -11,6 +12,7 @@ from platzky.config import (
     Config,
     languages_dict,
 )
+from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.plugin.plugin_loader import plugify
@@ -24,7 +26,7 @@ _MISSING_OTEL_MSG = (
 )
 
 
-def create_engine(config: Config, db) -> Engine:
+def create_engine(config: Config, db: DB) -> Engine:
     """Create and configure a Platzky Engine instance.
 
     Sets up the core application with database connection, request handlers,
@@ -40,7 +42,7 @@ def create_engine(config: Config, db) -> Engine:
     app = Engine(config, db, __name__)
 
     @app.before_request
-    def handle_www_redirection():
+    def handle_www_redirection() -> t.Optional[Response]:
         """Handle WWW subdomain redirection based on configuration.
 
         Redirects requests to/from www subdomain based on config.use_www setting.
@@ -68,7 +70,7 @@ def create_engine(config: Config, db) -> Engine:
         return lang_cfg.domain
 
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang):
+    def change_language(lang: str) -> Response | tuple[str, int]:
         """Change the user's language preference.
 
         If the language has a dedicated domain, redirects to that domain.
@@ -78,8 +80,12 @@ def create_engine(config: Config, db) -> Engine:
             lang: Language code to switch to
 
         Returns:
-            Redirect response to the language domain or referrer page
+            Redirect response to the language domain or referrer page, or 404 if invalid
         """
+        # Only allow configured languages
+        if lang not in config.languages:
+            return render_template("404.html", title="404"), 404
+
         if new_domain := get_langs_domain(lang):
             return redirect(f"{request.scheme}://{new_domain}", code=301)
         else:
@@ -98,7 +104,7 @@ def create_engine(config: Config, db) -> Engine:
         return urllib.parse.quote(x, safe="")
 
     @app.context_processor
-    def utils():
+    def utils() -> dict[str, t.Any]:
         """Provide utility variables and functions to all templates.
 
         Returns:
@@ -126,7 +132,7 @@ def create_engine(config: Config, db) -> Engine:
         }
 
     @app.context_processor
-    def dynamic_body():
+    def dynamic_body() -> dict[str, str]:
         """Provide dynamic body content to all templates.
 
         Returns:
@@ -135,7 +141,7 @@ def create_engine(config: Config, db) -> Engine:
         return {"dynamic_body": app.dynamic_body}
 
     @app.context_processor
-    def dynamic_head():
+    def dynamic_head() -> dict[str, str]:
         """Provide dynamic head content to all templates.
 
         Returns:
@@ -144,11 +150,11 @@ def create_engine(config: Config, db) -> Engine:
         return {"dynamic_head": app.dynamic_head}
 
     @app.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(_e: Exception) -> tuple[str, int]:
         """Handle 404 Not Found errors.
 
         Args:
-            e: Exception object containing error details
+            _e: Exception object containing error details (unused)
 
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
