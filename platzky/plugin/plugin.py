@@ -10,6 +10,24 @@ from platzky.platzky import Engine as PlatzkyEngine
 logger = logging.getLogger(__name__)
 
 
+def get_plugin_locale_dir(plugin_module: Any) -> Optional[str]:
+    """Get plugin locale directory from module.
+
+    Args:
+        plugin_module: The plugin module
+
+    Returns:
+        Path to the locale directory if it exists, None otherwise
+    """
+    if not hasattr(plugin_module, "__file__") or plugin_module.__file__ is None:
+        return None
+
+    plugin_dir = os.path.dirname(os.path.abspath(plugin_module.__file__))
+    locale_dir = os.path.join(plugin_dir, "locale")
+
+    return locale_dir if os.path.isdir(locale_dir) else None
+
+
 class PluginError(Exception):
     """Exception raised for plugin-related errors."""
 
@@ -61,15 +79,10 @@ class PluginBase(Generic[T], ABC):
 
         # Get the module where the plugin class is defined
         module = inspect.getmodule(self.__class__)
-        if module is None or not hasattr(module, "__file__") or module.__file__ is None:
+        if module is None:
             return None
 
-        # Get the directory containing the plugin module
-        plugin_dir = os.path.dirname(os.path.abspath(module.__file__))
-        locale_dir = os.path.join(plugin_dir, "locale")
-
-        # Return the path only if the directory exists
-        return locale_dir if os.path.isdir(locale_dir) else None
+        return get_plugin_locale_dir(module)
 
     @abstractmethod
     def process(self, app: PlatzkyEngine) -> PlatzkyEngine:

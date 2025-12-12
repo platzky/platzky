@@ -1,13 +1,12 @@
 import importlib.util
 import inspect
 import logging
-import os
 from typing import Any, Optional, Type
 
 import deprecation
 
 from platzky.engine import Engine
-from platzky.plugin.plugin import PluginBase, PluginError
+from platzky.plugin.plugin import PluginBase, PluginError, get_plugin_locale_dir
 
 logger = logging.getLogger(__name__)
 
@@ -57,17 +56,14 @@ def _register_plugin_locale(app: Engine, plugin_module: Any, plugin_name: str) -
         plugin_module: The plugin module
         plugin_name: Name of the plugin for logging
     """
-    if not hasattr(plugin_module, "__file__"):
+    locale_dir = get_plugin_locale_dir(plugin_module)
+    if locale_dir is None:
         return
 
-    plugin_dir = os.path.dirname(os.path.abspath(plugin_module.__file__))
-    locale_dir = os.path.join(plugin_dir, "locale")
-
-    if os.path.isdir(locale_dir):
-        babel_config = app.extensions.get("babel")
-        if babel_config and locale_dir not in babel_config.translation_directories:
-            babel_config.translation_directories.append(locale_dir)
-            logger.info(f"Registered locale directory for plugin {plugin_name}: {locale_dir}")
+    babel_config = app.extensions.get("babel")
+    if babel_config and locale_dir not in babel_config.translation_directories:
+        babel_config.translation_directories.append(locale_dir)
+        logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
 
 
 @deprecation.deprecated(
