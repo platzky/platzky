@@ -65,7 +65,8 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
                 result = plugin.get_locale_directory()
 
                 assert result == str(locale_dir)
-                assert result is not None and os.path.isdir(result)
+                assert result is not None
+                assert os.path.isdir(result)
 
     def test_get_locale_directory_does_not_exist(self):
         """Test get_locale_directory when locale directory doesn't exist."""
