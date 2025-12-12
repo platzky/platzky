@@ -61,7 +61,7 @@ class PluginBase(Generic[T], ABC):
 
         # Get the module where the plugin class is defined
         module = inspect.getmodule(self.__class__)
-        if module is None or not hasattr(module, "__file__"):
+        if module is None or not hasattr(module, "__file__") or module.__file__ is None:
             return None
 
         # Get the directory containing the plugin module
