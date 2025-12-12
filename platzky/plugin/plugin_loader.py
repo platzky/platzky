@@ -107,6 +107,9 @@ def plugify(app: Engine) -> Engine:
             app = plugin_instance.process(app)
             logger.info("Processed plugin: %s", plugin_name)
 
+        except PluginError:
+            # Re-raise PluginError directly to avoid redundant wrapping
+            raise
         except Exception as e:
             logger.exception("Error processing plugin %s", plugin_name)
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e

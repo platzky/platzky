@@ -1,5 +1,7 @@
+import inspect
 import logging
 import os
+import types
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, TypeVar
 
@@ -41,7 +43,7 @@ class PluginBase(Generic[T], ABC):
     """
 
     @staticmethod
-    def get_locale_dir_from_module(plugin_module: Any) -> Optional[str]:
+    def get_locale_dir_from_module(plugin_module: types.ModuleType) -> Optional[str]:
         """Get plugin locale directory from a module.
 
         Encapsulates the knowledge of how plugins organize their locale directories.
@@ -55,7 +57,8 @@ class PluginBase(Generic[T], ABC):
         if not hasattr(plugin_module, "__file__") or plugin_module.__file__ is None:
             return None
 
-        plugin_dir = os.path.dirname(os.path.abspath(plugin_module.__file__))
+        # Use realpath to resolve symlinks and get canonical path
+        plugin_dir = os.path.dirname(os.path.realpath(plugin_module.__file__))
         locale_dir = os.path.join(plugin_dir, "locale")
 
         return locale_dir if os.path.isdir(locale_dir) else None
@@ -77,8 +80,6 @@ class PluginBase(Generic[T], ABC):
         Returns:
             Path to the locale directory if it exists, None otherwise
         """
-        import inspect
-
         module = inspect.getmodule(self.__class__)
         if module is None:
             return None
