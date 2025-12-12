@@ -49,7 +49,8 @@ class TestPlatzky:
             app.secret_key = "test_secret_key"
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
-            assert response.headers["Location"] == "None"
+            # When request.referrer is None, it should redirect to "/" instead
+            assert response.headers["Location"] == "/"
 
     def test_url_link(self, mock_db):
         """Test the url_link function."""

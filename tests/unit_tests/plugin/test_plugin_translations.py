@@ -156,5 +156,5 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
 
                 # Check if locale directory was registered
                 babel_config = app.extensions.get("babel")
-                if babel_config:
-                    assert str(locale_dir) in babel_config.translation_directories
+                assert babel_config is not None, "Babel extension should be configured"
+                assert str(locale_dir) in babel_config.translation_directories

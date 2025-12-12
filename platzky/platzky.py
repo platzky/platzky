@@ -81,10 +81,10 @@ def create_engine(config: Config, db) -> Engine:
             Redirect response to the language domain or referrer page
         """
         if new_domain := get_langs_domain(lang):
-            return redirect("http://" + new_domain, code=301)
+            return redirect(f"{request.scheme}://{new_domain}", code=301)
         else:
             session["language"] = lang
-            return redirect(request.referrer)
+            return redirect(request.referrer or "/")
 
     def url_link(x: str) -> str:
         """URL-encode a string for safe use in URLs.
@@ -106,8 +106,9 @@ def create_engine(config: Config, db) -> Engine:
             language settings, styling configuration, and helper functions
         """
         locale = app.get_locale()
-        flag = lang.flag if (lang := config.languages.get(locale)) is not None else ""
-        country = lang.country if (lang := config.languages.get(locale)) is not None else ""
+        lang = config.languages.get(locale)
+        flag = lang.flag if lang is not None else ""
+        country = lang.country if lang is not None else ""
         return {
             "app_name": config.app_name,
             "app_description": app.db.get_app_description(locale) or config.app_name,
