@@ -64,7 +64,7 @@ class PluginBase(Generic[T], ABC):
     def get_config_model(cls) -> type[PluginBaseConfig]:
         return PluginBaseConfig
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any]) -> None:
         try:
             config_class = self.get_config_model()
             self.config = config_class.model_validate(config)
