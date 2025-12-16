@@ -1,6 +1,9 @@
+import inspect
 import logging
+import os
+import types
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Type, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -39,16 +42,49 @@ class PluginBase(Generic[T], ABC):
     Plugin developers must extend this class to implement their plugins.
     """
 
+    @staticmethod
+    def get_locale_dir_from_module(plugin_module: types.ModuleType) -> Optional[str]:
+        """Get plugin locale directory from a module.
+
+        Encapsulates the knowledge of how plugins organize their locale directories.
+
+        Args:
+            plugin_module: The plugin module
+
+        Returns:
+            Path to the locale directory if it exists, None otherwise
+        """
+        if not hasattr(plugin_module, "__file__") or plugin_module.__file__ is None:
+            return None
+
+        # Use realpath to resolve symlinks and get canonical path
+        plugin_dir = os.path.dirname(os.path.realpath(plugin_module.__file__))
+        locale_dir = os.path.join(plugin_dir, "locale")
+
+        return locale_dir if os.path.isdir(locale_dir) else None
+
     @classmethod
-    def get_config_model(cls) -> Type[PluginBaseConfig]:
+    def get_config_model(cls) -> type[PluginBaseConfig]:
         return PluginBaseConfig
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]) -> None:
         try:
             config_class = self.get_config_model()
             self.config = config_class.model_validate(config)
         except Exception as e:
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
+
+    def get_locale_dir(self) -> Optional[str]:
+        """Get this plugin's locale directory.
+
+        Returns:
+            Path to the locale directory if it exists, None otherwise
+        """
+        module = inspect.getmodule(self.__class__)
+        if module is None:
+            return None
+
+        return self.get_locale_dir_from_module(module)
 
     @abstractmethod
     def process(self, app: PlatzkyEngine) -> PlatzkyEngine:
