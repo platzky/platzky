@@ -26,6 +26,34 @@ _MISSING_OTEL_MSG = (
 )
 
 
+def _url_encode(x: str) -> str:
+    """URL-encode a string for safe use in URLs.
+
+    Args:
+        x: String to encode
+
+    Returns:
+        URL-encoded string with all characters except safe ones escaped
+    """
+    return urllib.parse.quote(x, safe="")
+
+
+def _get_language_domain(config: Config, lang: str) -> t.Optional[str]:
+    """Get the domain associated with a language.
+
+    Args:
+        config: Application configuration
+        lang: Language code to look up
+
+    Returns:
+        Domain string if language has a dedicated domain, None otherwise
+    """
+    lang_cfg = config.languages.get(lang)
+    if lang_cfg is None:
+        return None
+    return lang_cfg.domain
+
+
 def create_engine(config: Config, db: DB) -> Engine:
     """Create and configure a Platzky Engine instance.
 
@@ -52,22 +80,7 @@ def create_engine(config: Config, db: DB) -> Engine:
         """
         if config.use_www:
             return redirect_nonwww_to_www()
-        else:
-            return redirect_www_to_nonwww()
-
-    def get_langs_domain(lang: str) -> t.Optional[str]:
-        """Get the domain associated with a language.
-
-        Args:
-            lang: Language code to look up
-
-        Returns:
-            Domain string if language has a dedicated domain, None otherwise
-        """
-        lang_cfg = config.languages.get(lang)
-        if lang_cfg is None:
-            return None
-        return lang_cfg.domain
+        return redirect_www_to_nonwww()
 
     @app.route("/lang/<string:lang>", methods=["GET"])
     def change_language(lang: str) -> Response | tuple[str, int]:
@@ -86,11 +99,11 @@ def create_engine(config: Config, db: DB) -> Engine:
         if lang not in config.languages:
             return render_template("404.html", title="404"), 404
 
-        if new_domain := get_langs_domain(lang):
+        if new_domain := _get_language_domain(config, lang):
             return redirect(f"{request.scheme}://{new_domain}", code=301)
-        else:
-            session["language"] = lang
-            return redirect(request.referrer or "/")
+
+        session["language"] = lang
+        return redirect(request.referrer or "/")
 
     def url_link(x: str) -> str:
         """URL-encode a string for safe use in URLs.
@@ -101,7 +114,7 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             URL-encoded string with all characters except safe ones escaped
         """
-        return urllib.parse.quote(x, safe="")
+        return _url_encode(x)
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
