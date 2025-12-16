@@ -1,3 +1,6 @@
+import os
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -191,3 +194,354 @@ class TestPluginLoading:
             assert app.test_value == "custom_value"  # type: ignore
 
             mock_find_plugin.assert_called_once_with("fake-plugin")
+
+
+class TestLocaleDirectorySecurity:
+    """Test security validation of plugin locale directories through public API."""
+
+    @pytest.fixture
+    def temp_plugin_structure(self):
+        """Create a temporary plugin directory structure for testing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = Path(tmpdir) / "test_plugin"
+            plugin_dir.mkdir()
+
+            # Create plugin module file
+            plugin_file = plugin_dir / "__init__.py"
+            plugin_file.write_text("# test plugin")
+
+            # Create a valid locale directory inside plugin
+            locale_dir = plugin_dir / "locales"
+            locale_dir.mkdir()
+
+            # Create a directory outside plugin for testing path traversal
+            external_dir = Path(tmpdir) / "external"
+            external_dir.mkdir()
+
+            yield {
+                "plugin_dir": plugin_dir,
+                "plugin_file": plugin_file,
+                "locale_dir": locale_dir,
+                "external_dir": external_dir,
+                "tmpdir": tmpdir,
+            }
+
+    def test_valid_locale_directory_within_plugin(self, base_config_data, temp_plugin_structure):
+        """Test that valid locale directory within plugin is accepted."""
+        locale_dir = temp_plugin_structure["locale_dir"]
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class SafePlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                # Override __module__ and __file__ for testing
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                return str(locale_dir)
+
+        # Mock the module file location
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = SafePlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "test_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            # Should not raise any errors
+            app = create_app_from_config(config)
+
+            # Verify locale directory was registered
+            babel_config = app.extensions.get("babel")
+            if babel_config:
+                assert str(locale_dir) in babel_config.translation_directories
+
+    def test_locale_directory_outside_plugin_path(
+        self, base_config_data, temp_plugin_structure, caplog
+    ):
+        """Test that locale directory outside plugin path is rejected."""
+        external_dir = temp_plugin_structure["external_dir"]
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class MaliciousPlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                # Try to expose a directory outside the plugin
+                return str(external_dir)
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = MaliciousPlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "malicious_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                app = create_app_from_config(config)
+
+            # Verify warning was logged
+            assert "path validation failed" in caplog.text
+
+            # Verify locale directory was NOT registered
+            babel_config = app.extensions.get("babel")
+            if babel_config:
+                assert str(external_dir) not in babel_config.translation_directories
+
+    def test_path_traversal_attack(self, base_config_data, temp_plugin_structure, caplog):
+        """Test that path traversal attempts (../) are rejected."""
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class PathTraversalPlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                # Try path traversal to escape plugin directory
+                return os.path.join(str(plugin_file.parent), "..", "..", "etc")
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = PathTraversalPlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "traversal_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                create_app_from_config(config)
+
+            # Verify warning was logged
+            assert "path validation failed" in caplog.text
+
+    def test_symlink_attack(self, base_config_data, temp_plugin_structure, caplog):
+        """Test that symlink attacks are prevented by resolving real paths."""
+        if os.name == "nt":
+            pytest.skip("Symlink test not applicable on Windows without admin privileges")
+
+        plugin_dir = temp_plugin_structure["plugin_dir"]
+        plugin_file = temp_plugin_structure["plugin_file"]
+        external_dir = temp_plugin_structure["external_dir"]
+
+        # Create a symlink inside plugin pointing to external directory
+        symlink_path = plugin_dir / "locale_symlink"
+        try:
+            symlink_path.symlink_to(external_dir)
+        except OSError:
+            pytest.skip("Unable to create symlinks on this system")
+
+        class SymlinkPlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                return str(symlink_path)
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = SymlinkPlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "symlink_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                create_app_from_config(config)
+
+            # Verify warning was logged (symlink resolves to external directory)
+            assert "path validation failed" in caplog.text
+
+    def test_non_existent_directory(self, base_config_data, temp_plugin_structure, caplog):
+        """Test that non-existent directories are rejected."""
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class NonExistentDirPlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                return "/completely/fake/path/that/does/not/exist"
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = NonExistentDirPlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [
+                {"name": "nonexistent_plugin", "config": {}}
+            ]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                create_app_from_config(config)
+
+            # Verify warning was logged
+            assert "path validation failed" in caplog.text
+
+    def test_windows_different_drives(self, base_config_data, temp_plugin_structure, caplog):
+        """Test handling of paths on different drives (Windows edge case)."""
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class DifferentDrivePlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                # On Windows, different drive letters; on Unix, just another path
+                if os.name == "nt":
+                    # If plugin is on C:, try D:
+                    return "D:\\some\\path"
+                else:
+                    # On Unix, this will be caught as non-existent or outside plugin
+                    return "/dev/null"
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = DifferentDrivePlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "different_drive", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                create_app_from_config(config)
+
+            # Verify warning was logged
+            assert "path validation failed" in caplog.text
+
+    def test_plugin_without_locale_dir(self, base_config_data, temp_plugin_structure):
+        """Test that plugins without locale directories work normally."""
+        plugin_file = temp_plugin_structure["plugin_file"]
+
+        class NoLocalePlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+                self.__class__.__module__ = "test_plugin"
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                return None  # No locale directory
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = str(plugin_file)
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = NoLocalePlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "no_locale_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            # Should not raise any errors or warnings
+            app = create_app_from_config(config)
+            assert app is not None
+
+    def test_plugin_module_without_file_attribute(self, base_config_data, caplog):
+        """Test handling of plugins where module has no __file__ attribute."""
+
+        class NoFilePlugin(PluginBase[PluginBaseConfig]):
+            def __init__(self, config: PluginBaseConfig):
+                self.config = config
+
+            def process(self, app):
+                return app
+
+            def get_locale_dir(self):
+                return "/some/path"
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
+            mock.patch("platzky.plugin.plugin_loader._get_plugin_class") as mock_get_class,
+            mock.patch("inspect.getmodule") as mock_getmodule,
+        ):
+            # Module without __file__ attribute (e.g., built-in modules)
+            mock_module = mock.MagicMock()
+            mock_module.__file__ = None
+            mock_getmodule.return_value = mock_module
+
+            mock_find.return_value = mock_module
+            mock_get_class.return_value = NoFilePlugin
+
+            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "no_file_plugin", "config": {}}]
+            config = Config.model_validate(base_config_data)
+
+            with caplog.at_level("WARNING"):
+                create_app_from_config(config)
+
+            # Verify warning was logged
+            assert "path validation failed" in caplog.text
