@@ -219,6 +219,70 @@ database backends. If you need to migrate:
 
 This is an area of active development.
 
+Cache Management
+----------------
+
+JSON-based database backends (``json_file``, ``google_hosted_json_file``, ``github_json``) 
+support optional cache management features for long-running applications.
+
+Cache TTL (Time-to-Live)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, database instances cache data for their entire lifetime. For long-running
+applications that need to detect external changes, you can enable automatic cache expiration:
+
+.. code-block:: yaml
+
+    DB:
+      TYPE: json_file
+      PATH: data.json
+      CACHE_TTL: 300  # Expire cache after 5 minutes
+
+When the cache expires, the database automatically reloads data from the source on the
+next access.
+
+**When to use:**
+
+* Long-running web servers where content updates need to be detected
+* Applications where config changes shouldn't require restart
+* Scenarios where multiple processes update shared data
+
+**Performance impact:** Minimal when cache is fresh; reload only happens after TTL expiration.
+
+Manual Cache Refresh
+~~~~~~~~~~~~~~~~~~~~
+
+You can manually refresh the cache at any time:
+
+.. code-block:: python
+
+    # Force reload from source
+    app.db.refresh_cache()
+    
+    # Get fresh data
+    posts = app.db.get_all_posts("en")
+
+**Use cases:**
+
+* Webhook handlers that receive notifications of content updates
+* Admin endpoints that trigger data reload
+* Integration tests that need to verify updates
+
+Backward Compatibility
+~~~~~~~~~~~~~~~~~~~~~~
+
+Cache management is **opt-in**. Without ``CACHE_TTL``, databases behave exactly as before:
+
+* No automatic reloading
+* Cache valid for instance lifetime
+* Zero overhead
+
+This default behavior is optimal for:
+
+* Short-lived processes (CLI tools, serverless functions)
+* Applications where restart is acceptable for updates
+* Static content that changes infrequently
+
 Health Checks
 -------------
 
