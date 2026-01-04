@@ -128,7 +128,6 @@ lint.ignore = [
     "ANN206",  # Missing return type annotation for classmethod
     "ANN401",  # Dynamically typed expressions (Any) are disallowed
     # TODO: Fix unused function/method arguments
-    "ARG001",  # Unused function argument
     "ARG002",  # Unused method argument
 ]
 

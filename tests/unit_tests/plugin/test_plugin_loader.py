@@ -190,7 +190,7 @@ class TestPluginLoading:
 
         mock_module = mock.MagicMock()
 
-        def side_effect(app, config):
+        def side_effect(app):
             app.add_dynamic_body("Legacy plugin content")
             return app
 
