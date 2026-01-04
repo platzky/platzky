@@ -2,7 +2,7 @@ import datetime
 import warnings
 
 import humanize
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class CmsModule(BaseModel):
@@ -51,60 +51,87 @@ class Comment(BaseModel):
     Attributes:
         author: Name of the comment author
         comment: The comment text content
-        date: ISO 8601 formatted date string of when the comment was posted
+        date: Datetime when the comment was posted (timezone-aware recommended)
     """
 
     author: str
     comment: str
-    date: str  # TODO change its type to datetime
+    date: datetime.datetime
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, v):
+        """Parse date string to datetime for backward compatibility.
+
+        Handles string dates in various ISO 8601 formats for backward compatibility.
+        Emits deprecation warning when parsing strings.
+
+        In version 2.0.0, only datetime objects will be accepted.
+
+        Args:
+            v: Either a datetime object or an ISO 8601 date string
+
+        Returns:
+            Timezone-aware datetime object
+
+        Raises:
+            ValueError: If the date string cannot be parsed
+        """
+        if isinstance(v, datetime.datetime):
+            return v  # Already a datetime object
+
+        if isinstance(v, str):
+            # Emit deprecation warning for string dates
+            warnings.warn(
+                f"Passing date as string ('{v}') is deprecated. "
+                "Please use datetime objects instead. "
+                "String support will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            date_str = v.split(".")[0]  # Remove microseconds if present
+            has_timezone = "+" in v or v.endswith("Z")
+
+            if has_timezone:
+                # Parse timezone-aware datetime
+                if v.endswith("Z"):
+                    date_str_with_tz = date_str + "+00:00"
+                else:
+                    date_str_with_tz = v.split(".")[0]
+                return datetime.datetime.fromisoformat(date_str_with_tz)
+            else:
+                # Legacy format: naive datetime - make timezone-aware
+                try:
+                    parsed = datetime.datetime.fromisoformat(date_str)
+                    return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+                except ValueError:
+                    # Fallback: date-only format
+                    parsed_date = datetime.date.fromisoformat(date_str)
+                    return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
+                        tzinfo=datetime.datetime.now().astimezone().tzinfo
+                    )
+
+        return v
 
     @property
     def time_delta(self) -> str:
         """Calculate human-readable time since the comment was posted.
 
         Uses timezone-aware datetimes to ensure accurate time delta calculations.
-        Handles both legacy naive datetime format (server local time) and new
-        UTC format for backward compatibility.
-
-        TODO: Remove backward compatibility for naive datetimes in version 2.0.0.
-              All dates should be stored in UTC with timezone info.
 
         Returns:
             Human-friendly time description (e.g., "2 hours ago", "3 days ago")
         """
-        date_str = self.date.split(".")[0]  # Remove microseconds if present
-
-        # Check if date has timezone info (UTC format: ends with +00:00, Z, or contains +/-)
-        has_timezone = "+" in self.date or self.date.endswith("Z")
-
-        if has_timezone:
-            # New format: UTC timezone-aware datetime
-            # Handle both 'Z' suffix and '+00:00' format
-            if self.date.endswith("Z"):
-                date_str_with_tz = date_str + "+00:00"
-            else:
-                date_str_with_tz = self.date.split(".")[0]
-
-            date = datetime.datetime.fromisoformat(date_str_with_tz)
+        # self.date is already a datetime object (parsed by field_validator)
+        if self.date.tzinfo is not None:
+            # Timezone-aware datetime
             now = datetime.datetime.now(datetime.timezone.utc)
         else:
-            # Legacy format: naive datetime in server's local timezone
-            # Emit deprecation warning
-            warnings.warn(
-                f"Comment date '{self.date}' is in deprecated naive datetime format. "
-                "Dates should be stored in UTC with timezone info. "
-                "This backward compatibility will be removed in version 2.0.0.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            # Parse as local timezone for backward compatibility
-            date = datetime.datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").replace(
-                tzinfo=datetime.datetime.now().astimezone().tzinfo
-            )
+            # Naive datetime (shouldn't happen with the validator, but handle it)
             now = datetime.datetime.now().astimezone()
 
-        return humanize.naturaltime(now - date)
+        return humanize.naturaltime(now - self.date)
 
 
 class Post(BaseModel):
@@ -120,7 +147,7 @@ class Post(BaseModel):
         tags: List of tags for categorization
         language: Language code for the post content
         coverImage: Cover image for the post
-        date: ISO 8601 formatted date string of when the post was published
+        date: Datetime when the post was published (timezone-aware recommended)
     """
 
     author: str
@@ -132,54 +159,68 @@ class Post(BaseModel):
     tags: list[str]
     language: str
     coverImage: Image
-    date: str  # TODO: Change to datetime type in 2.0.0
+    date: datetime.datetime
 
-    @property
-    def date_parsed(self) -> datetime.datetime:
-        """Parse the date string to a datetime object for robust comparisons.
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, v):
+        """Parse date string to datetime for backward compatibility.
 
-        Handles multiple date formats for backward compatibility:
-        - "2021-02-19" (date only)
-        - "2021-02-19T00:00:00" (date with time)
-        - "2021-02-19T00:00:00+00:00" (with timezone)
-        - "2021-02-19T00:00:00Z" (UTC marker)
+        Handles string dates in various ISO 8601 formats for backward compatibility.
+        Emits deprecation warning when parsing strings.
+
+        In version 2.0.0, only datetime objects will be accepted.
+
+        Args:
+            v: Either a datetime object or an ISO 8601 date string
 
         Returns:
-            Parsed datetime object (timezone-aware if possible)
+            Timezone-aware datetime object
+
+        Raises:
+            ValueError: If the date string cannot be parsed
         """
-        date_str = self.date.split(".")[0]  # Remove microseconds if present
+        if isinstance(v, datetime.datetime):
+            return v  # Already a datetime object
 
-        # Check if date has timezone info
-        has_timezone = "+" in self.date or self.date.endswith("Z")
+        if isinstance(v, str):
+            # Emit deprecation warning for string dates
+            warnings.warn(
+                f"Passing date as string ('{v}') is deprecated. "
+                "Please use datetime objects instead. "
+                "String support will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
-        if has_timezone:
-            # Parse as timezone-aware datetime
-            if self.date.endswith("Z"):
-                date_str_with_tz = date_str + "+00:00"
+            date_str = v.split(".")[0]  # Remove microseconds if present
+            has_timezone = "+" in v or v.endswith("Z")
+
+            if has_timezone:
+                # Parse timezone-aware datetime
+                if v.endswith("Z"):
+                    date_str_with_tz = date_str + "+00:00"
+                else:
+                    date_str_with_tz = v.split(".")[0]
+                return datetime.datetime.fromisoformat(date_str_with_tz)
             else:
-                # Already has timezone offset
-                date_str_with_tz = self.date.split(".")[0]
+                # Legacy format: naive datetime - make timezone-aware
+                try:
+                    parsed = datetime.datetime.fromisoformat(date_str)
+                    return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+                except ValueError:
+                    # Fallback: date-only format
+                    parsed_date = datetime.date.fromisoformat(date_str)
+                    return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
+                        tzinfo=datetime.datetime.now().astimezone().tzinfo
+                    )
 
-            return datetime.datetime.fromisoformat(date_str_with_tz)
-        else:
-            # Naive format - try to parse with fromisoformat (handles most ISO formats)
-            try:
-                parsed = datetime.datetime.fromisoformat(date_str)
-                # Make timezone-aware using local timezone for backward compatibility
-                return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
-            except ValueError:
-                # Fallback: try parsing as date-only format
-                parsed_date = datetime.date.fromisoformat(date_str)
-                # Convert to datetime at midnight, local timezone
-                return datetime.datetime.combine(
-                    parsed_date, datetime.time.min
-                ).replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+        return v
 
     def __lt__(self, other):
         """Compare posts by date for sorting.
 
-        Uses datetime comparison instead of string comparison to ensure robust
-        and correct ordering regardless of date format variations.
+        Uses datetime comparison to ensure robust and correct ordering.
 
         Args:
             other: Another Post instance to compare against
@@ -191,7 +232,7 @@ class Post(BaseModel):
             NotImplementedError: If comparing with a non-Post object
         """
         if isinstance(other, Post):
-            return self.date_parsed < other.date_parsed
+            return self.date < other.date
         raise NotImplementedError("Posts can only be compared with other posts")
 
 
