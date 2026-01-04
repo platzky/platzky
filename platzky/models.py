@@ -5,6 +5,61 @@ import humanize
 from pydantic import BaseModel, field_validator
 
 
+def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
+    """Parse date string to datetime for backward compatibility.
+
+    Handles string dates in various ISO 8601 formats for backward compatibility.
+    Emits deprecation warning when parsing strings.
+
+    In version 2.0.0, only datetime objects will be accepted.
+
+    Args:
+        v: Either a datetime object or an ISO 8601 date string
+
+    Returns:
+        Timezone-aware datetime object
+
+    Raises:
+        ValueError: If the date string cannot be parsed
+    """
+    if isinstance(v, datetime.datetime):
+        return v  # Already a datetime object
+
+    if isinstance(v, str):
+        # Emit deprecation warning for string dates
+        warnings.warn(
+            f"Passing date as string ('{v}') is deprecated. "
+            "Please use datetime objects instead. "
+            "String support will be removed in version 2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        date_str = v.split(".")[0]  # Remove microseconds if present
+        has_timezone = "+" in v or v.endswith("Z")
+
+        if has_timezone:
+            # Parse timezone-aware datetime
+            if v.endswith("Z"):
+                date_str_with_tz = date_str + "+00:00"
+            else:
+                date_str_with_tz = v.split(".")[0]
+            return datetime.datetime.fromisoformat(date_str_with_tz)
+        else:
+            # Legacy format: naive datetime - make timezone-aware
+            try:
+                parsed = datetime.datetime.fromisoformat(date_str)
+                return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+            except ValueError:
+                # Fallback: date-only format
+                parsed_date = datetime.date.fromisoformat(date_str)
+                return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
+                    tzinfo=datetime.datetime.now().astimezone().tzinfo
+                )
+
+    return v
+
+
 class CmsModule(BaseModel):
     """Represents a CMS module with basic metadata."""
 
@@ -60,59 +115,12 @@ class Comment(BaseModel):
 
     @field_validator("date", mode="before")
     @classmethod
-    def parse_date(cls, v):
+    def parse_date(cls, v) -> datetime.datetime:
         """Parse date string to datetime for backward compatibility.
 
-        Handles string dates in various ISO 8601 formats for backward compatibility.
-        Emits deprecation warning when parsing strings.
-
-        In version 2.0.0, only datetime objects will be accepted.
-
-        Args:
-            v: Either a datetime object or an ISO 8601 date string
-
-        Returns:
-            Timezone-aware datetime object
-
-        Raises:
-            ValueError: If the date string cannot be parsed
+        See _parse_date_string for implementation details.
         """
-        if isinstance(v, datetime.datetime):
-            return v  # Already a datetime object
-
-        if isinstance(v, str):
-            # Emit deprecation warning for string dates
-            warnings.warn(
-                f"Passing date as string ('{v}') is deprecated. "
-                "Please use datetime objects instead. "
-                "String support will be removed in version 2.0.0.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            date_str = v.split(".")[0]  # Remove microseconds if present
-            has_timezone = "+" in v or v.endswith("Z")
-
-            if has_timezone:
-                # Parse timezone-aware datetime
-                if v.endswith("Z"):
-                    date_str_with_tz = date_str + "+00:00"
-                else:
-                    date_str_with_tz = v.split(".")[0]
-                return datetime.datetime.fromisoformat(date_str_with_tz)
-            else:
-                # Legacy format: naive datetime - make timezone-aware
-                try:
-                    parsed = datetime.datetime.fromisoformat(date_str)
-                    return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
-                except ValueError:
-                    # Fallback: date-only format
-                    parsed_date = datetime.date.fromisoformat(date_str)
-                    return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
-                        tzinfo=datetime.datetime.now().astimezone().tzinfo
-                    )
-
-        return v
+        return _parse_date_string(v)
 
     @property
     def time_delta(self) -> str:
@@ -164,61 +172,14 @@ class Post(BaseModel):
 
     @field_validator("date", mode="before")
     @classmethod
-    def parse_date(cls, v):
+    def parse_date(cls, v) -> datetime.datetime:
         """Parse date string to datetime for backward compatibility.
 
-        Handles string dates in various ISO 8601 formats for backward compatibility.
-        Emits deprecation warning when parsing strings.
-
-        In version 2.0.0, only datetime objects will be accepted.
-
-        Args:
-            v: Either a datetime object or an ISO 8601 date string
-
-        Returns:
-            Timezone-aware datetime object
-
-        Raises:
-            ValueError: If the date string cannot be parsed
+        See _parse_date_string for implementation details.
         """
-        if isinstance(v, datetime.datetime):
-            return v  # Already a datetime object
+        return _parse_date_string(v)
 
-        if isinstance(v, str):
-            # Emit deprecation warning for string dates
-            warnings.warn(
-                f"Passing date as string ('{v}') is deprecated. "
-                "Please use datetime objects instead. "
-                "String support will be removed in version 2.0.0.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            date_str = v.split(".")[0]  # Remove microseconds if present
-            has_timezone = "+" in v or v.endswith("Z")
-
-            if has_timezone:
-                # Parse timezone-aware datetime
-                if v.endswith("Z"):
-                    date_str_with_tz = date_str + "+00:00"
-                else:
-                    date_str_with_tz = v.split(".")[0]
-                return datetime.datetime.fromisoformat(date_str_with_tz)
-            else:
-                # Legacy format: naive datetime - make timezone-aware
-                try:
-                    parsed = datetime.datetime.fromisoformat(date_str)
-                    return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
-                except ValueError:
-                    # Fallback: date-only format
-                    parsed_date = datetime.date.fromisoformat(date_str)
-                    return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
-                        tzinfo=datetime.datetime.now().astimezone().tzinfo
-                    )
-
-        return v
-
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.
 
         Uses datetime comparison to ensure robust and correct ordering.

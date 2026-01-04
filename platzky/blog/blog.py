@@ -3,6 +3,7 @@ from os.path import dirname
 from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
+from werkzeug.wrappers import Response
 
 from . import comment_form
 
@@ -33,7 +34,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         return render_template("404.html", title="404"), 404
 
     @blog.route("/", methods=["GET"])
-    def all_posts():
+    def all_posts() -> str:
         lang = locale_func()
         posts = db.get_all_posts(lang)
         if not posts:
@@ -42,14 +43,14 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         return render_template("blog.html", posts=posts_sorted)
 
     @blog.route("/feed", methods=["GET"])
-    def get_feed():
+    def get_feed() -> Response:
         lang = locale_func()
         response = make_response(render_template("feed.xml", posts=db.get_all_posts(lang)))
         response.headers["Content-Type"] = "application/xml"
         return response
 
     @blog.route("/<post_slug>", methods=["POST"])
-    def post_comment(post_slug):
+    def post_comment(post_slug: str) -> str:
         comment = request.form.to_dict()
         db.add_comment(
             post_slug=post_slug,
@@ -59,7 +60,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         return get_post(post_slug=post_slug)
 
     @blog.route("/<post_slug>", methods=["GET"])
-    def get_post(post_slug):
+    def get_post(post_slug: str) -> str:
         try:
             post = db.get_post(post_slug)
             return render_template(
@@ -75,9 +76,8 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
             abort(404)
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
-    def get_page(
-        page_slug,
-    ):  # TODO refactor to share code with get_post since they are very similar
+    def get_page(page_slug: str) -> str:
+        # TODO refactor to share code with get_post since they are very similar
         try:
             page = db.get_page(page_slug)
             if cover_image := page.coverImage:
@@ -91,7 +91,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
             abort(404)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
-    def get_posts_from_tag(tag):
+    def get_posts_from_tag(tag: str) -> str:
         lang = locale_func()
         posts = db.get_posts_by_tag(tag, lang)
         return render_template("blog.html", posts=posts, subtitle=f" - tag: {tag}")
