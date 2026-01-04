@@ -1,6 +1,7 @@
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel

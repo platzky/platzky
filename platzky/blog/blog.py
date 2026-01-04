@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Callable
 from os.path import dirname
-from typing import Any, Callable
+from typing import Any
 
 from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup

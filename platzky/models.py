@@ -185,14 +185,12 @@ class Post(BaseModel):
             other: Another Post instance to compare against
 
         Returns:
-            True if this post's date is earlier than the other post's date
-
-        Raises:
-            NotImplementedError: If comparing with a non-Post object
+            True if this post's date is earlier than the other post's date,
+            or NotImplemented if comparing with a non-Post object
         """
         if isinstance(other, Post):
             return self.date < other.date
-        raise NotImplementedError("Posts can only be compared with other posts")
+        return NotImplemented
 
 
 Page = Post  # Page is an alias for Post (static pages use the same structure)

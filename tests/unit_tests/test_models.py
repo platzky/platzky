@@ -48,7 +48,7 @@ def test_that_posts_cant_be_compared_with_other_types():
         date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
     )
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(TypeError):
         _ = post < 1
 
 

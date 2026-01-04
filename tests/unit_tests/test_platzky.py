@@ -1,5 +1,6 @@
 import re
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
