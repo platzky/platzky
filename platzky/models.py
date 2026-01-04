@@ -36,24 +36,29 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
         stacklevel=2,
     )
 
-    date_str = v.split(".")[0]  # Remove microseconds if present
-    has_timezone = "+" in v or v.endswith("Z")
+    # Check for timezone in the original string (before any manipulation)
+    # Check for: +HH:MM, -HH:MM, or Z suffix
+    time_part = v.split("T")[-1] if "T" in v else ""
+    has_timezone = (
+        v.endswith("Z")
+        or "+" in time_part
+        or ("-" in time_part and ":" in time_part.split("-")[-1])
+    )
+
+    # Normalize 'Z' suffix to '+00:00' for fromisoformat
+    normalized = v.replace("Z", "+00:00") if v.endswith("Z") else v
 
     if has_timezone:
-        # Parse timezone-aware datetime
-        if v.endswith("Z"):
-            date_str_with_tz = date_str + "+00:00"
-        else:
-            date_str_with_tz = v.split(".")[0]
-        return datetime.datetime.fromisoformat(date_str_with_tz)
+        # Parse timezone-aware datetime (handles microseconds automatically)
+        return datetime.datetime.fromisoformat(normalized)
     else:
         # Legacy format: naive datetime - make timezone-aware
         try:
-            parsed = datetime.datetime.fromisoformat(date_str)
+            parsed = datetime.datetime.fromisoformat(normalized)
             return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
         except ValueError:
             # Fallback: date-only format
-            parsed_date = datetime.date.fromisoformat(date_str)
+            parsed_date = datetime.date.fromisoformat(normalized)
             return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
                 tzinfo=datetime.datetime.now().astimezone().tzinfo
             )

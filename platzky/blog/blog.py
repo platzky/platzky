@@ -63,6 +63,8 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
     def get_post(post_slug: str) -> str:
         try:
             post = db.get_post(post_slug)
+            if post is None:
+                abort(404)
             return render_template(
                 "post.html",
                 post=post,
@@ -78,6 +80,8 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         # TODO refactor to share code with get_post since they are very similar
         try:
             page = db.get_page(page_slug)
+            if page is None:
+                abort(404)
             if cover_image := page.coverImage:
                 cover_image_url = cover_image.url
             else:

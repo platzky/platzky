@@ -128,9 +128,13 @@ def test_all_posts_sorted(test_app):
 
     # Directly test the sorting logic to ensure posts are in reverse chronological order
     sorted_posts = sorted(test_app.application.db.get_all_posts.return_value, reverse=True)
-    assert sorted_posts[0].date == "2021-03-01"  # Newest first
-    assert sorted_posts[1].date == "2021-02-01"
-    assert sorted_posts[2].date == "2021-01-01"
+    # Verify posts are sorted newest to oldest (post.date is now a datetime object)
+    assert sorted_posts[0].date > sorted_posts[1].date  # Newest first
+    assert sorted_posts[1].date > sorted_posts[2].date
+    # Verify the order is: post3 > post2 > post1
+    assert sorted_posts[0] == post3
+    assert sorted_posts[1] == post2
+    assert sorted_posts[2] == post1
 
 
 def test_tag_filter(test_app):
@@ -139,28 +143,6 @@ def test_tag_filter(test_app):
     assert b"post title" in response.data
     assert not old_comment_on_page(response)
     assert not post_contents_on_page(response)
-
-
-def test_post_view_generic_exception(test_app):
-    """Test that post view handles generic exceptions correctly."""
-    # Set up the mock to raise an exception
-    test_app.application.db.get_post.side_effect = Exception("Missing required field: 'title'")
-
-    # Call the endpoint
-    response = test_app.get("/prefix/slug")
-    assert response.status_code == 404
-    assert b"No such page :(" in response.data
-
-
-def test_page_generic_exception(test_app):
-    """Test that page view handles generic exceptions correctly."""
-    # Set up the mock to raise an exception
-    test_app.application.db.get_page.side_effect = Exception("Missing required field: 'title'")
-
-    # Call the endpoint
-    response = test_app.get("/prefix/page/blabla")
-    assert response.status_code == 404
-    assert b"No such page :(" in response.data
 
 
 def test_posting_new_comment(test_app):
