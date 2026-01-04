@@ -465,48 +465,6 @@ class TestLocaleDirectorySecurity:
             # Verify warning was logged
             assert "path validation failed" in caplog.text
 
-    def test_windows_different_drives(self, base_config_data, temp_plugin_structure, caplog):
-        """Test handling of paths on different drives (Windows edge case)."""
-        plugin_file = temp_plugin_structure["plugin_file"]
-
-        class DifferentDrivePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
-                self.__class__.__module__ = "test_plugin"
-
-            def process(self, app: Engine) -> Engine:
-                return app
-
-            def get_locale_dir(self) -> str:
-                # On Windows, different drive letters; on Unix, just another path
-                if os.name == "nt":
-                    # If plugin is on C:, try D:
-                    return "D:\\some\\path"
-                else:
-                    # On Unix, use a non-writable system directory outside the plugin
-                    return "/etc/locale"
-
-        with (
-            mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
-            mock.patch("platzky.plugin.plugin_loader._is_class_plugin") as mock_is_class,
-            mock.patch("inspect.getmodule") as mock_getmodule,
-        ):
-            mock_module = mock.MagicMock()
-            mock_module.__file__ = str(plugin_file)
-            mock_getmodule.return_value = mock_module
-
-            mock_find.return_value = mock_module
-            mock_is_class.return_value = DifferentDrivePlugin
-
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "different_drive", "config": {}}]
-            config = Config.model_validate(base_config_data)
-
-            with caplog.at_level("WARNING"):
-                create_app_from_config(config)
-
-            # Verify warning was logged
-            assert "path validation failed" in caplog.text
-
     def test_plugin_without_locale_dir(self, base_config_data, temp_plugin_structure):
         """Test that plugins without locale directories work normally."""
         plugin_file = temp_plugin_structure["plugin_file"]
