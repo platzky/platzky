@@ -2,6 +2,7 @@ from os.path import dirname
 
 from flask import Blueprint, make_response, render_template, request
 from markupsafe import Markup
+from werkzeug.exceptions import HTTPException
 
 from . import comment_form
 
@@ -20,7 +21,15 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         return Markup(text)
 
     @blog.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(_e: HTTPException) -> tuple[str, int]:
+        """Handle 404 Not Found errors in blog routes.
+
+        Args:
+            _e: HTTPException object containing error details (unused)
+
+        Returns:
+            Tuple of rendered 404 template and HTTP 404 status code
+        """
         return render_template("404.html", title="404"), 404
 
     @blog.route("/", methods=["GET"])

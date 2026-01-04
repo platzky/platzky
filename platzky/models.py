@@ -132,10 +132,54 @@ class Post(BaseModel):
     tags: list[str]
     language: str
     coverImage: Image
-    date: str
+    date: str  # TODO: Change to datetime type in 2.0.0
+
+    @property
+    def date_parsed(self) -> datetime.datetime:
+        """Parse the date string to a datetime object for robust comparisons.
+
+        Handles multiple date formats for backward compatibility:
+        - "2021-02-19" (date only)
+        - "2021-02-19T00:00:00" (date with time)
+        - "2021-02-19T00:00:00+00:00" (with timezone)
+        - "2021-02-19T00:00:00Z" (UTC marker)
+
+        Returns:
+            Parsed datetime object (timezone-aware if possible)
+        """
+        date_str = self.date.split(".")[0]  # Remove microseconds if present
+
+        # Check if date has timezone info
+        has_timezone = "+" in self.date or self.date.endswith("Z")
+
+        if has_timezone:
+            # Parse as timezone-aware datetime
+            if self.date.endswith("Z"):
+                date_str_with_tz = date_str + "+00:00"
+            else:
+                # Already has timezone offset
+                date_str_with_tz = self.date.split(".")[0]
+
+            return datetime.datetime.fromisoformat(date_str_with_tz)
+        else:
+            # Naive format - try to parse with fromisoformat (handles most ISO formats)
+            try:
+                parsed = datetime.datetime.fromisoformat(date_str)
+                # Make timezone-aware using local timezone for backward compatibility
+                return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+            except ValueError:
+                # Fallback: try parsing as date-only format
+                parsed_date = datetime.date.fromisoformat(date_str)
+                # Convert to datetime at midnight, local timezone
+                return datetime.datetime.combine(
+                    parsed_date, datetime.time.min
+                ).replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
 
     def __lt__(self, other):
         """Compare posts by date for sorting.
+
+        Uses datetime comparison instead of string comparison to ensure robust
+        and correct ordering regardless of date format variations.
 
         Args:
             other: Another Post instance to compare against
@@ -147,7 +191,7 @@ class Post(BaseModel):
             NotImplementedError: If comparing with a non-Post object
         """
         if isinstance(other, Post):
-            return self.date < other.date
+            return self.date_parsed < other.date_parsed
         raise NotImplementedError("Posts can only be compared with other posts")
 
 

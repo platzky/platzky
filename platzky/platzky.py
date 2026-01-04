@@ -4,6 +4,7 @@ import urllib.parse
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
+from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -163,11 +164,11 @@ def create_engine(config: Config, db: DB) -> Engine:
         return {"dynamic_head": app.dynamic_head}
 
     @app.errorhandler(404)
-    def page_not_found(_e: Exception) -> tuple[str, int]:
+    def page_not_found(_e: HTTPException) -> tuple[str, int]:
         """Handle 404 Not Found errors.
 
         Args:
-            _e: Exception object containing error details (unused)
+            _e: HTTPException object containing error details (unused)
 
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
