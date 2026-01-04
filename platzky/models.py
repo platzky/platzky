@@ -144,14 +144,8 @@ class Comment(BaseModel):
             Human-friendly time description (e.g., "2 hours ago", "3 days ago")
         """
         # self.date is already a datetime object (parsed by field_validator)
-        if self.date.tzinfo is not None:
-            # Timezone-aware datetime
-            now = datetime.datetime.now(datetime.timezone.utc)
-        else:
-            # Naive datetime (shouldn't happen with the validator, but handle it)
-            # Use naive datetime to avoid TypeError on subtraction
-            now = datetime.datetime.now(datetime.timezone.utc)
-
+        # Always use timezone-aware datetime for consistency
+        now = datetime.datetime.now(datetime.timezone.utc)
         return humanize.naturaltime(now - self.date)
 
 
