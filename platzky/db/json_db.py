@@ -101,10 +101,15 @@ class Json(DB):
         return self._get_site_content().get("secondary_color", "navy")
 
     def add_comment(self, author_name, comment, post_slug):
+        # Store dates in UTC with timezone info for consistency with MongoDB backend
+        # This ensures accurate time delta calculations regardless of server timezone
+        # Legacy dates without timezone info are still supported for backward compatibility
+        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
         comment = {
             "author": str(author_name),
             "comment": str(comment),
-            "date": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "date": now_utc,
         }
 
         post_index = next(

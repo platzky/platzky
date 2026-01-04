@@ -1,4 +1,5 @@
 import datetime
+import warnings
 
 import humanize
 from pydantic import BaseModel
@@ -61,11 +62,48 @@ class Comment(BaseModel):
     def time_delta(self) -> str:
         """Calculate human-readable time since the comment was posted.
 
+        Uses timezone-aware datetimes to ensure accurate time delta calculations.
+        Handles both legacy naive datetime format (server local time) and new
+        UTC format for backward compatibility.
+
+        TODO: Remove backward compatibility for naive datetimes in version 2.0.0.
+              All dates should be stored in UTC with timezone info.
+
         Returns:
             Human-friendly time description (e.g., "2 hours ago", "3 days ago")
         """
-        now = datetime.datetime.now()
-        date = datetime.datetime.strptime(self.date.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+        date_str = self.date.split(".")[0]  # Remove microseconds if present
+
+        # Check if date has timezone info (UTC format: ends with +00:00, Z, or contains +/-)
+        has_timezone = "+" in self.date or self.date.endswith("Z")
+
+        if has_timezone:
+            # New format: UTC timezone-aware datetime
+            # Handle both 'Z' suffix and '+00:00' format
+            if self.date.endswith("Z"):
+                date_str_with_tz = date_str + "+00:00"
+            else:
+                date_str_with_tz = self.date.split(".")[0]
+
+            date = datetime.datetime.fromisoformat(date_str_with_tz)
+            now = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            # Legacy format: naive datetime in server's local timezone
+            # Emit deprecation warning
+            warnings.warn(
+                f"Comment date '{self.date}' is in deprecated naive datetime format. "
+                "Dates should be stored in UTC with timezone info. "
+                "This backward compatibility will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            # Parse as local timezone for backward compatibility
+            date = datetime.datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S").replace(
+                tzinfo=datetime.datetime.now().astimezone().tzinfo
+            )
+            now = datetime.datetime.now().astimezone()
+
         return humanize.naturaltime(now - date)
 
 
