@@ -123,7 +123,7 @@ class TestJsonDb:
         with pytest.raises(ValueError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
-    def test_get_post_missing_data(self, db):
+    def test_get_post_missing_data(self):
         db_without_posts = Json({"site_content": {}})
         with pytest.raises(ValueError, match="Posts data is missing"):
             db_without_posts.get_post("any-slug")

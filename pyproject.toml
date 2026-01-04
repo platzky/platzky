@@ -126,9 +126,7 @@ lint.ignore = [
     "ANN202",  # Missing return type annotation for private function
     "ANN204",  # Missing return type annotation for special method
     "ANN206",  # Missing return type annotation for classmethod
-    "ANN401",  # Dynamically typed expressions (Any) are disallowed
-    # TODO: Fix unused function/method arguments
-    "ARG002",  # Unused method argument
+    "ANN401"  # Dynamically typed expressions (Any) are disallowed
 ]
 
 [tool.pytest.ini_options]

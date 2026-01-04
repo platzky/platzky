@@ -61,6 +61,7 @@ class TestPluginErrors:
                 self.config = config
 
             def process(self, app: Engine) -> Engine:
+                app.dynamic_body += "This will fail"
                 raise RuntimeError("Plugin execution failed")
 
         mock_module = mock.MagicMock()
