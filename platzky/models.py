@@ -2,7 +2,7 @@ import datetime
 import warnings
 
 import humanize
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
@@ -211,29 +211,7 @@ class Color(BaseModel):
         a: Alpha/transparency component (0-255, where 255 is fully opaque)
     """
 
-    def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: int = 255):
-        """Initialize a Color with RGBA values.
-
-        Args:
-            r: Red component (0-255), defaults to 0
-            g: Green component (0-255), defaults to 0
-            b: Blue component (0-255), defaults to 0
-            a: Alpha component (0-255), defaults to 255
-
-        Raises:
-            ValueError: If any component is outside the valid range (0-255)
-        """
-        if not (0 <= r <= 255):
-            raise ValueError("r must be between 0 and 255")
-        if not (0 <= g <= 255):
-            raise ValueError("g must be between 0 and 255")
-        if not (0 <= b <= 255):
-            raise ValueError("b must be between 0 and 255")
-        if not (0 <= a <= 255):
-            raise ValueError("a must be between 0 and 255")
-        super().__init__(r=r, g=g, b=b, a=a)
-
-    r: int
-    g: int
-    b: int
-    a: int
+    r: int = Field(default=0, ge=0, le=255, description="Red component (0-255)")
+    g: int = Field(default=0, ge=0, le=255, description="Green component (0-255)")
+    b: int = Field(default=0, ge=0, le=255, description="Blue component (0-255)")
+    a: int = Field(default=255, ge=0, le=255, description="Alpha component (0-255, where 255 is fully opaque)")

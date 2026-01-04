@@ -72,8 +72,6 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
             )
         except ValueError:
             abort(404)
-        except Exception:
-            abort(404)
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(page_slug: str) -> str:
@@ -86,8 +84,6 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
                 cover_image_url = None
             return render_template("page.html", page=page, cover_image=cover_image_url)
         except ValueError:
-            abort(404)
-        except Exception:
             abort(404)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
