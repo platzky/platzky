@@ -59,32 +59,41 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         )
         return get_post(post_slug=post_slug)
 
+    def _get_content_or_404(getter_func, slug, *exception_types):
+        """Helper to fetch content from database or abort with 404.
+
+        Args:
+            getter_func: Database getter function (e.g., db.get_post, db.get_page)
+            slug: Content slug to fetch
+            *exception_types: Exception types that indicate content not found
+
+        Returns:
+            The fetched content object
+
+        Raises:
+            HTTPException: 404 if content not found
+        """
+        try:
+            return getter_func(slug)
+        except exception_types:
+            abort(404)
+
     @blog.route("/<post_slug>", methods=["GET"])
     def get_post(post_slug: str) -> str:
-        try:
-            post = db.get_post(post_slug)
-            return render_template(
-                "post.html",
-                post=post,
-                post_slug=post_slug,
-                form=comment_form.CommentForm(),
-                comment_sent=request.args.get("comment_sent"),
-            )
-        except ValueError:  # db.get_post raises ValueError when post not found
-            abort(404)
+        post = _get_content_or_404(db.get_post, post_slug, ValueError)
+        return render_template(
+            "post.html",
+            post=post,
+            post_slug=post_slug,
+            form=comment_form.CommentForm(),
+            comment_sent=request.args.get("comment_sent"),
+        )
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(page_slug: str) -> str:
-        # TODO refactor to share code with get_post since they are very similar
-        try:
-            page = db.get_page(page_slug)
-            if cover_image := page.coverImage:
-                cover_image_url = cover_image.url
-            else:
-                cover_image_url = None
-            return render_template("page.html", page=page, cover_image=cover_image_url)
-        except (StopIteration, ValueError):  # db.get_page raises StopIteration when page not found
-            abort(404)
+        page = _get_content_or_404(db.get_page, page_slug, StopIteration, ValueError)
+        cover_image_url = page.coverImage.url if page.coverImage else None
+        return render_template("page.html", page=page, cover_image=cover_image_url)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:
