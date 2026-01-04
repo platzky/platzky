@@ -14,7 +14,7 @@ def test_posts_are_sorted_by_date():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-19",
+        date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
     )
 
     newer_post = Post(
@@ -27,7 +27,7 @@ def test_posts_are_sorted_by_date():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-20",
+        date="2021-02-20",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
     )
 
     assert older_post < newer_post
@@ -44,7 +44,7 @@ def test_that_posts_cant_be_compared_with_other_types():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-19",
+        date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
     )
 
     with pytest.raises(NotImplementedError):

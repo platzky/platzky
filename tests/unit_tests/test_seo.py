@@ -30,7 +30,7 @@ def test_sitemap():
             slug="slug",
             tags=["tag/1"],
             contentInMarkdown="content",
-            date="2021-02-19",
+            date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
             author="author",
             excerpt="excerpt",
             coverImage=Image(
@@ -39,7 +39,7 @@ def test_sitemap():
             ),
             comments=[
                 Comment(
-                    date="2021-02-19T00:00:00",
+                    date="2021-02-19T00:00:00",  # type: ignore[arg-type]  # Testing backward compatibility
                     comment="komentarz",
                     author="autor",
                 )

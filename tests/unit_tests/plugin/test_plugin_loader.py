@@ -1,7 +1,6 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 from unittest import mock
 
 import pytest
@@ -483,8 +482,8 @@ class TestLocaleDirectorySecurity:
                     # If plugin is on C:, try D:
                     return "D:\\some\\path"
                 else:
-                    # On Unix, use a directory path outside the plugin
-                    return "/tmp"
+                    # On Unix, use a non-writable system directory outside the plugin
+                    return "/etc/locale"
 
         with (
             mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,

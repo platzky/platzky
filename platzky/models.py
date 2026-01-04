@@ -1,8 +1,9 @@
 import datetime
 import warnings
+from typing import Annotated
 
 import humanize
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, Field
 
 
 def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
@@ -25,39 +26,47 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
     if isinstance(v, datetime.datetime):
         return v  # Already a datetime object
 
-    if isinstance(v, str):
-        # Emit deprecation warning for string dates
-        warnings.warn(
-            f"Passing date as string ('{v}') is deprecated. "
-            "Please use datetime objects instead. "
-            "String support will be removed in version 2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+    # v must be a string (based on type annotation)
+    # Emit deprecation warning for string dates
+    warnings.warn(
+        f"Passing date as string ('{v}') is deprecated. "
+        "Please use datetime objects instead. "
+        "String support will be removed in version 2.0.0.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-        date_str = v.split(".")[0]  # Remove microseconds if present
-        has_timezone = "+" in v or v.endswith("Z")
+    date_str = v.split(".")[0]  # Remove microseconds if present
+    has_timezone = "+" in v or v.endswith("Z")
 
-        if has_timezone:
-            # Parse timezone-aware datetime
-            if v.endswith("Z"):
-                date_str_with_tz = date_str + "+00:00"
-            else:
-                date_str_with_tz = v.split(".")[0]
-            return datetime.datetime.fromisoformat(date_str_with_tz)
+    if has_timezone:
+        # Parse timezone-aware datetime
+        if v.endswith("Z"):
+            date_str_with_tz = date_str + "+00:00"
         else:
-            # Legacy format: naive datetime - make timezone-aware
-            try:
-                parsed = datetime.datetime.fromisoformat(date_str)
-                return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
-            except ValueError:
-                # Fallback: date-only format
-                parsed_date = datetime.date.fromisoformat(date_str)
-                return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
-                    tzinfo=datetime.datetime.now().astimezone().tzinfo
-                )
+            date_str_with_tz = v.split(".")[0]
+        return datetime.datetime.fromisoformat(date_str_with_tz)
+    else:
+        # Legacy format: naive datetime - make timezone-aware
+        try:
+            parsed = datetime.datetime.fromisoformat(date_str)
+            return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+        except ValueError:
+            # Fallback: date-only format
+            parsed_date = datetime.date.fromisoformat(date_str)
+            return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
+                tzinfo=datetime.datetime.now().astimezone().tzinfo
+            )
 
-    return v
+
+# Type alias for datetime fields that accept strings for backward compatibility
+# Input: str | datetime.datetime
+# Output (after validation): datetime.datetime
+DateTimeField = Annotated[
+    datetime.datetime,
+    BeforeValidator(_parse_date_string),
+    # This allows str at the type-checker level while ensuring datetime after validation
+]
 
 
 class CmsModule(BaseModel):
@@ -111,16 +120,7 @@ class Comment(BaseModel):
 
     author: str
     comment: str
-    date: datetime.datetime
-
-    @field_validator("date", mode="before")
-    @classmethod
-    def parse_date(cls, v) -> datetime.datetime:
-        """Parse date string to datetime for backward compatibility.
-
-        See _parse_date_string for implementation details.
-        """
-        return _parse_date_string(v)
+    date: DateTimeField
 
     @property
     def time_delta(self) -> str:
@@ -168,16 +168,7 @@ class Post(BaseModel):
     tags: list[str]
     language: str
     coverImage: Image
-    date: datetime.datetime
-
-    @field_validator("date", mode="before")
-    @classmethod
-    def parse_date(cls, v) -> datetime.datetime:
-        """Parse date string to datetime for backward compatibility.
-
-        See _parse_date_string for implementation details.
-        """
-        return _parse_date_string(v)
+    date: DateTimeField
 
     def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.
@@ -214,4 +205,6 @@ class Color(BaseModel):
     r: int = Field(default=0, ge=0, le=255, description="Red component (0-255)")
     g: int = Field(default=0, ge=0, le=255, description="Green component (0-255)")
     b: int = Field(default=0, ge=0, le=255, description="Blue component (0-255)")
-    a: int = Field(default=255, ge=0, le=255, description="Alpha component (0-255, where 255 is fully opaque)")
+    a: int = Field(
+        default=255, ge=0, le=255, description="Alpha component (0-255, where 255 is fully opaque)"
+    )
