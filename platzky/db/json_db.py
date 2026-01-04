@@ -62,7 +62,11 @@ class Json(DB):
         list_of_pages = (
             page for page in self._get_site_content().get("pages") if page["slug"] == slug
         )
-        page = Post.model_validate(next(list_of_pages))
+        # FIX: Use default value to prevent StopIteration leak (PEP 479)
+        wanted_page = next(list_of_pages, None)
+        if wanted_page is None:
+            raise ValueError(f"Page with slug {slug} not found")
+        page = Post.model_validate(wanted_page)
         return page
 
     def get_menu_items_in_lang(self, lang) -> list[MenuItem]:

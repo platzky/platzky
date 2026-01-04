@@ -1,3 +1,4 @@
+import logging
 from os.path import dirname
 from typing import Any, Callable
 
@@ -7,6 +8,8 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
 from . import comment_form
+
+logger = logging.getLogger(__name__)
 
 
 def create_blog_blueprint(db, blog_prefix: str, locale_func):
@@ -80,7 +83,9 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         """
         try:
             return getter_func(slug)
-        except exception_types:
+        except exception_types as e:
+            # IMPROVEMENT: Log the error for debugging
+            logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
     @blog.route("/<post_slug>", methods=["GET"])
@@ -96,7 +101,8 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(page_slug: str) -> str:
-        page = _get_content_or_404(db.get_page, page_slug, StopIteration, ValueError)
+        # FIX: db.get_page() now raises ValueError instead of StopIteration
+        page = _get_content_or_404(db.get_page, page_slug, ValueError)
         cover_image_url = page.coverImage.url if page.coverImage else None
         return render_template("page.html", page=page, cover_image=cover_image_url)
 

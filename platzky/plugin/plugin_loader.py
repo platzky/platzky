@@ -108,17 +108,26 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bo
     if module is None or not hasattr(module, "__file__") or module.__file__ is None:
         return False
 
+    # SECURITY FIX 1: Check for path traversal (..) BEFORE resolving
+    # This prevents path components like "../../../etc/passwd"
+    normalized_path = os.path.normpath(locale_dir)
+    if ".." in normalized_path.split(os.sep):
+        logger.warning("Rejected locale path with .. components: %s", locale_dir)
+        return False
+
     # Get canonical paths (resolve symlinks)
     locale_path = os.path.realpath(locale_dir)
     module_path = os.path.realpath(os.path.dirname(module.__file__))
 
-    # Verify locale_dir is within the plugin's module directory
-    try:
-        common_path = os.path.commonpath([locale_path, module_path])
-        return common_path == module_path
-    except ValueError:
-        # Paths are on different drives (Windows) or one is relative
-        return False
+    # SECURITY FIX 2: Use startswith instead of commonpath
+    # Ensure trailing separator to prevent partial matches
+    # (e.g., /plugin vs /plugin_evil)
+    if not locale_path.startswith(module_path + os.sep):
+        # Also check if they're exactly equal (no trailing separator)
+        if locale_path != module_path:
+            return False
+
+    return True
 
 
 def _register_plugin_locale(

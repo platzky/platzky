@@ -52,15 +52,22 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
         # Parse timezone-aware datetime (handles microseconds automatically)
         return datetime.datetime.fromisoformat(normalized)
     else:
-        # Legacy format: naive datetime - make timezone-aware
+        # Legacy format: naive datetime - make timezone-aware using UTC
+        # SECURITY FIX: Use UTC instead of server local timezone for predictability
+        warnings.warn(
+            f"Naive datetime '{v}' interpreted as UTC. "
+            "Explicitly specify timezone in future versions for clarity.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
         try:
             parsed = datetime.datetime.fromisoformat(normalized)
-            return parsed.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
+            return parsed.replace(tzinfo=datetime.timezone.utc)
         except ValueError:
             # Fallback: date-only format
             parsed_date = datetime.date.fromisoformat(normalized)
-            return datetime.datetime.combine(parsed_date, datetime.time.min).replace(
-                tzinfo=datetime.datetime.now().astimezone().tzinfo
+            return datetime.datetime.combine(
+                parsed_date, datetime.time.min, tzinfo=datetime.timezone.utc
             )
 
 

@@ -135,7 +135,8 @@ class TestJsonDb:
         assert page.slug == "page-1"
 
     def test_get_page_not_found(self, db):
-        with pytest.raises(StopIteration):
+        # FIX: db.get_page() now raises ValueError instead of StopIteration (PEP 479)
+        with pytest.raises(ValueError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
     def test_get_menu_items_in_lang(self, db):
