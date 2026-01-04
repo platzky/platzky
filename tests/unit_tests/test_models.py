@@ -52,6 +52,7 @@ def test_that_posts_cant_be_compared_with_other_types():
 
 
 def test_color_values():
+    # Test upper bounds (values > 255 should fail)
     with pytest.raises(ValueError):
         Color(r=256, g=0, b=0, a=0)
 
@@ -64,7 +65,23 @@ def test_color_values():
     with pytest.raises(ValueError):
         Color(r=0, g=0, b=0, a=256)
 
-    _ = Color(r=10, g=200, b=50, a=250)
+    # Test lower bounds (negative values should fail)
+    with pytest.raises(ValueError):
+        Color(r=-1, g=0, b=0, a=0)
+
+    with pytest.raises(ValueError):
+        Color(r=0, g=-1, b=0, a=0)
+
+    with pytest.raises(ValueError):
+        Color(r=0, g=0, b=-1, a=0)
+
+    with pytest.raises(ValueError):
+        Color(r=0, g=0, b=0, a=-1)
+
+    # Test edge cases (0 and 255 should be valid)
+    _ = Color(r=0, g=0, b=0, a=0)  # All minimum values
+    _ = Color(r=255, g=255, b=255, a=255)  # All maximum values
+    _ = Color(r=10, g=200, b=50, a=250)  # Valid values in range
 
 
 def test_datetime_parsing_with_microseconds_and_timezone():
