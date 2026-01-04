@@ -1,11 +1,13 @@
 import os
 import tempfile
 from pathlib import Path
+from typing import Optional
 from unittest import mock
 
 import pytest
 
 from platzky.config import Config
+from platzky.engine import Engine
 from platzky.platzky import create_app_from_config
 from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginBaseConfig, PluginError
 from tests.unit_tests.plugin import fake_plugin
@@ -56,10 +58,10 @@ class TestPluginErrors:
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class ErrorPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 raise RuntimeError("Plugin execution failed")
 
         mock_module = mock.MagicMock()
@@ -102,10 +104,10 @@ class TestPluginConfigValidation:
 
         class CustomPlugin(PluginBase[CustomPluginConfig]):
             @classmethod
-            def get_config_model(cls):
+            def get_config_model(cls) -> type[CustomPluginConfig]:
                 return CustomPluginConfig
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
         with pytest.raises(ConfigPluginError) as excinfo:
@@ -116,7 +118,7 @@ class TestPluginConfigValidation:
 
     def test_plugin_base_default_config_model(self):
         class MinimalPlugin(PluginBase[PluginBaseConfig]):
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
         assert MinimalPlugin.get_config_model() == PluginBaseConfig
@@ -130,10 +132,10 @@ class TestPluginLoading:
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class MockPluginBase(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("Plugin added content")
                 return app
 
@@ -154,18 +156,18 @@ class TestPluginLoading:
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class FirstPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("First plugin content")
                 return app
 
         class SecondPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 app.add_dynamic_head("Second plugin content")
                 return app
 
@@ -260,15 +262,15 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class SafePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 # Override __module__ and __file__ for testing
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 return str(locale_dir)
 
         # Mock the module file location
@@ -303,14 +305,14 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class MaliciousPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 # Try to expose a directory outside the plugin
                 return str(external_dir)
 
@@ -345,14 +347,14 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class PathTraversalPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 # Try path traversal to escape plugin directory
                 return os.path.join(str(plugin_file.parent), "..", "..", "etc")
 
@@ -394,14 +396,14 @@ class TestLocaleDirectorySecurity:
             pytest.skip("Unable to create symlinks on this system")
 
         class SymlinkPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 return str(symlink_path)
 
         with (
@@ -430,14 +432,14 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class NonExistentDirPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 return "/completely/fake/path/that/does/not/exist"
 
         with (
@@ -468,21 +470,21 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class DifferentDrivePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 # On Windows, different drive letters; on Unix, just another path
                 if os.name == "nt":
                     # If plugin is on C:, try D:
                     return "D:\\some\\path"
                 else:
-                    # On Unix, this will be caught as non-existent or outside plugin
-                    return "/dev/null"
+                    # On Unix, use a directory path outside the plugin
+                    return "/tmp"
 
         with (
             mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find,
@@ -510,14 +512,14 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class NoLocalePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
                 self.__class__.__module__ = "test_plugin"
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> None:
                 return None  # No locale directory
 
         with (
@@ -543,13 +545,13 @@ class TestLocaleDirectorySecurity:
         """Test handling of plugins where module has no __file__ attribute."""
 
         class NoFilePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig):
+            def __init__(self, config: PluginBaseConfig) -> None:
                 self.config = config
 
-            def process(self, app):
+            def process(self, app: Engine) -> Engine:
                 return app
 
-            def get_locale_dir(self):
+            def get_locale_dir(self) -> str:
                 return "/some/path"
 
         with (

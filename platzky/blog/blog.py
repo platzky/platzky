@@ -1,6 +1,6 @@
 from os.path import dirname
 
-from flask import Blueprint, make_response, render_template, request
+from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 
@@ -37,7 +37,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         lang = locale_func()
         posts = db.get_all_posts(lang)
         if not posts:
-            return page_not_found("no posts")
+            abort(404)
         posts_sorted = sorted(posts, reverse=True)
         return render_template("blog.html", posts=posts_sorted)
 
@@ -70,9 +70,9 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
                 comment_sent=request.args.get("comment_sent"),
             )
         except ValueError:
-            return page_not_found(f"no post with slug {post_slug}")
-        except Exception as e:
-            return page_not_found(str(e))
+            abort(404)
+        except Exception:
+            abort(404)
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(
@@ -86,9 +86,9 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
                 cover_image_url = None
             return render_template("page.html", page=page, cover_image=cover_image_url)
         except ValueError:
-            return page_not_found("no page with slug {page_slug}")
-        except Exception as e:
-            return page_not_found(str(e))
+            abort(404)
+        except Exception:
+            abort(404)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag):

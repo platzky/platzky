@@ -129,7 +129,8 @@ class Comment(BaseModel):
             now = datetime.datetime.now(datetime.timezone.utc)
         else:
             # Naive datetime (shouldn't happen with the validator, but handle it)
-            now = datetime.datetime.now().astimezone()
+            # Use naive datetime to avoid TypeError on subtraction
+            now = datetime.datetime.now()
 
         return humanize.naturaltime(now - self.date)
 
