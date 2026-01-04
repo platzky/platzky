@@ -58,7 +58,7 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
             f"Naive datetime '{v}' interpreted as UTC. "
             "Explicitly specify timezone in future versions for clarity.",
             DeprecationWarning,
-            stacklevel=3,
+            stacklevel=2,
         )
         try:
             parsed = datetime.datetime.fromisoformat(normalized)
@@ -150,7 +150,7 @@ class Comment(BaseModel):
         else:
             # Naive datetime (shouldn't happen with the validator, but handle it)
             # Use naive datetime to avoid TypeError on subtraction
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.timezone.utc)
 
         return humanize.naturaltime(now - self.date)
 

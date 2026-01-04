@@ -104,7 +104,16 @@ def create_engine(config: Config, db: DB) -> Engine:
             return redirect(f"{request.scheme}://{new_domain}", code=301)
 
         session["language"] = lang
-        return redirect(request.referrer or "/")
+
+        # Validate referrer to prevent open redirect vulnerability
+        redirect_url = "/"
+        if request.referrer:
+            referrer_parsed = urllib.parse.urlparse(request.referrer)
+            # Only redirect to referrer if it's from the same host
+            if referrer_parsed.netloc == request.host:
+                redirect_url = request.referrer
+
+        return redirect(redirect_url)
 
     def url_link(x: str) -> str:
         """URL-encode a string for safe use in URLs.

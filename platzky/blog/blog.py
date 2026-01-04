@@ -103,7 +103,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
     def get_page(page_slug: str) -> str:
         # FIX: db.get_page() now raises ValueError instead of StopIteration
         page = _get_content_or_404(db.get_page, page_slug, ValueError)
-        cover_image_url = page.coverImage.url if page.coverImage else None
+        cover_image_url = page.coverImage.url if page.coverImage.url else None
         return render_template("page.html", page=page, cover_image=cover_image_url)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])

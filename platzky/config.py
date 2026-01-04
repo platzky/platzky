@@ -143,7 +143,6 @@ class Config(StrictBaseModel):
         testing: Enable testing mode
         feature_flags: Feature flag configuration
         telemetry: OpenTelemetry configuration
-        default_timezone: Default timezone for naive datetime values (currently always UTC)
     """
 
     app_name: str = Field(alias="APP_NAME")
@@ -162,11 +161,6 @@ class Config(StrictBaseModel):
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
-    default_timezone: str = Field(
-        default="UTC",
-        alias="DEFAULT_TIMEZONE",
-        description="Default timezone for naive datetime values (currently always UTC)",
-    )
 
     @classmethod
     def model_validate(
