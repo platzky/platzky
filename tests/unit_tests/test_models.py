@@ -78,17 +78,15 @@ def test_datetime_parsing_with_microseconds_and_timezone():
     # Test positive timezone with microseconds
     post = Post.model_validate(
         {
-            **{
-                "author": "author",
-                "slug": "slug",
-                "title": "title",
-                "contentInMarkdown": "content",
-                "comments": [],
-                "excerpt": "excerpt",
-                "tags": [],
-                "language": "en",
-                "coverImage": Image(),
-            },
+            "author": "author",
+            "slug": "slug",
+            "title": "title",
+            "contentInMarkdown": "content",
+            "comments": [],
+            "excerpt": "excerpt",
+            "tags": [],
+            "language": "en",
+            "coverImage": Image(),
             "date": "2021-02-19T12:30:00.123456+05:30",
         }
     )
@@ -98,17 +96,15 @@ def test_datetime_parsing_with_microseconds_and_timezone():
     # Test negative timezone with microseconds
     post_negative = Post.model_validate(
         {
-            **{
-                "author": "author",
-                "slug": "slug",
-                "title": "title",
-                "contentInMarkdown": "content",
-                "comments": [],
-                "excerpt": "excerpt",
-                "tags": [],
-                "language": "en",
-                "coverImage": Image(),
-            },
+            "author": "author",
+            "slug": "slug",
+            "title": "title",
+            "contentInMarkdown": "content",
+            "comments": [],
+            "excerpt": "excerpt",
+            "tags": [],
+            "language": "en",
+            "coverImage": Image(),
             "date": "2021-02-19T12:30:00.123456-05:00",
         }
     )
@@ -118,17 +114,15 @@ def test_datetime_parsing_with_microseconds_and_timezone():
     # Test Z suffix with microseconds
     post_z = Post.model_validate(
         {
-            **{
-                "author": "author",
-                "slug": "slug",
-                "title": "title",
-                "contentInMarkdown": "content",
-                "comments": [],
-                "excerpt": "excerpt",
-                "tags": [],
-                "language": "en",
-                "coverImage": Image(),
-            },
+            "author": "author",
+            "slug": "slug",
+            "title": "title",
+            "contentInMarkdown": "content",
+            "comments": [],
+            "excerpt": "excerpt",
+            "tags": [],
+            "language": "en",
+            "coverImage": Image(),
             "date": "2021-02-19T12:30:00.123456Z",
         }
     )

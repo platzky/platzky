@@ -85,7 +85,7 @@ def test_usual_post(test_app):
 
 
 def test_not_existing_post(test_app):
-    test_app.application.db.get_post.return_value = None
+    test_app.application.db.get_post.side_effect = ValueError("Post not found")
     response = test_app.get("/prefix/slughorn")
     assert response.status_code == 404
 
@@ -157,7 +157,7 @@ def test_posting_new_comment(test_app):
 
 
 def test_not_existing_page(test_app):
-    test_app.application.db.get_page.return_value = None
+    test_app.application.db.get_page.side_effect = StopIteration("Page not found")
     response = test_app.get("/prefix/page/not-existing-page")
     assert response.status_code == 404
 
