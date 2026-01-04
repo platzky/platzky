@@ -292,8 +292,8 @@ class TestLocaleDirectorySecurity:
 
             # Verify locale directory was registered
             babel_config = app.extensions.get("babel")
-            if babel_config:
-                assert str(locale_dir) in babel_config.translation_directories
+            assert babel_config is not None, "Babel extension should be configured"
+            assert str(locale_dir) in babel_config.translation_directories
 
     def test_locale_directory_outside_plugin_path(
         self, base_config_data, temp_plugin_structure, caplog
@@ -337,8 +337,8 @@ class TestLocaleDirectorySecurity:
 
             # Verify locale directory was NOT registered
             babel_config = app.extensions.get("babel")
-            if babel_config:
-                assert str(external_dir) not in babel_config.translation_directories
+            assert babel_config is not None, "Babel extension should be configured"
+            assert str(external_dir) not in babel_config.translation_directories
 
     def test_path_traversal_attack(self, base_config_data, temp_plugin_structure, caplog):
         """Test that path traversal attempts (../) are rejected."""
