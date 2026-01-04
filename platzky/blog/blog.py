@@ -1,4 +1,5 @@
 from os.path import dirname
+from typing import Any, Callable
 
 from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
@@ -59,7 +60,11 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         )
         return get_post(post_slug=post_slug)
 
-    def _get_content_or_404(getter_func, slug, *exception_types):
+    def _get_content_or_404(
+        getter_func: Callable[[str], Any],
+        slug: str,
+        *exception_types: type[BaseException],
+    ) -> Any:
         """Helper to fetch content from database or abort with 404.
 
         Args:
