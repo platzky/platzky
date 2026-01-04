@@ -125,7 +125,6 @@ lint.ignore = [
     "ANN201",  # Missing return type annotation for public function
     "ANN202",  # Missing return type annotation for private function
     "ANN204",  # Missing return type annotation for special method
-    "ANN206",  # Missing return type annotation for classmethod
     "ANN401"  # Dynamically typed expressions (Any) are disallowed
 ]
 
