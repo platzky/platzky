@@ -57,7 +57,6 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
         return datetime.datetime.fromisoformat(normalized)
     else:
         # Legacy format: naive datetime - make timezone-aware using UTC
-        # SECURITY FIX: Use UTC instead of server local timezone for predictability
         warnings.warn(
             f"Naive datetime '{v}' interpreted as UTC. "
             "Explicitly specify timezone in future versions for clarity.",

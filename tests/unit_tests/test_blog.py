@@ -157,7 +157,6 @@ def test_posting_new_comment(test_app):
 
 
 def test_not_existing_page(test_app):
-    # FIX: db.get_page() now raises ValueError instead of StopIteration (PEP 479)
     test_app.application.db.get_page.side_effect = ValueError("Page not found")
     response = test_app.get("/prefix/page/not-existing-page")
     assert response.status_code == 404
