@@ -1,5 +1,6 @@
 import re
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +32,7 @@ class TestPlatzky:
             mock_config.use_www = False
             app.secret_key = "test_secret_key"
             response = app.test_client().get("/lang/de", follow_redirects=False)
-            assert response.status_code == 301
+            assert response.status_code == 302
             assert response.headers["Location"] == "http://example.de"
 
     def test_change_language_without_domain(self, mock_db):
@@ -49,7 +50,32 @@ class TestPlatzky:
             app.secret_key = "test_secret_key"
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
-            assert response.headers["Location"] == "None"
+            # When request.referrer is None, it should redirect to "/" instead
+            assert response.headers["Location"] == "/"
+
+    def test_change_language_invalid_locale(self, mock_db):
+        """Test that invalid language codes return 404."""
+        mock_config = MagicMock()
+        mock_config.languages = {
+            "en": LanguageConfig(name="English", flag="gb", country="GB", domain=None),
+            "de": LanguageConfig(name="German", flag="de", country="DE", domain=None),
+        }
+
+        app = create_engine(mock_config, mock_db)
+
+        with app.test_request_context():
+            mock_config.use_www = False
+            app.secret_key = "test_secret_key"
+
+            # Verify that session language does not get set to invalid language
+            with app.test_client() as client:
+                response = client.get("/lang/invalid_lang", follow_redirects=False)
+                assert response.status_code == 404
+
+                # Check that the invalid language was NOT set in session
+                with client.session_transaction() as sess:
+                    # Session might have a default language, but shouldn't be 'invalid_lang'
+                    assert sess.get("language") != "invalid_lang"
 
     def test_url_link(self, mock_db):
         """Test the url_link function."""
@@ -57,7 +83,7 @@ class TestPlatzky:
         def url_link_func(x: Any) -> str:
             return str(x)
 
-        def context_proc() -> Dict[str, Callable[[Any], str]]:
+        def context_proc() -> dict[str, Callable[[Any], str]]:
             return {"url_link": url_link_func}
 
         mock_config = MagicMock()

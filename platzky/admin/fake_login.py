@@ -6,7 +6,8 @@ environments as it bypasses proper authentication and authorization controls.
 """
 
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from flask import Blueprint, flash, redirect, render_template_string, session, url_for
 from flask_wtf import FlaskForm

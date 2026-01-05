@@ -12,7 +12,7 @@ class TestGoogleJsonDb:
         with patch("platzky.db.google_json_db.Client") as mock_client:
             yield mock_client
 
-    def test_get_db_function(self, mock_client):
+    def test_get_db_function(self):
         """Test the get_db function that creates a GoogleJsonDb instance from config."""
         # Create a config dict with the correct format
         config_dict = {

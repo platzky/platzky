@@ -79,7 +79,7 @@ def test_dynamic_content(test_app, content_type):
 
 
 @pytest.mark.parametrize("use_www", [True, False])
-def test_www_redirects(test_app, use_www):
+def test_www_redirects(use_www):
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",

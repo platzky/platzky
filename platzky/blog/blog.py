@@ -1,9 +1,16 @@
+import logging
+from collections.abc import Callable
 from os.path import dirname
+from typing import Any
 
-from flask import Blueprint, make_response, render_template, request
+from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
+from werkzeug.exceptions import HTTPException
+from werkzeug.wrappers import Response
 
 from . import comment_form
+
+logger = logging.getLogger(__name__)
 
 
 def create_blog_blueprint(db, blog_prefix: str, locale_func):
@@ -20,27 +27,35 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         return Markup(text)
 
     @blog.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(_e: HTTPException) -> tuple[str, int]:
+        """Handle 404 Not Found errors in blog routes.
+
+        Args:
+            _e: HTTPException object containing error details (unused)
+
+        Returns:
+            Tuple of rendered 404 template and HTTP 404 status code
+        """
         return render_template("404.html", title="404"), 404
 
     @blog.route("/", methods=["GET"])
-    def all_posts():
+    def all_posts() -> str:
         lang = locale_func()
         posts = db.get_all_posts(lang)
         if not posts:
-            return page_not_found("no posts")
+            abort(404)
         posts_sorted = sorted(posts, reverse=True)
         return render_template("blog.html", posts=posts_sorted)
 
     @blog.route("/feed", methods=["GET"])
-    def get_feed():
+    def get_feed() -> Response:
         lang = locale_func()
         response = make_response(render_template("feed.xml", posts=db.get_all_posts(lang)))
         response.headers["Content-Type"] = "application/xml"
         return response
 
     @blog.route("/<post_slug>", methods=["POST"])
-    def post_comment(post_slug):
+    def post_comment(post_slug: str) -> str:
         comment = request.form.to_dict()
         db.add_comment(
             post_slug=post_slug,
@@ -49,40 +64,47 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
         )
         return get_post(post_slug=post_slug)
 
-    @blog.route("/<post_slug>", methods=["GET"])
-    def get_post(post_slug):
+    def _get_content_or_404(
+        getter_func: Callable[[str], Any],
+        slug: str,
+    ) -> Any:
+        """Helper to fetch content from database or abort with 404.
+
+        Args:
+            getter_func: Database getter function (e.g., db.get_post, db.get_page)
+            slug: Content slug to fetch
+
+        Returns:
+            The fetched content object
+
+        Raises:
+            HTTPException: 404 if content not found
+        """
         try:
-            post = db.get_post(post_slug)
-            return render_template(
-                "post.html",
-                post=post,
-                post_slug=post_slug,
-                form=comment_form.CommentForm(),
-                comment_sent=request.args.get("comment_sent"),
-            )
-        except ValueError:
-            return page_not_found(f"no post with slug {post_slug}")
-        except Exception as e:
-            return page_not_found(str(e))
+            return getter_func(slug)
+        except ValueError as e:
+            logger.debug("Content not found for slug '%s': %s", slug, e)
+            abort(404)
+
+    @blog.route("/<post_slug>", methods=["GET"])
+    def get_post(post_slug: str) -> str:
+        post = _get_content_or_404(db.get_post, post_slug)
+        return render_template(
+            "post.html",
+            post=post,
+            post_slug=post_slug,
+            form=comment_form.CommentForm(),
+            comment_sent=request.args.get("comment_sent"),
+        )
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
-    def get_page(
-        page_slug,
-    ):  # TODO refactor to share code with get_post since they are very similar
-        try:
-            page = db.get_page(page_slug)
-            if cover_image := page.coverImage:
-                cover_image_url = cover_image.url
-            else:
-                cover_image_url = None
-            return render_template("page.html", page=page, cover_image=cover_image_url)
-        except ValueError:
-            return page_not_found("no page with slug {page_slug}")
-        except Exception as e:
-            return page_not_found(str(e))
+    def get_page(page_slug: str) -> str:
+        page = _get_content_or_404(db.get_page, page_slug)
+        cover_image_url = page.coverImage.url if page.coverImage.url else None
+        return render_template("page.html", page=page, cover_image=cover_image_url)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
-    def get_posts_from_tag(tag):
+    def get_posts_from_tag(tag: str) -> str:
         lang = locale_func()
         posts = db.get_posts_by_tag(tag, lang)
         return render_template("blog.html", posts=posts, subtitle=f" - tag: {tag}")

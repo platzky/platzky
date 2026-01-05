@@ -23,7 +23,7 @@ class FakePlugin(PluginBase[FakePluginConfig]):
         self.process_called = False
 
     @classmethod
-    def get_config_model(cls):
+    def get_config_model(cls) -> type[FakePluginConfig]:
         return FakePluginConfig
 
     def process(self, app: Engine) -> Engine:

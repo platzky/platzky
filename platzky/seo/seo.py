@@ -27,7 +27,7 @@ def create_seo_blueprint(db, config: dict[str, t.Any], locale_func: t.Callable[[
             lang
         ):  # TODO add get_list_of_posts for faster getting just list of it
             slug = post.slug
-            datet = post.date.split("T")[0]
+            datet = post.date.date().isoformat()
             url = {"loc": f"{host_base}{blog_prefix}/{slug}", "lastmod": datet}
             dynamic_urls.append(url)
         return dynamic_urls

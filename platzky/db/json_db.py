@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import Field
 
@@ -12,7 +12,7 @@ def db_config_type():
 
 
 class JsonDbConfig(DBConfig):
-    data: Dict[str, Any] = Field(alias="DATA")
+    data: dict[str, Any] = Field(alias="DATA")
 
 
 def get_db(config):
@@ -30,9 +30,9 @@ def db_from_config(config: JsonDbConfig):
 
 
 class Json(DB):
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         super().__init__()
-        self.data: Dict[str, Any] = data
+        self.data: dict[str, Any] = data
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
@@ -62,7 +62,10 @@ class Json(DB):
         list_of_pages = (
             page for page in self._get_site_content().get("pages") if page["slug"] == slug
         )
-        page = Post.model_validate(next(list_of_pages))
+        wanted_page = next(list_of_pages, None)
+        if wanted_page is None:
+            raise ValueError(f"Page with slug {slug} not found")
+        page = Post.model_validate(wanted_page)
         return page
 
     def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
@@ -101,10 +104,15 @@ class Json(DB):
         return self._get_site_content().get("secondary_color", "navy")
 
     def add_comment(self, author_name, comment, post_slug):
+        # Store dates in UTC with timezone info for consistency with MongoDB backend
+        # This ensures accurate time delta calculations regardless of server timezone
+        # Legacy dates without timezone info are still supported for backward compatibility
+        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
         comment = {
             "author": str(author_name),
             "comment": str(comment),
-            "date": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "date": now_utc,
         }
 
         post_index = next(

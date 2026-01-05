@@ -112,8 +112,21 @@ lint.select = [
     "E", # pycodestyle Error
     "W", # pycodestyle Warning
     "RUF", # Ruff-specific rules
+    "ANN", # flake8-annotations (type annotations)
+    "ARG", # flake8-unused-arguments
 ]
-lint.ignore = []
+lint.ignore = [
+    # TODO: Gradually add type annotations across the codebase
+    "ANN001",  # Missing type annotation for function argument
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
+    "ANN101",  # Missing type annotation for self in method
+    "ANN102",  # Missing type annotation for cls in classmethod
+    "ANN201",  # Missing return type annotation for public function
+    "ANN202",  # Missing return type annotation for private function
+    "ANN204",  # Missing return type annotation for special method
+    "ANN401"  # Dynamically typed expressions (Any) are disallowed
+]
 
 [tool.pytest.ini_options]
 markers = [
@@ -152,7 +165,7 @@ type = "github"
 env = "GH_TOKEN"
 
 [tool.interrogate]
-fail-under = 20
+fail-under = 31
 ignore-init-method = true
 ignore-init-module = true
 ignore-magic = true
