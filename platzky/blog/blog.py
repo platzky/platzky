@@ -67,35 +67,28 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
     def _get_content_or_404(
         getter_func: Callable[[str], Any],
         slug: str,
-        *exception_types: type[BaseException],
     ) -> Any:
         """Helper to fetch content from database or abort with 404.
 
         Args:
             getter_func: Database getter function (e.g., db.get_post, db.get_page)
             slug: Content slug to fetch
-            *exception_types: Exception types that indicate content not found
 
         Returns:
             The fetched content object
 
         Raises:
             HTTPException: 404 if content not found
-            ValueError: If no exception types are provided
         """
-        if not exception_types:
-            raise ValueError("At least one exception type must be provided")
-
         try:
             return getter_func(slug)
-        except exception_types as e:
-            # IMPROVEMENT: Log the error for debugging
+        except ValueError as e:
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
     @blog.route("/<post_slug>", methods=["GET"])
     def get_post(post_slug: str) -> str:
-        post = _get_content_or_404(db.get_post, post_slug, ValueError)
+        post = _get_content_or_404(db.get_post, post_slug)
         return render_template(
             "post.html",
             post=post,
@@ -107,7 +100,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(page_slug: str) -> str:
         # FIX: db.get_page() now raises ValueError instead of StopIteration
-        page = _get_content_or_404(db.get_page, page_slug, ValueError)
+        page = _get_content_or_404(db.get_page, page_slug)
         cover_image_url = page.coverImage.url if page.coverImage.url else None
         return render_template("page.html", page=page, cover_image=cover_image_url)
 
