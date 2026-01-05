@@ -19,6 +19,7 @@ def db_config_type():
 
 class GraphQlDbConfig(DBConfig):
     """Configuration for GraphQL database connection."""
+
     endpoint: str = Field(alias="CMS_ENDPOINT")
     token: str = Field(alias="CMS_TOKEN")
 

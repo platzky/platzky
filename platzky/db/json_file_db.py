@@ -15,6 +15,7 @@ def db_config_type():
 
 class JsonFileDbConfig(DBConfig):
     """Configuration for JSON file database."""
+
     path: str = Field(alias="PATH")
 
 

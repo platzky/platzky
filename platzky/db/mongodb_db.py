@@ -19,6 +19,7 @@ def db_config_type():
 
 class MongoDbConfig(DBConfig):
     """Configuration for MongoDB database connection."""
+
     connection_string: str = Field(alias="CONNECTION_STRING")
     database_name: str = Field(alias="DATABASE_NAME")
 

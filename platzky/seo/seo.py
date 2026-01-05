@@ -1,3 +1,5 @@
+"""Flask blueprint for SEO functionality including robots.txt and sitemap.xml."""
+
 import typing as t
 import urllib.parse
 from os.path import dirname
@@ -6,6 +8,7 @@ from flask import Blueprint, current_app, make_response, render_template, reques
 
 
 def create_seo_blueprint(db, config: dict[str, t.Any], locale_func: t.Callable[[], str]):
+    """Create SEO blueprint with routes for robots.txt and sitemap.xml."""
     seo = Blueprint(
         "seo",
         __name__,
@@ -15,29 +18,34 @@ def create_seo_blueprint(db, config: dict[str, t.Any], locale_func: t.Callable[[
 
     @seo.route("/robots.txt")
     def robots():
+        """Generate robots.txt file for search engine crawlers."""
         robots_response = render_template("robots.txt", domain=request.host, mimetype="text/plain")
         response = make_response(robots_response)
         response.headers["Content-Type"] = "text/plain"
         return response
 
     def get_blog_entries(host_base, lang, db, blog_prefix):
+        """Generate sitemap entries for all blog posts.
+
+        TODO: Add get_list_of_posts for faster getting just list of it.
+        """
         dynamic_urls = list()
         print(blog_prefix)
-        for post in db.get_all_posts(
-            lang
-        ):  # TODO add get_list_of_posts for faster getting just list of it
+        for post in db.get_all_posts(lang):
             slug = post.slug
             datet = post.date.date().isoformat()
             url = {"loc": f"{host_base}{blog_prefix}/{slug}", "lastmod": datet}
             dynamic_urls.append(url)
         return dynamic_urls
 
-    @seo.route("/sitemap.xml")  # TODO try to replace sitemap logic with flask-sitemap module
+    @seo.route("/sitemap.xml")
     def sitemap():
-        """
-        Route to dynamically generate a sitemap of your website/application.
+        """Route to dynamically generate a sitemap of your website/application.
+
         lastmod and priority tags omitted on static pages.
-        lastmod included on dynamic content such as seo posts.
+        lastmod included on dynamic content such as blog posts.
+
+        TODO: Try to replace sitemap logic with flask-sitemap module.
         """
         lang = locale_func()
 

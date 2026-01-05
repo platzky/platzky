@@ -17,6 +17,7 @@ def db_config_type():
 
 class GithubJsonDbConfig(DBConfig):
     """Configuration for GitHub JSON database connection."""
+
     github_token: str = Field(alias="GITHUB_TOKEN")
     repo_name: str = Field(alias="REPO_NAME")
     path_to_file: str = Field(alias="PATH_TO_FILE")

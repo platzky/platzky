@@ -16,6 +16,7 @@ def db_config_type():
 
 class GoogleJsonDbConfig(DBConfig):
     """Configuration for Google Cloud Storage JSON database connection."""
+
     bucket_name: str = Field(alias="BUCKET_NAME")
     source_blob_name: str = Field(alias="SOURCE_BLOB_NAME")
 

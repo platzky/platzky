@@ -16,6 +16,7 @@ def db_config_type():
 
 class JsonDbConfig(DBConfig):
     """Configuration for in-memory JSON database."""
+
     data: dict[str, Any] = Field(alias="DATA")
 
 
