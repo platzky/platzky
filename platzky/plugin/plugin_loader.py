@@ -99,17 +99,13 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bo
     Returns:
         True if the locale directory is safe to use, False otherwise
     """
-    # Check that the directory exists
     if not os.path.isdir(locale_dir):
         return False
 
-    # Get the plugin's module to determine its base directory
     module = inspect.getmodule(plugin_instance.__class__)
     if module is None or not hasattr(module, "__file__") or module.__file__ is None:
         return False
 
-    # SECURITY FIX 1: Check for path traversal (..) BEFORE resolving
-    # This prevents path components like "../../../etc/passwd"
     normalized_path = os.path.normpath(locale_dir)
     if ".." in normalized_path.split(os.sep):
         logger.warning("Rejected locale path with .. components: %s", locale_dir)
@@ -119,11 +115,7 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bo
     locale_path = os.path.realpath(locale_dir)
     module_path = os.path.realpath(os.path.dirname(module.__file__))
 
-    # SECURITY FIX 2: Use startswith instead of commonpath
-    # Ensure trailing separator to prevent partial matches
-    # (e.g., /plugin vs /plugin_evil)
     if not locale_path.startswith(module_path + os.sep):
-        # Also check if they're exactly equal (no trailing separator)
         if locale_path != module_path:
             return False
 

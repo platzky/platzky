@@ -62,7 +62,6 @@ class Json(DB):
         list_of_pages = (
             page for page in self._get_site_content().get("pages") if page["slug"] == slug
         )
-        # FIX: Use default value to prevent StopIteration leak (PEP 479)
         wanted_page = next(list_of_pages, None)
         if wanted_page is None:
             raise ValueError(f"Page with slug {slug} not found")
