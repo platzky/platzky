@@ -3,6 +3,8 @@
 TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies.
 """
 
+from typing import Any
+
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportQueryError
@@ -12,7 +14,7 @@ from platzky.db.db import DB, DBConfig
 from platzky.models import Post
 
 
-def db_config_type():
+def db_config_type() -> type["GraphQlDbConfig"]:
     """Return the configuration class for GraphQL database."""
     return GraphQlDbConfig
 
@@ -24,19 +26,19 @@ class GraphQlDbConfig(DBConfig):
     token: str = Field(alias="CMS_TOKEN")
 
 
-def get_db(config: GraphQlDbConfig):
+def get_db(config: GraphQlDbConfig) -> "GraphQL":
     """Get a GraphQL database instance from configuration."""
     return GraphQL(config.endpoint, config.token)
 
 
-def db_from_config(config: GraphQlDbConfig):
+def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
     """Create a GraphQL database instance from configuration."""
     return GraphQL(config.endpoint, config.token)
 
 
 def _standarize_comment(
-    comment,
-):
+    comment: dict[str, Any],
+) -> dict[str, Any]:
     """Standardize comment data structure from GraphQL response."""
     return {
         "author": comment["author"],
@@ -45,7 +47,7 @@ def _standarize_comment(
     }
 
 
-def _standarize_post(post):
+def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
     """Standardize post data structure from GraphQL response."""
     return {
         "author": post["author"]["name"],
@@ -66,7 +68,7 @@ def _standarize_post(post):
 class GraphQL(DB):
     """GraphQL database implementation for CMS integration."""
 
-    def __init__(self, endpoint, token):
+    def __init__(self, endpoint: str, token: str) -> None:
         """Initialize GraphQL database connection."""
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"

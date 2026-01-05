@@ -1,11 +1,12 @@
 """Flask blueprint for admin panel functionality."""
 
 from os.path import dirname
+from typing import Any
 
 from flask import Blueprint, render_template, session
 
 
-def create_admin_blueprint(login_methods, cms_modules):
+def create_admin_blueprint(login_methods: list[Any], cms_modules: list[Any]) -> Blueprint:
     """Create admin blueprint with dynamic module routes.
 
     Args:
@@ -23,12 +24,12 @@ def create_admin_blueprint(login_methods, cms_modules):
     for module in cms_modules:
 
         @admin.route(f"/module/{module.slug}", methods=["GET"])
-        def module_route(module=module):
+        def module_route(module: Any = module) -> str:
             """Render a CMS module page."""
             return render_template(module.template, module=module)
 
     @admin.route("/", methods=["GET"])
-    def admin_panel_home():
+    def admin_panel_home() -> str:
         """Display admin panel home or login page."""
         user = session.get("user", None)
 

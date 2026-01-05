@@ -15,7 +15,7 @@ from . import comment_form
 logger = logging.getLogger(__name__)
 
 
-def create_blog_blueprint(db, blog_prefix: str, locale_func):
+def create_blog_blueprint(db: Any, blog_prefix: str, locale_func: Callable[[], str]) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers."""
     url_prefix = blog_prefix
     blog = Blueprint(
@@ -26,7 +26,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
     )
 
     @blog.app_template_filter()
-    def markdown(text):
+    def markdown(text: str) -> Markup:
         """Template filter to render markdown text as safe HTML."""
         return Markup(text)
 

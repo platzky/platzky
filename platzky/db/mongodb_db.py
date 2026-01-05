@@ -12,7 +12,7 @@ from platzky.db.db import DB, DBConfig
 from platzky.models import MenuItem, Page, Post
 
 
-def db_config_type():
+def db_config_type() -> type["MongoDbConfig"]:
     """Return the configuration class for MongoDB database."""
     return MongoDbConfig
 
@@ -24,13 +24,13 @@ class MongoDbConfig(DBConfig):
     database_name: str = Field(alias="DATABASE_NAME")
 
 
-def get_db(config):
+def get_db(config: dict[str, Any]) -> "MongoDB":
     """Get a MongoDB database instance from raw configuration."""
     mongodb_config = MongoDbConfig.model_validate(config)
     return MongoDB(mongodb_config.connection_string, mongodb_config.database_name)
 
 
-def db_from_config(config: MongoDbConfig):
+def db_from_config(config: MongoDbConfig) -> "MongoDB":
     """Create a MongoDB database instance from configuration."""
     return MongoDB(config.connection_string, config.database_name)
 

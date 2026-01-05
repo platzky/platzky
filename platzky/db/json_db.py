@@ -1,6 +1,7 @@
 """In-memory JSON database implementation."""
 
 import datetime
+from collections.abc import Generator
 from typing import Any
 
 from pydantic import Field
@@ -9,7 +10,7 @@ from platzky.db.db import DB, DBConfig
 from platzky.models import MenuItem, Post
 
 
-def db_config_type():
+def db_config_type() -> type["JsonDbConfig"]:
     """Return the configuration class for JSON database."""
     return JsonDbConfig
 
@@ -20,13 +21,13 @@ class JsonDbConfig(DBConfig):
     data: dict[str, Any] = Field(alias="DATA")
 
 
-def get_db(config):
+def get_db(config: dict[str, Any]) -> "Json":
     """Get a JSON database instance from raw configuration."""
     json_db_config = JsonDbConfig.model_validate(config)
     return Json(json_db_config.data)
 
 
-def db_from_config(config: JsonDbConfig):
+def db_from_config(config: JsonDbConfig) -> "Json":
     """Create a JSON database instance from configuration."""
     return Json(config.data)
 
@@ -69,14 +70,15 @@ class Json(DB):
             raise ValueError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
 
-    def get_page(self, slug):
+    def get_page(self, slug: str):
         """Retrieve a page by its slug.
 
         TODO: Add test for non-existing page.
         """
-        list_of_pages = (
-            page for page in self._get_site_content().get("pages") if page["slug"] == slug
-        )
+        pages = self._get_site_content().get("pages")
+        if pages is None:
+            raise ValueError("Pages data is missing")
+        list_of_pages = (page for page in pages if page["slug"] == slug)
         wanted_page = next(list_of_pages, None)
         if wanted_page is None:
             raise ValueError(f"Page with slug {slug} not found")
@@ -91,7 +93,7 @@ class Json(DB):
         menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
         return menu_items_list
 
-    def get_posts_by_tag(self, tag, lang):
+    def get_posts_by_tag(self, tag: str, lang: str) -> Generator[Any, None, None]:
         """Retrieve posts filtered by tag and language."""
         return (
             post
@@ -99,7 +101,7 @@ class Json(DB):
             if tag in post["tags"] and post["language"] == lang
         )
 
-    def _get_site_content(self):
+    def _get_site_content(self) -> dict[str, Any]:
         content = self.data.get("site_content")
         if content is None:
             raise Exception("Content should not be None")
