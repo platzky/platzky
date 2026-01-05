@@ -1,3 +1,5 @@
+"""Flask blueprint for blog functionality including posts, pages, and comments."""
+
 import logging
 from collections.abc import Callable
 from os.path import dirname
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_blog_blueprint(db, blog_prefix: str, locale_func):
+    """Create and configure the blog blueprint with all routes and handlers."""
     url_prefix = blog_prefix
     blog = Blueprint(
         "blog",
@@ -24,6 +27,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.app_template_filter()
     def markdown(text):
+        """Template filter to render markdown text as safe HTML."""
         return Markup(text)
 
     @blog.errorhandler(404)
@@ -40,6 +44,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/", methods=["GET"])
     def all_posts() -> str:
+        """Display all blog posts for the current language."""
         lang = locale_func()
         posts = db.get_all_posts(lang)
         if not posts:
@@ -49,6 +54,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/feed", methods=["GET"])
     def get_feed() -> Response:
+        """Generate RSS/Atom feed for blog posts."""
         lang = locale_func()
         response = make_response(render_template("feed.xml", posts=db.get_all_posts(lang)))
         response.headers["Content-Type"] = "application/xml"
@@ -56,6 +62,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/<post_slug>", methods=["POST"])
     def post_comment(post_slug: str) -> str:
+        """Handle comment submission for a blog post."""
         comment = request.form.to_dict()
         db.add_comment(
             post_slug=post_slug,
@@ -88,6 +95,7 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/<post_slug>", methods=["GET"])
     def get_post(post_slug: str) -> str:
+        """Display a single blog post with comments."""
         post = _get_content_or_404(db.get_post, post_slug)
         return render_template(
             "post.html",
@@ -99,12 +107,14 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
     def get_page(page_slug: str) -> str:
+        """Display a static page."""
         page = _get_content_or_404(db.get_page, page_slug)
         cover_image_url = page.coverImage.url if page.coverImage.url else None
         return render_template("page.html", page=page, cover_image=cover_image_url)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:
+        """Display all blog posts with a specific tag."""
         lang = locale_func()
         posts = db.get_posts_by_tag(tag, lang)
         return render_template("blog.html", posts=posts, subtitle=f" - tag: {tag}")

@@ -1,3 +1,5 @@
+"""GitHub-based JSON database implementation."""
+
 import json
 
 import requests
@@ -9,10 +11,12 @@ from platzky.db.json_db import Json as JsonDB
 
 
 def db_config_type():
+    """Return the configuration class for GitHub JSON database."""
     return GithubJsonDbConfig
 
 
 class GithubJsonDbConfig(DBConfig):
+    """Configuration for GitHub JSON database connection."""
     github_token: str = Field(alias="GITHUB_TOKEN")
     repo_name: str = Field(alias="REPO_NAME")
     path_to_file: str = Field(alias="PATH_TO_FILE")
@@ -20,12 +24,14 @@ class GithubJsonDbConfig(DBConfig):
 
 
 def db_from_config(config: GithubJsonDbConfig):
+    """Create a GitHub JSON database instance from configuration."""
     return GithubJsonDb(
         config.github_token, config.repo_name, config.branch_name, config.path_to_file
     )
 
 
 def get_db(config):
+    """Get a GitHub JSON database instance from raw configuration."""
     github_json_db_config = GithubJsonDbConfig.model_validate(config)
     return GithubJsonDb(
         github_json_db_config.github_token,
@@ -36,7 +42,10 @@ def get_db(config):
 
 
 class GithubJsonDb(JsonDB):
+    """JSON database stored in a GitHub repository."""
+
     def __init__(self, github_token: str, repo_name: str, branch_name: str, path_to_file: str):
+        """Initialize GitHub JSON database connection."""
         self.branch_name = branch_name
         self.repo = Github(github_token).get_repo(repo_name)
         self.file_path = path_to_file
