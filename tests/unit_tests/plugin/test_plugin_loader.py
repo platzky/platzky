@@ -191,7 +191,7 @@ class TestPluginLoading:
 
         mock_module = mock.MagicMock()
 
-        def side_effect(app, _plugin_config):
+        def side_effect(app, _plugin_config) -> Engine:
             app.add_dynamic_body("Legacy plugin content")
             return app
 
@@ -241,7 +241,7 @@ class TestLocaleDirectorySecurity:
             plugin_file.write_text("# test plugin")
 
             # Create a valid locale directory inside plugin
-            locale_dir = plugin_dir / "locales"
+            locale_dir = plugin_dir / "locale"
             locale_dir.mkdir()
 
             # Create a directory outside plugin for testing path traversal

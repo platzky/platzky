@@ -55,6 +55,28 @@ def _get_language_domain(config: Config, lang: str) -> t.Optional[str]:
     return lang_cfg.domain
 
 
+def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
+    """Get a safe redirect URL by validating the referrer.
+
+    Prevents open redirect vulnerabilities by only allowing same-host redirects.
+
+    Args:
+        referrer: The HTTP referrer header value
+        current_host: The current request host
+
+    Returns:
+        The referrer URL if safe, otherwise "/"
+    """
+    if not referrer:
+        return "/"
+
+    referrer_parsed = urllib.parse.urlparse(referrer)
+    # Only redirect to referrer if it's from the same host
+    if referrer_parsed.netloc == current_host:
+        return referrer
+    return "/"
+
+
 def create_engine(config: Config, db: DB) -> Engine:
     """Create and configure a Platzky Engine instance.
 
@@ -104,15 +126,7 @@ def create_engine(config: Config, db: DB) -> Engine:
             return redirect(f"{request.scheme}://{new_domain}", code=301)
 
         session["language"] = lang
-
-        # Validate referrer to prevent open redirect vulnerability
-        redirect_url = "/"
-        if request.referrer:
-            referrer_parsed = urllib.parse.urlparse(request.referrer)
-            # Only redirect to referrer if it's from the same host
-            if referrer_parsed.netloc == request.host:
-                redirect_url = request.referrer
-
+        redirect_url = _get_safe_redirect_url(request.referrer, request.host)
         return redirect(redirect_url)
 
     def url_link(x: str) -> str:
