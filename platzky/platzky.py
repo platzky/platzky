@@ -123,7 +123,7 @@ def create_engine(config: Config, db: DB) -> Engine:
             return render_template("404.html", title="404"), 404
 
         if new_domain := _get_language_domain(config, lang):
-            return redirect(f"{request.scheme}://{new_domain}", code=301)
+            return redirect(f"{request.scheme}://{new_domain}", code=302)
 
         session["language"] = lang
         redirect_url = _get_safe_redirect_url(request.referrer, request.host)
