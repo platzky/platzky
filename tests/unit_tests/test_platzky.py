@@ -32,7 +32,7 @@ class TestPlatzky:
             mock_config.use_www = False
             app.secret_key = "test_secret_key"
             response = app.test_client().get("/lang/de", follow_redirects=False)
-            assert response.status_code == 301
+            assert response.status_code == 302
             assert response.headers["Location"] == "http://example.de"
 
     def test_change_language_without_domain(self, mock_db):
