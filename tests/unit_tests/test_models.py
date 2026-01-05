@@ -126,57 +126,61 @@ def test_datetime_parsing_with_microseconds_and_timezone():
     microseconds would also strip timezone information.
     """
     import datetime
+    import warnings
 
-    # Test positive timezone with microseconds
-    post = Post.model_validate(
-        {
-            "author": "author",
-            "slug": "slug",
-            "title": "title",
-            "contentInMarkdown": "content",
-            "comments": [],
-            "excerpt": "excerpt",
-            "tags": [],
-            "language": "en",
-            "coverImage": Image(),
-            "date": "2021-02-19T12:30:00.123456+05:30",
-        }
-    )
-    # Verify timezone is preserved (UTC+5:30 = offset of 19800 seconds)
-    assert post.date.utcoffset() == datetime.timedelta(hours=5, minutes=30)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)  # Ignore deprecation warning
 
-    # Test negative timezone with microseconds
-    post_negative = Post.model_validate(
-        {
-            "author": "author",
-            "slug": "slug",
-            "title": "title",
-            "contentInMarkdown": "content",
-            "comments": [],
-            "excerpt": "excerpt",
-            "tags": [],
-            "language": "en",
-            "coverImage": Image(),
-            "date": "2021-02-19T12:30:00.123456-05:00",
-        }
-    )
-    # Verify negative timezone is preserved (UTC-5:00 = offset of -18000 seconds)
-    assert post_negative.date.utcoffset() == datetime.timedelta(hours=-5)
+        # Test positive timezone with microseconds
+        post = Post.model_validate(
+            {
+                "author": "author",
+                "slug": "slug",
+                "title": "title",
+                "contentInMarkdown": "content",
+                "comments": [],
+                "excerpt": "excerpt",
+                "tags": [],
+                "language": "en",
+                "coverImage": Image(),
+                "date": "2021-02-19T12:30:00.123456+05:30",
+            }
+        )
+        # Verify timezone is preserved (UTC+5:30 = offset of 19800 seconds)
+        assert post.date.utcoffset() == datetime.timedelta(hours=5, minutes=30)
 
-    # Test Z suffix with microseconds
-    post_z = Post.model_validate(
-        {
-            "author": "author",
-            "slug": "slug",
-            "title": "title",
-            "contentInMarkdown": "content",
-            "comments": [],
-            "excerpt": "excerpt",
-            "tags": [],
-            "language": "en",
-            "coverImage": Image(),
-            "date": "2021-02-19T12:30:00.123456Z",
-        }
-    )
-    # Verify Z is converted to UTC (offset of 0)
-    assert post_z.date.utcoffset() == datetime.timedelta(0)
+        # Test negative timezone with microseconds
+        post_negative = Post.model_validate(
+            {
+                "author": "author",
+                "slug": "slug",
+                "title": "title",
+                "contentInMarkdown": "content",
+                "comments": [],
+                "excerpt": "excerpt",
+                "tags": [],
+                "language": "en",
+                "coverImage": Image(),
+                "date": "2021-02-19T12:30:00.123456-05:00",
+            }
+        )
+        # Verify negative timezone is preserved (UTC-5:00 = offset of -18000 seconds)
+        assert post_negative.date.utcoffset() == datetime.timedelta(hours=-5)
+
+        # Test Z suffix with microseconds
+        post_z = Post.model_validate(
+            {
+                "author": "author",
+                "slug": "slug",
+                "title": "title",
+                "contentInMarkdown": "content",
+                "comments": [],
+                "excerpt": "excerpt",
+                "tags": [],
+                "language": "en",
+                "coverImage": Image(),
+                "date": "2021-02-19T12:30:00.123456Z",
+            }
+        )
+        # Verify Z is converted to UTC (offset of 0)
+        assert post_z.date.utcoffset() == datetime.timedelta(0)

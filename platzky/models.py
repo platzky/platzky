@@ -24,7 +24,11 @@ def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
         ValueError: If the date string cannot be parsed
     """
     if isinstance(v, datetime.datetime):
-        return v  # Already a datetime object
+        # If already a datetime object, ensure it's timezone-aware
+        if v.tzinfo is None:
+            # Naive datetime - make timezone-aware using UTC
+            return v.replace(tzinfo=datetime.timezone.utc)
+        return v
 
     # v must be a string (based on type annotation)
     # Emit deprecation warning for string dates

@@ -1,6 +1,6 @@
 import re
 from collections.abc import Callable
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -83,7 +83,7 @@ class TestPlatzky:
         def url_link_func(x: Any) -> str:
             return str(x)
 
-        def context_proc() -> Dict[str, Callable[[Any], str]]:
+        def context_proc() -> dict[str, Callable[[Any], str]]:
             return {"url_link": url_link_func}
 
         mock_config = MagicMock()

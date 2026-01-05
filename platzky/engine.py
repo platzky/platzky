@@ -1,7 +1,7 @@
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
@@ -19,7 +19,7 @@ class Engine(Flask):
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
-        self.health_checks: List[Tuple[str, Callable[[], None]]] = []
+        self.health_checks: list[tuple[str, Callable[[], None]]] = []
         self.telemetry_instrumented: bool = False
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
@@ -32,7 +32,7 @@ class Engine(Flask):
         )
         self._register_default_health_endpoints()
 
-        self.cms_modules: List[CmsModule] = []
+        self.cms_modules: list[CmsModule] = []
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
@@ -95,7 +95,7 @@ class Engine(Flask):
         @health_bp.route("/health/readiness")
         def readiness():
             """Readiness check - can the app serve traffic?"""
-            health_status: Dict[str, Any] = {"status": "ready", "checks": {}}
+            health_status: dict[str, Any] = {"status": "ready", "checks": {}}
             status_code = 200
 
             executor = ThreadPoolExecutor(max_workers=1)

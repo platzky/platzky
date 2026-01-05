@@ -81,7 +81,11 @@ def create_blog_blueprint(db, blog_prefix: str, locale_func):
 
         Raises:
             HTTPException: 404 if content not found
+            ValueError: If no exception types are provided
         """
+        if not exception_types:
+            raise ValueError("At least one exception type must be provided")
+
         try:
             return getter_func(slug)
         except exception_types as e:
