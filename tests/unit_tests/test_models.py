@@ -96,7 +96,6 @@ def test_naive_datetime_uses_utc():
 
     NOTE: Tests deprecated string date parsing (will be removed in v2.0.0).
     """
-    import datetime
 
     # Test naive datetime is interpreted as UTC
     # Expects TWO warnings: one for string, one for naive datetime
@@ -130,7 +129,6 @@ def test_datetime_parsing_with_microseconds_and_timezone():
 
     NOTE: Tests deprecated string date parsing (will be removed in v2.0.0).
     """
-    import datetime
 
     # Test positive timezone with microseconds
     with pytest.warns(DeprecationWarning, match="Passing date as string"):
