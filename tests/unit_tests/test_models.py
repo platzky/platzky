@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,7 +17,7 @@ def test_posts_are_sorted_by_date():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
+        date=datetime.datetime(2021, 2, 19, tzinfo=datetime.timezone.utc),
     )
 
     newer_post = Post(
@@ -28,7 +30,7 @@ def test_posts_are_sorted_by_date():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-20",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
+        date=datetime.datetime(2021, 2, 20, tzinfo=datetime.timezone.utc),
     )
 
     assert older_post < newer_post
@@ -45,7 +47,7 @@ def test_that_posts_cant_be_compared_with_other_types():
         tags=[],
         language="en",
         coverImage=Image(),
-        date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
+        date=datetime.datetime(2021, 2, 19, tzinfo=datetime.timezone.utc),
     )
 
     with pytest.raises(TypeError):
@@ -87,17 +89,18 @@ def test_color_values():
 
 
 def test_naive_datetime_uses_utc():
-    """Test that naive datetimes (without timezone) are interpreted as UTC.
+    """Test backward compatibility: naive datetimes are interpreted as UTC.
 
-    This is a fix for a critical bug where naive dates used server local timezone,
-    causing non-deterministic behavior across different servers.
+    This is a regression test for a critical bug where naive dates used server
+    local timezone, causing non-deterministic behavior across different servers.
+
+    NOTE: Tests deprecated string date parsing (will be removed in v2.0.0).
     """
     import datetime
-    import warnings
 
     # Test naive datetime is interpreted as UTC
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)  # Ignore deprecation warning
+    # Expects TWO warnings: one for string, one for naive datetime
+    with pytest.warns(DeprecationWarning, match="Passing date as string"):
         post = Post.model_validate(
             {
                 "author": "author",
@@ -120,18 +123,17 @@ def test_naive_datetime_uses_utc():
 
 
 def test_datetime_parsing_with_microseconds_and_timezone():
-    """Test that datetime parsing preserves timezone when microseconds are present.
+    """Test backward compatibility: string parsing preserves timezone with microseconds.
 
-    This is a regression test for a critical bug where splitting on '.' to remove
-    microseconds would also strip timezone information.
+    This is a regression test for a critical bug in the deprecated string parsing
+    where splitting on '.' to remove microseconds would also strip timezone info.
+
+    NOTE: Tests deprecated string date parsing (will be removed in v2.0.0).
     """
     import datetime
-    import warnings
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)  # Ignore deprecation warning
-
-        # Test positive timezone with microseconds
+    # Test positive timezone with microseconds
+    with pytest.warns(DeprecationWarning, match="Passing date as string"):
         post = Post.model_validate(
             {
                 "author": "author",
@@ -146,10 +148,11 @@ def test_datetime_parsing_with_microseconds_and_timezone():
                 "date": "2021-02-19T12:30:00.123456+05:30",
             }
         )
-        # Verify timezone is preserved (UTC+5:30 = offset of 19800 seconds)
-        assert post.date.utcoffset() == datetime.timedelta(hours=5, minutes=30)
+    # Verify timezone is preserved (UTC+5:30 = offset of 19800 seconds)
+    assert post.date.utcoffset() == datetime.timedelta(hours=5, minutes=30)
 
-        # Test negative timezone with microseconds
+    # Test negative timezone with microseconds
+    with pytest.warns(DeprecationWarning, match="Passing date as string"):
         post_negative = Post.model_validate(
             {
                 "author": "author",
@@ -164,10 +167,11 @@ def test_datetime_parsing_with_microseconds_and_timezone():
                 "date": "2021-02-19T12:30:00.123456-05:00",
             }
         )
-        # Verify negative timezone is preserved (UTC-5:00 = offset of -18000 seconds)
-        assert post_negative.date.utcoffset() == datetime.timedelta(hours=-5)
+    # Verify negative timezone is preserved (UTC-5:00 = offset of -18000 seconds)
+    assert post_negative.date.utcoffset() == datetime.timedelta(hours=-5)
 
-        # Test Z suffix with microseconds
+    # Test Z suffix with microseconds
+    with pytest.warns(DeprecationWarning, match="Passing date as string"):
         post_z = Post.model_validate(
             {
                 "author": "author",
@@ -182,5 +186,5 @@ def test_datetime_parsing_with_microseconds_and_timezone():
                 "date": "2021-02-19T12:30:00.123456Z",
             }
         )
-        # Verify Z is converted to UTC (offset of 0)
-        assert post_z.date.utcoffset() == datetime.timedelta(0)
+    # Verify Z is converted to UTC (offset of 0)
+    assert post_z.date.utcoffset() == datetime.timedelta(0)

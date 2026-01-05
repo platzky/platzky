@@ -182,10 +182,7 @@ def plugify(app: Engine) -> Engine:
             if plugin_class:
                 # Handle new class-based plugins
                 plugin_instance = plugin_class(plugin_config)
-
-                # Auto-register plugin locale directory (NEW FEATURE)
                 _register_plugin_locale(app, plugin_instance, plugin_name)
-
                 app = plugin_instance.process(app)
                 logger.info("Processed class-based plugin: %s", plugin_name)
             elif hasattr(plugin_module, "process"):
