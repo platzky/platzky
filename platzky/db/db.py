@@ -12,6 +12,7 @@ from platzky.models import MenuItem, Page, Post
 
 class DB(ABC):
     """Abstract base class for all database implementations."""
+
     db_name: str = "DB"
     module_name: str = "db"
     config_type: type
@@ -128,4 +129,5 @@ class DB(ABC):
 
 class DBConfig(BaseModel):
     """Base configuration class for database connections."""
+
     type: str = Field(alias="TYPE")
