@@ -1,4 +1,4 @@
-"""Flask form for blog post comments."""
+"""Form for blog post comments."""
 
 from flask_babel import lazy_gettext
 from flask_wtf import FlaskForm

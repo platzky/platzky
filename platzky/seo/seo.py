@@ -29,11 +29,9 @@ def create_seo_blueprint(
     def get_blog_entries(
         host_base: str, lang: str, db: t.Any, blog_prefix: str
     ) -> list[dict[str, str]]:
-        """Generate sitemap entries for all blog posts.
-
-        TODO: Add get_list_of_posts for faster getting just list of it.
-        """
+        """Generate sitemap entries for all blog posts."""
         dynamic_urls = list()
+        # TODO: Add get_list_of_posts for faster getting just list of it
         for post in db.get_all_posts(lang):
             slug = post.slug
             datet = post.date.date().isoformat()
@@ -41,14 +39,12 @@ def create_seo_blueprint(
             dynamic_urls.append(url)
         return dynamic_urls
 
-    @seo.route("/sitemap.xml")
+    @seo.route("/sitemap.xml")  # TODO: Try to replace sitemap logic with flask-sitemap module
     def sitemap() -> Response:
         """Route to dynamically generate a sitemap of your website/application.
 
         lastmod and priority tags omitted on static pages.
         lastmod included on dynamic content such as blog posts.
-
-        TODO: Try to replace sitemap logic with flask-sitemap module.
         """
         lang = locale_func()
 

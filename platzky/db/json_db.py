@@ -32,13 +32,11 @@ def db_from_config(config: JsonDbConfig) -> "Json":
     return Json(config.data)
 
 
+# TODO: Make all language-specific methods available without language parameter.
+# This will allow a default language and if there is one language,
+# there will be no need to pass it to the method or in db.
 class Json(DB):
-    """In-memory JSON database implementation.
-
-    TODO: Make all language-specific methods available without language parameter.
-    This will allow a default language and if there is one language,
-    there will be no need to pass it to the method or in db.
-    """
+    """In-memory JSON database implementation."""
 
     def __init__(self, data: dict[str, Any]):
         """Initialize JSON database with data dictionary."""
@@ -70,11 +68,9 @@ class Json(DB):
             raise ValueError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
 
+    # TODO: Add test for non-existing page
     def get_page(self, slug: str):
-        """Retrieve a page by its slug.
-
-        TODO: Add test for non-existing page.
-        """
+        """Retrieve a page by its slug."""
         pages = self._get_site_content().get("pages")
         if pages is None:
             raise ValueError("Pages data is missing")

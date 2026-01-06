@@ -85,11 +85,8 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_logo_url(self) -> str:
-        """Retrieve the URL of the application logo.
-
-        TODO: Provide alternative text along with the URL of logo.
-        """
+    def get_logo_url(self) -> str:  # TODO: Provide alternative text along with the URL of logo
+        """Retrieve the URL of the application logo."""
         pass
 
     @abstractmethod

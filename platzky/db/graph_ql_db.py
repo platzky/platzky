@@ -1,7 +1,6 @@
-"""GraphQL-based database implementation for CMS integration.
+"""GraphQL-based database implementation for CMS integration."""
 
-TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies.
-"""
+# TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
 
 from typing import Any
 
@@ -188,11 +187,9 @@ class GraphQL(DB):
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
         return Post.model_validate(_standarize_post(post_raw))
 
+    # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
     def get_page(self, slug):
-        """Retrieve a page by its slug.
-
-        TODO: Cleanup page logic of internationalization (now it depends on translation of slugs).
-        """
+        """Retrieve a page by its slug."""
         post = gql(
             """
             query MyQuery ($slug: String!){
@@ -260,7 +257,7 @@ class GraphQL(DB):
 
     def get_font(self):
         """Get the font configuration for the application."""
-        return str("")
+        return ""
 
     def get_logo_url(self):
         """Retrieve the URL of the application logo."""
