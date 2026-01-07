@@ -30,7 +30,7 @@ def create_seo_blueprint(
         host_base: str, lang: str, db: t.Any, blog_prefix: str
     ) -> list[dict[str, str]]:
         """Generate sitemap entries for all blog posts."""
-        dynamic_urls = list()
+        dynamic_urls = []
         # TODO: Add get_list_of_posts for faster getting just list of it
         for post in db.get_all_posts(lang):
             slug = post.slug
@@ -53,7 +53,7 @@ def create_seo_blueprint(
         host_base = host_components.scheme + "://" + host_components.netloc
 
         # Static routes with static content
-        static_urls = list()
+        static_urls = []
         for rule in current_app.url_map.iter_rules():
             if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0:
                 url = {"loc": f"{host_base}{rule!s}"}

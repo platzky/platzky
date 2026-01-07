@@ -90,7 +90,12 @@ class Json(DB):
         return menu_items_list
 
     def get_posts_by_tag(self, tag: str, lang: str) -> Generator[Any, None, None]:
-        """Retrieve posts filtered by tag and language."""
+        """Retrieve posts filtered by tag and language.
+
+        Returns a generator for lazy evaluation, unlike get_all_posts() which returns
+        a materialized list. The generator can only be iterated once and doesn't
+        support len() or indexing. Use list() to materialize if needed.
+        """
         return (
             post
             for post in self._get_site_content()["posts"]
@@ -100,7 +105,7 @@ class Json(DB):
     def _get_site_content(self) -> dict[str, Any]:
         content = self.data.get("site_content")
         if content is None:
-            raise Exception("Content should not be None")
+            raise ValueError("Content should not be None")
         return content
 
     def get_logo_url(self):
