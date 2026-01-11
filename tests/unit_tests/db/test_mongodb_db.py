@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -20,7 +21,7 @@ class TestMongoDbConfig:
 
 class TestFactoryFunctions:
     @patch("platzky.db.mongodb_db.MongoClient")
-    def test_get_db(self, mock_client):
+    def test_get_db(self, mock_client: Any):
         config_data = {
             "TYPE": "mongodb",
             "CONNECTION_STRING": "mongodb://localhost:27017",
@@ -31,7 +32,7 @@ class TestFactoryFunctions:
         mock_client.assert_called_once_with("mongodb://localhost:27017")
 
     @patch("platzky.db.mongodb_db.MongoClient")
-    def test_db_from_config(self, mock_client):
+    def test_db_from_config(self, mock_client: Any):
         config = MongoDbConfig.model_validate(
             {
                 "TYPE": "mongodb",
@@ -61,11 +62,11 @@ class TestMongoDB:
             yield mock_client, mock_db
 
     @pytest.fixture
-    def db(self, mock_client):
+    def db(self, mock_client: Any):
         _, _ = mock_client  # Unpack but acknowledge unused variables
         return MongoDB("mongodb://localhost:27017", "test_db")
 
-    def test_init(self, mock_client):
+    def test_init(self, mock_client: Any):
         mock_client_instance, _ = mock_client
         db = MongoDB("mongodb://localhost:27017", "test_db")
 
@@ -75,7 +76,7 @@ class TestMongoDB:
         assert db.db_name == "MongoDB"
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
 
-    def test_get_app_description(self, db):
+    def test_get_app_description(self, db: Any):
         # Mock the site_content collection
         db.site_content.find_one.return_value = {
             "_id": "config",
@@ -88,11 +89,11 @@ class TestMongoDB:
 
         db.site_content.find_one.assert_called_with({"_id": "config"})
 
-    def test_get_app_description_no_data(self, db):
+    def test_get_app_description_no_data(self, db: Any):
         db.site_content.find_one.return_value = None
         assert db.get_app_description("en") == ""
 
-    def test_get_all_posts(self, db):
+    def test_get_all_posts(self, db: Any):
         # Mock posts data
         mock_posts = [
             {
@@ -120,7 +121,7 @@ class TestMongoDB:
         assert posts[0].title == "Post 1"
         db.posts.find.assert_called_once_with({"language": "en"})
 
-    def test_get_menu_items_in_lang(self, db):
+    def test_get_menu_items_in_lang(self, db: Any):
         # Mock menu items data
         db.menu_items.find_one.return_value = {
             "_id": "en",
@@ -134,12 +135,12 @@ class TestMongoDB:
         assert menu_items[0].name == "Home"
         db.menu_items.find_one.assert_called_once_with({"_id": "en"})
 
-    def test_get_menu_items_in_lang_no_data(self, db):
+    def test_get_menu_items_in_lang_no_data(self, db: Any):
         db.menu_items.find_one.return_value = None
         menu_items = db.get_menu_items_in_lang("fr")
         assert len(menu_items) == 0
 
-    def test_get_post(self, db):
+    def test_get_post(self, db: Any):
         # Mock post data
         mock_post = {
             "_id": "1",
@@ -164,13 +165,13 @@ class TestMongoDB:
         assert post.title == "Post 1"
         db.posts.find_one.assert_called_once_with({"slug": "post-1"})
 
-    def test_get_post_not_found(self, db):
+    def test_get_post_not_found(self, db: Any):
         db.posts.find_one.return_value = None
 
         with pytest.raises(ValueError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
-    def test_get_page(self, db):
+    def test_get_page(self, db: Any):
         # Mock page data
         mock_page = {
             "_id": "1",
@@ -195,13 +196,13 @@ class TestMongoDB:
         assert page.title == "Page 1"
         db.pages.find_one.assert_called_once_with({"slug": "page-1"})
 
-    def test_get_page_not_found(self, db):
+    def test_get_page_not_found(self, db: Any):
         db.pages.find_one.return_value = None
 
         with pytest.raises(ValueError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
-    def test_get_posts_by_tag(self, db):
+    def test_get_posts_by_tag(self, db: Any):
         mock_cursor = Mock()
         db.posts.find.return_value = mock_cursor
 
@@ -210,7 +211,7 @@ class TestMongoDB:
         assert result == mock_cursor
         db.posts.find.assert_called_once_with({"tags": "tag1", "language": "en"})
 
-    def test_add_comment(self, db):
+    def test_add_comment(self, db: Any):
         with patch("platzky.db.mongodb_db.datetime.datetime") as mock_datetime:
             test_date = Mock()
             test_date.isoformat.return_value = "2023-01-01T12:00:00"
@@ -228,65 +229,65 @@ class TestMongoDB:
                 {"slug": "post-1"}, {"$push": {"comments": expected_comment}}
             )
 
-    def test_get_logo_url(self, db):
+    def test_get_logo_url(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config", "logo_url": "/logo.png"}
 
         assert db.get_logo_url() == "/logo.png"
         db.site_content.find_one.assert_called_with({"_id": "config"})
 
-    def test_get_logo_url_no_data(self, db):
+    def test_get_logo_url_no_data(self, db: Any):
         db.site_content.find_one.return_value = None
         assert db.get_logo_url() == ""
 
-    def test_get_favicon_url(self, db):
+    def test_get_favicon_url(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config", "favicon_url": "/favicon.ico"}
 
         assert db.get_favicon_url() == "/favicon.ico"
 
-    def test_get_primary_color(self, db):
+    def test_get_primary_color(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config", "primary_color": "blue"}
 
         assert db.get_primary_color() == "blue"
 
-    def test_get_primary_color_default(self, db):
+    def test_get_primary_color_default(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config"}
 
         assert db.get_primary_color() == "white"
 
-    def test_get_secondary_color(self, db):
+    def test_get_secondary_color(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config", "secondary_color": "green"}
 
         assert db.get_secondary_color() == "green"
 
-    def test_get_secondary_color_default(self, db):
+    def test_get_secondary_color_default(self, db: Any):
         db.site_content.find_one.return_value = None
         assert db.get_secondary_color() == "navy"
 
-    def test_get_plugins_data(self, db):
+    def test_get_plugins_data(self, db: Any):
         db.plugins.find_one.return_value = {"_id": "config", "data": [{"name": "plugin1"}]}
 
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
         assert plugins[0]["name"] == "plugin1"
 
-    def test_get_plugins_data_no_data(self, db):
+    def test_get_plugins_data_no_data(self, db: Any):
         db.plugins.find_one.return_value = None
         assert db.get_plugins_data() == []
 
-    def test_get_font(self, db):
+    def test_get_font(self, db: Any):
         db.site_content.find_one.return_value = {"_id": "config", "font": "Arial"}
 
         assert db.get_font() == "Arial"
 
-    def test_get_font_default(self, db):
+    def test_get_font_default(self, db: Any):
         db.site_content.find_one.return_value = None
         assert db.get_font() == ""
 
-    def test_close_connection(self, db):
+    def test_close_connection(self, db: Any):
         db._close_connection()
         db.client.close.assert_called_once()
 
-    def test_health_check_success(self, db):
+    def test_health_check_success(self, db: Any):
         """Test health check when database is accessible"""
         db.client.admin.command.return_value = {"ok": 1}
 
@@ -295,7 +296,7 @@ class TestMongoDB:
 
         db.client.admin.command.assert_called_once_with("ping")
 
-    def test_health_check_failure(self, db):
+    def test_health_check_failure(self, db: Any):
         """Test health check when database is not accessible"""
         db.client.admin.command.side_effect = Exception("Connection failed")
 

@@ -1,4 +1,5 @@
 import datetime
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -94,15 +95,15 @@ class TestJsonDb:
         }
 
     @pytest.fixture
-    def db(self, sample_data):
+    def db(self, sample_data: Any):
         return Json(sample_data)
 
-    def test_get_app_description(self, db):
+    def test_get_app_description(self, db: Any):
         assert db.get_app_description("en") == "English description"
         assert db.get_app_description("de") == "Deutsche Beschreibung"
         assert db.get_app_description("fr") is None
 
-    def test_get_all_posts(self, db):
+    def test_get_all_posts(self, db: Any):
         posts = db.get_all_posts("en")
         assert len(posts) == 1
         assert isinstance(posts[0], Post)
@@ -113,13 +114,13 @@ class TestJsonDb:
         assert len(de_posts) == 1
         assert de_posts[0].title == "Post 2"
 
-    def test_get_post(self, db):
+    def test_get_post(self, db: Any):
         post = db.get_post("post-1")
         assert isinstance(post, Post)
         assert post.title == "Post 1"
         assert post.slug == "post-1"
 
-    def test_get_post_not_found(self, db):
+    def test_get_post_not_found(self, db: Any):
         with pytest.raises(ValueError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
@@ -128,17 +129,17 @@ class TestJsonDb:
         with pytest.raises(ValueError, match="Posts data is missing"):
             db_without_posts.get_post("any-slug")
 
-    def test_get_page(self, db):
+    def test_get_page(self, db: Any):
         page = db.get_page("page-1")
         assert isinstance(page, Post)
         assert page.title == "Page 1"
         assert page.slug == "page-1"
 
-    def test_get_page_not_found(self, db):
+    def test_get_page_not_found(self, db: Any):
         with pytest.raises(ValueError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
-    def test_get_menu_items_in_lang(self, db):
+    def test_get_menu_items_in_lang(self, db: Any):
         menu_items = db.get_menu_items_in_lang("en")
         assert len(menu_items) == 1
         assert isinstance(menu_items[0], MenuItem)
@@ -151,7 +152,7 @@ class TestJsonDb:
         fr_menu_items = db.get_menu_items_in_lang("fr")
         assert len(fr_menu_items) == 0
 
-    def test_get_posts_by_tag(self, db):
+    def test_get_posts_by_tag(self, db: Any):
         # Test posts with tag1 in English
         tag1_en_posts = list(db.get_posts_by_tag("tag1", "en"))
         assert len(tag1_en_posts) == 1
@@ -191,30 +192,30 @@ class TestJsonDb:
         with pytest.raises(Exception, match="Content should not be None"):
             db.get_post("any-slug")
 
-    def test_get_logo_url(self, db):
+    def test_get_logo_url(self, db: Any):
         assert db.get_logo_url() == "/logo.png"
 
-    def test_get_favicon_url(self, db):
+    def test_get_favicon_url(self, db: Any):
         assert db.get_favicon_url() == "/favicon.ico"
 
-    def test_get_font(self, db):
+    def test_get_font(self, db: Any):
         assert db.get_font() == "Arial"
 
-    def test_get_primary_color(self, db):
+    def test_get_primary_color(self, db: Any):
         assert db.get_primary_color() == "blue"
 
     def test_get_primary_color_default(self):
         db = Json({"site_content": {}})
         assert db.get_primary_color() == "white"
 
-    def test_get_secondary_color(self, db):
+    def test_get_secondary_color(self, db: Any):
         assert db.get_secondary_color() == "green"
 
     def test_get_secondary_color_default(self):
         db = Json({"site_content": {}})
         assert db.get_secondary_color() == "navy"
 
-    def test_add_comment(self, db):
+    def test_add_comment(self, db: Any):
         # Create a real datetime object for the test
         test_date = datetime.datetime(2023, 1, 1, 12, 0)
 
@@ -230,11 +231,11 @@ class TestJsonDb:
         assert comment["comment"] == "Great post!"
         assert comment["date"] == "2023-01-01T12:00:00"
 
-    def test_add_comment_to_nonexistent_post(self, db):
+    def test_add_comment_to_nonexistent_post(self, db: Any):
         with pytest.raises(StopIteration):
             db.add_comment("Test User", "Comment", "non-existent")
 
-    def test_get_plugins_data(self, db):
+    def test_get_plugins_data(self, db: Any):
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
         assert plugins[0]["name"] == "plugin1"
@@ -243,7 +244,7 @@ class TestJsonDb:
         db = Json({})
         assert db.get_plugins_data() == []
 
-    def test_get_post_with_missing_data(self, db):
+    def test_get_post_with_missing_data(self, db: Any):
         """Test that get_post raises ValueError when post data is missing."""
         # Create a post with missing required data
         post = {
@@ -265,7 +266,7 @@ class TestJsonDb:
         with pytest.raises(ValueError):
             db.get_post("test-post")
 
-    def test_get_posts_by_tag_with_empty_posts(self, db):
+    def test_get_posts_by_tag_with_empty_posts(self, db: Any):
         """Test that get_posts_by_tag returns empty generator when posts list is empty."""
         # Clear the posts list
         db.data["site_content"]["posts"] = []
@@ -274,7 +275,7 @@ class TestJsonDb:
         posts = list(db.get_posts_by_tag("tag1", "en"))
         assert len(posts) == 0
 
-    def test_get_primary_color_with_missing_data(self, db):
+    def test_get_primary_color_with_missing_data(self, db: Any):
         """Test that get_primary_color returns default value when data is missing."""
         # Remove primary_color from site_content
         del db.data["site_content"]["primary_color"]
@@ -282,7 +283,7 @@ class TestJsonDb:
         # Test that get_primary_color returns default value
         assert db.get_primary_color() == "white"
 
-    def test_get_secondary_color_with_missing_data(self, db):
+    def test_get_secondary_color_with_missing_data(self, db: Any):
         """Test that get_secondary_color returns default value when data is missing."""
         # Remove secondary_color from site_content
         del db.data["site_content"]["secondary_color"]
@@ -290,7 +291,7 @@ class TestJsonDb:
         # Test that get_secondary_color returns default value
         assert db.get_secondary_color() == "navy"
 
-    def test_add_comment_with_invalid_post(self, db):
+    def test_add_comment_with_invalid_post(self, db: Any):
         """Test that add_comment raises StopIteration when post is invalid."""
         # Create a post with invalid slug
         post = {
@@ -312,7 +313,7 @@ class TestJsonDb:
         with pytest.raises(StopIteration):
             db.add_comment("Test Author", "Test Comment", "test-post")
 
-    def test_health_check_success(self, db):
+    def test_health_check_success(self, db: Any):
         """Test health check when database is accessible"""
         # Should not raise any exception
         db.health_check()

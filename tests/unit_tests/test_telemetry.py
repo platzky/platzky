@@ -4,6 +4,7 @@ These tests use the actual OpenTelemetry packages instead of mocks,
 providing integration-level testing with better coverage.
 """
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,7 +22,7 @@ def mock_app():
     return app
 
 
-def test_telemetry_disabled(mock_app):
+def test_telemetry_disabled(mock_app: Any):
     """Test that telemetry setup returns None when disabled."""
     config = TelemetryConfig(enabled=False)
 
@@ -30,7 +31,7 @@ def test_telemetry_disabled(mock_app):
     assert result is None
 
 
-def test_telemetry_console_exporter(mock_app):
+def test_telemetry_console_exporter(mock_app: Any):
     """Test telemetry setup with console exporter."""
     config = TelemetryConfig(enabled=True, console_export=True)
 
@@ -45,7 +46,7 @@ def test_telemetry_console_exporter(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_otlp_exporter(mock_app):
+def test_telemetry_otlp_exporter(mock_app: Any):
     """Test telemetry setup with OTLP exporter."""
     config = TelemetryConfig(enabled=True, endpoint="http://localhost:4317")
 
@@ -60,7 +61,7 @@ def test_telemetry_otlp_exporter(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_gcp_trace_exporter(mock_app):
+def test_telemetry_gcp_trace_exporter(mock_app: Any):
     """Test telemetry setup with GCP Trace exporter."""
     config = TelemetryConfig(enabled=True, endpoint="https://telemetry.googleapis.com")
 
@@ -75,7 +76,7 @@ def test_telemetry_gcp_trace_exporter(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_console_export_with_other_exporter(mock_app):
+def test_telemetry_console_export_with_other_exporter(mock_app: Any):
     """Test that console_export adds console exporter alongside main exporter."""
     config = TelemetryConfig(enabled=True, endpoint="http://localhost:4317", console_export=True)
 
@@ -145,7 +146,7 @@ def test_telemetry_config_valid_endpoint_formats():
     ],
     ids=["bad_scheme", "grpc_scheme", "malformed", "no_hostname", "just_path"],
 )
-def test_telemetry_config_invalid_endpoint(invalid_endpoint, error_match):
+def test_telemetry_config_invalid_endpoint(invalid_endpoint: Any, error_match: Any):
     """Test TelemetryConfig rejects invalid endpoint formats."""
     with pytest.raises(ValueError, match=error_match):
         TelemetryConfig(enabled=True, endpoint=invalid_endpoint)
@@ -156,13 +157,13 @@ def test_telemetry_config_invalid_endpoint(invalid_endpoint, error_match):
     [0, -1, -10],
     ids=["zero", "negative_one", "negative_ten"],
 )
-def test_telemetry_config_invalid_timeout(invalid_timeout):
+def test_telemetry_config_invalid_timeout(invalid_timeout: Any):
     """Test TelemetryConfig rejects non-positive timeout values."""
     with pytest.raises(ValueError, match="greater than 0"):
         TelemetryConfig(enabled=True, timeout=invalid_timeout)
 
 
-def test_telemetry_enabled_without_exporters(mock_app):
+def test_telemetry_enabled_without_exporters(mock_app: Any):
     """Test telemetry with enabled=True but no exporters raises ValueError."""
     config = TelemetryConfig(enabled=True, endpoint=None, console_export=False)
 
@@ -170,7 +171,7 @@ def test_telemetry_enabled_without_exporters(mock_app):
         setup_telemetry(mock_app, config)
 
 
-def test_telemetry_deployment_environment(mock_app):
+def test_telemetry_deployment_environment(mock_app: Any):
     """Test telemetry setup with deployment_environment."""
     config = TelemetryConfig(enabled=True, console_export=True, deployment_environment="production")
 
@@ -182,7 +183,7 @@ def test_telemetry_deployment_environment(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_service_instance_id_custom(mock_app):
+def test_telemetry_service_instance_id_custom(mock_app: Any):
     """Test telemetry setup with custom service_instance_id."""
     config = TelemetryConfig(
         enabled=True, console_export=True, service_instance_id="custom-instance-123"
@@ -196,7 +197,7 @@ def test_telemetry_service_instance_id_custom(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
+def test_telemetry_service_instance_id_auto_generated(mock_app: Any, monkeypatch: Any):
     """Test telemetry setup with auto-generated service_instance_id."""
     # Mock hostname and UUID for predictable testing
     monkeypatch.setattr("socket.gethostname", lambda: "test-host")
@@ -222,7 +223,7 @@ def test_telemetry_service_instance_id_auto_generated(mock_app, monkeypatch):
         assert span.is_recording()
 
 
-def test_telemetry_version_not_available(mock_app, monkeypatch):
+def test_telemetry_version_not_available(mock_app: Any, monkeypatch: Any):
     """Test telemetry setup when package version is not available."""
     # Patch importlib.metadata.version to raise PackageNotFoundError
     from importlib.metadata import PackageNotFoundError
@@ -242,7 +243,7 @@ def test_telemetry_version_not_available(mock_app, monkeypatch):
         assert span.is_recording()
 
 
-def test_telemetry_service_name_from_app_config(mock_app):
+def test_telemetry_service_name_from_app_config(mock_app: Any):
     """Test that service name is taken from Flask app config."""
     mock_app.config = {"APP_NAME": "my-custom-app"}
 
@@ -256,7 +257,7 @@ def test_telemetry_service_name_from_app_config(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_can_create_spans(mock_app):
+def test_telemetry_can_create_spans(mock_app: Any):
     """Test that we can actually create spans after setup."""
     config = TelemetryConfig(enabled=True, console_export=True)
 
@@ -277,7 +278,7 @@ def test_telemetry_can_create_spans(mock_app):
     assert not span.is_recording()
 
 
-def test_telemetry_idempotent_setup(mock_app):
+def test_telemetry_idempotent_setup(mock_app: Any):
     """Test that calling setup_telemetry twice returns tracer without errors."""
     config = TelemetryConfig(enabled=True, console_export=True)
 
@@ -293,7 +294,7 @@ def test_telemetry_idempotent_setup(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_flush_on_request_disabled(mock_app):
+def test_telemetry_flush_on_request_disabled(mock_app: Any):
     """Test telemetry setup with flush_on_request disabled."""
     config = TelemetryConfig(enabled=True, console_export=True, flush_on_request=False)
 
@@ -305,7 +306,7 @@ def test_telemetry_flush_on_request_disabled(mock_app):
         assert span.is_recording()
 
 
-def test_telemetry_custom_flush_timeout(mock_app):
+def test_telemetry_custom_flush_timeout(mock_app: Any):
     """Test telemetry setup with custom flush timeout."""
     config = TelemetryConfig(
         enabled=True, console_export=True, flush_on_request=True, flush_timeout_ms=1000

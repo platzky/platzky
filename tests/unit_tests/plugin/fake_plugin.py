@@ -1,3 +1,5 @@
+from typing import Any
+
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
@@ -18,7 +20,7 @@ class FakePlugin(PluginBase[FakePluginConfig]):
     # Type hint for config to help the type checker
     config: FakePluginConfig
 
-    def __init__(self, config):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.process_called = False
 

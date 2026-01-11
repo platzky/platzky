@@ -113,7 +113,7 @@ class GraphQL(DB):
         self.client = Client(transport=transport)
         super().__init__()
 
-    def get_all_posts(self, lang):
+    def get_all_posts(self, lang: str):
         """Retrieve all published posts for a specific language.
 
         Args:
@@ -158,7 +158,7 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items_in_lang(self, lang):
+    def get_menu_items_in_lang(self, lang: str):
         """Retrieve menu items for a specific language.
 
         Args:
@@ -200,7 +200,7 @@ class GraphQL(DB):
 
         return menu_items["menuItems"]
 
-    def get_post(self, slug):
+    def get_post(self, slug: str):
         """Retrieve a single post by its slug.
 
         Args:
@@ -246,7 +246,7 @@ class GraphQL(DB):
         return Post.model_validate(_standarize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
-    def get_page(self, slug):
+    def get_page(self, slug: str):
         """Retrieve a page by its slug.
 
         Args:
@@ -271,7 +271,7 @@ class GraphQL(DB):
         )
         return self.client.execute(post, variable_values={"slug": slug})["page"]
 
-    def get_posts_by_tag(self, tag, lang):
+    def get_posts_by_tag(self, tag: str, lang: str):
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -302,7 +302,7 @@ class GraphQL(DB):
         )
         return self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
 
-    def add_comment(self, author_name, comment, post_slug):
+    def add_comment(self, author_name: str, comment: str, post_slug: str):
         """Add a new comment to a post.
 
         Args:
@@ -367,7 +367,7 @@ class GraphQL(DB):
         except IndexError:
             return ""
 
-    def get_app_description(self, lang):
+    def get_app_description(self, lang: str):
         """Retrieve the application description for a specific language.
 
         Args:

@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -27,7 +28,7 @@ def base_config_data():
 class TestPluginLocaleIntegration:
     """Integration tests for plugin locale registration."""
 
-    def test_plugin_locale_registered_during_loading(self, base_config_data):
+    def test_plugin_locale_registered_during_loading(self, base_config_data: Any):
         """Test that locale directory is registered when plugin is loaded."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create plugin with locale directory
@@ -80,8 +81,10 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
                     # Clean up sys.modules to avoid polluting other tests
                     sys.modules.pop("platzky_test_plugin", None)
 
-    def test_plugin_locale_outside_plugin_directory_rejected(self, base_config_data, caplog):
-        """Test that locale directories outside plugin directory are rejected for security."""
+    def test_plugin_locale_outside_plugin_directory_rejected(
+        self, base_config_data: Any, caplog: Any
+    ):
+        """Test that locale directories outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create plugin directory
             plugin_dir = Path(tmpdir) / "platzky_malicious_plugin"
@@ -95,7 +98,7 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
             init_file = plugin_dir / "__init__.py"
             init_file.write_text(
                 f"""
-from typing import Optional
+from typing import Optional, Any
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
@@ -149,7 +152,7 @@ class MaliciousPlugin(PluginBase[PluginBaseConfig]):
                     sys.modules.pop("platzky_malicious_plugin", None)
 
     def test_plugin_locale_with_symlink_to_external_directory_rejected(
-        self, base_config_data, caplog
+        self, base_config_data: Any, caplog: Any
     ):
         """Test that symlinks pointing outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:

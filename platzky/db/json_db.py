@@ -67,7 +67,7 @@ class Json(DB):
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
-    def get_app_description(self, lang):
+    def get_app_description(self, lang: str):
         """Retrieve the application description for a specific language.
 
         Args:
@@ -79,7 +79,7 @@ class Json(DB):
         description = self._get_site_content().get("app_description", {})
         return description.get(lang, None)
 
-    def get_all_posts(self, lang):
+    def get_all_posts(self, lang: str):
         """Retrieve all posts for a specific language.
 
         Args:
@@ -137,7 +137,7 @@ class Json(DB):
         page = Page.model_validate(wanted_page)
         return page
 
-    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
@@ -219,7 +219,7 @@ class Json(DB):
         """
         return self._get_site_content().get("secondary_color", "navy")
 
-    def add_comment(self, author_name, comment, post_slug):
+    def add_comment(self, author_name: str, comment: str, post_slug: str):
         """Add a new comment to a post.
 
         Store dates in UTC with timezone info for consistency with MongoDB backend.
@@ -233,7 +233,7 @@ class Json(DB):
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
-        comment = {
+        comment_data = {
             "author": str(author_name),
             "comment": str(comment),
             "date": now_utc,
@@ -244,7 +244,7 @@ class Json(DB):
             for i in range(len(self._get_site_content()["posts"]))
             if self._get_site_content()["posts"][i]["slug"] == post_slug
         )
-        self._get_site_content()["posts"][post_index]["comments"].append(comment)
+        self._get_site_content()["posts"][post_index]["comments"].append(comment_data)
 
     def get_plugins_data(self):
         """Retrieve configuration data for all plugins.

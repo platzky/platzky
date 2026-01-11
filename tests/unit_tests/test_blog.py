@@ -4,6 +4,7 @@
 # Most of those tests just check if some content is displayed and if response code is as it should
 # These should also check how data is formatted, checked for multiple elements, etc.
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -69,28 +70,28 @@ def test_app():
     return app.test_client()
 
 
-def old_comment_on_page(response):
+def old_comment_on_page(response: Any):
     return b"This is some comment" in response.data
 
 
-def post_contents_on_page(response):
+def post_contents_on_page(response: Any):
     return b"This is some content" in response.data
 
 
-def test_usual_post(test_app):
+def test_usual_post(test_app: Any):
     response = test_app.get("/prefix/slug")
     assert response.status_code == 200
     assert old_comment_on_page(response)
     assert post_contents_on_page(response)
 
 
-def test_not_existing_post(test_app):
+def test_not_existing_post(test_app: Any):
     test_app.application.db.get_post.side_effect = ValueError("Post not found")
     response = test_app.get("/prefix/slughorn")
     assert response.status_code == 404
 
 
-def test_rss_feed(test_app):
+def test_rss_feed(test_app: Any):
     response = test_app.get("/prefix/feed")
     assert response.status_code == 200
     assert b"post title" in response.data
@@ -98,7 +99,7 @@ def test_rss_feed(test_app):
     assert not post_contents_on_page(response)
 
 
-def test_all_posts(test_app):
+def test_all_posts(test_app: Any):
     response = test_app.get("/prefix/")
     assert response.status_code == 200
     assert b"post title" in response.data
@@ -106,7 +107,7 @@ def test_all_posts(test_app):
     assert not post_contents_on_page(response)
 
 
-def test_all_posts_sorted(test_app):
+def test_all_posts_sorted(test_app: Any):
     # Create posts with different dates to test sorting
     post1 = Post.model_validate({**mocked_post_json, "date": "2021-01-01"})
     post2 = Post.model_validate({**mocked_post_json, "date": "2021-02-01"})
@@ -137,7 +138,7 @@ def test_all_posts_sorted(test_app):
     assert sorted_posts[2] == post1
 
 
-def test_tag_filter(test_app):
+def test_tag_filter(test_app: Any):
     response = test_app.get("/prefix/tag/tag1")
     assert response.status_code == 200
     assert b"post title" in response.data
@@ -145,7 +146,7 @@ def test_tag_filter(test_app):
     assert not post_contents_on_page(response)
 
 
-def test_posting_new_comment(test_app):
+def test_posting_new_comment(test_app: Any):
     fresh_comment_content = "Fresh comment"
     response = test_app.post(
         "/prefix/slug",
@@ -156,13 +157,13 @@ def test_posting_new_comment(test_app):
     assert f"{fresh_comment_content}".encode("utf-8") in response.data
 
 
-def test_not_existing_page(test_app):
+def test_not_existing_page(test_app: Any):
     test_app.application.db.get_page.side_effect = ValueError("Page not found")
     response = test_app.get("/prefix/page/not-existing-page")
     assert response.status_code == 404
 
 
-def test_page(test_app):
+def test_page(test_app: Any):
     test_app.application.db.get_page.return_value = mocked_post
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 200
@@ -170,7 +171,7 @@ def test_page(test_app):
     assert b"post title" in response.data
 
 
-def test_page_without_cover_image(test_app):
+def test_page_without_cover_image(test_app: Any):
     mocked_post.coverImage = Image()
     test_app.application.db.get_page.return_value = mocked_post
     response = test_app.get("/prefix/page/blabla")
@@ -178,7 +179,7 @@ def test_page_without_cover_image(test_app):
 
 
 # TODO create those tests
-# def test_post_without_cover_image(test_app):
+# def test_post_without_cover_image(test_app: Any):
 
 
 @freeze_time("2022-01-01")
