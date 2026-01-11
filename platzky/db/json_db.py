@@ -56,7 +56,7 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 class Json(DB):
     """In-memory JSON database implementation."""
 
-    def __init__(self, data: dict[str, Any]):
+    def __init__(self, data: dict[str, Any]) -> None:
         """Initialize JSON database with data dictionary.
 
         Args:
@@ -67,7 +67,7 @@ class Json(DB):
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
-    def get_app_description(self, lang):
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
@@ -79,7 +79,7 @@ class Json(DB):
         description = self._get_site_content().get("app_description", {})
         return description.get(lang, None)
 
-    def get_all_posts(self, lang):
+    def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -115,7 +115,7 @@ class Json(DB):
         return Post.model_validate(wanted_post)
 
     # TODO: Add test for non-existing page
-    def get_page(self, slug: str):
+    def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
         Args:
@@ -137,7 +137,7 @@ class Json(DB):
         page = Page.model_validate(wanted_page)
         return page
 
-    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
@@ -179,7 +179,7 @@ class Json(DB):
             raise ValueError("Content should not be None")
         return content
 
-    def get_logo_url(self):
+    def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.
 
         Returns:
@@ -187,7 +187,7 @@ class Json(DB):
         """
         return self._get_site_content().get("logo_url", "")
 
-    def get_favicon_url(self):
+    def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.
 
         Returns:
@@ -203,7 +203,7 @@ class Json(DB):
         """
         return self._get_site_content().get("font", "")
 
-    def get_primary_color(self):
+    def get_primary_color(self) -> str:
         """Retrieve the primary color for the application theme.
 
         Returns:
@@ -211,7 +211,7 @@ class Json(DB):
         """
         return self._get_site_content().get("primary_color", "white")
 
-    def get_secondary_color(self):
+    def get_secondary_color(self) -> str:
         """Retrieve the secondary color for the application theme.
 
         Returns:
@@ -219,7 +219,7 @@ class Json(DB):
         """
         return self._get_site_content().get("secondary_color", "navy")
 
-    def add_comment(self, author_name, comment, post_slug):
+    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
         Store dates in UTC with timezone info for consistency with MongoDB backend.
@@ -246,7 +246,7 @@ class Json(DB):
         )
         self._get_site_content()["posts"][post_index]["comments"].append(comment)
 
-    def get_plugins_data(self):
+    def get_plugins_data(self) -> list[Any]:
         """Retrieve configuration data for all plugins.
 
         Returns:
