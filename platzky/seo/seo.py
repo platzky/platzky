@@ -10,7 +10,16 @@ from flask import Blueprint, Response, current_app, make_response, render_templa
 def create_seo_blueprint(
     db: t.Any, config: dict[str, t.Any], locale_func: t.Callable[[], str]
 ) -> Blueprint:
-    """Create SEO blueprint with routes for robots.txt and sitemap.xml."""
+    """Create SEO blueprint with routes for robots.txt and sitemap.xml.
+
+    Args:
+        db: Database instance for accessing blog content
+        config: Configuration dictionary with SEO and blog settings
+        locale_func: Function that returns the current locale/language code
+
+    Returns:
+        Configured Flask Blueprint for SEO functionality
+    """
     seo = Blueprint(
         "seo",
         __name__,
@@ -20,7 +29,11 @@ def create_seo_blueprint(
 
     @seo.route("/robots.txt")
     def robots() -> Response:
-        """Generate robots.txt file for search engine crawlers."""
+        """Generate robots.txt file for search engine crawlers.
+
+        Returns:
+            Text response containing robots.txt directives
+        """
         robots_response = render_template("robots.txt", domain=request.host, mimetype="text/plain")
         response = make_response(robots_response)
         response.headers["Content-Type"] = "text/plain"
@@ -29,7 +42,17 @@ def create_seo_blueprint(
     def get_blog_entries(
         host_base: str, lang: str, db: t.Any, blog_prefix: str
     ) -> list[dict[str, str]]:
-        """Generate sitemap entries for all blog posts."""
+        """Generate sitemap entries for all blog posts.
+
+        Args:
+            host_base: Base URL of the website (e.g., 'https://example.com')
+            lang: Language code for posts to include
+            db: Database instance for accessing blog posts
+            blog_prefix: URL prefix for blog routes
+
+        Returns:
+            List of dictionaries with sitemap URL entries (loc, lastmod)
+        """
         dynamic_urls = []
         # TODO: Add get_list_of_posts for faster getting just list of it
         for post in db.get_all_posts(lang):
@@ -45,6 +68,9 @@ def create_seo_blueprint(
 
         lastmod and priority tags omitted on static pages.
         lastmod included on dynamic content such as blog posts.
+
+        Returns:
+            XML response containing the sitemap
         """
         lang = locale_func()
 

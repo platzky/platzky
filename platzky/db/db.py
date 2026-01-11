@@ -51,37 +51,68 @@ class DB(ABC):
 
     @abstractmethod
     def get_app_description(self, lang) -> str:
-        """Retrieve the application description for a specific language."""
+        """Retrieve the application description for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_all_posts(self, lang) -> list[Post]:
-        """Retrieve all posts for a specific language."""
+        """Retrieve all posts for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
-        """Retrieve menu items for a specific language."""
+        """Retrieve menu items for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_post(self, slug) -> Post:
-        """Retrieve a single post by its slug."""
+        """Retrieve a single post by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the post
+        """
         pass
 
     @abstractmethod
     def get_page(self, slug) -> Page:
-        """Retrieve a page by its slug."""
+        """Retrieve a page by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the page
+        """
         pass
 
     @abstractmethod
     def get_posts_by_tag(self, tag, lang) -> Any:
-        """Retrieve posts filtered by tag and language."""
+        """Retrieve posts filtered by tag and language.
+
+        Args:
+            tag: Tag name to filter by
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def add_comment(self, author_name, comment, post_slug) -> None:
-        """Add a new comment to a post."""
+        """Add a new comment to a post.
+
+        Args:
+            author_name: Name of the comment author
+            comment: Comment text content
+            post_slug: URL-friendly identifier of the post
+        """
         pass
 
     @abstractmethod
