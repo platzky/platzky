@@ -1,4 +1,4 @@
-"""Flask blueprint for blog functionality including posts, pages, and comments."""
+"""Blueprint for blog functionality including posts, pages, and comments."""
 
 import logging
 from collections.abc import Callable

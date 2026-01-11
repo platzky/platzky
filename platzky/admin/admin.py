@@ -1,4 +1,4 @@
-"""Flask blueprint for admin panel functionality."""
+"""Blueprint for admin panel functionality."""
 
 from os.path import dirname
 from typing import Any

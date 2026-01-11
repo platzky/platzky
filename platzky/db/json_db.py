@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.models import MenuItem, Post
+from platzky.models import MenuItem, Page, Post
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -78,7 +78,7 @@ class Json(DB):
         wanted_page = next(list_of_pages, None)
         if wanted_page is None:
             raise ValueError(f"Page with slug {slug} not found")
-        page = Post.model_validate(wanted_page)
+        page = Page.model_validate(wanted_page)
         return page
 
     def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
