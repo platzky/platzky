@@ -113,7 +113,7 @@ class GraphQL(DB):
         self.client = Client(transport=transport)
         super().__init__()
 
-    def get_all_posts(self, lang: str):
+    def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.
 
         Args:
@@ -158,7 +158,7 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items_in_lang(self, lang: str):
+    def get_menu_items_in_lang(self, lang: str) -> list[Any]:
         """Retrieve menu items for a specific language.
 
         Args:
@@ -200,7 +200,7 @@ class GraphQL(DB):
 
         return menu_items["menuItems"]
 
-    def get_post(self, slug: str):
+    def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
 
         Args:
@@ -246,7 +246,7 @@ class GraphQL(DB):
         return Post.model_validate(_standarize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
-    def get_page(self, slug: str):
+    def get_page(self, slug: str) -> Any:
         """Retrieve a page by its slug.
 
         Args:
@@ -271,7 +271,7 @@ class GraphQL(DB):
         )
         return self.client.execute(post, variable_values={"slug": slug})["page"]
 
-    def get_posts_by_tag(self, tag: str, lang: str):
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Any]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -302,7 +302,7 @@ class GraphQL(DB):
         )
         return self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
 
-    def add_comment(self, author_name: str, comment: str, post_slug: str):
+    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
         Args:
@@ -334,7 +334,7 @@ class GraphQL(DB):
             },
         )
 
-    def get_font(self):
+    def get_font(self) -> str:
         """Get the font configuration for the application.
 
         Returns:
@@ -342,7 +342,7 @@ class GraphQL(DB):
         """
         return ""
 
-    def get_logo_url(self):
+    def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.
 
         Returns:
@@ -367,7 +367,7 @@ class GraphQL(DB):
         except IndexError:
             return ""
 
-    def get_app_description(self, lang: str):
+    def get_app_description(self, lang: str) -> str | None:
         """Retrieve the application description for a specific language.
 
         Args:
@@ -390,7 +390,7 @@ class GraphQL(DB):
             "applicationSetups"
         ][0].get("applicationDescription", None)
 
-    def get_favicon_url(self):
+    def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.
 
         Returns:
@@ -416,7 +416,7 @@ class GraphQL(DB):
     def get_secondary_color(self) -> str:
         return "navy"  # Default color as string
 
-    def get_plugins_data(self):
+    def get_plugins_data(self) -> list[Any]:
         """Retrieve configuration data for all plugins.
 
         Returns:
