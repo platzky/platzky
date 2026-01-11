@@ -56,7 +56,7 @@ def db_from_config(config: MongoDbConfig) -> "MongoDB":
 class MongoDB(DB):
     """MongoDB database implementation with connection pooling."""
 
-    def __init__(self, connection_string: str, database_name: str) -> None:
+    def __init__(self, connection_string: str, database_name: str):
         """Initialize MongoDB database connection.
 
         Args:
