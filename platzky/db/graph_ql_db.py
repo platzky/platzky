@@ -1,5 +1,8 @@
-# TODO rename file, extract it to another library, remove qgl and aiohttp from dependencies
+"""GraphQL-based database implementation for CMS integration."""
 
+# TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
+
+from typing import Any
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -10,26 +13,57 @@ from platzky.db.db import DB, DBConfig
 from platzky.models import Post
 
 
-def db_config_type():
+def db_config_type() -> type["GraphQlDbConfig"]:
+    """Return the configuration class for GraphQL database.
+
+    Returns:
+        GraphQlDbConfig class
+    """
     return GraphQlDbConfig
 
 
 class GraphQlDbConfig(DBConfig):
+    """Configuration for GraphQL database connection."""
+
     endpoint: str = Field(alias="CMS_ENDPOINT")
     token: str = Field(alias="CMS_TOKEN")
 
 
-def get_db(config: GraphQlDbConfig):
+def get_db(config: GraphQlDbConfig) -> "GraphQL":
+    """Get a GraphQL database instance from configuration.
+
+    Args:
+        config: GraphQL database configuration
+
+    Returns:
+        Configured GraphQL database instance
+    """
     return GraphQL(config.endpoint, config.token)
 
 
-def db_from_config(config: GraphQlDbConfig):
+def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
+    """Create a GraphQL database instance from configuration.
+
+    Args:
+        config: GraphQL database configuration
+
+    Returns:
+        Configured GraphQL database instance
+    """
     return GraphQL(config.endpoint, config.token)
 
 
 def _standarize_comment(
-    comment,
-):
+    comment: dict[str, Any],
+) -> dict[str, Any]:
+    """Standardize comment data structure from GraphQL response.
+
+    Args:
+        comment: Raw comment data from GraphQL response
+
+    Returns:
+        Standardized comment dictionary
+    """
     return {
         "author": comment["author"],
         "comment": comment["comment"],
@@ -37,7 +71,15 @@ def _standarize_comment(
     }
 
 
-def _standarize_post(post):
+def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
+    """Standardize post data structure from GraphQL response.
+
+    Args:
+        post: Raw post data from GraphQL response
+
+    Returns:
+        Standardized post dictionary
+    """
     return {
         "author": post["author"]["name"],
         "slug": post["slug"],
@@ -55,7 +97,15 @@ def _standarize_post(post):
 
 
 class GraphQL(DB):
-    def __init__(self, endpoint, token):
+    """GraphQL database implementation for CMS integration."""
+
+    def __init__(self, endpoint: str, token: str) -> None:
+        """Initialize GraphQL database connection.
+
+        Args:
+            endpoint: GraphQL API endpoint URL
+            token: Authentication token for the API
+        """
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"
         full_token = "bearer " + token
@@ -64,6 +114,14 @@ class GraphQL(DB):
         super().__init__()
 
     def get_all_posts(self, lang):
+        """Retrieve all published posts for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            List of Post objects
+        """
         all_posts = gql(
             """
             query MyQuery($lang: Lang!) {
@@ -101,6 +159,14 @@ class GraphQL(DB):
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
     def get_menu_items_in_lang(self, lang):
+        """Retrieve menu items for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            List of menu item dictionaries
+        """
         menu_items = []
         try:
             menu_items_with_lang = gql(
@@ -135,6 +201,14 @@ class GraphQL(DB):
         return menu_items["menuItems"]
 
     def get_post(self, slug):
+        """Retrieve a single post by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the post
+
+        Returns:
+            Post object
+        """
         post = gql(
             """
             query MyQuery($slug: String!) {
@@ -171,8 +245,16 @@ class GraphQL(DB):
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
         return Post.model_validate(_standarize_post(post_raw))
 
-    # TODO Cleanup page logic of internationalization (now it depends on translation of slugs)
+    # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
     def get_page(self, slug):
+        """Retrieve a page by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the page
+
+        Returns:
+            Page dictionary
+        """
         post = gql(
             """
             query MyQuery ($slug: String!){
@@ -190,6 +272,15 @@ class GraphQL(DB):
         return self.client.execute(post, variable_values={"slug": slug})["page"]
 
     def get_posts_by_tag(self, tag, lang):
+        """Retrieve posts filtered by tag and language.
+
+        Args:
+            tag: Tag name to filter by
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            List of post dictionaries
+        """
         post = gql(
             """
             query MyQuery ($tag: String!, $lang: Lang!){
@@ -212,6 +303,13 @@ class GraphQL(DB):
         return self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
 
     def add_comment(self, author_name, comment, post_slug):
+        """Add a new comment to a post.
+
+        Args:
+            author_name: Name of the comment author
+            comment: Comment text content
+            post_slug: URL-friendly identifier of the post
+        """
         add_comment = gql(
             """
             mutation MyMutation($author: String!, $comment: String!, $slug: String!) {
@@ -237,9 +335,19 @@ class GraphQL(DB):
         )
 
     def get_font(self):
-        return str("")
+        """Get the font configuration for the application.
+
+        Returns:
+            Empty string (not implemented in GraphQL backend)
+        """
+        return ""
 
     def get_logo_url(self):
+        """Retrieve the URL of the application logo.
+
+        Returns:
+            Logo image URL or empty string if not found
+        """
         logo = gql(
             """
             query myquery {
@@ -260,6 +368,14 @@ class GraphQL(DB):
             return ""
 
     def get_app_description(self, lang):
+        """Retrieve the application description for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            Application description text or None if not found
+        """
         description_query = gql(
             """
             query myquery($lang: Lang!) {
@@ -275,6 +391,11 @@ class GraphQL(DB):
         ][0].get("applicationDescription", None)
 
     def get_favicon_url(self):
+        """Retrieve the URL of the application favicon.
+
+        Returns:
+            Favicon URL
+        """
         favicon = gql(
             """
             query myquery {
@@ -296,6 +417,11 @@ class GraphQL(DB):
         return "navy"  # Default color as string
 
     def get_plugins_data(self):
+        """Retrieve configuration data for all plugins.
+
+        Returns:
+            List of plugin configuration dictionaries
+        """
         plugins_data = gql(
             """
             query MyQuery {

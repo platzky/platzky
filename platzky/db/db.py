@@ -1,3 +1,5 @@
+"""Abstract base classes for database implementations."""
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import partial
@@ -9,6 +11,8 @@ from platzky.models import MenuItem, Page, Post
 
 
 class DB(ABC):
+    """Abstract base class for all database implementations."""
+
     db_name: str = "DB"
     module_name: str = "db"
     config_type: type
@@ -47,54 +51,98 @@ class DB(ABC):
 
     @abstractmethod
     def get_app_description(self, lang) -> str:
+        """Retrieve the application description for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_all_posts(self, lang) -> list[Post]:
+        """Retrieve all posts for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+        """Retrieve menu items for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def get_post(self, slug) -> Post:
+        """Retrieve a single post by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the post
+        """
         pass
 
     @abstractmethod
     def get_page(self, slug) -> Page:
+        """Retrieve a page by its slug.
+
+        Args:
+            slug: URL-friendly identifier for the page
+        """
         pass
 
     @abstractmethod
     def get_posts_by_tag(self, tag, lang) -> Any:
+        """Retrieve posts filtered by tag and language.
+
+        Args:
+            tag: Tag name to filter by
+            lang: Language code (e.g., 'en', 'pl')
+        """
         pass
 
     @abstractmethod
     def add_comment(self, author_name, comment, post_slug) -> None:
+        """Add a new comment to a post.
+
+        Args:
+            author_name: Name of the comment author
+            comment: Comment text content
+            post_slug: URL-friendly identifier of the post
+        """
         pass
 
     @abstractmethod
-    def get_logo_url(self) -> str:  # TODO provide alternative text along with the URL of logo
+    def get_logo_url(self) -> str:  # TODO: Provide alternative text along with the URL of logo
+        """Retrieve the URL of the application logo."""
         pass
 
     @abstractmethod
     def get_favicon_url(self) -> str:
+        """Retrieve the URL of the application favicon."""
         pass
 
     @abstractmethod
     def get_primary_color(self) -> str:
+        """Retrieve the primary color for the application theme."""
         pass
 
     @abstractmethod
     def get_secondary_color(self) -> str:
+        """Retrieve the secondary color for the application theme."""
         pass
 
     @abstractmethod
     def get_plugins_data(self) -> list[Any]:
+        """Retrieve configuration data for all plugins."""
         pass
 
     @abstractmethod
     def get_font(self) -> str:
+        """Get the font configuration for the application."""
         pass
 
     @abstractmethod
@@ -108,4 +156,6 @@ class DB(ABC):
 
 
 class DBConfig(BaseModel):
+    """Base configuration class for database connections."""
+
     type: str = Field(alias="TYPE")
