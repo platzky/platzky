@@ -233,7 +233,7 @@ class TestPluginLoading:
 
             assert hasattr(app, "test_value")
             # TODO fix linting problem with expanding engine with plugins
-            assert app.test_value == "custom_value"  # type: ignore
+            assert app.test_value == "custom_value"  # type: ignore[attr-defined] - Attribute added dynamically by plugin
 
             mock_find_plugin.assert_called_once_with("fake-plugin")
 

@@ -38,10 +38,10 @@ def test_db_extension():
 
     # TODO remove ignores with proper plugin system
     with pytest.raises(AttributeError):
-        db.test()  # type: ignore
+        db.test()  # type: ignore[attr-defined] - Testing that non-existent method raises error
 
     db.extend("test", dummy_function_taking_one_argument)
-    result = db.test()  # type: ignore
+    result = db.test()  # type: ignore[attr-defined] - Method added dynamically via extend()
     assert result == "test"
 
 

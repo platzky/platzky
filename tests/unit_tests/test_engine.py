@@ -1,8 +1,11 @@
+from typing import cast
+
 import pytest
 from bs4 import BeautifulSoup, Tag
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
+from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
@@ -27,7 +30,7 @@ def test_logo_has_set_src(test_app: Engine):
 
 
 def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
-    test_app.db.data["site_content"].pop("logo_url")  # type: ignore[attr-defined]
+    cast(Json, test_app.db).data["site_content"].pop("logo_url")
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -38,7 +41,7 @@ def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
 
 
 def test_favicon_is_applied(test_app: Engine):
-    test_app.db.data["site_content"]["favicon_url"] = "https://example.com/favicon.ico"  # type: ignore[attr-defined]
+    cast(Json, test_app.db).data["site_content"]["favicon_url"] = "https://example.com/favicon.ico"
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -362,4 +365,4 @@ def test_health_check_custom_timeout(test_app: Engine):
 def test_add_health_check_not_callable(test_app: Engine):
     """Test that adding a non-callable health check raises TypeError"""
     with pytest.raises(TypeError, match="check_function must be callable"):
-        test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type]
+        test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type] - Intentionally passing invalid type to test error handling

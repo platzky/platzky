@@ -223,7 +223,11 @@ class TestJsonDb:
             db.add_comment("Test User", "Great post!", "post-1")
 
         # Instead of using get_post which has validation issues, directly check the data
-        post_data = next(p for p in db._get_site_content()["posts"] if p["slug"] == "post-1")  # type: ignore[reportPrivateUsage]
+        post_data = next(
+            p
+            for p in db._get_site_content()["posts"]  # type: ignore[reportPrivateUsage] - Testing requires access to private method
+            if p["slug"] == "post-1"
+        )
         assert len(post_data["comments"]) == 1
         comment = post_data["comments"][0]
         assert comment["author"] == "Test User"
