@@ -165,7 +165,7 @@ class Config(StrictBaseModel):
     @classmethod
     def model_validate(
         cls,
-        obj: t.Any,
+        obj: dict[str, t.Any],
         *,
         strict: bool | None = None,
         from_attributes: bool | None = None,

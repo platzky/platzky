@@ -10,7 +10,7 @@ from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.models import Post
+from platzky.models import MenuItem, Page, Post
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:
@@ -53,7 +53,7 @@ def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
     return GraphQL(config.endpoint, config.token)
 
 
-def _standarize_comment(
+def _standardize_comment(
     comment: dict[str, Any],
 ) -> dict[str, Any]:
     """Standardize comment data structure from GraphQL response.
@@ -71,7 +71,7 @@ def _standarize_comment(
     }
 
 
-def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
+def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
     """Standardize post data structure from GraphQL response.
 
     Args:
@@ -86,9 +86,65 @@ def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
         "title": post["title"],
         "excerpt": post["excerpt"],
         "contentInMarkdown": post["contentInRichText"]["html"],
-        "comments": [_standarize_comment(comment) for comment in post["comments"]],
+        "comments": [_standardize_comment(comment) for comment in post["comments"]],
         "tags": post["tags"],
         "language": post["language"],
+        "coverImage": {
+            "url": post["coverImage"]["image"]["url"],
+        },
+        "date": post["date"],
+    }
+
+
+def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
+    """Standardize page data structure from GraphQL response.
+
+    Pages have fewer required fields than posts in the GraphQL schema.
+    This function provides sensible defaults for missing Post fields.
+
+    Args:
+        page: Raw page data from GraphQL response
+
+    Returns:
+        Standardized page dictionary compatible with Page model
+    """
+    return {
+        "author": page.get("author", ""),
+        "slug": page.get("slug", ""),
+        "title": page["title"],
+        "excerpt": page.get("excerpt", ""),
+        "contentInMarkdown": page["contentInMarkdown"],
+        "comments": [],
+        "tags": page.get("tags", []),
+        "language": page.get("language", "en"),
+        "coverImage": {
+            "url": page.get("coverImage", {}).get("url", ""),
+        },
+        "date": page.get("date", "1970-01-01"),
+    }
+
+
+def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
+    """Standardize post data from get_posts_by_tag GraphQL response.
+
+    Posts returned by tag query have fewer fields than full posts.
+    This function provides sensible defaults for missing Post fields.
+
+    Args:
+        post: Raw post data from GraphQL get_posts_by_tag response
+
+    Returns:
+        Standardized post dictionary compatible with Post model
+    """
+    return {
+        "author": post.get("author", ""),
+        "slug": post["slug"],
+        "title": post["title"],
+        "excerpt": post["excerpt"],
+        "contentInMarkdown": post.get("contentInMarkdown", ""),
+        "comments": [],
+        "tags": post["tags"],
+        "language": post.get("language", "en"),
         "coverImage": {
             "url": post["coverImage"]["image"]["url"],
         },
@@ -113,7 +169,7 @@ class GraphQL(DB):
         self.client = Client(transport=transport)
         super().__init__()
 
-    def get_all_posts(self, lang):
+    def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.
 
         Args:
@@ -156,16 +212,16 @@ class GraphQL(DB):
         )
         raw_ql_posts = self.client.execute(all_posts, variable_values={"lang": lang})["posts"]
 
-        return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
+        return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items_in_lang(self, lang):
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            List of menu item dictionaries
+            List of MenuItem objects
         """
         menu_items = []
         try:
@@ -198,9 +254,9 @@ class GraphQL(DB):
             )
             menu_items = self.client.execute(menu_items_without_lang)
 
-        return menu_items["menuItems"]
+        return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
 
-    def get_post(self, slug):
+    def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
 
         Args:
@@ -243,22 +299,23 @@ class GraphQL(DB):
         )
 
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
-        return Post.model_validate(_standarize_post(post_raw))
+        return Post.model_validate(_standardize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
-    def get_page(self, slug):
+    def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
         Args:
             slug: URL-friendly identifier for the page
 
         Returns:
-            Page dictionary
+            Page object
         """
-        post = gql(
+        page_query = gql(
             """
             query MyQuery ($slug: String!){
               page(where: {slug: $slug}, stage: PUBLISHED) {
+                slug
                 title
                 contentInMarkdown
                 coverImage
@@ -269,9 +326,10 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(post, variable_values={"slug": slug})["page"]
+        page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        return Page.model_validate(_standardize_page(page_raw))
 
-    def get_posts_by_tag(self, tag, lang):
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -279,7 +337,7 @@ class GraphQL(DB):
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            List of post dictionaries
+            List of Post objects
         """
         post = gql(
             """
@@ -300,9 +358,10 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
+        raw_posts = self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
+        return [Post.model_validate(_standardize_post_by_tag(p)) for p in raw_posts]
 
-    def add_comment(self, author_name, comment, post_slug):
+    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
         Args:
@@ -334,7 +393,7 @@ class GraphQL(DB):
             },
         )
 
-    def get_font(self):
+    def get_font(self) -> str:
         """Get the font configuration for the application.
 
         Returns:
@@ -342,7 +401,7 @@ class GraphQL(DB):
         """
         return ""
 
-    def get_logo_url(self):
+    def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.
 
         Returns:
@@ -367,14 +426,14 @@ class GraphQL(DB):
         except IndexError:
             return ""
 
-    def get_app_description(self, lang):
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            Application description text or None if not found
+            Application description text or empty string if not found
         """
         description_query = gql(
             """
@@ -388,9 +447,9 @@ class GraphQL(DB):
 
         return self.client.execute(description_query, variable_values={"lang": lang})[
             "applicationSetups"
-        ][0].get("applicationDescription", None)
+        ][0].get("applicationDescription", "")
 
-    def get_favicon_url(self):
+    def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.
 
         Returns:
@@ -416,7 +475,7 @@ class GraphQL(DB):
     def get_secondary_color(self) -> str:
         return "navy"  # Default color as string
 
-    def get_plugins_data(self):
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
 
         Returns:

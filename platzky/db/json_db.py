@@ -1,7 +1,6 @@
 """In-memory JSON database implementation."""
 
 import datetime
-from collections.abc import Generator
 from typing import Any
 
 from pydantic import Field
@@ -67,19 +66,19 @@ class Json(DB):
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
-    def get_app_description(self, lang):
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            Application description text or None if not found
+            Application description text or empty string if not found
         """
         description = self._get_site_content().get("app_description", {})
-        return description.get(lang, None)
+        return description.get(lang, "")
 
-    def get_all_posts(self, lang):
+    def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -115,7 +114,7 @@ class Json(DB):
         return Post.model_validate(wanted_post)
 
     # TODO: Add test for non-existing page
-    def get_page(self, slug: str):
+    def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
         Args:
@@ -137,7 +136,7 @@ class Json(DB):
         page = Page.model_validate(wanted_page)
         return page
 
-    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
@@ -152,18 +151,16 @@ class Json(DB):
         menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
         return menu_items_list
 
-    def get_posts_by_tag(self, tag: str, lang: str) -> Generator[Any, None, None]:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
-        Returns a generator for lazy evaluation, unlike get_all_posts() which returns
-        a materialized list. The generator can only be iterated once and doesn't
-        support len() or indexing. Use list() to materialize if needed.
+        Returns a list of posts, unlike generators which can only be iterated once.
         """
-        return (
-            post
+        return [
+            Post.model_validate(post)
             for post in self._get_site_content()["posts"]
             if tag in post["tags"] and post["language"] == lang
-        )
+        ]
 
     def _get_site_content(self) -> dict[str, Any]:
         """Get the site content dictionary from data.
@@ -179,7 +176,7 @@ class Json(DB):
             raise ValueError("Content should not be None")
         return content
 
-    def get_logo_url(self):
+    def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.
 
         Returns:
@@ -187,7 +184,7 @@ class Json(DB):
         """
         return self._get_site_content().get("logo_url", "")
 
-    def get_favicon_url(self):
+    def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.
 
         Returns:
@@ -203,7 +200,7 @@ class Json(DB):
         """
         return self._get_site_content().get("font", "")
 
-    def get_primary_color(self):
+    def get_primary_color(self) -> str:
         """Retrieve the primary color for the application theme.
 
         Returns:
@@ -211,7 +208,7 @@ class Json(DB):
         """
         return self._get_site_content().get("primary_color", "white")
 
-    def get_secondary_color(self):
+    def get_secondary_color(self) -> str:
         """Retrieve the secondary color for the application theme.
 
         Returns:
@@ -219,7 +216,7 @@ class Json(DB):
         """
         return self._get_site_content().get("secondary_color", "navy")
 
-    def add_comment(self, author_name, comment, post_slug):
+    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
         Store dates in UTC with timezone info for consistency with MongoDB backend.
@@ -233,7 +230,7 @@ class Json(DB):
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
-        comment = {
+        comment_data = {
             "author": str(author_name),
             "comment": str(comment),
             "date": now_utc,
@@ -244,9 +241,9 @@ class Json(DB):
             for i in range(len(self._get_site_content()["posts"]))
             if self._get_site_content()["posts"][i]["slug"] == post_slug
         )
-        self._get_site_content()["posts"][post_index]["comments"].append(comment)
+        self._get_site_content()["posts"][post_index]["comments"].append(comment_data)
 
-    def get_plugins_data(self):
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
 
         Returns:

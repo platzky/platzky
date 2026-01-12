@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -27,7 +28,7 @@ def base_config_data():
 class TestPluginLocaleIntegration:
     """Integration tests for plugin locale registration."""
 
-    def test_plugin_locale_registered_during_loading(self, base_config_data):
+    def test_plugin_locale_registered_during_loading(self, base_config_data: dict[str, Any]):
         """Test that locale directory is registered when plugin is loaded."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create plugin with locale directory
@@ -80,8 +81,10 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
                     # Clean up sys.modules to avoid polluting other tests
                     sys.modules.pop("platzky_test_plugin", None)
 
-    def test_plugin_locale_outside_plugin_directory_rejected(self, base_config_data, caplog):
-        """Test that locale directories outside plugin directory are rejected for security."""
+    def test_plugin_locale_outside_plugin_directory_rejected(
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ):
+        """Test that locale directories outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create plugin directory
             plugin_dir = Path(tmpdir) / "platzky_malicious_plugin"
@@ -91,65 +94,46 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
             external_dir = Path(tmpdir) / "external_sensitive_data"
             external_dir.mkdir()
 
-            # Create a malicious plugin that tries to expose external directory
-            init_file = plugin_dir / "__init__.py"
-            init_file.write_text(
-                f"""
-from typing import Optional
-from platzky.engine import Engine
-from platzky.plugin.plugin import PluginBase, PluginBaseConfig
-
-class MaliciousPlugin(PluginBase[PluginBaseConfig]):
-    def get_locale_dir(self) -> Optional[str]:
-        # Malicious plugin trying to expose external directory
-        return "{external_dir!s}"
-
-    def process(self, app: Engine) -> Engine:
-        return app
-"""
-            )
-
             with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find:
-                import importlib.util
-                import sys
+                from platzky.engine import Engine
+                from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
-                spec = importlib.util.spec_from_file_location(
-                    "platzky_malicious_plugin", str(init_file)
+                # Create a mock plugin class that returns external directory
+                class MaliciousPlugin(PluginBase[PluginBaseConfig]):
+                    def get_locale_dir(self) -> str | None:
+                        return str(external_dir)
+
+                    def process(self, app: Engine) -> Engine:
+                        return app
+
+                # Create mock module with the plugin class and __file__ attribute
+                mock_module = mock.MagicMock()
+                mock_module.MaliciousPlugin = MaliciousPlugin
+                mock_module.__file__ = str(plugin_dir / "__init__.py")
+                mock_find.return_value = mock_module
+
+                base_config_data["DB"]["DATA"]["plugins"] = [
+                    {"name": "malicious_plugin", "config": {}}
+                ]
+                config = Config.model_validate(base_config_data)
+
+                # Should not raise an error, but should log a warning
+                app = create_app_from_config(config)
+
+                # Verify the malicious path was NOT registered
+                babel_config = app.extensions.get("babel")
+                assert babel_config is not None
+                assert str(external_dir) not in babel_config.translation_directories
+
+                # Verify a warning was logged
+                assert any(
+                    "path validation failed" in record.message
+                    and "malicious_plugin" in record.message
+                    for record in caplog.records
                 )
-                assert spec is not None
-                plugin_module = importlib.util.module_from_spec(spec)
-                assert spec.loader is not None
-
-                sys.modules["platzky_malicious_plugin"] = plugin_module
-
-                try:
-                    spec.loader.exec_module(plugin_module)
-                    mock_find.return_value = plugin_module
-
-                    base_config_data["DB"]["DATA"]["plugins"] = [
-                        {"name": "malicious_plugin", "config": {}}
-                    ]
-                    config = Config.model_validate(base_config_data)
-
-                    # Should not raise an error, but should log a warning
-                    app = create_app_from_config(config)
-
-                    # Verify the malicious path was NOT registered
-                    babel_config = app.extensions.get("babel")
-                    assert babel_config is not None
-                    assert str(external_dir) not in babel_config.translation_directories
-
-                    # Verify a warning was logged
-                    assert any(
-                        "path validation failed" in record.message
-                        and "malicious_plugin" in record.message
-                        for record in caplog.records
-                    )
-                finally:
-                    sys.modules.pop("platzky_malicious_plugin", None)
 
     def test_plugin_locale_with_symlink_to_external_directory_rejected(
-        self, base_config_data, caplog
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
     ):
         """Test that symlinks pointing outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:

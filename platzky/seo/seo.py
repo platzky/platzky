@@ -6,9 +6,11 @@ from os.path import dirname
 
 from flask import Blueprint, Response, current_app, make_response, render_template, request
 
+from platzky.db.db import DB
+
 
 def create_seo_blueprint(
-    db: t.Any, config: dict[str, t.Any], locale_func: t.Callable[[], str]
+    db: DB, config: dict[str, t.Any], locale_func: t.Callable[[], str]
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
@@ -40,7 +42,7 @@ def create_seo_blueprint(
         return response
 
     def get_blog_entries(
-        host_base: str, lang: str, db: t.Any, blog_prefix: str
+        host_base: str, lang: str, db: DB, blog_prefix: str
     ) -> list[dict[str, str]]:
         """Generate sitemap entries for all blog posts.
 

@@ -1,16 +1,19 @@
 import importlib.util
 import os
 import sys
+import types
 from os.path import abspath, dirname
 
+from platzky.db.db import DB, DBConfig
 
-def get_db(db_config):
+
+def get_db(db_config: DBConfig) -> DB:
     db_name = db_config.type
     db = get_db_module(db_name)
     return db.db_from_config(db_config)
 
 
-def get_db_module(db_type):
+def get_db_module(db_type: str) -> types.ModuleType:
     """
     Load db module from db_type
     This function is used to load db module dynamically as it is specified in config file.

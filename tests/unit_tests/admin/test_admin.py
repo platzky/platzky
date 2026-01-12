@@ -29,7 +29,7 @@ def admin_blueprint():
 
 
 @patch("platzky.admin.admin.render_template")
-def test_admin_panel_renders_login_when_no_user(mock_render_template, admin_blueprint):
+def test_admin_panel_renders_login_when_no_user(mock_render_template: Mock, admin_blueprint: Flask):
     with admin_blueprint.test_request_context("/admin/"):
         session["user"] = None
         admin_blueprint.view_functions["admin.admin_panel_home"]()
@@ -37,7 +37,9 @@ def test_admin_panel_renders_login_when_no_user(mock_render_template, admin_blue
 
 
 @patch("platzky.admin.admin.render_template")
-def test_admin_panel_renders_admin_when_user_exists(mock_render_template, admin_blueprint):
+def test_admin_panel_renders_admin_when_user_exists(
+    mock_render_template: Mock, admin_blueprint: Flask
+):
     with admin_blueprint.test_request_context("/admin/"):
         session["user"] = "test_user"
         admin_blueprint.view_functions["admin.admin_panel_home"]()
@@ -56,7 +58,7 @@ def test_admin_panel_renders_admin_when_user_exists(mock_render_template, admin_
 
 
 @patch("platzky.admin.admin.render_template")
-def test_admin_panel_renders_cms_modules(mock_render_template, admin_blueprint):
+def test_admin_panel_renders_cms_modules(mock_render_template: Mock, admin_blueprint: Flask):
     # Mock render_template to return a simple test string
     mock_render_template.return_value = "this is test"
 

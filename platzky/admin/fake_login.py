@@ -7,11 +7,11 @@ environments as it bypasses proper authentication and authorization controls.
 
 import os
 from collections.abc import Callable
-from typing import Any
 
 from flask import Blueprint, flash, redirect, render_template_string, session, url_for
 from flask_wtf import FlaskForm
 from markupsafe import Markup
+from werkzeug.wrappers import Response
 
 ROLE_ADMIN = "admin"
 ROLE_NONADMIN = "nonadmin"
@@ -90,7 +90,7 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
         )
 
     @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
-    def handle_fake_login(role: str) -> Any:
+    def handle_fake_login(role: str) -> Response:
         form = FakeLoginForm()
         if form.validate_on_submit() and role in VALID_ROLES:
             if role == ROLE_ADMIN:

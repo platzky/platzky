@@ -7,11 +7,12 @@ from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
 
 from platzky.config import Config
+from platzky.db.db import DB
 from platzky.models import CmsModule
 
 
 class Engine(Flask):
-    def __init__(self, config: Config, db, import_name):
+    def __init__(self, config: Config, db: DB, import_name: str) -> None:
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
@@ -40,7 +41,7 @@ class Engine(Flask):
         for notifier in self.notifiers:
             notifier(message)
 
-    def add_notifier(self, notifier):
+    def add_notifier(self, notifier: Callable[[str], None]) -> None:
         self.notifiers.append(notifier)
 
     def add_cms_module(self, module: CmsModule):
@@ -48,7 +49,7 @@ class Engine(Flask):
         self.cms_modules.append(module)
 
     # TODO login_method should be interface
-    def add_login_method(self, login_method):
+    def add_login_method(self, login_method: Callable[[], str]) -> None:
         self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str):

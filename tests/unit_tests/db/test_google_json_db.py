@@ -38,7 +38,7 @@ class TestGoogleJsonDb:
             # Verify that the data was loaded correctly
             assert db.data == {"test": "data"}
 
-    def test_get_blob(self, mock_client):
+    def test_get_blob(self, mock_client: MagicMock):
         """Test the get_blob function that retrieves a blob from Google Cloud Storage."""
         # Set up the mock
         mock_bucket = MagicMock()

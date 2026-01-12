@@ -1,7 +1,9 @@
+from typing import cast
 from unittest.mock import MagicMock, mock_open, patch
 
 from platzky.config import Config
 from platzky.db import db_loader
+from platzky.db.json_db import Json
 
 
 def test_loading_json_db_dynamically():
@@ -33,7 +35,8 @@ def test_loading_json_file_db_dynamically():
         with patch("json.load", return_value={"site_content": {}}):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
-            assert db.data == {"site_content": {}}
+            assert hasattr(db, "data")
+            assert cast(Json, db).data == {"site_content": {}}
 
 
 def test_loading_google_json_db_dynamically():
@@ -64,7 +67,8 @@ def test_loading_google_json_db_dynamically():
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
-        assert db.data == expected_data
+        assert hasattr(db, "data")
+        assert cast(Json, db).data == expected_data
 
         mock_client.assert_called_once()
         mock_bucket.blob.assert_called_once_with("data.json")

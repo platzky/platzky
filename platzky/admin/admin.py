@@ -1,12 +1,16 @@
 """Blueprint for admin panel functionality."""
 
+from collections.abc import Callable
 from os.path import dirname
-from typing import Any
 
 from flask import Blueprint, render_template, session
 
+from platzky.models import CmsModule
 
-def create_admin_blueprint(login_methods: list[Any], cms_modules: list[Any]) -> Blueprint:
+
+def create_admin_blueprint(
+    login_methods: list[Callable[[], str]], cms_modules: list[CmsModule]
+) -> Blueprint:
     """Create admin blueprint with dynamic module routes.
 
     Args:
@@ -27,7 +31,7 @@ def create_admin_blueprint(login_methods: list[Any], cms_modules: list[Any]) -> 
     for module in cms_modules:
 
         @admin.route(f"/module/{module.slug}", methods=["GET"])
-        def module_route(module: Any = module) -> str:
+        def module_route(module: CmsModule = module) -> str:
             """Render a CMS module page.
 
             Args:

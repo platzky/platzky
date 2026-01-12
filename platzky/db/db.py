@@ -50,7 +50,7 @@ class DB(ABC):
             raise ValueError(f"Failed to extend DB with function {function_name}: {e}")
 
     @abstractmethod
-    def get_app_description(self, lang) -> str:
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
@@ -59,7 +59,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_all_posts(self, lang) -> list[Post]:
+    def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -68,7 +68,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_menu_items_in_lang(self, lang) -> list[MenuItem]:
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
@@ -77,7 +77,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_post(self, slug) -> Post:
+    def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
 
         Args:
@@ -86,7 +86,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_page(self, slug) -> Page:
+    def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
         Args:
@@ -95,7 +95,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_posts_by_tag(self, tag, lang) -> Any:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -105,7 +105,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def add_comment(self, author_name, comment, post_slug) -> None:
+    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
         Args:
@@ -136,7 +136,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_plugins_data(self) -> list[Any]:
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins."""
         pass
 
