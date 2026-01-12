@@ -115,8 +115,8 @@ def test_get_menu_items_in_lang_with_lang(graph_ql_db: GraphQL, mock_client: Moc
     menu_items = graph_ql_db.get_menu_items_in_lang("en")
 
     assert len(menu_items) == 2
-    assert menu_items[0]["name"] == "Home"
-    assert menu_items[1]["url"] == "/about"
+    assert menu_items[0].name == "Home"
+    assert menu_items[1].url == "/about"
     mock_client.execute.assert_called_once()
 
 
@@ -130,7 +130,7 @@ def test_get_menu_items_in_lang_without_lang(graph_ql_db: GraphQL, mock_client: 
     menu_items = graph_ql_db.get_menu_items_in_lang("en")
 
     assert len(menu_items) == 1
-    assert menu_items[0]["name"] == "Home"
+    assert menu_items[0].name == "Home"
     assert mock_client.execute.call_count == 2
 
 

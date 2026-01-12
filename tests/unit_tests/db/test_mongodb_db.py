@@ -63,7 +63,7 @@ class TestMongoDB:
 
     @pytest.fixture
     def db(self, mock_client: tuple[Mock, Mock]) -> MongoDB:
-        _, _ = mock_client  # Unpack but acknowledge unused variables
+        _ = mock_client  # Acknowledge dependency on mock_client fixture
         return MongoDB("mongodb://localhost:27017", "test_db")
 
     def test_init(self, mock_client: tuple[Mock, Mock]):

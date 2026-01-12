@@ -10,7 +10,7 @@ from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.models import Page, Post
+from platzky.models import MenuItem, Page, Post
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:
@@ -96,7 +96,7 @@ def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
+def _standarize_page(page: dict[str, Any]) -> dict[str, Any]:
     """Standardize page data structure from GraphQL response.
 
     Pages have fewer required fields than posts in the GraphQL schema.
@@ -214,14 +214,14 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
 
-    def get_menu_items_in_lang(self, lang: str) -> list[Any]:
+    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            List of menu item dictionaries
+            List of MenuItem objects
         """
         menu_items = []
         try:
@@ -254,7 +254,7 @@ class GraphQL(DB):
             )
             menu_items = self.client.execute(menu_items_without_lang)
 
-        return menu_items["menuItems"]
+        return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
 
     def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
@@ -327,7 +327,7 @@ class GraphQL(DB):
             """
         )
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
-        return Page.model_validate(_standardize_page(page_raw))
+        return Page.model_validate(_standarize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.

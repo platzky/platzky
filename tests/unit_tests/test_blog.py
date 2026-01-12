@@ -180,8 +180,9 @@ def test_page(test_app: FlaskClient):
 
 
 def test_page_without_cover_image(test_app: FlaskClient):
-    mocked_post.coverImage = Image()
-    cast(MagicMock, cast(Engine, test_app.application).db.get_page).return_value = mocked_post
+    post_copy = mocked_post.model_copy(deep=True)
+    post_copy.coverImage = Image()
+    cast(MagicMock, cast(Engine, test_app.application).db.get_page).return_value = post_copy
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 200
 

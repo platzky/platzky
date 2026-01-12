@@ -173,7 +173,8 @@ def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
 def test_that_page_has_proper_html_lang_attribute(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
-    assert soup.html and soup.html.get("lang") == "en-GB"
+    assert soup.html is not None
+    assert soup.html.get("lang") == "en-GB"
 
 
 def test_add_login_method(test_app: Engine):
