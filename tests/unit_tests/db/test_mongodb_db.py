@@ -62,8 +62,11 @@ class TestMongoDB:
             yield mock_client, mock_db
 
     @pytest.fixture
-    def db(self, mock_client: tuple[Mock, Mock]) -> MongoDB:
-        _ = mock_client  # Acknowledge dependency on mock_client fixture
+    def db(self, mock_client: tuple[Mock, Mock]) -> MongoDB:  # noqa: ARG002
+        """Create a MongoDB instance for testing.
+
+        The mock_client fixture is required to be set up before creating the MongoDB instance.
+        """
         return MongoDB("mongodb://localhost:27017", "test_db")
 
     def test_init(self, mock_client: tuple[Mock, Mock]):

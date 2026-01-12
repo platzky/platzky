@@ -53,7 +53,7 @@ def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
     return GraphQL(config.endpoint, config.token)
 
 
-def _standarize_comment(
+def _standardize_comment(
     comment: dict[str, Any],
 ) -> dict[str, Any]:
     """Standardize comment data structure from GraphQL response.
@@ -71,7 +71,7 @@ def _standarize_comment(
     }
 
 
-def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
+def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
     """Standardize post data structure from GraphQL response.
 
     Args:
@@ -86,7 +86,7 @@ def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
         "title": post["title"],
         "excerpt": post["excerpt"],
         "contentInMarkdown": post["contentInRichText"]["html"],
-        "comments": [_standarize_comment(comment) for comment in post["comments"]],
+        "comments": [_standardize_comment(comment) for comment in post["comments"]],
         "tags": post["tags"],
         "language": post["language"],
         "coverImage": {
@@ -96,7 +96,7 @@ def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _standarize_page(page: dict[str, Any]) -> dict[str, Any]:
+def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
     """Standardize page data structure from GraphQL response.
 
     Pages have fewer required fields than posts in the GraphQL schema.
@@ -212,7 +212,7 @@ class GraphQL(DB):
         )
         raw_ql_posts = self.client.execute(all_posts, variable_values={"lang": lang})["posts"]
 
-        return [Post.model_validate(_standarize_post(post)) for post in raw_ql_posts]
+        return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
@@ -299,7 +299,7 @@ class GraphQL(DB):
         )
 
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
-        return Post.model_validate(_standarize_post(post_raw))
+        return Post.model_validate(_standardize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
     def get_page(self, slug: str) -> Page:
@@ -327,7 +327,7 @@ class GraphQL(DB):
             """
         )
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
-        return Page.model_validate(_standarize_page(page_raw))
+        return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.

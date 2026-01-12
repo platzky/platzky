@@ -73,11 +73,11 @@ def test_app():
     return app.test_client()
 
 
-def old_comment_on_page(response: TestResponse):
+def old_comment_on_page(response: TestResponse) -> bool:
     return b"This is some comment" in response.data
 
 
-def post_contents_on_page(response: TestResponse):
+def post_contents_on_page(response: TestResponse) -> bool:
     return b"This is some content" in response.data
 
 
