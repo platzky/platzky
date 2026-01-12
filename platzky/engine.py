@@ -12,7 +12,7 @@ from platzky.models import CmsModule
 
 
 class Engine(Flask):
-    def __init__(self, config: Config, db: DB, import_name: str):
+    def __init__(self, config: Config, db: DB, import_name: str) -> None:
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
