@@ -78,7 +78,7 @@ class MongoDB(DB):
         self.menu_items: Collection[Any] = self.db.menu_items
         self.plugins: Collection[Any] = self.db.plugins
 
-    def get_app_description(self, lang: str) -> str | None:
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:

@@ -426,14 +426,14 @@ class GraphQL(DB):
         except IndexError:
             return ""
 
-    def get_app_description(self, lang: str) -> str | None:
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            Application description text or None if not found
+            Application description text or empty string if not found
         """
         description_query = gql(
             """
@@ -447,7 +447,7 @@ class GraphQL(DB):
 
         return self.client.execute(description_query, variable_values={"lang": lang})[
             "applicationSetups"
-        ][0].get("applicationDescription", None)
+        ][0].get("applicationDescription", "")
 
     def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.

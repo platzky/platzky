@@ -50,7 +50,7 @@ class DB(ABC):
             raise ValueError(f"Failed to extend DB with function {function_name}: {e}")
 
     @abstractmethod
-    def get_app_description(self, lang: str) -> str | None:
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:

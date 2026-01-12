@@ -66,17 +66,17 @@ class Json(DB):
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
-    def get_app_description(self, lang: str) -> str | None:
+    def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            Application description text or None if not found
+            Application description text or empty string if not found
         """
         description = self._get_site_content().get("app_description", {})
-        return description.get(lang, None)
+        return description.get(lang, "")
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
