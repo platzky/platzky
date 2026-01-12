@@ -273,7 +273,7 @@ def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
 
     description = graph_ql_db.get_app_description("en")
 
-    assert description is None
+    assert description == ""
     mock_client.execute.assert_called_once()
 
 

@@ -100,7 +100,7 @@ class TestJsonDb:
     def test_get_app_description(self, db: Json):
         assert db.get_app_description("en") == "English description"
         assert db.get_app_description("de") == "Deutsche Beschreibung"
-        assert db.get_app_description("fr") is None
+        assert db.get_app_description("fr") == ""
 
     def test_get_all_posts(self, db: Json):
         posts = db.get_all_posts("en")

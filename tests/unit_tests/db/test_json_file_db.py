@@ -50,7 +50,7 @@ class TestJsonFileDb:
             db = JsonFile(mock_file_path)
             assert db.get_app_description("en") == "English description"
             assert db.get_app_description("de") == "Deutsche Beschreibung"
-            assert db.get_app_description("fr") is None
+            assert db.get_app_description("fr") == ""
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], mock_file_path: str):
         json_str = json.dumps(sample_data)
