@@ -26,7 +26,7 @@ class TempPluginStructure(TypedDict):
 
 
 @pytest.fixture
-def base_config_data():
+def base_config_data() -> dict[str, Any]:
     """Base configuration for tests."""
     return {
         "APP_NAME": "testingApp",
@@ -42,7 +42,7 @@ def base_config_data():
 
 
 @pytest.fixture
-def mock_plugin_setup():
+def mock_plugin_setup() -> Generator[tuple[MagicMock, MagicMock], None, None]:
     """Setup mocks for plugin loading."""
     with (
         mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin,
