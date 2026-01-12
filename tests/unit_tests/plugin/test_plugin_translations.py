@@ -28,7 +28,7 @@ def base_config_data():
 class TestPluginLocaleIntegration:
     """Integration tests for plugin locale registration."""
 
-    def test_plugin_locale_registered_during_loading(self, base_config_data: Any):
+    def test_plugin_locale_registered_during_loading(self, base_config_data: dict[str, Any]):
         """Test that locale directory is registered when plugin is loaded."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create plugin with locale directory
@@ -82,7 +82,7 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
                     sys.modules.pop("platzky_test_plugin", None)
 
     def test_plugin_locale_outside_plugin_directory_rejected(
-        self, base_config_data: Any, caplog: Any
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
     ):
         """Test that locale directories outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -152,7 +152,7 @@ class MaliciousPlugin(PluginBase[PluginBaseConfig]):
                     sys.modules.pop("platzky_malicious_plugin", None)
 
     def test_plugin_locale_with_symlink_to_external_directory_rejected(
-        self, base_config_data: Any, caplog: Any
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
     ):
         """Test that symlinks pointing outside plugin directory are rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:

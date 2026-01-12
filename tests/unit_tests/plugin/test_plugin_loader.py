@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,21 +41,23 @@ def mock_plugin_setup():
 
 
 class TestPluginErrors:
-    def test_invalid_plugin_config(self, base_config_data: Any):
+    def test_invalid_plugin_config(self, base_config_data: dict[str, Any]):
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "redirections", "config": None}]
         config = Config.model_validate(base_config_data)
 
         with pytest.raises(PluginError):
             create_app_from_config(config)
 
-    def test_non_existent_plugin(self, base_config_data: Any):
+    def test_non_existent_plugin(self, base_config_data: dict[str, Any]):
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "non_existent_plugin", "config": {}}]
         config = Config.model_validate(base_config_data)
 
         with pytest.raises(PluginError):
             create_app_from_config(config)
 
-    def test_plugin_execution_error(self, base_config_data: Any, mock_plugin_setup: Any):
+    def test_plugin_execution_error(
+        self, base_config_data: dict[str, Any], mock_plugin_setup: tuple[MagicMock, MagicMock]
+    ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class ErrorPlugin(PluginBase[PluginBaseConfig]):
@@ -77,7 +80,9 @@ class TestPluginErrors:
 
         assert "Plugin execution failed" in str(excinfo.value)
 
-    def test_plugin_without_implementation(self, base_config_data: Any, mock_plugin_setup: Any):
+    def test_plugin_without_implementation(
+        self, base_config_data: dict[str, Any], mock_plugin_setup: tuple[MagicMock, MagicMock]
+    ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         mock_module = mock.MagicMock()
@@ -129,7 +134,9 @@ class TestPluginConfigValidation:
 
 
 class TestPluginLoading:
-    def test_plugin_loading_success(self, base_config_data: Any, mock_plugin_setup: Any):
+    def test_plugin_loading_success(
+        self, base_config_data: dict[str, Any], mock_plugin_setup: tuple[MagicMock, MagicMock]
+    ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class MockPluginBase(PluginBase[PluginBaseConfig]):
@@ -153,7 +160,9 @@ class TestPluginLoading:
         mock_find_plugin.assert_called_once_with("test_plugin")
         assert "Plugin added content" in app.dynamic_body
 
-    def test_multiple_plugins_loading(self, base_config_data: Any, mock_plugin_setup: Any):
+    def test_multiple_plugins_loading(
+        self, base_config_data: dict[str, Any], mock_plugin_setup: tuple[MagicMock, MagicMock]
+    ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         class FirstPlugin(PluginBase[PluginBaseConfig]):
@@ -187,12 +196,14 @@ class TestPluginLoading:
         assert "First plugin content" in app.dynamic_body
         assert "Second plugin content" in app.dynamic_head
 
-    def test_legacy_plugin_processing(self, base_config_data: Any, mock_plugin_setup: Any):
+    def test_legacy_plugin_processing(
+        self, base_config_data: dict[str, Any], mock_plugin_setup: tuple[MagicMock, MagicMock]
+    ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
         mock_module = mock.MagicMock()
 
-        def side_effect(app: Any, _plugin_config: Any) -> Engine:
+        def side_effect(app: Engine, _plugin_config: dict[str, object]) -> Engine:
             app.add_dynamic_body("Legacy plugin content")
             return app
 
@@ -210,7 +221,7 @@ class TestPluginLoading:
         mock_module.process.assert_called_once()
         assert "Legacy plugin content" in app.dynamic_body
 
-    def test_real_fake_plugin_loading(self, base_config_data: Any):
+    def test_real_fake_plugin_loading(self, base_config_data: dict[str, Any]):
         with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find_plugin:
             mock_find_plugin.return_value = fake_plugin
 
@@ -258,7 +269,7 @@ class TestLocaleDirectorySecurity:
             }
 
     def test_valid_locale_directory_within_plugin(
-        self, base_config_data: Any, temp_plugin_structure: Any
+        self, base_config_data: dict[str, Any], temp_plugin_structure: dict[str, Any]
     ):
         """Test that valid locale directory within plugin is accepted."""
         locale_dir = temp_plugin_structure["locale_dir"]
@@ -301,7 +312,10 @@ class TestLocaleDirectorySecurity:
             assert str(locale_dir) in babel_config.translation_directories
 
     def test_locale_directory_outside_plugin_path(
-        self, base_config_data: Any, temp_plugin_structure: Any, caplog: Any
+        self,
+        base_config_data: dict[str, Any],
+        temp_plugin_structure: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that locale directory outside plugin path is rejected."""
         external_dir = temp_plugin_structure["external_dir"]
@@ -346,7 +360,10 @@ class TestLocaleDirectorySecurity:
             assert str(external_dir) not in babel_config.translation_directories
 
     def test_path_traversal_attack(
-        self, base_config_data: Any, temp_plugin_structure: Any, caplog: Any
+        self,
+        base_config_data: dict[str, Any],
+        temp_plugin_structure: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that path traversal attempts (../) are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
@@ -384,7 +401,12 @@ class TestLocaleDirectorySecurity:
             # Verify warning was logged
             assert "path validation failed" in caplog.text
 
-    def test_symlink_attack(self, base_config_data: Any, temp_plugin_structure: Any, caplog: Any):
+    def test_symlink_attack(
+        self,
+        base_config_data: dict[str, Any],
+        temp_plugin_structure: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
+    ):
         """Test that symlink attacks are prevented by resolving real paths."""
         if os.name == "nt":
             pytest.skip("Symlink test not applicable on Windows without admin privileges")
@@ -434,7 +456,10 @@ class TestLocaleDirectorySecurity:
             assert "path validation failed" in caplog.text
 
     def test_non_existent_directory(
-        self, base_config_data: Any, temp_plugin_structure: Any, caplog: Any
+        self,
+        base_config_data: dict[str, Any],
+        temp_plugin_structure: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that non-existent directories are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
@@ -473,7 +498,9 @@ class TestLocaleDirectorySecurity:
             # Verify warning was logged
             assert "path validation failed" in caplog.text
 
-    def test_plugin_without_locale_dir(self, base_config_data: Any, temp_plugin_structure: Any):
+    def test_plugin_without_locale_dir(
+        self, base_config_data: dict[str, Any], temp_plugin_structure: dict[str, Any]
+    ):
         """Test that plugins without locale directories work normally."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
@@ -507,7 +534,9 @@ class TestLocaleDirectorySecurity:
             app = create_app_from_config(config)
             assert app is not None
 
-    def test_plugin_module_without_file_attribute(self, base_config_data: Any, caplog: Any):
+    def test_plugin_module_without_file_attribute(
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ):
         """Test handling of plugins where module has no __file__ attribute."""
 
         class NoFilePlugin(PluginBase[PluginBaseConfig]):

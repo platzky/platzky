@@ -1,6 +1,5 @@
 import re
 from collections.abc import Callable
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,7 +17,7 @@ class TestPlatzky:
     def mock_db(self) -> MagicMock:
         return MagicMock()
 
-    def test_change_language_with_domain(self, mock_db: Any):
+    def test_change_language_with_domain(self, mock_db: MagicMock):
         """Test the change_language function when a domain is specified."""
         mock_config = MagicMock()
         mock_config.languages = {
@@ -35,7 +34,7 @@ class TestPlatzky:
             assert response.status_code == 302
             assert response.headers["Location"] == "http://example.de"
 
-    def test_change_language_without_domain(self, mock_db: Any):
+    def test_change_language_without_domain(self, mock_db: MagicMock):
         """Test the change_language function when no domain is specified."""
         mock_config = MagicMock()
         mock_config.languages = {
@@ -53,7 +52,7 @@ class TestPlatzky:
             # When request.referrer is None, it should redirect to "/" instead
             assert response.headers["Location"] == "/"
 
-    def test_change_language_invalid_locale(self, mock_db: Any):
+    def test_change_language_invalid_locale(self, mock_db: MagicMock):
         """Test that invalid language codes return 404."""
         mock_config = MagicMock()
         mock_config.languages = {
@@ -77,13 +76,13 @@ class TestPlatzky:
                     # Session might have a default language, but shouldn't be 'invalid_lang'
                     assert sess.get("language") != "invalid_lang"
 
-    def test_url_link(self, mock_db: Any):
+    def test_url_link(self, mock_db: MagicMock):
         """Test the url_link function."""
 
-        def url_link_func(x: Any) -> str:
+        def url_link_func(x: object) -> str:
             return str(x)
 
-        def context_proc() -> dict[str, Callable[[Any], str]]:
+        def context_proc() -> dict[str, Callable[[object], str]]:
             return {"url_link": url_link_func}
 
         mock_config = MagicMock()
@@ -92,7 +91,7 @@ class TestPlatzky:
         app = create_engine(mock_config, mock_db)
         mock_processor = MagicMock()
 
-        def url_link_func2(x: Any) -> str:
+        def url_link_func2(x: object) -> str:
             return str(x)
 
         mock_processor.return_value = {"url_link": url_link_func2}
@@ -116,7 +115,7 @@ class TestPlatzky:
                 mock_create_app_from_config.assert_called_once_with(mock_config)
                 assert result == mock_engine
 
-    def test_fake_login_routes(self, mock_db: Any):
+    def test_fake_login_routes(self, mock_db: MagicMock):
         """Test the fake login routes."""
         with patch("platzky.platzky.get_db") as mock_get_db:
             mock_get_db.return_value = mock_db
@@ -176,7 +175,7 @@ class TestPlatzky:
                 assert sess["user"]["username"] == "user"
                 assert sess["user"]["role"] == "nonadmin"
 
-    def test_fake_login_is_blocked_on_nondev_env(self, monkeypatch: Any):
+    def test_fake_login_is_blocked_on_nondev_env(self, monkeypatch: pytest.MonkeyPatch):
         """Test that fake login is blocked on non-development environments."""
         config_raw = {
             "USE_WWW": False,

@@ -2,6 +2,7 @@ import importlib.util
 import inspect
 import logging
 import os
+from types import ModuleType
 from typing import Any, Optional, Type
 
 import deprecation
@@ -12,7 +13,7 @@ from platzky.plugin.plugin import PluginBase, PluginError
 logger = logging.getLogger(__name__)
 
 
-def find_plugin(plugin_name: str) -> Any:
+def find_plugin(plugin_name: str) -> ModuleType:
     """Find plugin by name and return it as module.
 
     Args:
@@ -33,7 +34,7 @@ def find_plugin(plugin_name: str) -> Any:
         ) from e
 
 
-def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase[Any]]]:
+def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase[Any]]]:
     """Check if the plugin module contains a PluginBase implementation.
 
     Args:
@@ -60,7 +61,7 @@ def _is_class_plugin(plugin_module: Any) -> Optional[Type[PluginBase[Any]]]:
     ),
 )
 def _process_legacy_plugin(
-    plugin_module: Any, app: Engine, plugin_config: dict[str, Any], plugin_name: str
+    plugin_module: ModuleType, app: Engine, plugin_config: dict[str, Any], plugin_name: str
 ) -> Engine:
     """Process a legacy plugin using the entrypoint approach.
 

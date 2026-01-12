@@ -152,7 +152,7 @@ class MongoDB(DB):
             raise ValueError(f"Page with slug {slug} not found")
         return Page.model_validate(page_doc)
 
-    def get_posts_by_tag(self, tag: str, lang: str) -> Any:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -160,10 +160,10 @@ class MongoDB(DB):
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            MongoDB cursor with matching posts
+            List of Post objects matching the tag and language
         """
         posts_cursor = self.posts.find({"tags": tag, "language": lang})
-        return posts_cursor
+        return [Post.model_validate(post) for post in posts_cursor]
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
@@ -231,7 +231,7 @@ class MongoDB(DB):
             return site_content.get("secondary_color", "navy")
         return "navy"
 
-    def get_plugins_data(self) -> list[Any]:
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
 
         Returns:

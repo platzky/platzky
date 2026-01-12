@@ -49,7 +49,7 @@ class Engine(Flask):
         self.cms_modules.append(module)
 
     # TODO login_method should be interface
-    def add_login_method(self, login_method: Any):
+    def add_login_method(self, login_method: Callable[[], str]) -> None:
         self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str):

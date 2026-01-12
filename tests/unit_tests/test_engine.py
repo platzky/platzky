@@ -1,9 +1,9 @@
-from typing import Any
-
 import pytest
 from bs4 import BeautifulSoup, Tag
+from werkzeug.test import TestResponse
 
 from platzky.config import Config
+from platzky.engine import Engine
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
@@ -11,12 +11,12 @@ from tests.unit_tests.fake_app import test_app
 test_app = test_app
 
 
-def test_babel_gets_proper_directories(test_app: Any):
+def test_babel_gets_proper_directories(test_app: Engine):
     with test_app.app_context():
         assert "/some/fake/dir" in list(test_app.babel.domain_instance.translation_directories)
 
 
-def test_logo_has_set_src(test_app: Any):
+def test_logo_has_set_src(test_app: Engine):
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -26,8 +26,8 @@ def test_logo_has_set_src(test_app: Any):
     assert found_image.get("src") == "https://example.com/logo.png"
 
 
-def test_if_name_is_shown_if_there_is_no_logo(test_app: Any):
-    test_app.db.data["site_content"].pop("logo_url")
+def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
+    test_app.db.data["site_content"].pop("logo_url")  # type: ignore[attr-defined]
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -37,8 +37,8 @@ def test_if_name_is_shown_if_there_is_no_logo(test_app: Any):
     assert branding.get_text() == "testing App Name"
 
 
-def test_favicon_is_applied(test_app: Any):
-    test_app.db.data["site_content"]["favicon_url"] = "https://example.com/favicon.ico"
+def test_favicon_is_applied(test_app: Engine):
+    test_app.db.data["site_content"]["favicon_url"] = "https://example.com/favicon.ico"  # type: ignore[attr-defined]
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -49,11 +49,11 @@ def test_favicon_is_applied(test_app: Any):
     assert found_ico.get("href") == "https://example.com/favicon.ico"
 
 
-def test_notifier(test_app: Any):
+def test_notifier(test_app: Engine):
     engine = test_app
     notifier_msg = None
 
-    def notifier(message: Any):
+    def notifier(message: str):
         nonlocal notifier_msg
         notifier_msg = message
 
@@ -63,11 +63,11 @@ def test_notifier(test_app: Any):
 
 
 @pytest.mark.parametrize("content_type", ["body", "head"])
-def test_dynamic_content(test_app: Any, content_type: Any):
-    def add_dynamic_element(engine: Any, content: Any):
+def test_dynamic_content(test_app: Engine, content_type: str):
+    def add_dynamic_element(engine: Engine, content: str):
         getattr(engine, f"add_dynamic_{content_type}")(content)
 
-    def get_content_text(response: Any, content_type: Any):
+    def get_content_text(response: TestResponse, content_type: str):
         soup = BeautifulSoup(response.data, "html.parser")
         return getattr(soup, content_type).get_text()
 
@@ -81,7 +81,7 @@ def test_dynamic_content(test_app: Any, content_type: Any):
 
 
 @pytest.mark.parametrize("use_www", [True, False])
-def test_www_redirects(use_www: Any):
+def test_www_redirects(use_www: bool):
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
@@ -115,7 +115,7 @@ def test_www_redirects(use_www: Any):
     assert response.location == expected_redirect
 
 
-def test_that_default_page_title_is_app_name(test_app: Any):
+def test_that_default_page_title_is_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
@@ -125,14 +125,14 @@ def test_that_default_page_title_is_app_name(test_app: Any):
 @pytest.mark.parametrize(
     "tag, subtag, value", [("link", "hreflang", "en"), ("html", "lang", "en-GB")]
 )
-def test_that_tag_has_proper_value(test_app: Any, tag: Any, subtag: Any, value: Any):
+def test_that_tag_has_proper_value(test_app: Engine, tag: str, subtag: str, value: str):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert getattr(soup, tag) is not None
     assert getattr(soup, tag).get(subtag) == value
 
 
-def test_that_logo_has_proper_alt_text(test_app: Any):
+def test_that_logo_has_proper_alt_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     logo_img = soup.find("img", class_="logo")
@@ -140,7 +140,7 @@ def test_that_logo_has_proper_alt_text(test_app: Any):
     assert logo_img.get("alt") == "testing App Name logo"
 
 
-def test_that_logo_link_has_proper_aria_label_text(test_app: Any):
+def test_that_logo_link_has_proper_aria_label_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     logo_link = soup.find("a", class_="navbar-brand")
@@ -148,7 +148,7 @@ def test_that_logo_link_has_proper_aria_label_text(test_app: Any):
     assert logo_link.get("aria-label") == "Link to home page"
 
 
-def test_that_language_menu_has_proper_code(test_app: Any):
+def test_that_language_menu_has_proper_code(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     language_menu = soup.find("span", class_="language-indicator-text")
@@ -156,7 +156,7 @@ def test_that_language_menu_has_proper_code(test_app: Any):
     assert language_menu.get_text() == "en"
 
 
-def test_that_language_switch_has_proper_aria_label_text(test_app: Any):
+def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     logo_link = soup.find("button", id="languages-menu")
@@ -167,13 +167,13 @@ def test_that_language_switch_has_proper_aria_label_text(test_app: Any):
     )
 
 
-def test_that_page_has_proper_html_lang_attribute(test_app: Any):
+def test_that_page_has_proper_html_lang_attribute(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.html and soup.html.get("lang") == "en-GB"
 
 
-def test_add_login_method(test_app: Any):
+def test_add_login_method(test_app: Engine):
     def sample_login_method():
         return "Login Method"
 
@@ -187,7 +187,7 @@ def test_add_login_method(test_app: Any):
     assert b"Login Method" in response.data
 
 
-def test_add_cms_module(test_app: Any):
+def test_add_cms_module(test_app: Engine):
     module = CmsModule(
         slug="test-module", template="test.html", name="Test Module", description="Test Description"
     )
@@ -195,7 +195,7 @@ def test_add_cms_module(test_app: Any):
     assert module in test_app.cms_modules
 
 
-def test_health_liveness_endpoint(test_app: Any):
+def test_health_liveness_endpoint(test_app: Engine):
     """Test that /health/liveness returns alive status"""
     client = test_app.test_client()
     response = client.get("/health/liveness")
@@ -204,7 +204,7 @@ def test_health_liveness_endpoint(test_app: Any):
     assert json_data["status"] == "alive"
 
 
-def test_health_alias_endpoint(test_app: Any):
+def test_health_alias_endpoint(test_app: Engine):
     """Test that /health is an alias for /health/liveness"""
     client = test_app.test_client()
     response = client.get("/health")
@@ -213,7 +213,7 @@ def test_health_alias_endpoint(test_app: Any):
     assert json_data["status"] == "alive"
 
 
-def test_health_readiness_endpoint_healthy(test_app: Any):
+def test_health_readiness_endpoint_healthy(test_app: Engine):
     """Test that /health/readiness returns ready when database is ok"""
     client = test_app.test_client()
     response = client.get("/health/readiness")
@@ -223,7 +223,7 @@ def test_health_readiness_endpoint_healthy(test_app: Any):
     assert json_data["checks"]["database"] == "ok"
 
 
-def test_health_readiness_endpoint_db_failure(test_app: Any):
+def test_health_readiness_endpoint_db_failure(test_app: Engine):
     """Test that /health/readiness returns not_ready when database fails"""
     # Make the database raise an error
     original_method = test_app.db.health_check
@@ -244,7 +244,7 @@ def test_health_readiness_endpoint_db_failure(test_app: Any):
     test_app.db.health_check = original_method
 
 
-def test_add_health_check_success(test_app: Any):
+def test_add_health_check_success(test_app: Engine):
     """Test adding a custom health check that succeeds"""
     check_called = []
 
@@ -262,7 +262,7 @@ def test_add_health_check_success(test_app: Any):
     assert len(check_called) == 1
 
 
-def test_add_health_check_failure(test_app: Any):
+def test_add_health_check_failure(test_app: Engine):
     """Test adding a custom health check that fails"""
 
     def failing_check():
@@ -278,7 +278,7 @@ def test_add_health_check_failure(test_app: Any):
     assert "failed: Custom service unavailable" in json_data["checks"]["failing_service"]
 
 
-def test_multiple_health_checks(test_app: Any):
+def test_multiple_health_checks(test_app: Engine):
     """Test multiple custom health checks with mixed results"""
 
     def check_ok():
@@ -300,7 +300,7 @@ def test_multiple_health_checks(test_app: Any):
     assert json_data["checks"]["database"] == "ok"
 
 
-def test_health_check_db_timeout(test_app: Any):
+def test_health_check_db_timeout(test_app: Engine):
     """Test that database health check times out and doesn't block"""
     from concurrent.futures import TimeoutError
     from unittest.mock import patch
@@ -323,7 +323,7 @@ def test_health_check_db_timeout(test_app: Any):
         mock_executor.shutdown.assert_called_with(wait=False)
 
 
-def test_health_check_custom_timeout(test_app: Any):
+def test_health_check_custom_timeout(test_app: Engine):
     """Test that custom health check times out and doesn't block"""
     from concurrent.futures import TimeoutError
     from unittest.mock import MagicMock, patch
@@ -359,7 +359,7 @@ def test_health_check_custom_timeout(test_app: Any):
         mock_executor.shutdown.assert_called_once_with(wait=False)
 
 
-def test_add_health_check_not_callable(test_app: Any):
+def test_add_health_check_not_callable(test_app: Engine):
     """Test that adding a non-callable health check raises TypeError"""
     with pytest.raises(TypeError, match="check_function must be callable"):
-        test_app.add_health_check("invalid", "not a function")
+        test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type]

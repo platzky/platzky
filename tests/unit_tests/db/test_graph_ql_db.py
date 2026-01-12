@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -21,7 +20,7 @@ def mock_client():
 
 
 @pytest.fixture
-def graph_ql_db(mock_client: Any):
+def graph_ql_db(mock_client: Mock):
     with patch("platzky.db.graph_ql_db.Client", return_value=mock_client):
         db = GraphQL("http://test.endpoint", "test_token")
         return db
@@ -57,7 +56,7 @@ def test_db_from_config():
         mock_graph_ql.assert_called_once_with("http://test.endpoint", "test_token")
 
 
-def test_graph_ql_init(mock_client: Any):
+def test_graph_ql_init(mock_client: Mock):
     with (
         patch("platzky.db.graph_ql_db.AIOHTTPTransport") as mock_transport,
         patch("platzky.db.graph_ql_db.Client", return_value=mock_client) as mock_client_class,
@@ -73,7 +72,7 @@ def test_graph_ql_init(mock_client: Any):
         assert db.db_name == "GraphQLDb"
 
 
-def test_get_all_posts(graph_ql_db: Any, mock_client: Any):
+def test_get_all_posts(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "posts": [
             {
@@ -107,7 +106,7 @@ def test_get_all_posts(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_menu_items_in_lang_with_lang(graph_ql_db: Any, mock_client: Any):
+def test_get_menu_items_in_lang_with_lang(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "menuItems": [{"name": "Home", "url": "/"}, {"name": "About", "url": "/about"}]
     }
@@ -121,7 +120,7 @@ def test_get_menu_items_in_lang_with_lang(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_menu_items_in_lang_without_lang(graph_ql_db: Any, mock_client: Any):
+def test_get_menu_items_in_lang_without_lang(graph_ql_db: GraphQL, mock_client: Mock):
     # First call raises TransportQueryError, second call succeeds
     mock_client.execute.side_effect = [
         TransportQueryError("Error"),
@@ -135,7 +134,7 @@ def test_get_menu_items_in_lang_without_lang(graph_ql_db: Any, mock_client: Any)
     assert mock_client.execute.call_count == 2
 
 
-def test_get_post(graph_ql_db: Any, mock_client: Any):
+def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "post": {
             "date": "2023-01-01",
@@ -165,7 +164,7 @@ def test_get_post(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_page(graph_ql_db: Any, mock_client: Any):
+def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "page": {
             "title": "About",
@@ -177,12 +176,12 @@ def test_get_page(graph_ql_db: Any, mock_client: Any):
 
     page = graph_ql_db.get_page("about")
 
-    assert page["title"] == "About"
-    assert page["contentInMarkdown"] == "About page content"
+    assert page.title == "About"
+    assert page.contentInMarkdown == "About page content"
     mock_client.execute.assert_called_once()
 
 
-def test_get_posts_by_tag(graph_ql_db: Any, mock_client: Any):
+def test_get_posts_by_tag(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "posts": [
             {
@@ -203,11 +202,11 @@ def test_get_posts_by_tag(graph_ql_db: Any, mock_client: Any):
     posts = graph_ql_db.get_posts_by_tag("test", "en")
 
     assert len(posts) == 1
-    assert posts[0]["title"] == "Test Post"
+    assert posts[0].title == "Test Post"
     mock_client.execute.assert_called_once()
 
 
-def test_add_comment(graph_ql_db: Any, mock_client: Any):
+def test_add_comment(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"createComment": {"id": "123"}}
     mock_client.execute.return_value = mock_response
 
@@ -221,11 +220,11 @@ def test_add_comment(graph_ql_db: Any, mock_client: Any):
     assert call_args["slug"] == "test-post"
 
 
-def test_get_font(graph_ql_db: Any):
+def test_get_font(graph_ql_db: GraphQL):
     assert graph_ql_db.get_font() == ""
 
 
-def test_get_logo_url_with_logos(graph_ql_db: Any, mock_client: Any):
+def test_get_logo_url_with_logos(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "logos": [
             {
@@ -244,7 +243,7 @@ def test_get_logo_url_with_logos(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_logo_url_without_logos(graph_ql_db: Any, mock_client: Any):
+def test_get_logo_url_without_logos(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"logos": []}
     mock_client.execute.return_value = mock_response
 
@@ -254,7 +253,7 @@ def test_get_logo_url_without_logos(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_app_description(graph_ql_db: Any, mock_client: Any):
+def test_get_app_description(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{"applicationDescription": "Test description"}]}
     mock_client.execute.return_value = mock_response
 
@@ -264,7 +263,7 @@ def test_get_app_description(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_app_description_missing(graph_ql_db: Any, mock_client: Any):
+def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{}]}
     mock_client.execute.return_value = mock_response
 
@@ -274,7 +273,7 @@ def test_get_app_description_missing(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_favicon_url(graph_ql_db: Any, mock_client: Any):
+def test_get_favicon_url(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}]}
     mock_client.execute.return_value = mock_response
 
@@ -284,17 +283,17 @@ def test_get_favicon_url(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_get_primary_color(graph_ql_db: Any):
+def test_get_primary_color(graph_ql_db: GraphQL):
     color = graph_ql_db.get_primary_color()
     assert color == "white"
 
 
-def test_get_secondary_color(graph_ql_db: Any):
+def test_get_secondary_color(graph_ql_db: GraphQL):
     color = graph_ql_db.get_secondary_color()
     assert color == "navy"
 
 
-def test_get_plugins_data(graph_ql_db: Any, mock_client: Any):
+def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"pluginConfigs": [{"name": "plugin1", "config": {"key": "value"}}]}
     mock_client.execute.return_value = mock_response
 
@@ -306,7 +305,7 @@ def test_get_plugins_data(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_health_check_success(graph_ql_db: Any, mock_client: Any):
+def test_health_check_success(graph_ql_db: GraphQL, mock_client: Mock):
     """Test health check when GraphQL endpoint is accessible"""
     mock_client.execute.return_value = {"__typename": "Query"}
 
@@ -316,7 +315,7 @@ def test_health_check_success(graph_ql_db: Any, mock_client: Any):
     mock_client.execute.assert_called_once()
 
 
-def test_health_check_failure(graph_ql_db: Any, mock_client: Any):
+def test_health_check_failure(graph_ql_db: GraphQL, mock_client: Mock):
     """Test health check when GraphQL endpoint is not accessible"""
     mock_client.execute.side_effect = Exception("Connection failed")
 

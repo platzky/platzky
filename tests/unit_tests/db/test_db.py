@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -7,7 +7,7 @@ from platzky.db.db import DB
 from platzky.db.json_db import Json
 
 
-def dummy_function_taking_one_argument(_: Any):
+def dummy_function_taking_one_argument(_: object):
     return "test"
 
 
@@ -63,7 +63,7 @@ def test_db_extend_error_cases():
         }
     )
 
-    non_callable = cast(Callable[..., Any], object())
+    non_callable = cast(Callable[..., object], object())
 
     with pytest.raises(ValueError, match="not callable"):
         db.extend("test_non_callable", non_callable)

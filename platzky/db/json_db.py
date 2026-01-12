@@ -1,7 +1,6 @@
 """In-memory JSON database implementation."""
 
 import datetime
-from collections.abc import Generator
 from typing import Any
 
 from pydantic import Field
@@ -152,18 +151,16 @@ class Json(DB):
         menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
         return menu_items_list
 
-    def get_posts_by_tag(self, tag: str, lang: str) -> Generator[Any, None, None]:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
-        Returns a generator for lazy evaluation, unlike get_all_posts() which returns
-        a materialized list. The generator can only be iterated once and doesn't
-        support len() or indexing. Use list() to materialize if needed.
+        Returns a list of posts, unlike generators which can only be iterated once.
         """
-        return (
-            post
+        return [
+            Post.model_validate(post)
             for post in self._get_site_content()["posts"]
             if tag in post["tags"] and post["language"] == lang
-        )
+        ]
 
     def _get_site_content(self) -> dict[str, Any]:
         """Get the site content dictionary from data.
@@ -246,7 +243,7 @@ class Json(DB):
         )
         self._get_site_content()["posts"][post_index]["comments"].append(comment_data)
 
-    def get_plugins_data(self) -> list[Any]:
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
 
         Returns:

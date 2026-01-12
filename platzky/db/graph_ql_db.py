@@ -10,7 +10,7 @@ from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.models import Post
+from platzky.models import Page, Post
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:
@@ -246,7 +246,7 @@ class GraphQL(DB):
         return Post.model_validate(_standarize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
-    def get_page(self, slug: str) -> Any:
+    def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
         Args:
@@ -271,7 +271,7 @@ class GraphQL(DB):
         )
         return self.client.execute(post, variable_values={"slug": slug})["page"]
 
-    def get_posts_by_tag(self, tag: str, lang: str) -> list[Any]:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -416,7 +416,7 @@ class GraphQL(DB):
     def get_secondary_color(self) -> str:
         return "navy"  # Default color as string
 
-    def get_plugins_data(self) -> list[Any]:
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
 
         Returns:

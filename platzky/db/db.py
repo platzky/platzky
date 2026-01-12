@@ -95,7 +95,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_posts_by_tag(self, tag: str, lang: str) -> Any:
+    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -136,7 +136,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_plugins_data(self) -> list[Any]:
+    def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins."""
         pass
 

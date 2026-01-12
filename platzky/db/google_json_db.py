@@ -1,13 +1,16 @@
 """Google Cloud Storage-based JSON database implementation."""
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from google.cloud.storage import Client
 from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json
+
+if TYPE_CHECKING:
+    from google.cloud.storage import Blob
 
 
 def db_config_type() -> type["GoogleJsonDbConfig"]:
@@ -51,7 +54,7 @@ def get_db(config: dict[str, Any]) -> "GoogleJsonDb":
     return GoogleJsonDb(google_json_db_config.bucket_name, google_json_db_config.source_blob_name)
 
 
-def get_blob(bucket_name: str, source_blob_name: str) -> Any:
+def get_blob(bucket_name: str, source_blob_name: str) -> "Blob":
     """Retrieve a blob from Google Cloud Storage.
 
     Args:
@@ -66,7 +69,7 @@ def get_blob(bucket_name: str, source_blob_name: str) -> Any:
     return bucket.blob(source_blob_name)
 
 
-def get_data(blob: Any) -> dict[str, Any]:
+def get_data(blob: "Blob") -> dict[str, Any]:
     """Download and parse JSON data from a blob.
 
     Args:
@@ -75,7 +78,7 @@ def get_data(blob: Any) -> dict[str, Any]:
     Returns:
         Parsed JSON data as dictionary
     """
-    raw_data = blob.download_as_text()
+    raw_data = blob.download_as_text()  # pyright: ignore[reportCallIssue]
     return json.loads(raw_data)
 
 
