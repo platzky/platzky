@@ -41,7 +41,7 @@ class Engine(Flask):
         for notifier in self.notifiers:
             notifier(message)
 
-    def add_notifier(self, notifier: Callable[[str], None]):
+    def add_notifier(self, notifier: Callable[[str], None]) -> None:
         self.notifiers.append(notifier)
 
     def add_cms_module(self, module: CmsModule):

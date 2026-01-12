@@ -56,7 +56,7 @@ def test_notifier(test_app: Engine):
     engine = test_app
     notifier_msg = None
 
-    def notifier(message: str):
+    def notifier(message: str) -> None:
         nonlocal notifier_msg
         notifier_msg = message
 
@@ -67,10 +67,10 @@ def test_notifier(test_app: Engine):
 
 @pytest.mark.parametrize("content_type", ["body", "head"])
 def test_dynamic_content(test_app: Engine, content_type: str):
-    def add_dynamic_element(engine: Engine, content: str):
+    def add_dynamic_element(engine: Engine, content: str) -> None:
         getattr(engine, f"add_dynamic_{content_type}")(content)
 
-    def get_content_text(response: TestResponse, content_type: str):
+    def get_content_text(response: TestResponse, content_type: str) -> str:
         soup = BeautifulSoup(response.data, "html.parser")
         return getattr(soup, content_type).get_text()
 

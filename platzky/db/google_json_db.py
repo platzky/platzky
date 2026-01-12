@@ -78,7 +78,9 @@ def get_data(blob: "Blob") -> dict[str, Any]:
     Returns:
         Parsed JSON data as dictionary
     """
-    raw_data = blob.download_as_text()  # pyright: ignore[reportCallIssue]
+    raw_data = (
+        blob.download_as_text()
+    )  # pyright: ignore[reportCallIssue] - Incomplete type stubs for google.cloud.storage Blob
     return json.loads(raw_data)
 
 

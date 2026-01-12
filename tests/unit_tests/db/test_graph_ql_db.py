@@ -167,6 +167,7 @@ def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):
 def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "page": {
+            "slug": "about",
             "title": "About",
             "contentInMarkdown": "About page content",
             "coverImage": {"url": "https://example.com/image.jpg"},
@@ -176,8 +177,9 @@ def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
 
     page = graph_ql_db.get_page("about")
 
-    assert page["title"] == "About"  # type: ignore[comparison-overlap] - get_page returns dict despite Page type hint
-    assert page["contentInMarkdown"] == "About page content"  # type: ignore[comparison-overlap]
+    assert isinstance(page, Post)  # Page is an alias for Post
+    assert page.title == "About"
+    assert page.contentInMarkdown == "About page content"
     mock_client.execute.assert_called_once()
 
 
@@ -202,7 +204,9 @@ def test_get_posts_by_tag(graph_ql_db: GraphQL, mock_client: Mock):
     posts = graph_ql_db.get_posts_by_tag("test", "en")
 
     assert len(posts) == 1
-    assert posts[0]["title"] == "Test Post"  # type: ignore[comparison-overlap] - get_posts_by_tag returns list[dict] despite list[Post] type hint
+    assert isinstance(posts[0], Post)
+    assert posts[0].title == "Test Post"
+    assert posts[0].slug == "test-post"
     mock_client.execute.assert_called_once()
 
 

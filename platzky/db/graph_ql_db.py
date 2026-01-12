@@ -96,6 +96,62 @@ def _standarize_post(post: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
+    """Standardize page data structure from GraphQL response.
+
+    Pages have fewer required fields than posts in the GraphQL schema.
+    This function provides sensible defaults for missing Post fields.
+
+    Args:
+        page: Raw page data from GraphQL response
+
+    Returns:
+        Standardized page dictionary compatible with Page model
+    """
+    return {
+        "author": page.get("author", ""),
+        "slug": page.get("slug", ""),
+        "title": page["title"],
+        "excerpt": page.get("excerpt", ""),
+        "contentInMarkdown": page["contentInMarkdown"],
+        "comments": [],
+        "tags": page.get("tags", []),
+        "language": page.get("language", "en"),
+        "coverImage": {
+            "url": page.get("coverImage", {}).get("url", ""),
+        },
+        "date": page.get("date", "1970-01-01"),
+    }
+
+
+def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
+    """Standardize post data from get_posts_by_tag GraphQL response.
+
+    Posts returned by tag query have fewer fields than full posts.
+    This function provides sensible defaults for missing Post fields.
+
+    Args:
+        post: Raw post data from GraphQL get_posts_by_tag response
+
+    Returns:
+        Standardized post dictionary compatible with Post model
+    """
+    return {
+        "author": post.get("author", ""),
+        "slug": post["slug"],
+        "title": post["title"],
+        "excerpt": post["excerpt"],
+        "contentInMarkdown": post.get("contentInMarkdown", ""),
+        "comments": [],
+        "tags": post["tags"],
+        "language": post.get("language", "en"),
+        "coverImage": {
+            "url": post["coverImage"]["image"]["url"],
+        },
+        "date": post["date"],
+    }
+
+
 class GraphQL(DB):
     """GraphQL database implementation for CMS integration."""
 
@@ -253,12 +309,13 @@ class GraphQL(DB):
             slug: URL-friendly identifier for the page
 
         Returns:
-            Page dictionary
+            Page object
         """
-        post = gql(
+        page_query = gql(
             """
             query MyQuery ($slug: String!){
               page(where: {slug: $slug}, stage: PUBLISHED) {
+                slug
                 title
                 contentInMarkdown
                 coverImage
@@ -269,7 +326,8 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(post, variable_values={"slug": slug})["page"]
+        page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
@@ -279,7 +337,7 @@ class GraphQL(DB):
             lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            List of post dictionaries
+            List of Post objects
         """
         post = gql(
             """
@@ -300,7 +358,8 @@ class GraphQL(DB):
             }
             """
         )
-        return self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
+        raw_posts = self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
+        return [Post.model_validate(_standardize_post_by_tag(p)) for p in raw_posts]
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
