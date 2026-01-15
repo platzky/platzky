@@ -59,8 +59,9 @@ def create_seo_blueprint(
         # TODO: Add get_list_of_posts for faster getting just list of it
         for post in db.get_all_posts(lang):
             slug = post.slug
-            datet = post.date.date().isoformat()
-            url = {"loc": f"{host_base}{blog_prefix}/{slug}", "lastmod": datet}
+            url: dict[str, str] = {"loc": f"{host_base}{blog_prefix}/{slug}"}
+            if post.date is not None:
+                url["lastmod"] = post.date.date().isoformat()
             dynamic_urls.append(url)
         return dynamic_urls
 
