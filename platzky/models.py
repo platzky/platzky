@@ -183,7 +183,9 @@ class Post(BaseModel):
         """Compare posts by date for sorting.
 
         Uses datetime comparison to ensure robust and correct ordering.
-        Posts without dates are sorted last (treated as oldest).
+        Posts without dates are treated as "less than" dated posts, meaning they
+        appear last when using descending sort (reverse=True, newest-first) and
+        first when using ascending sort.
 
         Args:
             other: Another Post instance to compare against

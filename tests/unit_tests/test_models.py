@@ -72,7 +72,7 @@ class TestColorValidation:
     """Test Color validation using Pydantic Field constraints."""
 
     @pytest.mark.parametrize(
-        "field,value",
+        ("field", "value"),
         [
             ("r", 256),
             ("g", 256),
@@ -115,7 +115,7 @@ class TestDatetimeParsing:
         assert post.date.utcoffset() == datetime.timedelta(0)
 
     @pytest.mark.parametrize(
-        "date_string,expected_offset",
+        ("date_string", "expected_offset"),
         [
             ("2021-02-19T12:30:00.123456+05:30", datetime.timedelta(hours=5, minutes=30)),
             ("2021-02-19T12:30:00.123456-05:00", datetime.timedelta(hours=-5)),
