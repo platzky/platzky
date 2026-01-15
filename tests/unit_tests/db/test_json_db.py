@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config, get_db
-from platzky.models import MenuItem, Post
+from platzky.models import MenuItem, Page, Post
 
 
 class TestJsonDbConfig:
@@ -247,26 +247,24 @@ class TestJsonDb:
         db = Json({})
         assert db.get_plugins_data() == []
 
-    def test_get_post_with_missing_data(self, db: Json):
-        """Test that get_post raises ValueError when post data is missing."""
-        # Create a post with missing required data
+    def test_get_post_with_missing_required_field(self, db: Json):
+        """Test that get_post raises ValidationError when required field is missing."""
+        # Create a post missing required 'title' field
         post = {
-            "title": "Test Post",
             "slug": "test-post",
-            "language": "en",
-            "tags": ["tag1"],
-            "comments": [],
             "author": "Test Author",
             "contentInMarkdown": "# Test Post",
             "excerpt": "Test excerpt",
-            "date": "2023-01-01T00:00:00",
+            # 'title' is missing - this is a required field
         }
 
         # Add the post to the database
         db.data["site_content"]["posts"].append(post)
 
-        # Test that get_post raises ValueError when required data is missing
-        with pytest.raises(ValueError):
+        # Test that get_post raises ValidationError when required field is missing
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
             db.get_post("test-post")
 
     def test_get_posts_by_tag_with_empty_posts(self, db: Json):
@@ -327,3 +325,35 @@ class TestJsonDb:
 
         with pytest.raises(Exception, match="Content should not be None"):
             db_no_content.health_check()
+
+    def test_get_page_with_minimal_fields(self):
+        """Test that pages can be loaded with only required fields.
+
+        This is a regression test for a bug where pages required all Post fields
+        (comments, tags, language, date) even though they should be optional.
+        """
+        minimal_page_data = {
+            "site_content": {
+                "pages": [
+                    {
+                        "title": "About Us",
+                        "slug": "about",
+                        "author": "Site Admin",
+                        "contentInMarkdown": "# About\n\nWelcome to our site.",
+                        "excerpt": "Learn more about us",
+                        "coverImage": {"url": "/images/about.jpg"},
+                    }
+                ]
+            }
+        }
+        db = Json(minimal_page_data)
+
+        page = db.get_page("about")
+
+        assert isinstance(page, Page)
+        assert page.title == "About Us"
+        assert page.slug == "about"
+        assert page.language == "en"  # Default value
+        assert page.comments == []  # Default value
+        assert page.tags == []  # Default value
+        assert page.date is None  # Default value

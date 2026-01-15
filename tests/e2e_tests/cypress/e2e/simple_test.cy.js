@@ -48,6 +48,15 @@ describe('Blog test', () => {
     cy.contains('No such page')
   })
 
+  it('loads page with minimal fields (no comments, tags, language, date)', () => {
+    // This is a regression test for a bug where pages required all Post fields
+    // (comments, tags, language, date) even though they should be optional.
+    // The test data has pages without these optional fields.
+    cy.visit('/blog/page/page')
+    cy.contains('page title')
+    cy.contains('page content')
+  })
+
 // TODO add tests:
 //   - post and page without image
 //   - translations

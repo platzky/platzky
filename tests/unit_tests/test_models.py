@@ -3,7 +3,7 @@ import datetime
 import pytest
 from pydantic import ValidationError
 
-from platzky.models import Color, Image, Post
+from platzky.models import Color, Image, Page, Post
 
 
 def test_posts_are_sorted_by_date():
@@ -186,3 +186,100 @@ def test_datetime_parsing_with_microseconds_and_timezone():
         )
     # Verify Z is converted to UTC (offset of 0)
     assert post_z.date.utcoffset() == datetime.timedelta(0)
+
+
+def test_post_with_minimal_fields():
+    """Test that Post can be created with only required fields.
+
+    This is a regression test for a bug where pages/posts required all fields
+    (comments, tags, language, date) even though they should be optional.
+    """
+    post = Post(
+        author="author",
+        slug="slug",
+        title="title",
+        contentInMarkdown="content",
+        excerpt="excerpt",
+    )
+
+    assert post.author == "author"
+    assert post.slug == "slug"
+    assert post.title == "title"
+    assert post.contentInMarkdown == "content"
+    assert post.excerpt == "excerpt"
+    # Check defaults
+    assert post.language == "en"
+    assert post.comments == []
+    assert post.tags == []
+    assert post.date is None
+    assert post.coverImage.url == ""
+    assert post.coverImage.alternateText == ""
+
+
+def test_page_with_minimal_fields():
+    """Test that Page can be created with only required fields.
+
+    This is a regression test for a bug where pages required all Post fields
+    (comments, tags, language, date) even though they should be optional for pages.
+    """
+    page = Page(
+        author="author",
+        slug="about",
+        title="About Us",
+        contentInMarkdown="# About\n\nWelcome to our site.",
+        excerpt="About page",
+    )
+
+    assert page.title == "About Us"
+    assert page.slug == "about"
+    assert page.language == "en"
+    assert page.comments == []
+    assert page.tags == []
+    assert page.date is None
+
+
+def test_post_sorting_with_none_dates():
+    """Test that posts with None dates are sorted last."""
+    post_with_date = Post(
+        author="author",
+        slug="slug1",
+        title="Post with date",
+        contentInMarkdown="content",
+        excerpt="excerpt",
+        date=datetime.datetime(2021, 2, 19, tzinfo=datetime.timezone.utc),
+    )
+
+    post_without_date = Post(
+        author="author",
+        slug="slug2",
+        title="Post without date",
+        contentInMarkdown="content",
+        excerpt="excerpt",
+    )
+
+    # Post without date should be "less than" post with date (sorted last)
+    assert post_without_date < post_with_date
+    assert not (post_with_date < post_without_date)
+
+
+def test_post_sorting_both_none_dates():
+    """Test that two posts with None dates are equal in sorting."""
+    post1 = Post(
+        author="author",
+        slug="slug1",
+        title="Post 1",
+        contentInMarkdown="content",
+        excerpt="excerpt",
+    )
+
+    post2 = Post(
+        author="author",
+        slug="slug2",
+        title="Post 2",
+        contentInMarkdown="content",
+        excerpt="excerpt",
+    )
+
+    # Neither should be less than the other
+    assert not (post1 < post2)
+    assert not (post2 < post1)
