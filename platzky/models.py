@@ -160,29 +160,32 @@ class Post(BaseModel):
         slug: URL-friendly unique identifier for the post
         title: Post title
         contentInMarkdown: Post content in Markdown format
-        comments: List of comments on this post
         excerpt: Short summary or preview of the post
-        tags: List of tags for categorization
-        language: Language code for the post content
         coverImage: Cover image for the post
-        date: Datetime when the post was published (timezone-aware recommended)
+        language: Language code for the post content (defaults to 'en')
+        comments: Optional list of comments on this post
+        tags: Optional list of tags for categorization
+        date: Optional datetime when the post was published (timezone-aware recommended)
     """
 
     author: str
     slug: str
     title: str
     contentInMarkdown: str
-    comments: list[Comment]
     excerpt: str
-    tags: list[str]
-    language: str
-    coverImage: Image
-    date: DateTimeField
+    coverImage: Image = Field(default_factory=Image)
+    language: str = "en"
+    comments: list[Comment] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    date: DateTimeField | None = None
 
     def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.
 
         Uses datetime comparison to ensure robust and correct ordering.
+        Posts without dates are treated as "less than" dated posts, meaning they
+        appear last when using descending sort (reverse=True, newest-first) and
+        first when using ascending sort.
 
         Args:
             other: Another Post instance to compare against
@@ -192,6 +195,13 @@ class Post(BaseModel):
             or NotImplemented if comparing with a non-Post object
         """
         if isinstance(other, Post):
+            # Posts without dates are sorted last
+            if self.date is None and other.date is None:
+                return False
+            if self.date is None:
+                return True  # None is "less than" any date (sorted last)
+            if other.date is None:
+                return False
             return self.date < other.date
         return NotImplemented
 
