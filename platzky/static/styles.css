@@ -26,6 +26,18 @@ body {
   overflow: hidden;
 }
 
+/* Main content area scrolling */
+#main-row > .col,
+#main-row > .col-lg-12 {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#main-row main {
+  overflow-y: auto;
+  min-height: 0;
+}
+
 /* Constrain left panel column to main-row height */
 .col-auto.left-panel {
   max-height: 100%;
