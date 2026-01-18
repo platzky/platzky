@@ -27,13 +27,7 @@ body {
 }
 
 /* Main content area scrolling */
-#main-row > .col,
-#main-row > .col-lg-12 {
-  overflow-y: auto;
-  min-height: 0;
-}
-
-#main-row main {
+main {
   overflow-y: auto;
   min-height: 0;
 }
