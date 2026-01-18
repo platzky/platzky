@@ -148,7 +148,6 @@ main {
   /* Add some top padding on desktop to match mobile visual balance */
   #left-panel .offcanvas-body {
     padding-top: 8px;
-    overflow-y: auto;
   }
 }
 
