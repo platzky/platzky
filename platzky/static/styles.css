@@ -1,20 +1,16 @@
 html {
   height: 100%;
-  overflow: hidden !important;
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
+  overflow: hidden;
 }
 
 body {
   height: 100%;
-  overflow: hidden !important;
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
+  overflow: hidden;
 }
 
 /* Prevent page-level scrollbar */
 .container-fluid {
-  overflow: hidden !important;
+  overflow: hidden;
   max-height: 100vh;
 }
 
@@ -46,6 +42,8 @@ body {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
 
 /* Panel header with close button - consistent spacing */
@@ -75,35 +73,7 @@ body {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
-/* Custom scrollbar for panel */
-#left-panel {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-}
-
-#left-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-#left-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-#left-panel::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-}
-
-#left-panel::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.5);
-}
-
-/* Also style the offcanvas-body scrollbar */
-#left-panel .offcanvas-body {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-}
-
+/* Custom scrollbar for panel body (webkit) */
 #left-panel .offcanvas-body::-webkit-scrollbar {
   width: 6px;
 }
