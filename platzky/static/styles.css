@@ -1,6 +1,21 @@
-html,
+html {
+  height: 100%;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
 body {
   height: 100%;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
+/* Prevent page-level scrollbar */
+.container-fluid {
+  overflow: hidden !important;
+  max-height: 100vh;
 }
 
 .logo {
@@ -12,15 +27,152 @@ body {
   position: relative;
   flex-grow: 1;
   z-index: 0;
+  overflow: hidden;
+}
+
+/* Constrain left panel column to main-row height */
+.col-auto.left-panel {
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .left-panel-contents {
-  padding: 16px;
+  padding: 0 16px 16px 16px;
 }
 
-@media only screen and (min-width: 768px) {
+/* Panel body scrolling */
+#left-panel .offcanvas-body {
+  padding-top: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Panel header with close button - consistent spacing */
+#left-panel .offcanvas-header {
+  padding: 8px 16px;
+  min-height: auto;
+  flex-shrink: 0;
+}
+
+/* Modern close button */
+#left-panel .btn-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  opacity: 1;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+#left-panel .btn-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+#left-panel .btn-close:focus {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+/* Custom scrollbar for panel */
+#left-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+#left-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+#left-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#left-panel::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+#left-panel::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Also style the offcanvas-body scrollbar */
+#left-panel .offcanvas-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+#left-panel .offcanvas-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+#left-panel .offcanvas-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#left-panel .offcanvas-body::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+#left-panel .offcanvas-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Filter category groups */
+#filter-form form > div {
+  margin-bottom: 20px;
+  padding-bottom: 0;
+}
+
+/* Filter category header container */
+#filter-form form > div > div:first-child {
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Filter category title */
+#filter-form form > div > div:first-child > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.85;
+}
+
+/* Filter checkbox labels */
+#filter-form form > div > label {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-radius: 4px;
+}
+
+#filter-form form > div > label:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+@media only screen and (min-width: 992px) {
   #left-panel {
-    inline-size: calc(100vw * 0.1666666667);
+    position: relative;
+    inline-size: 220px;
+    max-width: 220px;
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+  }
+
+  /* Add some top padding on desktop to match mobile visual balance */
+  #left-panel .offcanvas-body {
+    padding-top: 8px;
+    overflow-y: auto;
   }
 }
 
@@ -34,25 +186,12 @@ body {
   width: auto;
 }
 
-#filter-form form > div {
-  padding-bottom: 1rem;
-}
-
-#filter-form form div > span {
-  font-weight: bold;
-  padding-bottom: 0.5rem;
-}
-
 .dropdown-menu {
   z-index: 1;
 }
 
 .btn {
   padding: 0;
-}
-
-.btn-close {
-  opacity: 1;
 }
 
 i.fi {
