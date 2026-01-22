@@ -11,7 +11,10 @@ Example:
     ...     mime_type="application/pdf",
     ... )
 
-For untrusted input, use factory methods:
+For reading files from disk, use from_file() to check size before loading into memory:
+    >>> attachment = Attachment.from_file("report.pdf")
+
+For bytes already in memory, use from_bytes() to validate before object creation:
     >>> attachment = Attachment.from_bytes(
     ...     content=user_data,
     ...     filename="upload.pdf",
@@ -21,20 +24,9 @@ For untrusted input, use factory methods:
 
 from platzky.attachment.constants import (
     MAX_ATTACHMENT_SIZE as MAX_ATTACHMENT_SIZE,
-)
-from platzky.attachment.constants import (
     AttachmentSizeError as AttachmentSizeError,
 )
 from platzky.attachment.core import Attachment as Attachment
 from platzky.attachment.mime_validation import (
-    DEFAULT_ALLOWED_MIME_TYPES as DEFAULT_ALLOWED_MIME_TYPES,
-)
-from platzky.attachment.mime_validation import (
-    MAGIC_BYTES as MAGIC_BYTES,
-)
-from platzky.attachment.mime_validation import (
     ContentMismatchError as ContentMismatchError,
-)
-from platzky.attachment.mime_validation import (
-    validate_content_mime_type as validate_content_mime_type,
 )

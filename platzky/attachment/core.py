@@ -113,9 +113,10 @@ class Attachment:
         allowed_mime_types: frozenset[str] | None = None,
         validate_content: bool = True,
     ) -> Attachment:
-        """Create an Attachment from bytes with size validation BEFORE object creation.
+        """Create an Attachment from bytes with size validation before object creation.
 
-        Use this when processing untrusted input to validate size before memory allocation.
+        Note: The bytes must already be in memory. This method validates size before
+        creating the Attachment object. For memory-safe loading from disk, use from_file().
 
         Args:
             content: Binary content of the file.
