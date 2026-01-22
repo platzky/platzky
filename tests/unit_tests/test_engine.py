@@ -9,7 +9,7 @@ from platzky.config import Config
 from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.models import CmsModule
-from platzky.notifier import Attachment, DEFAULT_MAX_ATTACHMENT_SIZE
+from platzky.notifier import DEFAULT_MAX_ATTACHMENT_SIZE, Attachment
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
 
@@ -460,9 +460,7 @@ class TestAttachment:
 
     def test_attachment_is_immutable(self):
         """Test that attachment is frozen (immutable)."""
-        attachment = Attachment(
-            filename="test.txt", content=b"content", mime_type="text/plain"
-        )
+        attachment = Attachment(filename="test.txt", content=b"content", mime_type="text/plain")
         with pytest.raises(AttributeError):
             attachment.filename = "changed.txt"  # type: ignore[misc]
 
@@ -484,9 +482,7 @@ class TestNotifierWithAttachments:
         ) -> None:
             received_attachments.append(attachments)
 
-        attachment = Attachment(
-            filename="test.txt", content=b"hello", mime_type="text/plain"
-        )
+        attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
         test_app.add_notifier(notifier_with_attachments)
         test_app.notify("test message", attachments=[attachment])
 
@@ -507,18 +503,14 @@ class TestNotifierWithAttachments:
 
         assert received_messages == ["test message"]
 
-    def test_legacy_notifier_drops_attachments_with_warning(
-        self, test_app: Engine, caplog
-    ):
+    def test_legacy_notifier_drops_attachments_with_warning(self, test_app: Engine, caplog):
         """Test that legacy notifier drops attachments and logs warning."""
         received_messages = []
 
         def legacy_notifier(message: str) -> None:
             received_messages.append(message)
 
-        attachment = Attachment(
-            filename="test.txt", content=b"hello", mime_type="text/plain"
-        )
+        attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
         test_app.add_notifier(legacy_notifier)
 
         with caplog.at_level(logging.WARNING):
@@ -537,15 +529,11 @@ class TestNotifierWithAttachments:
         def legacy_notifier(message: str) -> None:
             legacy_messages.append(message)
 
-        def modern_notifier(
-            message: str, attachments: list[Attachment] | None = None
-        ) -> None:
+        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
             modern_messages.append(message)
             modern_attachments.append(attachments)
 
-        attachment = Attachment(
-            filename="test.txt", content=b"hello", mime_type="text/plain"
-        )
+        attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
         test_app.add_notifier(legacy_notifier)
         test_app.add_notifier(modern_notifier)
 
@@ -612,9 +600,7 @@ class TestNotifierWithAttachments:
     def test_notifier_error_propagates(self, test_app: Engine):
         """Test that errors from notifiers propagate correctly."""
 
-        def failing_notifier(
-            message: str, attachments: list[Attachment] | None = None
-        ) -> None:
+        def failing_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
             raise RuntimeError("Notifier failed")
 
         test_app.add_notifier(failing_notifier)
@@ -627,14 +613,10 @@ class TestNotifierWithAttachments:
         received = []
 
         class MyNotifier:
-            def __call__(
-                self, message: str, attachments: list[Attachment] | None = None
-            ) -> None:
+            def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
                 received.append((message, attachments))
 
-        attachment = Attachment(
-            filename="test.txt", content=b"hello", mime_type="text/plain"
-        )
+        attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
         test_app.add_notifier(MyNotifier())
         test_app.notify("test", attachments=[attachment])
 

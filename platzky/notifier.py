@@ -38,15 +38,16 @@ class Attachment:
         """Validate attachment data."""
         # Sanitize filename - remove path components (handle both Unix and Windows paths)
         # Use ntpath first to handle Windows paths on any platform, then os.path for Unix
-        sanitized = os.path.basename(ntpath.basename(self.filename))
+        original_filename = self.filename
+        sanitized = os.path.basename(ntpath.basename(original_filename))
         if not sanitized:
             raise ValueError("Attachment filename cannot be empty")
-        if sanitized != self.filename:
+        if sanitized != original_filename:
             # Use object.__setattr__ because dataclass is frozen
             object.__setattr__(self, "filename", sanitized)
             logger.warning(
                 "Attachment filename contained path components, sanitized from '%s' to '%s'",
-                self.filename,
+                original_filename,
                 sanitized,
             )
 
@@ -82,9 +83,7 @@ class Notifier(Protocol):
         engine.add_notifier(EmailNotifier())
     """
 
-    def __call__(
-        self, message: str, attachments: list[Attachment] | None = None
-    ) -> None:
+    def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
         """Send a notification.
 
         Args:

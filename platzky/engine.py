@@ -42,9 +42,7 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    def notify(
-        self, message: str, attachments: list[Attachment] | None = None
-    ) -> None:
+    def notify(self, message: str, attachments: list[Attachment] | None = None) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
@@ -69,9 +67,10 @@ class Engine(Flask):
         """Check if a notifier supports attachments parameter."""
         try:
             sig = inspect.signature(notifier)
-            return "attachments" in sig.parameters
         except (ValueError, TypeError):
             return False
+        else:
+            return "attachments" in sig.parameters
 
     def add_notifier(self, notifier: Notifier) -> None:
         """Register a notifier to receive notifications.
