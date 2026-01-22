@@ -3,9 +3,6 @@
 # Default maximum attachment size: 10MB
 DEFAULT_MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 
-# Legacy alias for backward compatibility
-MAX_ATTACHMENT_SIZE = DEFAULT_MAX_ATTACHMENT_SIZE
-
 
 class AttachmentSizeError(ValueError):
     """Raised when attachment content exceeds the maximum allowed size."""

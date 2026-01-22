@@ -16,7 +16,7 @@ Direct usage with factory:
 """
 
 from platzky.attachment.constants import (
-    MAX_ATTACHMENT_SIZE as MAX_ATTACHMENT_SIZE,
+    DEFAULT_MAX_ATTACHMENT_SIZE as DEFAULT_MAX_ATTACHMENT_SIZE,
 )
 from platzky.attachment.constants import (
     AttachmentSizeError as AttachmentSizeError,

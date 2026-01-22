@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from platzky.attachment import (
-    MAX_ATTACHMENT_SIZE,
+    DEFAULT_MAX_ATTACHMENT_SIZE,
     AttachmentSizeError,
     ContentMismatchError,
     create_attachment_class,
@@ -88,7 +88,7 @@ class TestAttachment:
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment(
                 filename="large.bin",
-                content=b"x" * (MAX_ATTACHMENT_SIZE + 1),
+                content=b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1),
                 mime_type="text/plain",
             )
 
@@ -97,10 +97,10 @@ class TestAttachment:
         Attachment = default_attachment_class
         attachment = Attachment(
             filename="max.bin",
-            content=b"x" * MAX_ATTACHMENT_SIZE,
+            content=b"x" * DEFAULT_MAX_ATTACHMENT_SIZE,
             mime_type="text/plain",
         )
-        assert len(attachment.content) == MAX_ATTACHMENT_SIZE
+        assert len(attachment.content) == DEFAULT_MAX_ATTACHMENT_SIZE
 
     def test_invalid_mime_type_format_raises_error(self, default_attachment_class):
         """Test that invalid MIME type format raises ValueError."""
@@ -198,7 +198,7 @@ class TestAttachmentFromBytes:
         Attachment = default_attachment_class
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_bytes(
-                content=b"x" * (MAX_ATTACHMENT_SIZE + 1),
+                content=b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1),
                 filename="large.bin",
                 mime_type="text/plain",
             )
@@ -218,10 +218,10 @@ class TestAttachmentFromFile:
         assert attachment.content == b"Hello, World!"
 
     def test_from_file_validates_size(self, tmp_path: Path, default_attachment_class):
-        """Test that from_file validates size against MAX_ATTACHMENT_SIZE."""
+        """Test that from_file validates size against DEFAULT_MAX_ATTACHMENT_SIZE."""
         Attachment = default_attachment_class
         large_file = tmp_path / "large.bin"
-        large_file.write_bytes(b"x" * (MAX_ATTACHMENT_SIZE + 1))
+        large_file.write_bytes(b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1))
 
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_file(file_path=large_file, mime_type="text/plain")
