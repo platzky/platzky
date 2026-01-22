@@ -82,6 +82,54 @@ def _guess_mime_type(filename: str) -> str:
     return guessed_type or "application/octet-stream"
 
 
+def _validate_extension(
+    filename: str,
+    ext: str | None,
+    blocked_extensions: frozenset[str],
+    allowed_extensions: frozenset[str] | None,
+) -> None:
+    """Validate filename extension against block-list and allow-list.
+
+    Validation order:
+    1. If extension is in blocked_extensions → REJECT (BlockedExtensionError)
+    2. If allowed_extensions is None → REJECT (ExtensionNotAllowedError)
+    3. If no extension → REJECT (ExtensionNotAllowedError)
+    4. If extension not in allowed_extensions → REJECT (ExtensionNotAllowedError)
+    5. Otherwise → ALLOW
+    """
+    if ext is not None and ext in blocked_extensions:
+        raise BlockedExtensionError(filename, ext)
+
+    if allowed_extensions is None or ext is None or ext not in allowed_extensions:
+        raise ExtensionNotAllowedError(filename, ext)
+
+
+def _validate_mime_type(mime_type: str, filename: str, allowed_mime_types: frozenset[str]) -> None:
+    """Validate MIME type format and against allowlist."""
+    if not mime_type or "/" not in mime_type:
+        raise ValueError(
+            f"Invalid MIME type format '{mime_type}' for attachment '{filename}'. "
+            f"MIME type must be in 'type/subtype' format (e.g., 'text/plain', 'image/png')."
+        )
+
+    if mime_type not in allowed_mime_types:
+        raise ValueError(f"MIME type '{mime_type}' is not allowed for attachment '{filename}'.")
+
+
+def _do_sanitize_filename(filename: str) -> str:
+    """Sanitize filename and return result. Raises if empty after sanitization."""
+    sanitized = _sanitize_filename(filename)
+    if not sanitized:
+        raise ValueError("Attachment filename cannot be empty")
+    if sanitized != filename:
+        logger.warning(
+            "Attachment filename contained path components, sanitized from '%s' to '%s'",
+            filename,
+            sanitized,
+        )
+    return sanitized
+
+
 def create_attachment_class(config: AttachmentConfig) -> type:
     """Create an Attachment class with configuration captured via closure.
 
@@ -132,10 +180,18 @@ def create_attachment_class(config: AttachmentConfig) -> type:
 
         def __post_init__(self) -> None:
             """Validate attachment data using config from closure."""
-            self._sanitize_filename()
-            self._validate_extension()
-            self._validate_size()
-            self._validate_mime_type()
+            sanitized = _do_sanitize_filename(self.filename)
+            if sanitized != self.filename:
+                object.__setattr__(self, "filename", sanitized)
+
+            _validate_extension(
+                self.filename, _get_extension(self.filename), blocked_extensions, allowed_extensions
+            )
+
+            if len(self.content) > max_size:
+                raise AttachmentSizeError(self.filename, len(self.content), max_size)
+
+            _validate_mime_type(self.mime_type, self.filename, allowed_mime_types)
 
             if validate_content:
                 validate_content_mime_type(
@@ -143,69 +199,6 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                     self.mime_type,
                     self.filename,
                     allow_unrecognized=allow_unrecognized_content,
-                )
-
-        def _sanitize_filename(self) -> None:
-            """Sanitize filename by removing path components."""
-            original_filename = self.filename
-            sanitized = _sanitize_filename(original_filename)
-            if not sanitized:
-                raise ValueError("Attachment filename cannot be empty")
-            if sanitized != original_filename:
-                object.__setattr__(self, "filename", sanitized)
-                logger.warning(
-                    "Attachment filename contained path components, sanitized from '%s' to '%s'",
-                    original_filename,
-                    sanitized,
-                )
-
-        def _validate_extension(self) -> None:
-            """Validate filename extension against block-list and allow-list.
-
-            Validation order:
-            1. If extension is in blocked_extensions → REJECT (BlockedExtensionError)
-            2. If allowed_extensions is None → REJECT (ExtensionNotAllowedError)
-            3. If no extension → REJECT (ExtensionNotAllowedError)
-            4. If extension not in allowed_extensions → REJECT (ExtensionNotAllowedError)
-            5. Otherwise → ALLOW
-            """
-            ext = _get_extension(self.filename)
-
-            # Step 1: Check block-list first (takes precedence)
-            if ext is not None and ext in blocked_extensions:
-                raise BlockedExtensionError(self.filename, ext)
-
-            # Step 2: If allowed_extensions is None, block all extensions
-            if allowed_extensions is None:
-                raise ExtensionNotAllowedError(self.filename, ext)
-
-            # Step 3: Files without extensions are blocked
-            if ext is None:
-                raise ExtensionNotAllowedError(self.filename, ext)
-
-            # Step 4: Check if extension is in allow-list
-            if ext not in allowed_extensions:
-                raise ExtensionNotAllowedError(self.filename, ext)
-
-        def _validate_size(self) -> None:
-            """Validate content size against configured max_size."""
-            if len(self.content) > max_size:
-                raise AttachmentSizeError(self.filename, len(self.content), max_size)
-
-        def _validate_mime_type(self) -> None:
-            """Validate MIME type format and against allowlist."""
-            if not self.mime_type or "/" not in self.mime_type:
-                raise ValueError(
-                    f"Invalid MIME type format '{self.mime_type}' for "
-                    f"attachment '{self.filename}'. "
-                    f"MIME type must be in 'type/subtype' format "
-                    f"(e.g., 'text/plain', 'image/png')."
-                )
-
-            if self.mime_type not in allowed_mime_types:
-                raise ValueError(
-                    f"MIME type '{self.mime_type}' is not allowed for "
-                    f"attachment '{self.filename}'."
                 )
 
         @classmethod
@@ -220,31 +213,11 @@ def create_attachment_class(config: AttachmentConfig) -> type:
 
             Note: The bytes must already be in memory. This method validates size before
             creating the Attachment object. For memory-safe loading from disk, use from_file().
-
-            Args:
-                content: Binary content of the file.
-                filename: Name of the file (path components will be stripped).
-                mime_type: MIME type of the file (e.g., 'image/png').
-                max_size_override: Optional per-call max size limit.
-                    If None, uses configured max_size.
-
-            Returns:
-                A validated Attachment instance.
-
-            Raises:
-                AttachmentSizeError: If content exceeds max_size.
-                ValueError: If filename is empty or MIME type is invalid.
             """
-            effective_max_size = max_size_override if max_size_override is not None else max_size
-            if len(content) > effective_max_size:
-                sanitized_filename = _sanitize_filename(filename)
-                raise AttachmentSizeError(sanitized_filename, len(content), effective_max_size)
-
-            return cls(
-                filename=filename,
-                content=content,
-                mime_type=mime_type,
-            )
+            limit = max_size if max_size_override is None else max_size_override
+            if len(content) > limit:
+                raise AttachmentSizeError(_sanitize_filename(filename), len(content), limit)
+            return cls(filename=filename, content=content, mime_type=mime_type)
 
         @classmethod
         def from_file(
@@ -258,45 +231,28 @@ def create_attachment_class(config: AttachmentConfig) -> type:
 
             Uses a bounded read to prevent loading oversized files into memory,
             avoiding TOCTOU issues where a file could grow between size check and read.
-
-            Args:
-                file_path: Path to the file to read.
-                filename: Name to use for the attachment.
-                    If None, uses the basename of file_path.
-                mime_type: MIME type of the file. If None, guesses from filename.
-                max_size_override: Optional per-call max size limit.
-                    If None, uses configured max_size.
-
-            Returns:
-                A validated Attachment instance.
-
-            Raises:
-                AttachmentSizeError: If file size exceeds max_size.
-                FileNotFoundError: If the file does not exist.
             """
             path = Path(file_path)
-            effective_max_size = max_size_override if max_size_override is not None else max_size
+            limit = max_size if max_size_override is None else max_size_override
 
             # Early check to reject obviously oversized files without opening them
             file_size = path.stat().st_size
-            if file_size > effective_max_size:
-                raise AttachmentSizeError(path.name, file_size, effective_max_size)
+            if file_size > limit:
+                raise AttachmentSizeError(path.name, file_size, limit)
 
             # Bounded read to prevent TOCTOU: even if file grows after stat(),
-            # we never load more than max_size + 1 bytes
+            # we never load more than limit + 1 bytes
             with path.open("rb") as f:
-                content = f.read(effective_max_size + 1)
+                content = f.read(limit + 1)
 
-            if len(content) > effective_max_size:
-                raise AttachmentSizeError(path.name, len(content), effective_max_size)
+            if len(content) > limit:
+                raise AttachmentSizeError(path.name, len(content), limit)
 
             effective_filename = filename or path.name
-            effective_mime_type = mime_type or _guess_mime_type(effective_filename)
-
             return cls(
                 filename=effective_filename,
                 content=content,
-                mime_type=effective_mime_type,
+                mime_type=mime_type or _guess_mime_type(effective_filename),
             )
 
     return Attachment
