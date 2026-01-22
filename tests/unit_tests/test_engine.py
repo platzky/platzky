@@ -687,7 +687,7 @@ class TestAttachmentCustomSizeLimit:
                 max_size=custom_size,
             )
         error_message = str(exc_info.value)
-        assert "2.0MB" in error_message  # Custom limit should be shown
+        assert "2.00MB" in error_message  # Custom limit should be shown
 
     def test_attachment_size_error_is_value_error_subclass(self):
         """Test that AttachmentSizeError is a subclass of ValueError for backwards compatibility."""

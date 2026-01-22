@@ -1,106 +1,43 @@
+"""Flask application engine with notification support."""
+
 import inspect
 import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
 from flask_babel import Babel
 
+from platzky.attachment import Attachment
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
-from platzky.notifier import Attachment, Notifier
+from platzky.notification_result import (
+    AttachmentDropError,
+    AttachmentDropPolicy,
+    NotificationResult,
+    NotifierResult,
+)
+from platzky.notifier import Notifier
+
+# =============================================================================
+# Backward Compatibility Re-exports
+# =============================================================================
+# These re-exports ensure existing code continues to work:
+#   from platzky.engine import AttachmentDropPolicy, NotificationResult, etc.
+#
+# New code should import from the specific module:
+#   from platzky.notification_result import AttachmentDropPolicy
+
+# Re-export for backward compatibility (already imported above, just making explicit)
+AttachmentDropError = AttachmentDropError
+AttachmentDropPolicy = AttachmentDropPolicy
+NotificationResult = NotificationResult
+NotifierResult = NotifierResult
 
 logger = logging.getLogger(__name__)
-
-
-class AttachmentDropPolicy(Enum):
-    """Policy for handling attachments when a notifier doesn't support them.
-
-    Values:
-        WARN: Log a warning and proceed without attachments (default, backward compatible).
-              WARNING: This may lead to silent data loss if attachments are critical.
-        ERROR: Raise an AttachmentDropError exception, preventing notification.
-        SKIP_NOTIFIER: Skip the notifier entirely and log a warning.
-    """
-
-    WARN = "warn"
-    ERROR = "error"
-    SKIP_NOTIFIER = "skip_notifier"
-
-
-class AttachmentDropError(Exception):
-    """Raised when attachments would be dropped and policy is ERROR.
-
-    Attributes:
-        notifier_name: Name of the notifier that doesn't support attachments.
-        attachment_count: Number of attachments that would be dropped.
-    """
-
-    def __init__(self, notifier_name: str, attachment_count: int) -> None:
-        self.notifier_name = notifier_name
-        self.attachment_count = attachment_count
-        super().__init__(
-            f"Notifier '{notifier_name}' does not support attachments. "
-            f"{attachment_count} attachment(s) would be dropped. "
-            f"Either upgrade the notifier or change attachment_drop_policy."
-        )
-
-
-@dataclass
-class NotifierResult:
-    """Result of sending notification to a single notifier.
-
-    Attributes:
-        notifier_name: Name of the notifier.
-        received_attachments: Whether the notifier received attachments.
-        skipped: Whether the notifier was skipped entirely.
-        attachments_dropped: Number of attachments dropped (0 if received or skipped).
-    """
-
-    notifier_name: str
-    received_attachments: bool = False
-    skipped: bool = False
-    attachments_dropped: int = 0
-
-
-@dataclass
-class NotificationResult:
-    """Result of sending notifications to all notifiers.
-
-    Attributes:
-        notifier_results: List of results for each notifier.
-        total_notifiers: Total number of registered notifiers.
-        notifiers_with_attachments: Number of notifiers that received attachments.
-        notifiers_without_attachments: Number of notifiers that didn't receive attachments.
-        notifiers_skipped: Number of notifiers that were skipped.
-    """
-
-    notifier_results: list[NotifierResult] = field(default_factory=list)
-
-    @property
-    def total_notifiers(self) -> int:
-        return len(self.notifier_results)
-
-    @property
-    def notifiers_with_attachments(self) -> int:
-        return sum(1 for r in self.notifier_results if r.received_attachments)
-
-    @property
-    def notifiers_without_attachments(self) -> int:
-        return sum(
-            1
-            for r in self.notifier_results
-            if not r.received_attachments and not r.skipped
-        )
-
-    @property
-    def notifiers_skipped(self) -> int:
-        return sum(1 for r in self.notifier_results if r.skipped)
 
 
 class Engine(Flask):
@@ -172,56 +109,70 @@ class Engine(Flask):
         attachment_count = len(attachments) if attachments else 0
 
         for notifier in self.notifiers:
-            notifier_name = getattr(notifier, "__name__", type(notifier).__name__)
-            supports_attachments = self._notifier_supports_attachments(notifier)
-
-            if supports_attachments:
-                notifier(message, attachments=attachments)
-                result.notifier_results.append(
-                    NotifierResult(
-                        notifier_name=notifier_name,
-                        received_attachments=bool(attachments),
-                    )
-                )
-            elif attachments:
-                # Notifier doesn't support attachments and we have attachments
-                if self.attachment_drop_policy == AttachmentDropPolicy.ERROR:
-                    raise AttachmentDropError(notifier_name, attachment_count)
-                elif self.attachment_drop_policy == AttachmentDropPolicy.SKIP_NOTIFIER:
-                    logger.warning(
-                        "Skipping notifier %s: does not support attachments "
-                        "(%d attachment(s) would be dropped)",
-                        notifier_name,
-                        attachment_count,
-                    )
-                    result.notifier_results.append(
-                        NotifierResult(
-                            notifier_name=notifier_name,
-                            skipped=True,
-                        )
-                    )
-                else:  # WARN policy (default)
-                    logger.warning(
-                        "Notifier %s does not support attachments, "
-                        "%d attachment(s) will be dropped",
-                        notifier_name,
-                        attachment_count,
-                    )
-                    notifier(message)
-                    result.notifier_results.append(
-                        NotifierResult(
-                            notifier_name=notifier_name,
-                            attachments_dropped=attachment_count,
-                        )
-                    )
-            else:
-                # No attachments, just call the notifier normally
-                notifier(message)
-                result.notifier_results.append(
-                    NotifierResult(notifier_name=notifier_name)
-                )
+            notifier_result = self._notify_single(
+                notifier, message, attachments, attachment_count
+            )
+            result.notifier_results.append(notifier_result)
 
         return result
+
+    def _notify_single(
+        self,
+        notifier: Notifier,
+        message: str,
+        attachments: list[Attachment] | None,
+        attachment_count: int,
+    ) -> NotifierResult:
+        """Send notification to a single notifier and return the result."""
+        notifier_name = getattr(notifier, "__name__", type(notifier).__name__)
+        supports_attachments = self._notifier_supports_attachments(notifier)
+
+        if supports_attachments:
+            notifier(message, attachments=attachments)
+            return NotifierResult(
+                notifier_name=notifier_name,
+                received_attachments=bool(attachments),
+            )
+
+        if not attachments:
+            notifier(message)
+            return NotifierResult(notifier_name=notifier_name)
+
+        # Notifier doesn't support attachments and we have attachments
+        return self._handle_attachment_drop(notifier, notifier_name, message, attachment_count)
+
+    def _handle_attachment_drop(
+        self,
+        notifier: Notifier,
+        notifier_name: str,
+        message: str,
+        attachment_count: int,
+    ) -> NotifierResult:
+        """Handle the case where a notifier doesn't support attachments."""
+        if self.attachment_drop_policy == AttachmentDropPolicy.ERROR:
+            raise AttachmentDropError(notifier_name, attachment_count)
+
+        if self.attachment_drop_policy == AttachmentDropPolicy.SKIP_NOTIFIER:
+            logger.warning(
+                "Skipping notifier %s: does not support attachments "
+                "(%d attachment(s) would be dropped)",
+                notifier_name,
+                attachment_count,
+            )
+            return NotifierResult(notifier_name=notifier_name, skipped=True)
+
+        # WARN policy (default)
+        logger.warning(
+            "Notifier %s does not support attachments, "
+            "%d attachment(s) will be dropped",
+            notifier_name,
+            attachment_count,
+        )
+        notifier(message)
+        return NotifierResult(
+            notifier_name=notifier_name,
+            attachments_dropped=attachment_count,
+        )
 
     def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
         """Check if a notifier supports attachments parameter.
@@ -302,11 +253,25 @@ class Engine(Flask):
             raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))
 
-    def _register_default_health_endpoints(self):
-        """Register default health endpoints"""
-
+    def _register_default_health_endpoints(self) -> None:
+        """Register default health endpoints."""
         health_bp = Blueprint("health", __name__)
-        HEALTH_CHECK_TIMEOUT = 10  # seconds
+        health_check_timeout = 10  # seconds
+
+        def run_health_check(
+            executor: ThreadPoolExecutor,
+            check_func: Callable[[], None],
+            timeout: int,
+        ) -> str:
+            """Run a health check with timeout, returning status string."""
+            future = executor.submit(check_func)
+            try:
+                future.result(timeout=timeout)
+                return "ok"
+            except TimeoutError:
+                return "failed: timeout"
+            except Exception as e:
+                return f"failed: {e!s}"
 
         @health_bp.route("/health/liveness")
         def liveness():
@@ -317,47 +282,25 @@ class Engine(Flask):
         def readiness():
             """Readiness check - can the app serve traffic?"""
             health_status: dict[str, Any] = {"status": "ready", "checks": {}}
-            status_code = 200
+
+            all_checks = [("database", self.db.health_check), *self.health_checks]
 
             executor = ThreadPoolExecutor(max_workers=1)
             try:
-                # Database health check with timeout
-                future = executor.submit(self.db.health_check)
-                try:
-                    future.result(timeout=HEALTH_CHECK_TIMEOUT)
-                    health_status["checks"]["database"] = "ok"
-                except TimeoutError:
-                    health_status["checks"]["database"] = "failed: timeout"
-                    health_status["status"] = "not_ready"
-                    status_code = 503
-                except Exception as e:
-                    health_status["checks"]["database"] = f"failed: {e!s}"
-                    health_status["status"] = "not_ready"
-                    status_code = 503
-
-                # Run application-registered health checks
-                for check_name, check_func in self.health_checks:
-                    future = executor.submit(check_func)
-                    try:
-                        future.result(timeout=HEALTH_CHECK_TIMEOUT)
-                        health_status["checks"][check_name] = "ok"
-                    except TimeoutError:
-                        health_status["checks"][check_name] = "failed: timeout"
+                for check_name, check_func in all_checks:
+                    status = run_health_check(executor, check_func, health_check_timeout)
+                    health_status["checks"][check_name] = status
+                    if status != "ok":
                         health_status["status"] = "not_ready"
-                        status_code = 503
-                    except Exception as e:
-                        health_status["checks"][check_name] = f"failed: {e!s}"
-                        health_status["status"] = "not_ready"
-                        status_code = 503
             finally:
-                # Shutdown without waiting if any futures are still running
                 executor.shutdown(wait=False)
 
+            status_code = 200 if health_status["status"] == "ready" else 503
             return make_response(jsonify(health_status), status_code)
 
-        # Simple /health alias for liveness
         @health_bp.route("/health")
         def health():
+            """Simple /health alias for liveness."""
             return liveness()
 
         self.register_blueprint(health_bp)
