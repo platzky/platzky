@@ -138,7 +138,7 @@ class TestAttachment:
     def test_custom_allowed_mime_types_extends_default(self):
         """Test that custom allowed_mime_types extends the default list."""
         custom_type = "application/x-custom"
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 allowed_mime_types=frozenset({custom_type}),
                 allow_unrecognized_content=True,
@@ -155,7 +155,7 @@ class TestAttachment:
     def test_custom_max_size(self):
         """Test that custom max_size is respected."""
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -204,7 +204,7 @@ class TestAttachmentFromBytes:
     def test_from_bytes_max_size_override_allows_larger_content(self):
         """Test that max_size_override allows content larger than config max_size."""
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -226,7 +226,7 @@ class TestAttachmentFromBytes:
     def test_from_bytes_max_size_override_still_enforces_limit(self):
         """Test that max_size_override is still enforced when content exceeds it."""
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -275,7 +275,7 @@ class TestAttachmentFromFile:
         from unittest.mock import MagicMock, patch
 
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -331,7 +331,7 @@ class TestAttachmentFromFile:
     def test_from_file_max_size_override_allows_larger_file(self, tmp_path: Path):
         """Test that max_size_override allows files larger than config max_size."""
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -354,7 +354,7 @@ class TestAttachmentFromFile:
     def test_from_file_max_size_override_still_enforces_limit(self, tmp_path: Path):
         """Test that max_size_override is still enforced when file exceeds it."""
         small_max = 100
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 max_size=small_max,
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
@@ -556,7 +556,7 @@ class TestMagicByteValidation:
 
     def test_allow_unrecognized_content_skips_validation(self):
         """Test that allow_unrecognized_content=True allows unidentifiable content."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 allowed_mime_types=frozenset({"application/octet-stream"}),
                 allow_unrecognized_content=True,
@@ -578,7 +578,7 @@ class TestMagicByteValidation:
 
     def test_application_json_skips_validation(self):
         """Test that application/json skips magic byte validation when allowed."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"application/json"},
                 allowed_extensions=frozenset({"json"}),
@@ -597,7 +597,7 @@ class TestMagicByteValidation:
 
     def test_validate_content_false_skips_validation(self):
         """Test that validate_content=False skips magic byte validation."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"png"}),
@@ -626,7 +626,7 @@ class TestAttachmentProtocol:
 
     def test_factory_return_type(self):
         """Test that create_attachment_class returns type."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(allowed_extensions=frozenset({"pdf"}))
         )
         # Verify it returns a class that can be used as expected
@@ -663,7 +663,7 @@ class TestTextMimeTypesNotAllowedByDefault:
 
     def test_text_mime_types_can_be_explicitly_allowed(self):
         """Test that text types can be explicitly allowed via configuration."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
                 validate_content=False,
@@ -772,7 +772,7 @@ class TestExtensionAllowList:
 
     def test_allowed_extensions_none_blocks_all(self):
         """Test that allowed_extensions=None blocks all extensions by default."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=None,  # Default - block all
@@ -783,7 +783,7 @@ class TestExtensionAllowList:
 
     def test_allowed_extensions_empty_blocks_all(self):
         """Test that empty allowed_extensions blocks all extensions."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset(),  # Empty set - block all
@@ -794,7 +794,7 @@ class TestExtensionAllowList:
 
     def test_allowed_extensions_allows_specific_extension(self):
         """Test that specific extensions can be allowed."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"pdf", "png"}),
@@ -807,7 +807,7 @@ class TestExtensionAllowList:
 
     def test_allowed_extensions_rejects_unlisted_extension(self):
         """Test that extensions not in allow-list are rejected."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"pdf"}),
@@ -818,7 +818,7 @@ class TestExtensionAllowList:
 
     def test_blocked_takes_precedence_over_allowed(self):
         """Test that blocked_extensions takes precedence over allowed_extensions."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 blocked_extensions=frozenset({"exe"}),
@@ -837,7 +837,7 @@ class TestExtensionAllowList:
 
     def test_no_extension_blocked_when_allow_list_set(self):
         """Test that files without extension are blocked when allow-list is configured."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"pdf"}),
@@ -848,7 +848,7 @@ class TestExtensionAllowList:
 
     def test_extension_not_allowed_error_attributes(self):
         """Test that ExtensionNotAllowedError has correct attributes."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"pdf"}),
@@ -868,7 +868,7 @@ class TestExtensionAllowList:
 
     def test_allowed_extensions_case_insensitive(self):
         """Test that extension matching is case-insensitive."""
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
                 allowed_extensions=frozenset({"pdf"}),  # lowercase
@@ -884,7 +884,7 @@ class TestExtensionAllowList:
         """Test the example usage from the plan - allowing only images and PDFs."""
         from platzky.attachment.constants import BLOCKED_EXTENSIONS
 
-        Attachment = create_attachment_class(
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 allowed_extensions=frozenset({"png", "jpg", "jpeg", "gif", "pdf"}),
                 blocked_extensions=BLOCKED_EXTENSIONS,
