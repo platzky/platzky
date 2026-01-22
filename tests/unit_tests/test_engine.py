@@ -1236,7 +1236,9 @@ class TestNotifierWithAttachments:
     def test_notifier_error_propagates(self, test_app: Engine):
         """Test that errors from notifiers propagate correctly."""
 
-        def failing_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def failing_notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             raise RuntimeError("Notifier failed")
 
         test_app.add_notifier(failing_notifier)
@@ -1274,7 +1276,9 @@ class TestNotifierCapabilityCache:
         """Test that signature inspection is only called once per notifier."""
         from unittest.mock import patch
 
-        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             pass
 
         test_app.add_notifier(notifier)
@@ -1331,7 +1335,9 @@ class TestNotifierCapabilityCache:
         def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             pass
 
         test_app.add_notifier(legacy_notifier)
@@ -1546,7 +1552,8 @@ class TestMagicByteValidation:
 
     def test_valid_wav_content(self):
         """Test that valid WAV content passes validation."""
-        content = self.RIFF_MAGIC + b"rest of wav data"
+        # WAV format: RIFF + 4-byte size + WAVE at offset 8
+        content = b"RIFF\x00\x00\x00\x00WAVErest of wav data"
         attachment = Attachment(
             filename="audio.wav",
             content=content,
@@ -1945,7 +1952,9 @@ class TestAttachmentDropPolicy:
         def legacy_notifier(message: str) -> None:
             legacy_messages.append(message)
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             modern_messages.append(message)
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.SKIP_NOTIFIER
@@ -2026,7 +2035,9 @@ class TestAttachmentDropPolicy:
         def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.WARN
@@ -2047,7 +2058,9 @@ class TestAttachmentDropPolicy:
         def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.SKIP_NOTIFIER
@@ -2068,7 +2081,9 @@ class TestAttachmentDropPolicy:
         def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            _message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.WARN
@@ -2107,9 +2122,7 @@ class TestAttachmentDropPolicy:
         config = Config.model_validate(config_data)
         db = Json(config.db)
 
-        engine = Engine(
-            config, db, "test", attachment_drop_policy=AttachmentDropPolicy.ERROR
-        )
+        engine = Engine(config, db, "test", attachment_drop_policy=AttachmentDropPolicy.ERROR)
 
         assert engine.attachment_drop_policy == AttachmentDropPolicy.ERROR
 
@@ -2133,7 +2146,9 @@ class TestAttachmentDropPolicy:
         modern_messages = []
         legacy_messages = []
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
+        def modern_notifier(
+            message: str, attachments: list[Attachment] | None = None
+        ) -> None:
             modern_messages.append(message)
 
         def legacy_notifier(message: str) -> None:

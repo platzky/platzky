@@ -109,9 +109,7 @@ class Engine(Flask):
         attachment_count = len(attachments) if attachments else 0
 
         for notifier in self.notifiers:
-            notifier_result = self._notify_single(
-                notifier, message, attachments, attachment_count
-            )
+            notifier_result = self._notify_single(notifier, message, attachments, attachment_count)
             result.notifier_results.append(notifier_result)
 
         return result
@@ -163,8 +161,7 @@ class Engine(Flask):
 
         # WARN policy (default)
         logger.warning(
-            "Notifier %s does not support attachments, "
-            "%d attachment(s) will be dropped",
+            "Notifier %s does not support attachments, " "%d attachment(s) will be dropped",
             notifier_name,
             attachment_count,
         )

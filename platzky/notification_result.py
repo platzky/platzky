@@ -87,11 +87,7 @@ class NotificationResult:
 
     @property
     def notifiers_without_attachments(self) -> int:
-        return sum(
-            1
-            for r in self.notifier_results
-            if not r.received_attachments and not r.skipped
-        )
+        return sum(1 for r in self.notifier_results if not r.received_attachments and not r.skipped)
 
     @property
     def notifiers_skipped(self) -> int:
