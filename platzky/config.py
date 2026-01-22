@@ -135,9 +135,7 @@ class AttachmentConfig(StrictBaseModel):
             unrecognized content for security.
     """
 
-    allow_unrecognized_content: bool = Field(
-        default=False, alias="allow_unrecognized_content"
-    )
+    allow_unrecognized_content: bool = Field(default=False)
 
 
 class Config(StrictBaseModel):

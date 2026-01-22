@@ -22,8 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 def _sanitize_filename(filename: str) -> str:
-    """Remove path components from filename, returning just the basename."""
-    return os.path.basename(ntpath.basename(filename)) or filename
+    """Remove path components from filename, returning just the basename.
+
+    Strips trailing separators first to handle path-only inputs like "/" or "dir/",
+    then extracts basename. Returns empty string for invalid inputs rather than
+    preserving path separators, allowing validation to reject them.
+    """
+    # Strip trailing separators to handle inputs like "/" or "dir/"
+    stripped = filename.rstrip("/\\")
+    return os.path.basename(ntpath.basename(stripped))
 
 
 @dataclass(frozen=True)

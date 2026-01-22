@@ -84,18 +84,13 @@ MIME_TYPE_EQUIVALENCES: dict[str, set[str]] = {
     "application/zip": {"application/x-zip-compressed"},
 }
 
-# Module-level default for allowing unrecognized content.
-# This can be configured via Config.attachment.allow_unrecognized_content
-# and is applied by Engine at startup.
-ALLOW_UNRECOGNIZED_CONTENT_DEFAULT: bool = False
-
 
 def validate_content_mime_type(
     content: bytes,
     mime_type: str,
     filename: str,
     *,
-    allow_unrecognized: bool | None = None,
+    allow_unrecognized: bool = False,
 ) -> None:
     """Validate that content matches the declared MIME type using magic bytes.
 
@@ -106,15 +101,12 @@ def validate_content_mime_type(
         mime_type: The declared MIME type.
         filename: The filename (used for error messages).
         allow_unrecognized: If True, skip validation when content type cannot be
-            detected. If False, raise an error for unrecognized content.
-            If None (default), uses ALLOW_UNRECOGNIZED_CONTENT_DEFAULT.
+            detected. If False (default), raise an error for unrecognized content.
 
     Raises:
         ContentMismatchError: If the content does not match the declared MIME type,
             or if content cannot be identified and allow_unrecognized is False.
     """
-    if allow_unrecognized is None:
-        allow_unrecognized = ALLOW_UNRECOGNIZED_CONTENT_DEFAULT
 
     # Skip validation for empty content
     if not content:
@@ -131,13 +123,13 @@ def validate_content_mime_type(
     # Use puremagic to detect the actual content type
     try:
         detected = puremagic.magic_string(content)
-    except puremagic.PureError:
+    except puremagic.PureError as err:
         if allow_unrecognized:
             return
         raise ContentMismatchError(
             f"Content of '{filename}' does not match declared MIME type '{mime_type}'. "
             "Could not identify file type from content."
-        )
+        ) from err
 
     detected_mimes = {m.mime_type for m in detected if m.mime_type}
     equivalent_types = MIME_TYPE_EQUIVALENCES.get(mime_type, set())
