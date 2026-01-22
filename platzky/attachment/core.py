@@ -66,15 +66,15 @@ def _sanitize_filename(filename: str) -> str:
 def _get_extension(filename: str) -> str | None:
     """Extract the file extension from a filename, lowercased.
 
-    Returns None if no extension is found.
+    Returns None if no extension is found or if extension is empty (e.g., "file.").
     """
     if "." not in filename:
         return None
     ext = filename.rsplit(".", 1)[-1]
-    return ext.lower() if ext else None
+    return ext.lower() or None
 
 
-def create_attachment_class(config: AttachmentConfig) -> type[AttachmentProtocol]:
+def create_attachment_class(config: AttachmentConfig) -> type:
     """Create an Attachment class with configuration captured via closure.
 
     Args:
@@ -151,7 +151,7 @@ def create_attachment_class(config: AttachmentConfig) -> type[AttachmentProtocol
         def _validate_extension(self) -> None:
             """Validate filename extension is not in the blocklist."""
             ext = _get_extension(self.filename)
-            if ext and ext.lower() in BLOCKED_EXTENSIONS:
+            if ext and ext in BLOCKED_EXTENSIONS:
                 raise BlockedExtensionError(self.filename, ext)
 
         def _validate_size(self) -> None:
@@ -249,14 +249,15 @@ def create_attachment_class(config: AttachmentConfig) -> type[AttachmentProtocol
                 raise AttachmentSizeError(path.name, len(content), max_size)
 
             effective_filename = filename if filename is not None else path.name
-            if mime_type is None:
+            effective_mime_type = mime_type
+            if effective_mime_type is None:
                 guessed_type, _ = mimetypes.guess_type(str(path))
-                mime_type = guessed_type or "application/octet-stream"
+                effective_mime_type = guessed_type or "application/octet-stream"
 
             return cls(
                 filename=effective_filename,
                 content=content,
-                mime_type=mime_type,
+                mime_type=effective_mime_type,
             )
 
     return Attachment

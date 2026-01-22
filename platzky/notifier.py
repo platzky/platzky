@@ -5,10 +5,7 @@ This module provides notifier protocols for the platzky notification system.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from platzky.attachment import AttachmentProtocol
+from typing import Any, Protocol
 
 
 class Notifier(Protocol):
@@ -34,6 +31,4 @@ class NotifierWithAttachments(Protocol):
         engine.add_notifier_with_attachments(email_notifier)
     """
 
-    def __call__(
-        self, message: str, attachments: list[AttachmentProtocol] | None = None
-    ) -> None: ...
+    def __call__(self, message: str, attachments: list[Any] | None = None) -> None: ...

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,12 +13,14 @@ from platzky.attachment import (
     ContentMismatchError,
     create_attachment_class,
 )
-from platzky.config import AttachmentConfig, Config, _DEFAULT_ALLOWED_MIME_TYPES
+from platzky.config import (
+    _DEFAULT_ALLOWED_MIME_TYPES,  # pyright: ignore[reportPrivateUsage]
+    AttachmentConfig,
+    Config,
+)
 from platzky.db.json_db import db_from_config
 from platzky.engine import Engine
-from tests.unit_tests.fake_app import test_app
-
-test_app = test_app
+from tests.unit_tests.fake_app import test_app  # noqa: F401  # pyright: ignore[reportUnusedImport]
 
 
 @pytest.fixture
@@ -50,7 +53,7 @@ def text_allowed_attachment_class():
 class TestAttachment:
     """Tests for the Attachment dataclass validation."""
 
-    def test_valid_attachment(self, default_attachment_class):
+    def test_valid_attachment(self, default_attachment_class: type):
         """Test creating a valid attachment."""
         Attachment = default_attachment_class
         attachment = Attachment(
@@ -61,7 +64,7 @@ class TestAttachment:
         assert attachment.filename == "test.pdf"
         assert attachment.mime_type == "application/pdf"
 
-    def test_empty_filename_raises_error(self, text_allowed_attachment_class):
+    def test_empty_filename_raises_error(self, text_allowed_attachment_class: type):
         """Test that empty filename raises ValueError."""
         Attachment = text_allowed_attachment_class
         with pytest.raises(ValueError, match="filename cannot be empty"):
@@ -80,7 +83,7 @@ class TestAttachment:
         filename: str,
         expected: str,
         caplog: pytest.LogCaptureFixture,
-        text_allowed_attachment_class,
+        text_allowed_attachment_class: type,
     ):
         """Test that path components are stripped from filename."""
         Attachment = text_allowed_attachment_class
@@ -88,7 +91,7 @@ class TestAttachment:
             attachment = Attachment(filename=filename, content=b"content", mime_type="text/plain")
         assert attachment.filename == expected
 
-    def test_oversized_attachment_raises_error(self, text_allowed_attachment_class):
+    def test_oversized_attachment_raises_error(self, text_allowed_attachment_class: type):
         """Test that attachment exceeding max size raises AttachmentSizeError."""
         Attachment = text_allowed_attachment_class
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
@@ -98,7 +101,7 @@ class TestAttachment:
                 mime_type="text/plain",
             )
 
-    def test_max_size_attachment_allowed(self, text_allowed_attachment_class):
+    def test_max_size_attachment_allowed(self, text_allowed_attachment_class: type):
         """Test that attachment at exactly max size is allowed."""
         Attachment = text_allowed_attachment_class
         attachment = Attachment(
@@ -108,13 +111,13 @@ class TestAttachment:
         )
         assert len(attachment.content) == DEFAULT_MAX_ATTACHMENT_SIZE
 
-    def test_invalid_mime_type_format_raises_error(self, default_attachment_class):
+    def test_invalid_mime_type_format_raises_error(self, default_attachment_class: type):
         """Test that invalid MIME type format raises ValueError."""
         Attachment = default_attachment_class
         with pytest.raises(ValueError, match="Invalid MIME type format"):
             Attachment(filename="file.txt", content=b"content", mime_type="invalid")
 
-    def test_disallowed_mime_type_raises_error(self, default_attachment_class):
+    def test_disallowed_mime_type_raises_error(self, default_attachment_class: type):
         """Test that MIME type not in allowlist raises ValueError."""
         Attachment = default_attachment_class
         with pytest.raises(ValueError, match="is not allowed"):
@@ -142,20 +145,20 @@ class TestAttachment:
         "mime_type",
         ["image/png", "image/jpeg", "application/pdf"],
     )
-    def test_common_mime_types_are_allowed(self, mime_type: str, no_validation_attachment_class):
+    def test_common_mime_types_are_allowed(
+        self, mime_type: str, no_validation_attachment_class: type
+    ):
         """Test that common binary MIME types are in the default allowlist."""
         Attachment = no_validation_attachment_class
-        attachment = Attachment(
-            filename="test.file", content=b"content", mime_type=mime_type
-        )
+        attachment = Attachment(filename="test.file", content=b"content", mime_type=mime_type)
         assert attachment.mime_type == mime_type
 
-    def test_attachment_is_immutable(self, text_allowed_attachment_class):
+    def test_attachment_is_immutable(self, text_allowed_attachment_class: type):
         """Test that attachment is frozen (immutable)."""
         Attachment = text_allowed_attachment_class
         attachment = Attachment(filename="test.txt", content=b"content", mime_type="text/plain")
         with pytest.raises(AttributeError):
-            attachment.filename = "changed.txt"  # type: ignore[misc]
+            attachment.filename = "changed.txt"
 
     def test_default_allowed_mime_types_is_frozenset(self):
         """Test that default allowed_mime_types in config is immutable."""
@@ -196,7 +199,7 @@ class TestAttachment:
 class TestAttachmentFromBytes:
     """Tests for the Attachment.from_bytes() factory method."""
 
-    def test_from_bytes_creates_valid_attachment(self, text_allowed_attachment_class):
+    def test_from_bytes_creates_valid_attachment(self, text_allowed_attachment_class: type):
         """Test that from_bytes creates a valid attachment."""
         Attachment = text_allowed_attachment_class
         attachment = Attachment.from_bytes(
@@ -204,7 +207,7 @@ class TestAttachmentFromBytes:
         )
         assert attachment.filename == "test.txt"
 
-    def test_from_bytes_validates_size_before_creation(self, text_allowed_attachment_class):
+    def test_from_bytes_validates_size_before_creation(self, text_allowed_attachment_class: type):
         """Test that from_bytes validates size before object creation."""
         Attachment = text_allowed_attachment_class
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
@@ -218,7 +221,9 @@ class TestAttachmentFromBytes:
 class TestAttachmentFromFile:
     """Tests for the Attachment.from_file() factory method."""
 
-    def test_from_file_creates_valid_attachment(self, tmp_path: Path, text_allowed_attachment_class):
+    def test_from_file_creates_valid_attachment(
+        self, tmp_path: Path, text_allowed_attachment_class: type
+    ):
         """Test that from_file creates a valid attachment."""
         Attachment = text_allowed_attachment_class
         test_file = tmp_path / "test.txt"
@@ -228,7 +233,7 @@ class TestAttachmentFromFile:
         assert attachment.filename == "test.txt"
         assert attachment.content == b"Hello, World!"
 
-    def test_from_file_validates_size(self, tmp_path: Path, text_allowed_attachment_class):
+    def test_from_file_validates_size(self, tmp_path: Path, text_allowed_attachment_class: type):
         """Test that from_file validates size against DEFAULT_MAX_ATTACHMENT_SIZE."""
         Attachment = text_allowed_attachment_class
         large_file = tmp_path / "large.bin"
@@ -237,7 +242,9 @@ class TestAttachmentFromFile:
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_file(file_path=large_file, mime_type="text/plain")
 
-    def test_from_file_with_custom_filename(self, tmp_path: Path, text_allowed_attachment_class):
+    def test_from_file_with_custom_filename(
+        self, tmp_path: Path, text_allowed_attachment_class: type
+    ):
         """Test from_file with custom filename override."""
         Attachment = text_allowed_attachment_class
         test_file = tmp_path / "original.txt"
@@ -248,7 +255,9 @@ class TestAttachmentFromFile:
         )
         assert attachment.filename == "custom.txt"
 
-    def test_from_file_guesses_mime_type(self, tmp_path: Path, no_validation_attachment_class):
+    def test_from_file_guesses_mime_type(
+        self, tmp_path: Path, no_validation_attachment_class: type
+    ):
         """Test that from_file guesses MIME type from filename."""
         Attachment = no_validation_attachment_class
         pdf_file = tmp_path / "document.pdf"
@@ -257,7 +266,7 @@ class TestAttachmentFromFile:
         attachment = Attachment.from_file(file_path=pdf_file)
         assert attachment.mime_type == "application/pdf"
 
-    def test_from_file_raises_file_not_found(self, tmp_path: Path, default_attachment_class):
+    def test_from_file_raises_file_not_found(self, tmp_path: Path, default_attachment_class: type):
         """Test that from_file raises FileNotFoundError for missing files."""
         Attachment = default_attachment_class
         with pytest.raises(FileNotFoundError):
@@ -282,11 +291,11 @@ class TestEngineAttachment:
         }
         config = Config.model_validate(config_data)
         db = db_from_config(config.db)  # type: ignore[arg-type]
-        test_app = Engine(config, db, "test")
+        app = Engine(config, db, "test")
 
-        assert hasattr(test_app, "Attachment")
+        assert hasattr(app, "Attachment")
         # Create an attachment using the engine's class
-        attachment = test_app.Attachment("test.txt", b"hello", "text/plain")
+        attachment = app.Attachment("test.txt", b"hello", "text/plain")
         assert attachment.filename == "test.txt"
 
     def test_engine_attachment_uses_config(self):
@@ -340,9 +349,10 @@ class TestNotifierWithAttachments:
 
     def test_notifier_receives_attachments(self, text_allowed_test_app: Engine):
         """Test that notifier with attachments receives them."""
-        received_attachments: list[list | None] = []
+        received_attachments: list[list[Any] | None] = []
 
-        def notifier(_message: str, attachments: list | None = None) -> None:
+        def notifier(message: str, attachments: list[Any] | None = None) -> None:
+            del message  # unused
             received_attachments.append(attachments)
 
         attachment = text_allowed_test_app.Attachment("test.txt", b"hello", "text/plain")
@@ -360,21 +370,23 @@ class TestNotifierWithAttachments:
             received_messages.append(message)
 
         text_allowed_test_app.add_notifier(simple_notifier)
-        text_allowed_test_app.notify("test message", attachments=[
-            text_allowed_test_app.Attachment("test.txt", b"hello", "text/plain")
-        ])
+        text_allowed_test_app.notify(
+            "test message",
+            attachments=[text_allowed_test_app.Attachment("test.txt", b"hello", "text/plain")],
+        )
 
         assert received_messages == ["test message"]
 
     def test_mixed_notifiers(self, text_allowed_test_app: Engine):
         """Test mixed notifiers - some with attachments, some without."""
         simple_messages: list[str] = []
-        attachment_notifier_data: list[list | None] = []
+        attachment_notifier_data: list[list[Any] | None] = []
 
         def simple_notifier(message: str) -> None:
             simple_messages.append(message)
 
-        def notifier_with_attachments(_message: str, attachments: list | None = None) -> None:
+        def notifier_with_attachments(message: str, attachments: list[Any] | None = None) -> None:
+            del message  # unused
             attachment_notifier_data.append(attachments)
 
         attachment = text_allowed_test_app.Attachment("test.txt", b"hello", "text/plain")
@@ -402,7 +414,9 @@ class TestMagicByteValidation:
             ("audio/ogg", b"OggS"),
         ],
     )
-    def test_valid_magic_bytes(self, mime_type: str, magic_bytes: bytes, default_attachment_class):
+    def test_valid_magic_bytes(
+        self, mime_type: str, magic_bytes: bytes, default_attachment_class: type
+    ):
         """Test various MIME types with their correct magic bytes."""
         Attachment = default_attachment_class
         content = magic_bytes + b"rest of file data"
@@ -413,7 +427,7 @@ class TestMagicByteValidation:
         "mime_type",
         ["image/png", "image/jpeg", "image/gif", "application/pdf", "application/zip"],
     )
-    def test_invalid_content_raises_error(self, mime_type: str, default_attachment_class):
+    def test_invalid_content_raises_error(self, mime_type: str, default_attachment_class: type):
         """Test various MIME types with invalid content."""
         Attachment = default_attachment_class
         with pytest.raises(ContentMismatchError):
@@ -438,7 +452,7 @@ class TestMagicByteValidation:
         )
         assert attachment.content is not None
 
-    def test_text_mime_types_skip_validation(self, text_allowed_attachment_class):
+    def test_text_mime_types_skip_validation(self, text_allowed_attachment_class: type):
         """Test that text/* MIME types skip magic byte validation when allowed."""
         Attachment = text_allowed_attachment_class
         attachment = Attachment(filename="file.txt", content=b"Some text", mime_type="text/plain")
@@ -456,7 +470,7 @@ class TestMagicByteValidation:
         )
         assert attachment.content is not None
 
-    def test_empty_content_skips_validation(self, default_attachment_class):
+    def test_empty_content_skips_validation(self, default_attachment_class: type):
         """Test that empty content skips magic byte validation."""
         Attachment = default_attachment_class
         attachment = Attachment(filename="empty.png", content=b"", mime_type="image/png")
@@ -464,9 +478,7 @@ class TestMagicByteValidation:
 
     def test_validate_content_false_skips_validation(self):
         """Test that validate_content=False skips magic byte validation."""
-        Attachment = create_attachment_class(
-            AttachmentConfig(validate_content=False)
-        )
+        Attachment = create_attachment_class(AttachmentConfig(validate_content=False))
         attachment = Attachment(
             filename="image.png",
             content=b"invalid png content",
@@ -482,7 +494,7 @@ class TestMagicByteValidation:
 class TestAttachmentProtocol:
     """Tests for AttachmentProtocol implementation."""
 
-    def test_attachment_implements_protocol(self, default_attachment_class):
+    def test_attachment_implements_protocol(self, default_attachment_class: type):
         """Test that created Attachment class implements AttachmentProtocol."""
         Attachment = default_attachment_class
         attachment = Attachment(
@@ -500,7 +512,7 @@ class TestAttachmentProtocol:
         )
 
     def test_factory_return_type(self):
-        """Test that create_attachment_class returns type[AttachmentProtocol]."""
+        """Test that create_attachment_class returns type."""
         Attachment = create_attachment_class(AttachmentConfig())
         # Verify it returns a class that can be used as expected
         assert hasattr(Attachment, "from_bytes")
@@ -526,7 +538,9 @@ class TestTextMimeTypesNotAllowedByDefault:
             "image/svg+xml",
         ],
     )
-    def test_text_mime_types_not_allowed_by_default(self, mime_type: str, default_attachment_class):
+    def test_text_mime_types_not_allowed_by_default(
+        self, mime_type: str, default_attachment_class: type
+    ):
         """Test that text/* and related types are rejected by default."""
         Attachment = default_attachment_class
         with pytest.raises(ValueError, match="is not allowed"):
@@ -566,9 +580,29 @@ class TestExtensionValidation:
 
     @pytest.mark.parametrize(
         "extension",
-        ["exe", "dll", "scr", "msi", "bat", "cmd", "vbs", "ps1", "jar", "lnk", "hta", "app", "dmg", "deb", "rpm", "sh", "py", "rb", "pl"],
+        [
+            "exe",
+            "dll",
+            "scr",
+            "msi",
+            "bat",
+            "cmd",
+            "vbs",
+            "ps1",
+            "jar",
+            "lnk",
+            "hta",
+            "app",
+            "dmg",
+            "deb",
+            "rpm",
+            "sh",
+            "py",
+            "rb",
+            "pl",
+        ],
     )
-    def test_blocked_extensions_rejected(self, extension: str, default_attachment_class):
+    def test_blocked_extensions_rejected(self, extension: str, default_attachment_class: type):
         """Test that dangerous extensions are rejected."""
         Attachment = default_attachment_class
         with pytest.raises(BlockedExtensionError, match="blocked extension"):
@@ -578,7 +612,7 @@ class TestExtensionValidation:
                 mime_type="application/pdf",
             )
 
-    def test_blocked_extension_case_insensitive(self, default_attachment_class):
+    def test_blocked_extension_case_insensitive(self, default_attachment_class: type):
         """Test that extension blocking is case insensitive."""
         Attachment = default_attachment_class
         for ext in ["EXE", "Exe", "eXe", "exe"]:
@@ -589,7 +623,7 @@ class TestExtensionValidation:
         "filename",
         ["document.pdf", "image.png", "archive.zip", "report.docx", "data.xlsx"],
     )
-    def test_safe_extensions_allowed(self, filename: str, no_validation_attachment_class):
+    def test_safe_extensions_allowed(self, filename: str, no_validation_attachment_class: type):
         """Test that safe extensions are allowed."""
         Attachment = no_validation_attachment_class
         # Determine appropriate mime type based on extension
@@ -605,13 +639,13 @@ class TestExtensionValidation:
         attachment = Attachment(filename=filename, content=b"content", mime_type=mime_type)
         assert attachment.filename == filename
 
-    def test_no_extension_allowed(self, no_validation_attachment_class):
+    def test_no_extension_allowed(self, no_validation_attachment_class: type):
         """Test that files without extension are allowed."""
         Attachment = no_validation_attachment_class
         attachment = Attachment(filename="README", content=b"content", mime_type="application/pdf")
         assert attachment.filename == "README"
 
-    def test_blocked_extension_checked_before_mime_type(self, default_attachment_class):
+    def test_blocked_extension_checked_before_mime_type(self, default_attachment_class: type):
         """Test that extension is validated before MIME type."""
         Attachment = default_attachment_class
         # Use an invalid MIME type but blocked extension
@@ -623,7 +657,7 @@ class TestExtensionValidation:
                 mime_type="invalid-mime-type",
             )
 
-    def test_blocked_extension_error_attributes(self, default_attachment_class):
+    def test_blocked_extension_error_attributes(self, default_attachment_class: type):
         """Test that BlockedExtensionError has correct attributes."""
         Attachment = default_attachment_class
         try:
