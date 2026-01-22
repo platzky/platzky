@@ -19,7 +19,7 @@ from platzky.config import (
 )
 from platzky.db.json_db import db_from_config
 from platzky.engine import Engine
-from tests.unit_tests.fake_app import test_app  # noqa: F401  # pyright: ignore[reportUnusedImport]
+from tests.unit_tests.fake_app import test_app  # noqa: F401
 
 
 @pytest.fixture
@@ -497,7 +497,6 @@ class TestMagicByteValidation:
         assert attachment.content == b"invalid png content"
 
 
-
 class TestAttachmentProtocol:
     """Tests for AttachmentProtocol implementation."""
 
@@ -510,7 +509,6 @@ class TestAttachmentProtocol:
             mime_type="application/pdf",
         )
         assert isinstance(attachment, AttachmentProtocol)
-
 
     def test_factory_return_type(self):
         """Test that create_attachment_class returns type."""
@@ -557,7 +555,6 @@ class TestTextMimeTypesNotAllowedByDefault:
         )
         attachment = Attachment(filename="test.txt", content=b"Hello", mime_type="text/plain")
         assert attachment.mime_type == "text/plain"
-
 
 
 class TestExtensionValidation:
@@ -645,10 +642,7 @@ class TestExtensionValidation:
     def test_blocked_extension_error_attributes(self, default_attachment_class: type):
         """Test that BlockedExtensionError has correct attributes."""
         Attachment = default_attachment_class
-        try:
+        with pytest.raises(BlockedExtensionError, match="blocked extension") as exc_info:
             Attachment(filename="virus.exe", content=b"content", mime_type="application/pdf")
-        except BlockedExtensionError as e:
-            assert e.filename == "virus.exe"
-            assert e.extension == "exe"
-            assert "blocked extension" in str(e)
-
+        assert exc_info.value.filename == "virus.exe"
+        assert exc_info.value.extension == "exe"

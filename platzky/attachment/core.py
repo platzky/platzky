@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from platzky.attachment.constants import (
-    BLOCKED_EXTENSIONS,
     AttachmentSizeError,
     BlockedExtensionError,
 )
@@ -196,7 +195,8 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 content: Binary content of the file.
                 filename: Name of the file (path components will be stripped).
                 mime_type: MIME type of the file (e.g., 'image/png').
-                max_size_override: Optional per-call max size limit. If None, uses configured max_size.
+                max_size_override: Optional per-call max size limit.
+                    If None, uses configured max_size.
 
             Returns:
                 A validated Attachment instance.
@@ -231,9 +231,11 @@ def create_attachment_class(config: AttachmentConfig) -> type:
 
             Args:
                 file_path: Path to the file to read.
-                filename: Name to use for the attachment. If None, uses the basename of file_path.
+                filename: Name to use for the attachment.
+                    If None, uses the basename of file_path.
                 mime_type: MIME type of the file. If None, guesses from filename.
-                max_size_override: Optional per-call max size limit. If None, uses configured max_size.
+                max_size_override: Optional per-call max size limit.
+                    If None, uses configured max_size.
 
             Returns:
                 A validated Attachment instance.
@@ -261,7 +263,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             effective_filename = filename if filename is not None else path.name
             effective_mime_type = mime_type
             if effective_mime_type is None:
-                guessed_type, _ = mimetypes.guess_type(str(path))
+                guessed_type, _ = mimetypes.guess_type(effective_filename)
                 effective_mime_type = guessed_type or "application/octet-stream"
 
             return cls(

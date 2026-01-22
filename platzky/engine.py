@@ -10,12 +10,12 @@ from flask import Blueprint, Flask, Response, jsonify, make_response, request, s
 from flask_babel import Babel
 
 from platzky.attachment import create_attachment_class
-
-logger = logging.getLogger(__name__)
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
+
+logger = logging.getLogger(__name__)
 
 
 class Engine(Flask):
@@ -138,12 +138,13 @@ class Engine(Flask):
             future = executor.submit(check_func)
             try:
                 future.result(timeout=timeout)
-                return "ok"
             except TimeoutError:
                 return "failed: timeout"
             except Exception:
                 logger.exception("Health check failed")
                 return "failed"
+            else:
+                return "ok"
 
         @health_bp.route("/health/liveness")
         def liveness() -> tuple[Response, int]:
