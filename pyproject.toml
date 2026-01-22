@@ -69,15 +69,18 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.run]
+source = ["platzky"]
 omit = [
     "tests/*",
-    "*/__init__.py"
+    "*/site-packages/*"
 ]
 
 [tool.coverage.report]
 exclude_lines = [
     "@abstractmethod",
-    "@abc.abstractmethod"
+    "@abc.abstractmethod",
+    "if TYPE_CHECKING:",
+    "pragma: no cover"
 ]
 fail_under = 70
 show_missing = true

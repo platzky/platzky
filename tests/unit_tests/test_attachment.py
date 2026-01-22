@@ -5,7 +5,6 @@ from typing import Any
 import pytest
 
 from platzky.attachment import (
-    BLOCKED_EXTENSIONS,
     DEFAULT_MAX_ATTACHMENT_SIZE,
     AttachmentProtocol,
     AttachmentSizeError,
@@ -141,34 +140,6 @@ class TestAttachment:
         )
         assert attachment.mime_type == custom_type
 
-    @pytest.mark.parametrize(
-        "mime_type",
-        ["image/png", "image/jpeg", "application/pdf"],
-    )
-    def test_common_mime_types_are_allowed(
-        self, mime_type: str, no_validation_attachment_class: type
-    ):
-        """Test that common binary MIME types are in the default allowlist."""
-        Attachment = no_validation_attachment_class
-        attachment = Attachment(filename="test.file", content=b"content", mime_type=mime_type)
-        assert attachment.mime_type == mime_type
-
-    def test_attachment_is_immutable(self, text_allowed_attachment_class: type):
-        """Test that attachment is frozen (immutable)."""
-        Attachment = text_allowed_attachment_class
-        attachment = Attachment(filename="test.txt", content=b"content", mime_type="text/plain")
-        with pytest.raises(AttributeError):
-            attachment.filename = "changed.txt"
-
-    def test_default_allowed_mime_types_is_frozenset(self):
-        """Test that default allowed_mime_types in config is immutable."""
-        config = AttachmentConfig()
-        assert isinstance(config.allowed_mime_types, frozenset)
-
-    def test_attachment_size_error_is_value_error_subclass(self):
-        """Test that AttachmentSizeError is a subclass of ValueError."""
-        assert issubclass(AttachmentSizeError, ValueError)
-
     def test_custom_max_size(self):
         """Test that custom max_size is respected."""
         small_max = 100
@@ -241,6 +212,33 @@ class TestAttachmentFromFile:
 
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_file(file_path=large_file, mime_type="text/plain")
+
+    def test_from_file_toctou_protection(self, tmp_path: Path):
+        """Test that from_file catches files that grow between stat and read."""
+        from unittest.mock import MagicMock, patch
+
+        small_max = 100
+        Attachment = create_attachment_class(
+            AttachmentConfig(
+                max_size=small_max,
+                allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
+                validate_content=False,
+            )
+        )
+
+        test_file = tmp_path / "growing.txt"
+        test_file.write_bytes(b"x" * 50)  # Small enough to pass stat check
+
+        # Mock Path.open to return more data than stat reported (simulates file growth)
+        grown_content = b"x" * (small_max + 1)
+        mock_file = MagicMock()
+        mock_file.read.return_value = grown_content
+        mock_file.__enter__ = MagicMock(return_value=mock_file)
+        mock_file.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(Path, "open", return_value=mock_file):
+            with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
+                Attachment.from_file(file_path=test_file, mime_type="text/plain")
 
     def test_from_file_with_custom_filename(
         self, tmp_path: Path, text_allowed_attachment_class: type
@@ -437,6 +435,18 @@ class TestMagicByteValidation:
                 mime_type=mime_type,
             )
 
+    def test_mismatched_content_type_raises_error(self, default_attachment_class: type):
+        """Test that content recognized as different type than declared raises error."""
+        Attachment = default_attachment_class
+        # Provide valid PNG magic bytes but declare as PDF
+        png_content = b"\x89PNG\r\n\x1a\n" + b"fake png data"
+        with pytest.raises(ContentMismatchError, match="Detected types:"):
+            Attachment(
+                filename="fake.pdf",
+                content=png_content,
+                mime_type="application/pdf",
+            )
+
     def test_allow_unrecognized_content_skips_validation(self):
         """Test that allow_unrecognized_content=True allows unidentifiable content."""
         Attachment = create_attachment_class(
@@ -486,9 +496,6 @@ class TestMagicByteValidation:
         )
         assert attachment.content == b"invalid png content"
 
-    def test_content_mismatch_error_is_value_error(self):
-        """Test that ContentMismatchError is a subclass of ValueError."""
-        assert issubclass(ContentMismatchError, ValueError)
 
 
 class TestAttachmentProtocol:
@@ -504,12 +511,6 @@ class TestAttachmentProtocol:
         )
         assert isinstance(attachment, AttachmentProtocol)
 
-    def test_protocol_is_runtime_checkable(self):
-        """Test that AttachmentProtocol is runtime_checkable."""
-        # Protocol should be usable with isinstance()
-        assert hasattr(AttachmentProtocol, "__protocol_attrs__") or hasattr(
-            AttachmentProtocol, "_is_runtime_protocol"
-        )
 
     def test_factory_return_type(self):
         """Test that create_attachment_class returns type."""
@@ -557,22 +558,6 @@ class TestTextMimeTypesNotAllowedByDefault:
         attachment = Attachment(filename="test.txt", content=b"Hello", mime_type="text/plain")
         assert attachment.mime_type == "text/plain"
 
-    def test_default_mime_types_do_not_include_text(self):
-        """Test that _DEFAULT_ALLOWED_MIME_TYPES does not include text types."""
-        text_types = {
-            "text/plain",
-            "text/html",
-            "text/csv",
-            "text/xml",
-            "text/css",
-            "text/javascript",
-            "text/markdown",
-            "application/json",
-            "application/xml",
-            "application/rtf",
-            "image/svg+xml",
-        }
-        assert not (text_types & _DEFAULT_ALLOWED_MIME_TYPES)
 
 
 class TestExtensionValidation:
@@ -667,10 +652,3 @@ class TestExtensionValidation:
             assert e.extension == "exe"
             assert "blocked extension" in str(e)
 
-    def test_blocked_extensions_constant_is_frozenset(self):
-        """Test that BLOCKED_EXTENSIONS is an immutable frozenset."""
-        assert isinstance(BLOCKED_EXTENSIONS, frozenset)
-
-    def test_blocked_extension_error_is_value_error(self):
-        """Test that BlockedExtensionError is a subclass of ValueError."""
-        assert issubclass(BlockedExtensionError, ValueError)

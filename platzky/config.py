@@ -9,6 +9,7 @@ import typing as t
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .attachment.constants import DEFAULT_MAX_ATTACHMENT_SIZE
 from .db.db import DBConfig
 from .db.db_loader import get_db_module
 
@@ -176,7 +177,7 @@ class AttachmentConfig(StrictBaseModel):
     allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
     validate_content: bool = Field(default=True)
     allow_unrecognized_content: bool = Field(default=False)
-    max_size: int = Field(default=10 * 1024 * 1024, gt=0)
+    max_size: int = Field(default=DEFAULT_MAX_ATTACHMENT_SIZE, gt=0)
 
 
 class Config(StrictBaseModel):

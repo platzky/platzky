@@ -1,5 +1,6 @@
 """Flask application engine with notification support."""
 
+import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -138,8 +139,9 @@ class Engine(Flask):
                 return "ok"
             except TimeoutError:
                 return "failed: timeout"
-            except Exception as e:
-                return f"failed: {e!s}"
+            except Exception:
+                logging.exception("Health check failed")
+                return "failed"
 
         @health_bp.route("/health/liveness")
         def liveness() -> tuple[Response, int]:

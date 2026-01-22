@@ -38,7 +38,7 @@ BLOCKED_EXTENSIONS: frozenset[str] = frozenset(
         # Linux packages
         "deb",
         "rpm",
-        "AppImage",
+        "appimage",
         # Shell scripts
         "sh",
         "bash",
