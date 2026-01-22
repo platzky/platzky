@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from platzky.attachment.constants import (
     AttachmentSizeError,
     BlockedExtensionError,
+    ExtensionNotAllowedError,
 )
 from platzky.attachment.mime_validation import validate_content_mime_type
 
@@ -105,6 +106,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
     allow_unrecognized_content = config.allow_unrecognized_content
     max_size = config.max_size
     blocked_extensions = config.blocked_extensions
+    allowed_extensions = config.allowed_extensions
 
     @dataclass(frozen=True)
     class Attachment:
@@ -158,10 +160,32 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 )
 
         def _validate_extension(self) -> None:
-            """Validate filename extension is not in the blocklist."""
+            """Validate filename extension against block-list and allow-list.
+
+            Validation order:
+            1. If extension is in blocked_extensions → REJECT (BlockedExtensionError)
+            2. If allowed_extensions is None → REJECT (ExtensionNotAllowedError)
+            3. If no extension → REJECT (ExtensionNotAllowedError)
+            4. If extension not in allowed_extensions → REJECT (ExtensionNotAllowedError)
+            5. Otherwise → ALLOW
+            """
             ext = _get_extension(self.filename)
-            if ext and ext in blocked_extensions:
+
+            # Step 1: Check block-list first (takes precedence)
+            if ext is not None and ext in blocked_extensions:
                 raise BlockedExtensionError(self.filename, ext)
+
+            # Step 2: If allowed_extensions is None, block all extensions
+            if allowed_extensions is None:
+                raise ExtensionNotAllowedError(self.filename, ext)
+
+            # Step 3: Files without extensions are blocked
+            if ext is None:
+                raise ExtensionNotAllowedError(self.filename, ext)
+
+            # Step 4: Check if extension is in allow-list
+            if ext not in allowed_extensions:
+                raise ExtensionNotAllowedError(self.filename, ext)
 
         def _validate_size(self) -> None:
             """Validate content size against configured max_size."""

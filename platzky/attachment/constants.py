@@ -85,6 +85,25 @@ class BlockedExtensionError(ValueError):
         super().__init__(message)
 
 
+class ExtensionNotAllowedError(ValueError):
+    """Raised when attachment extension is not in the allow-list."""
+
+    def __init__(self, filename: str, extension: str | None) -> None:
+        self.filename = filename
+        self.extension = extension
+        if extension is None:
+            message = (
+                f"Attachment '{filename}' has no file extension. "
+                f"Files without extensions are not allowed."
+            )
+        else:
+            message = (
+                f"Attachment '{filename}' has extension '.{extension}' which is not "
+                f"in the allowed extensions list."
+            )
+        super().__init__(message)
+
+
 class AttachmentSizeError(ValueError):
     """Raised when attachment content exceeds the maximum allowed size."""
 

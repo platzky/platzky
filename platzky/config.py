@@ -173,6 +173,10 @@ class AttachmentConfig(StrictBaseModel):
         allow_unrecognized_content: If True, allow content that cannot be identified.
         max_size: Maximum attachment size in bytes (default: 10MB).
         blocked_extensions: File extensions to block (executable and script formats).
+        allowed_extensions: File extensions to allow. If None (default), all extensions
+            are blocked. Extensions must be explicitly allowed for security.
+            Note: blocked_extensions takes precedence over allowed_extensions.
+            Files without extensions are always blocked when allowed_extensions is set.
     """
 
     allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
@@ -180,6 +184,7 @@ class AttachmentConfig(StrictBaseModel):
     allow_unrecognized_content: bool = Field(default=False)
     max_size: int = Field(default=DEFAULT_MAX_ATTACHMENT_SIZE, gt=0)
     blocked_extensions: frozenset[str] = Field(default=BLOCKED_EXTENSIONS)
+    allowed_extensions: frozenset[str] | None = Field(default=None)
 
 
 class Config(StrictBaseModel):
