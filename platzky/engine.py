@@ -14,10 +14,6 @@ from platzky.attachment import create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
-from platzky.notification_result import (
-    NotificationResult,
-    NotifierResult,
-)
 from platzky.notifier import Notifier
 
 logger = logging.getLogger(__name__)
@@ -63,47 +59,19 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    def notify(
-        self, message: str, attachments: list | None = None
-    ) -> NotificationResult:
+    def notify(self, message: str, attachments: list | None = None) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             attachments: Optional list of Attachment objects created via engine.Attachment().
                 Attachments are silently dropped for notifiers that don't support them.
-
-        Returns:
-            NotificationResult with details about which notifiers received attachments.
         """
-        result = NotificationResult()
-
         for notifier in self.notifiers:
-            notifier_result = self._notify_single(notifier, message, attachments)
-            result.notifier_results.append(notifier_result)
-
-        return result
-
-    def _notify_single(
-        self,
-        notifier: Notifier,
-        message: str,
-        attachments: list | None,
-    ) -> NotifierResult:
-        """Send notification to a single notifier and return the result."""
-        notifier_name = getattr(notifier, "__name__", type(notifier).__name__)
-        supports_attachments = self._notifier_supports_attachments(notifier)
-
-        if supports_attachments:
-            notifier(message, attachments=attachments)
-            return NotifierResult(
-                notifier_name=notifier_name,
-                received_attachments=bool(attachments),
-            )
-
-        # Notifier doesn't support attachments - call without them
-        notifier(message)
-        return NotifierResult(notifier_name=notifier_name)
+            if self._notifier_supports_attachments(notifier):
+                notifier(message, attachments=attachments)
+            else:
+                notifier(message)
 
     def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
         """Check if a notifier supports attachments parameter.
