@@ -1,5 +1,6 @@
 import inspect
 import logging
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -13,7 +14,6 @@ from platzky.engine import (
     AttachmentDropPolicy,
     Engine,
     NotificationResult,
-    NotifierResult,
 )
 from platzky.models import CmsModule
 from platzky.notifier import (
@@ -415,7 +415,7 @@ class TestAttachment:
         with pytest.raises(ValueError, match="filename cannot be empty"):
             Attachment(filename="", content=b"content", mime_type="text/plain")
 
-    def test_path_traversal_sanitized(self, caplog):
+    def test_path_traversal_sanitized(self, caplog: pytest.LogCaptureFixture):
         """Test that path components are stripped from filename."""
         with caplog.at_level(logging.WARNING):
             attachment = Attachment(
@@ -426,7 +426,7 @@ class TestAttachment:
         assert attachment.filename == "passwd"
         assert "path components" in caplog.text
 
-    def test_absolute_path_sanitized(self, caplog):
+    def test_absolute_path_sanitized(self, caplog: pytest.LogCaptureFixture):
         """Test that absolute paths are sanitized."""
         with caplog.at_level(logging.WARNING):
             attachment = Attachment(
@@ -436,7 +436,7 @@ class TestAttachment:
             )
         assert attachment.filename == "passwd"
 
-    def test_windows_path_sanitized(self, caplog):
+    def test_windows_path_sanitized(self, caplog: pytest.LogCaptureFixture):
         """Test that Windows-style paths are sanitized."""
         with caplog.at_level(logging.WARNING):
             attachment = Attachment(
@@ -865,7 +865,7 @@ class TestAttachmentFromBytes:
                 max_size=0,  # Disables pre-check, but __post_init__ still validates
             )
 
-    def test_from_bytes_sanitizes_filename(self, caplog):
+    def test_from_bytes_sanitizes_filename(self, caplog: pytest.LogCaptureFixture):
         """Test that from_bytes sanitizes filenames with path components."""
         with caplog.at_level(logging.WARNING):
             attachment = Attachment.from_bytes(
@@ -923,7 +923,7 @@ class TestAttachmentFromBytes:
 class TestAttachmentFromFile:
     """Tests for the Attachment.from_file() factory method."""
 
-    def test_from_file_creates_valid_attachment(self, tmp_path):
+    def test_from_file_creates_valid_attachment(self, tmp_path: Path):
         """Test that from_file creates a valid attachment."""
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"Hello, World!")
@@ -936,7 +936,7 @@ class TestAttachmentFromFile:
         assert attachment.content == b"Hello, World!"
         assert attachment.mime_type == "text/plain"
 
-    def test_from_file_validates_size_before_reading(self, tmp_path):
+    def test_from_file_validates_size_before_reading(self, tmp_path: Path):
         """Test that from_file checks file size BEFORE reading content."""
         large_file = tmp_path / "large.bin"
         large_file.write_bytes(b"x" * 1000)
@@ -948,7 +948,7 @@ class TestAttachmentFromFile:
                 max_size=500,
             )
 
-    def test_from_file_with_custom_filename(self, tmp_path):
+    def test_from_file_with_custom_filename(self, tmp_path: Path):
         """Test from_file with custom filename override."""
         test_file = tmp_path / "original.txt"
         test_file.write_bytes(b"content")
@@ -960,7 +960,7 @@ class TestAttachmentFromFile:
         )
         assert attachment.filename == "custom.txt"
 
-    def test_from_file_uses_basename_when_no_filename(self, tmp_path):
+    def test_from_file_uses_basename_when_no_filename(self, tmp_path: Path):
         """Test that from_file uses file basename when filename is None."""
         test_file = tmp_path / "myfile.txt"
         test_file.write_bytes(b"content")
@@ -972,7 +972,7 @@ class TestAttachmentFromFile:
         )
         assert attachment.filename == "myfile.txt"
 
-    def test_from_file_guesses_mime_type(self, tmp_path):
+    def test_from_file_guesses_mime_type(self, tmp_path: Path):
         """Test that from_file guesses MIME type from filename."""
         pdf_file = tmp_path / "document.pdf"
         pdf_file.write_bytes(b"%PDF-1.4 fake pdf content")
@@ -984,7 +984,7 @@ class TestAttachmentFromFile:
         )
         assert attachment.mime_type == "application/pdf"
 
-    def test_from_file_falls_back_to_octet_stream(self, tmp_path):
+    def test_from_file_falls_back_to_octet_stream(self, tmp_path: Path):
         """Test that from_file falls back to application/octet-stream for unknown types."""
         unknown_file = tmp_path / "unknown.xyz123"
         unknown_file.write_bytes(b"content")
@@ -996,14 +996,14 @@ class TestAttachmentFromFile:
         )
         assert attachment.mime_type == "application/octet-stream"
 
-    def test_from_file_raises_file_not_found(self, tmp_path):
+    def test_from_file_raises_file_not_found(self, tmp_path: Path):
         """Test that from_file raises FileNotFoundError for missing files."""
         missing_file = tmp_path / "nonexistent.txt"
 
         with pytest.raises(FileNotFoundError):
             Attachment.from_file(file_path=missing_file)
 
-    def test_from_file_raises_is_directory_error(self, tmp_path):
+    def test_from_file_raises_is_directory_error(self, tmp_path: Path):
         """Test that from_file raises error when path is a directory."""
         directory = tmp_path / "subdir"
         directory.mkdir()
@@ -1012,9 +1012,8 @@ class TestAttachmentFromFile:
         with pytest.raises((IsADirectoryError, PermissionError)):
             Attachment.from_file(file_path=directory)
 
-    def test_from_file_with_path_object(self, tmp_path):
+    def test_from_file_with_path_object(self, tmp_path: Path):
         """Test from_file with Path object instead of string."""
-        from pathlib import Path
 
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"content")
@@ -1032,7 +1031,7 @@ class TestAttachmentFromFile:
         assert attachment1.content == attachment2.content
         assert attachment1.filename == attachment2.filename
 
-    def test_from_file_with_custom_max_size(self, tmp_path):
+    def test_from_file_with_custom_max_size(self, tmp_path: Path):
         """Test from_file with custom max_size."""
         test_file = tmp_path / "test.bin"
         test_file.write_bytes(b"x" * 100)
@@ -1054,7 +1053,7 @@ class TestAttachmentFromFile:
                 max_size=99,
             )
 
-    def test_from_file_uses_default_max_size_when_none(self, tmp_path):
+    def test_from_file_uses_default_max_size_when_none(self, tmp_path: Path):
         """Test that from_file uses default max size when None."""
         # Create a file larger than default max (10MB)
         large_file = tmp_path / "large.bin"
@@ -1068,7 +1067,7 @@ class TestAttachmentFromFile:
                 max_size=None,
             )
 
-    def test_from_file_with_allowed_mime_types(self, tmp_path):
+    def test_from_file_with_allowed_mime_types(self, tmp_path: Path):
         """Test from_file with custom allowed_mime_types."""
         custom_file = tmp_path / "custom.file"
         custom_file.write_bytes(b"content")
@@ -1081,7 +1080,7 @@ class TestAttachmentFromFile:
         )
         assert attachment.mime_type == custom_type
 
-    def test_from_file_error_message_includes_filename(self, tmp_path):
+    def test_from_file_error_message_includes_filename(self, tmp_path: Path):
         """Test that size error message includes the filename."""
         large_file = tmp_path / "bigfile.bin"
         large_file.write_bytes(b"x" * 1000)
@@ -1108,7 +1107,7 @@ class TestNotifierWithAttachments:
         received_attachments = []
 
         def notifier_with_attachments(
-            message: str, attachments: list[Attachment] | None = None
+            _message: str, attachments: list[Attachment] | None = None
         ) -> None:
             received_attachments.append(attachments)
 
@@ -1133,7 +1132,9 @@ class TestNotifierWithAttachments:
 
         assert received_messages == ["test message"]
 
-    def test_legacy_notifier_drops_attachments_with_warning(self, test_app: Engine, caplog):
+    def test_legacy_notifier_drops_attachments_with_warning(
+        self, test_app: Engine, caplog: pytest.LogCaptureFixture
+    ):
         """Test that legacy notifier drops attachments and logs warning."""
         received_messages = []
 
@@ -1150,7 +1151,7 @@ class TestNotifierWithAttachments:
         assert "does not support attachments" in caplog.text
         assert "1 attachment(s) will be dropped" in caplog.text
 
-    def test_mixed_notifiers(self, test_app: Engine, caplog):
+    def test_mixed_notifiers(self, test_app: Engine, caplog: pytest.LogCaptureFixture):
         """Test mixed notifiers - some with attachments, some without."""
         legacy_messages = []
         modern_messages = []
@@ -1185,7 +1186,7 @@ class TestNotifierWithAttachments:
         """Test that None attachments work correctly."""
         received_attachments = []
 
-        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -1197,7 +1198,7 @@ class TestNotifierWithAttachments:
         """Test that empty attachments list works correctly."""
         received_attachments = []
 
-        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -1209,14 +1210,18 @@ class TestNotifierWithAttachments:
         """Test notifying with multiple attachments."""
         received_attachments = []
 
-        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         # Use valid magic bytes for binary formats
         attachments = [
             Attachment(filename="file1.txt", content=b"one", mime_type="text/plain"),
-            Attachment(filename="file2.pdf", content=b"%PDF-1.7 content", mime_type="application/pdf"),
-            Attachment(filename="file3.png", content=b"\x89PNG\r\n\x1a\n data", mime_type="image/png"),
+            Attachment(
+                filename="file2.pdf", content=b"%PDF-1.7 content", mime_type="application/pdf"
+            ),
+            Attachment(
+                filename="file3.png", content=b"\x89PNG\r\n\x1a\n data", mime_type="image/png"
+            ),
         ]
         test_app.add_notifier(notifier)
         test_app.notify("test", attachments=attachments)
@@ -1231,7 +1236,7 @@ class TestNotifierWithAttachments:
     def test_notifier_error_propagates(self, test_app: Engine):
         """Test that errors from notifiers propagate correctly."""
 
-        def failing_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def failing_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             raise RuntimeError("Notifier failed")
 
         test_app.add_notifier(failing_notifier)
@@ -1269,7 +1274,7 @@ class TestNotifierCapabilityCache:
         """Test that signature inspection is only called once per notifier."""
         from unittest.mock import patch
 
-        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             pass
 
         test_app.add_notifier(notifier)
@@ -1290,7 +1295,7 @@ class TestNotifierCapabilityCache:
     def test_cache_uses_notifier_id_as_key(self, test_app: Engine):
         """Test that cache uses id(notifier) as key."""
 
-        def notifier(message: str) -> None:
+        def notifier(_message: str) -> None:
             pass
 
         test_app.add_notifier(notifier)
@@ -1303,7 +1308,7 @@ class TestNotifierCapabilityCache:
         """Test that clear_notifier_cache clears the cache."""
         from unittest.mock import patch
 
-        def notifier(message: str) -> None:
+        def notifier(_message: str) -> None:
             pass
 
         test_app.add_notifier(notifier)
@@ -1323,10 +1328,10 @@ class TestNotifierCapabilityCache:
     def test_cache_stores_correct_values(self, test_app: Engine):
         """Test that cache stores correct boolean values for different notifiers."""
 
-        def legacy_notifier(message: str) -> None:
+        def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             pass
 
         test_app.add_notifier(legacy_notifier)
@@ -1336,7 +1341,9 @@ class TestNotifierCapabilityCache:
         assert test_app._notifier_capability_cache[id(legacy_notifier)] is False
         assert test_app._notifier_capability_cache[id(modern_notifier)] is True
 
-    def test_cache_handles_signature_inspection_errors(self, test_app: Engine, caplog):
+    def test_cache_handles_signature_inspection_errors(
+        self, test_app: Engine, caplog: pytest.LogCaptureFixture
+    ):
         """Test that signature inspection errors are cached and logged."""
         from unittest.mock import MagicMock, patch
 
@@ -1367,7 +1374,7 @@ class TestNotifierCapabilityCache:
         """Test that different instances of same class have separate cache entries."""
 
         class MyNotifier:
-            def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
+            def __call__(self, _message: str, attachments: list[Attachment] | None = None) -> None:
                 pass
 
         notifier1 = MyNotifier()
@@ -1400,7 +1407,7 @@ class TestNotifierCapabilityCache:
         engine1 = Engine(config, db, "test1")
         engine2 = Engine(config, db, "test2")
 
-        def notifier(message: str) -> None:
+        def notifier(_message: str) -> None:
             pass
 
         engine1.add_notifier(notifier)
@@ -1699,7 +1706,7 @@ class TestMagicByteValidation:
                 mime_type="image/png",
             )
 
-    def test_unknown_mime_type_skips_validation(self, caplog):
+    def test_unknown_mime_type_skips_validation(self, caplog: pytest.LogCaptureFixture):
         """Test that unknown MIME types skip validation with debug log."""
         # Using a custom allowed MIME type that's not in MAGIC_BYTES
         custom_type = "application/x-custom-format"
@@ -1812,7 +1819,8 @@ class TestMagicByteValidation:
 
     def test_combined_validation_with_other_checks(self):
         """Test that magic byte validation works with other validations."""
-        # Test that all validations run: filename sanitization, size check, MIME allowlist, and magic bytes
+        # Test that all validations run: filename sanitization, size check,
+        # MIME allowlist, and magic bytes
         content = self.PNG_MAGIC + b"png data"
         attachment = Attachment(
             filename="image.png",
@@ -1880,7 +1888,9 @@ class TestAttachmentDropPolicy:
         """Test that the default policy is WARN for backward compatibility."""
         assert test_app.attachment_drop_policy == AttachmentDropPolicy.WARN
 
-    def test_warn_policy_logs_warning_and_continues(self, test_app: Engine, caplog):
+    def test_warn_policy_logs_warning_and_continues(
+        self, test_app: Engine, caplog: pytest.LogCaptureFixture
+    ):
         """Test that WARN policy logs a warning and still calls the notifier."""
         received_messages = []
 
@@ -1925,7 +1935,9 @@ class TestAttachmentDropPolicy:
         assert "does not support attachments" in str(exc_info.value)
         assert "1 attachment(s) would be dropped" in str(exc_info.value)
 
-    def test_skip_notifier_policy_skips_legacy_notifier(self, test_app: Engine, caplog):
+    def test_skip_notifier_policy_skips_legacy_notifier(
+        self, test_app: Engine, caplog: pytest.LogCaptureFixture
+    ):
         """Test that SKIP_NOTIFIER policy skips notifiers that don't support attachments."""
         legacy_messages = []
         modern_messages = []
@@ -1933,7 +1945,7 @@ class TestAttachmentDropPolicy:
         def legacy_notifier(message: str) -> None:
             legacy_messages.append(message)
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             modern_messages.append(message)
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.SKIP_NOTIFIER
@@ -1975,7 +1987,7 @@ class TestAttachmentDropPolicy:
         """Test that policy doesn't affect notifiers that support attachments."""
         received_attachments = []
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.ERROR
@@ -1991,7 +2003,7 @@ class TestAttachmentDropPolicy:
     def test_error_policy_with_multiple_attachments(self, test_app: Engine):
         """Test that ERROR policy reports correct attachment count."""
 
-        def legacy_notifier(message: str) -> None:
+        def legacy_notifier(_message: str) -> None:
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.ERROR
@@ -2011,10 +2023,10 @@ class TestAttachmentDropPolicy:
     def test_notification_result_properties(self, test_app: Engine):
         """Test NotificationResult computed properties."""
 
-        def legacy_notifier(message: str) -> None:
+        def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.WARN
@@ -2032,10 +2044,10 @@ class TestAttachmentDropPolicy:
     def test_notification_result_with_skip_policy(self, test_app: Engine):
         """Test NotificationResult with SKIP_NOTIFIER policy."""
 
-        def legacy_notifier(message: str) -> None:
+        def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.SKIP_NOTIFIER
@@ -2053,10 +2065,10 @@ class TestAttachmentDropPolicy:
     def test_notifier_result_details(self, test_app: Engine):
         """Test that NotifierResult contains correct details."""
 
-        def legacy_notifier(message: str) -> None:
+        def legacy_notifier(_message: str) -> None:
             pass
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(_message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             pass
 
         test_app.attachment_drop_policy = AttachmentDropPolicy.WARN
@@ -2121,7 +2133,7 @@ class TestAttachmentDropPolicy:
         modern_messages = []
         legacy_messages = []
 
-        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:  # noqa: ARG001
             modern_messages.append(message)
 
         def legacy_notifier(message: str) -> None:
@@ -2153,7 +2165,7 @@ class TestAttachmentDropPolicy:
     def test_notify_returns_result_even_without_attachments(self, test_app: Engine):
         """Test that notify returns NotificationResult even when no attachments."""
 
-        def notifier(message: str) -> None:
+        def notifier(_message: str) -> None:
             pass
 
         test_app.add_notifier(notifier)

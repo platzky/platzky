@@ -104,8 +104,6 @@ class NotificationResult:
 
 
 class Engine(Flask):
-    _notifier_capability_cache: dict[int, bool] = {}
-
     def __init__(
         self,
         config: Config,

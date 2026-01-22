@@ -71,8 +71,6 @@ class AttachmentSizeError(ValueError):
     that catches ValueError for size validation failures.
     """
 
-    pass
-
 # Default allowed MIME types - safe, common types for attachments
 DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
     {
@@ -128,7 +126,9 @@ MAGIC_BYTES: dict[str, list[bytes]] = {
     "image/bmp": [b"BM"],
     "image/tiff": [b"II\x2a\x00", b"MM\x00\x2a"],  # Little-endian and big-endian TIFF
     "image/x-icon": [b"\x00\x00\x01\x00", b"\x00\x00\x02\x00"],  # ICO and CUR
-    "image/svg+xml": [b"<?xml", b"<svg", b"\xef\xbb\xbf<?xml", b"\xef\xbb\xbf<svg"],  # With/without BOM
+    "image/svg+xml": [
+        b"<?xml", b"<svg", b"\xef\xbb\xbf<?xml", b"\xef\xbb\xbf<svg"
+    ],  # With/without BOM
     # Documents
     "application/pdf": [b"%PDF"],
     "application/zip": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
@@ -151,7 +151,10 @@ MAGIC_BYTES: dict[str, list[bytes]] = {
     "audio/ogg": [b"OggS"],
     "audio/flac": [b"fLaC"],
     # Video
-    "video/mp4": [b"\x00\x00\x00\x14ftyp", b"\x00\x00\x00\x18ftyp", b"\x00\x00\x00\x1cftyp", b"\x00\x00\x00\x20ftyp", b"ftyp"],
+    "video/mp4": [
+        b"\x00\x00\x00\x14ftyp", b"\x00\x00\x00\x18ftyp",
+        b"\x00\x00\x00\x1cftyp", b"\x00\x00\x00\x20ftyp", b"ftyp"
+    ],
     "video/webm": [b"\x1a\x45\xdf\xa3"],
     "video/avi": [b"RIFF"],
     "video/ogg": [b"OggS"],
@@ -167,8 +170,6 @@ class ContentMismatchError(ValueError):
     This is a subclass of ValueError for backwards compatibility with code
     that catches ValueError for validation failures.
     """
-
-    pass
 
 
 def _validate_content_matches_mime_type(
@@ -416,6 +417,7 @@ class Attachment:
             filename=filename,
             content=content,
             mime_type=mime_type,
+            max_size=effective_max_size,
             allowed_mime_types=allowed_mime_types,
             validate_content=validate_content,
         )
@@ -508,6 +510,7 @@ class Attachment:
             filename=effective_filename,
             content=content,
             mime_type=effective_mime_type,
+            max_size=effective_max_size,
             allowed_mime_types=allowed_mime_types,
             validate_content=validate_content,
         )
