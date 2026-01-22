@@ -199,15 +199,14 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 raise AttachmentSizeError(path.name, len(content), max_size)
 
             effective_filename = filename if filename is not None else path.name
-            effective_mime_type = mime_type
-            if effective_mime_type is None:
+            if mime_type is None:
                 guessed_type, _ = mimetypes.guess_type(str(path))
-                effective_mime_type = guessed_type or "application/octet-stream"
+                mime_type = guessed_type or "application/octet-stream"
 
             return cls(
                 filename=effective_filename,
                 content=content,
-                mime_type=effective_mime_type,
+                mime_type=mime_type,
             )
 
     return Attachment

@@ -1,6 +1,5 @@
 """Flask application engine with notification support."""
 
-import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -14,8 +13,6 @@ from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
-
-logger = logging.getLogger(__name__)
 
 
 class Engine(Flask):

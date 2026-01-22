@@ -24,16 +24,6 @@ def default_attachment_class():
 
 
 @pytest.fixture
-def permissive_attachment_class():
-    """Create an Attachment class that allows unrecognized content."""
-    return create_attachment_class(
-        AttachmentConfig(
-            allow_unrecognized_content=True,
-        )
-    )
-
-
-@pytest.fixture
 def no_validation_attachment_class():
     """Create an Attachment class with content validation disabled."""
     return create_attachment_class(
@@ -72,7 +62,11 @@ class TestAttachment:
         ],
     )
     def test_path_sanitization(
-        self, filename: str, expected: str, caplog: pytest.LogCaptureFixture, default_attachment_class
+        self,
+        filename: str,
+        expected: str,
+        caplog: pytest.LogCaptureFixture,
+        default_attachment_class,
     ):
         """Test that path components are stripped from filename."""
         Attachment = default_attachment_class
