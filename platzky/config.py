@@ -130,12 +130,16 @@ class AttachmentConfig(StrictBaseModel):
     """Configuration for attachment handling.
 
     Attributes:
-        allow_unrecognized_content: If True, allow attachments with content that
-            cannot be identified by magic bytes. If False (default), reject
-            unrecognized content for security.
+        allowed_mime_types: Additional MIME types to allow beyond defaults.
+        validate_content: Whether to validate content matches declared MIME type.
+        allow_unrecognized_content: If True, allow content that cannot be identified.
+        max_size: Maximum attachment size in bytes (default: 10MB).
     """
 
+    allowed_mime_types: frozenset[str] = Field(default_factory=frozenset)
+    validate_content: bool = Field(default=True)
     allow_unrecognized_content: bool = Field(default=False)
+    max_size: int = Field(default=10 * 1024 * 1024, gt=0)
 
 
 class Config(StrictBaseModel):

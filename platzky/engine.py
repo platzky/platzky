@@ -10,7 +10,7 @@ from typing import Any
 from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
 from flask_babel import Babel
 
-from platzky.attachment import Attachment
+from platzky.attachment import create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
@@ -40,6 +40,7 @@ class Engine(Flask):
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
+        self.Attachment = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []
         self._notifier_capability_cache: dict[int, bool] = {}
         self.login_methods = []
@@ -63,13 +64,13 @@ class Engine(Flask):
         # admin page at least as configuration
 
     def notify(
-        self, message: str, attachments: list[Attachment] | None = None
+        self, message: str, attachments: list | None = None
     ) -> NotificationResult:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
-            attachments: Optional list of validated Attachment objects.
+            attachments: Optional list of Attachment objects created via engine.Attachment().
                 Attachments are silently dropped for notifiers that don't support them.
 
         Returns:
@@ -87,7 +88,7 @@ class Engine(Flask):
         self,
         notifier: Notifier,
         message: str,
-        attachments: list[Attachment] | None,
+        attachments: list | None,
     ) -> NotifierResult:
         """Send notification to a single notifier and return the result."""
         notifier_name = getattr(notifier, "__name__", type(notifier).__name__)
