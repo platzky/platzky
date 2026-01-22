@@ -4,10 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from platzky.config import Config
-from platzky.db.json_db import Json
-from platzky.engine import Engine
-from platzky.notifier import (
+from platzky.attachment import (
     DEFAULT_ALLOWED_MIME_TYPES,
     MAGIC_BYTES,
     MAX_ATTACHMENT_SIZE,
@@ -15,6 +12,9 @@ from platzky.notifier import (
     AttachmentSizeError,
     ContentMismatchError,
 )
+from platzky.config import Config
+from platzky.db.json_db import db_from_config
+from platzky.engine import Engine
 from tests.unit_tests.fake_app import test_app
 
 test_app = test_app
@@ -398,7 +398,7 @@ class TestNotifierWithAttachments:
         received_attachments = []
 
         def notifier_with_attachments(
-            _message: str, attachments: list[Attachment] | None = None
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
         ) -> None:
             received_attachments.append(attachments)
 
@@ -418,7 +418,7 @@ class TestNotifierWithAttachments:
         def legacy_notifier(message: str) -> None:
             received_messages.append(message)
 
-        test_app.add_notifier(legacy_notifier)
+        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
         test_app.notify("test message")
 
         assert received_messages == ["test message"]
@@ -431,7 +431,7 @@ class TestNotifierWithAttachments:
             received_messages.append(message)
 
         attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
-        test_app.add_notifier(legacy_notifier)
+        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
 
         test_app.notify("test message", attachments=[attachment])
 
@@ -451,7 +451,7 @@ class TestNotifierWithAttachments:
             modern_attachments.append(attachments)
 
         attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
-        test_app.add_notifier(legacy_notifier)
+        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
         test_app.add_notifier(modern_notifier)
 
         test_app.notify("test message", attachments=[attachment])
@@ -465,7 +465,9 @@ class TestNotifierWithAttachments:
         """Test that None attachments work correctly."""
         received_attachments = []
 
-        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
+        ) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -477,7 +479,9 @@ class TestNotifierWithAttachments:
         """Test that empty attachments list works correctly."""
         received_attachments = []
 
-        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
+        ) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -489,7 +493,9 @@ class TestNotifierWithAttachments:
         """Test notifying with multiple attachments."""
         received_attachments = []
 
-        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
+        def notifier(
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
+        ) -> None:
             received_attachments.append(attachments)
 
         attachments = [
@@ -515,7 +521,7 @@ class TestNotifierWithAttachments:
         """Test that errors from notifiers propagate correctly."""
 
         def failing_notifier(
-            _message: str, _attachments: list[Attachment] | None = None
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
         ) -> None:
             raise RuntimeError("Notifier failed")
 
@@ -550,7 +556,7 @@ class TestNotifierWithAttachments:
             received.append((message, attachments))  # type: ignore[arg-type]
 
         attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
-        test_app.add_notifier(kwargs_notifier)
+        test_app.add_notifier(kwargs_notifier)  # type: ignore[arg-type]
         test_app.notify("test", attachments=[attachment])
 
         assert len(received) == 1
@@ -572,7 +578,7 @@ class TestNotifierCapabilityCache:
         from unittest.mock import patch
 
         def notifier(
-            _message: str, _attachments: list[Attachment] | None = None
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
         ) -> None:
             pass
 
@@ -591,29 +597,29 @@ class TestNotifierCapabilityCache:
     def test_cache_uses_notifier_id_as_key(self, test_app: Engine):
         """Test that cache uses id(notifier) as key."""
 
-        def notifier(_message: str) -> None:
+        def notifier(message: str) -> None:  # noqa: ARG001
             pass
 
-        test_app.add_notifier(notifier)
+        test_app.add_notifier(notifier)  # type: ignore[arg-type]
         test_app.notify("test")
 
-        assert id(notifier) in test_app._notifier_capability_cache
+        assert id(notifier) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
 
     def test_clear_notifier_cache(self, test_app: Engine):
         """Test that clear_notifier_cache clears the cache."""
         from unittest.mock import patch
 
-        def notifier(_message: str) -> None:
+        def notifier(message: str) -> None:  # noqa: ARG001
             pass
 
-        test_app.add_notifier(notifier)
+        test_app.add_notifier(notifier)  # type: ignore[arg-type]
 
         with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
             test_app.notify("test1")
             assert mock_sig.call_count == 1
 
             test_app.clear_notifier_cache()
-            assert len(test_app._notifier_capability_cache) == 0
+            assert len(test_app._notifier_capability_cache) == 0  # type: ignore[attr-defined]
 
             test_app.notify("test2")
             assert mock_sig.call_count == 2
@@ -621,20 +627,20 @@ class TestNotifierCapabilityCache:
     def test_cache_stores_correct_values(self, test_app: Engine):
         """Test that cache stores correct boolean values for different notifiers."""
 
-        def legacy_notifier(_message: str) -> None:
+        def legacy_notifier(message: str) -> None:  # noqa: ARG001
             pass
 
         def modern_notifier(
-            _message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
+            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
         ) -> None:
             pass
 
-        test_app.add_notifier(legacy_notifier)
+        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
         test_app.add_notifier(modern_notifier)
         test_app.notify("test")
 
-        assert test_app._notifier_capability_cache[id(legacy_notifier)] is False
-        assert test_app._notifier_capability_cache[id(modern_notifier)] is True
+        assert test_app._notifier_capability_cache[id(legacy_notifier)] is False  # type: ignore[attr-defined]
+        assert test_app._notifier_capability_cache[id(modern_notifier)] is True  # type: ignore[attr-defined]
 
     def test_cache_handles_signature_inspection_errors(
         self, test_app: Engine, caplog: pytest.LogCaptureFixture
@@ -657,7 +663,7 @@ class TestNotifierCapabilityCache:
             assert "Failed to inspect signature" in caplog.text
             assert "Cannot inspect" in caplog.text
 
-            assert test_app._notifier_capability_cache[id(mock_notifier)] is False
+            assert test_app._notifier_capability_cache[id(mock_notifier)] is False  # type: ignore[attr-defined]
 
             test_app.notify("test2")
             assert mock_sig.call_count == 1
@@ -666,7 +672,7 @@ class TestNotifierCapabilityCache:
         """Test that different instances of same class have separate cache entries."""
 
         class MyNotifier:
-            def __call__(self, _message: str, attachments: list[Attachment] | None = None) -> None:
+            def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
                 pass
 
         notifier1 = MyNotifier()
@@ -676,8 +682,8 @@ class TestNotifierCapabilityCache:
         test_app.add_notifier(notifier2)
         test_app.notify("test")
 
-        assert id(notifier1) in test_app._notifier_capability_cache
-        assert id(notifier2) in test_app._notifier_capability_cache
+        assert id(notifier1) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
+        assert id(notifier2) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
         assert id(notifier1) != id(notifier2)
 
     def test_cache_is_instance_specific(self):
@@ -690,19 +696,19 @@ class TestNotifierCapabilityCache:
             "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": []}}},
         }
         config = Config.model_validate(config_data)
-        db = Json(config.db)
+        db = db_from_config(config.db)  # type: ignore[arg-type]
 
         engine1 = Engine(config, db, "test1")
         engine2 = Engine(config, db, "test2")
 
-        def notifier(_message: str) -> None:
+        def notifier(message: str) -> None:  # noqa: ARG001
             pass
 
-        engine1.add_notifier(notifier)
+        engine1.add_notifier(notifier)  # type: ignore[arg-type]
         engine1.notify("test")
 
-        assert id(notifier) in engine1._notifier_capability_cache
-        assert id(notifier) not in engine2._notifier_capability_cache
+        assert id(notifier) in engine1._notifier_capability_cache  # type: ignore[attr-defined]
+        assert id(notifier) not in engine2._notifier_capability_cache  # type: ignore[attr-defined]
 
 
 # =============================================================================

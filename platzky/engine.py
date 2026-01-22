@@ -128,8 +128,7 @@ class Engine(Flask):
             # Check for explicit 'attachments' parameter or **kwargs
             has_attachments_param = "attachments" in sig.parameters
             has_var_keyword = any(
-                p.kind == inspect.Parameter.VAR_KEYWORD
-                for p in sig.parameters.values()
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
             )
             result = has_attachments_param or has_var_keyword
             self._notifier_capability_cache[notifier_id] = result

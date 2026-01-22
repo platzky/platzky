@@ -60,7 +60,7 @@ def test_notifier(test_app: Engine):
         nonlocal notifier_msg
         notifier_msg = message
 
-    engine.add_notifier(notifier)
+    engine.add_notifier(notifier)  # type: ignore[arg-type]
     engine.notify("test")
     assert notifier_msg == "test"
 
