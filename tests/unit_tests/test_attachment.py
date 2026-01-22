@@ -1,4 +1,3 @@
-import inspect
 import logging
 from pathlib import Path
 
@@ -293,27 +292,27 @@ class TestNotifierWithAttachments:
     """Tests for notifier functionality with attachments."""
 
     def test_notifier_receives_attachments(self, test_app: Engine):
-        """Test that notifier with attachments parameter receives them."""
+        """Test that notifier with attachments receives them."""
         received_attachments: list[list | None] = []
 
         def notifier(_message: str, attachments: list | None = None) -> None:
             received_attachments.append(attachments)
 
         attachment = test_app.Attachment("test.txt", b"hello", "text/plain")
-        test_app.add_notifier(notifier)
+        test_app.add_notifier_with_attachments(notifier)
         test_app.notify("test message", attachments=[attachment])
 
         assert received_attachments[0] is not None
         assert received_attachments[0][0].filename == "test.txt"
 
-    def test_legacy_notifier_still_works(self, test_app: Engine):
-        """Test that legacy notifier without attachments parameter still works."""
+    def test_simple_notifier_works(self, test_app: Engine):
+        """Test that simple notifier (message only) works."""
         received_messages: list[str] = []
 
-        def legacy_notifier(message: str) -> None:
+        def simple_notifier(message: str) -> None:
             received_messages.append(message)
 
-        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
+        test_app.add_notifier(simple_notifier)
         test_app.notify("test message", attachments=[
             test_app.Attachment("test.txt", b"hello", "text/plain")
         ])
@@ -322,97 +321,22 @@ class TestNotifierWithAttachments:
 
     def test_mixed_notifiers(self, test_app: Engine):
         """Test mixed notifiers - some with attachments, some without."""
-        legacy_messages: list[str] = []
-        modern_attachments: list[list | None] = []
+        simple_messages: list[str] = []
+        attachment_notifier_data: list[list | None] = []
 
-        def legacy_notifier(message: str) -> None:
-            legacy_messages.append(message)
+        def simple_notifier(message: str) -> None:
+            simple_messages.append(message)
 
-        def modern_notifier(_message: str, attachments: list | None = None) -> None:
-            modern_attachments.append(attachments)
+        def notifier_with_attachments(_message: str, attachments: list | None = None) -> None:
+            attachment_notifier_data.append(attachments)
 
         attachment = test_app.Attachment("test.txt", b"hello", "text/plain")
-        test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
-        test_app.add_notifier(modern_notifier)
+        test_app.add_notifier(simple_notifier)
+        test_app.add_notifier_with_attachments(notifier_with_attachments)
         test_app.notify("test message", attachments=[attachment])
 
-        assert legacy_messages == ["test message"]
-        assert modern_attachments[0] is not None
-
-    def test_kwargs_notifier_receives_attachments(self, test_app: Engine):
-        """Test that notifiers with **kwargs receive attachments."""
-        received: list[list | None] = []
-
-        def kwargs_notifier(_message: str, **kwargs: object) -> None:
-            received.append(kwargs.get("attachments"))  # type: ignore[arg-type]
-
-        attachment = test_app.Attachment("test.txt", b"hello", "text/plain")
-        test_app.add_notifier(kwargs_notifier)  # type: ignore[arg-type]
-        test_app.notify("test", attachments=[attachment])
-
-        assert received[0] is not None
-        assert received[0][0].filename == "test.txt"
-
-
-class TestNotifierCapabilityCache:
-    """Tests for notifier capability caching."""
-
-    def test_cache_avoids_repeated_signature_inspection(self, test_app: Engine):
-        """Test that signature inspection is only called once per notifier."""
-        from unittest.mock import patch
-
-        def notifier(_message: str, _attachments: list | None = None) -> None:
-            pass
-
-        test_app.add_notifier(notifier)
-
-        with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
-            test_app.notify("test1")
-            test_app.notify("test2")
-            assert mock_sig.call_count == 1
-
-    def test_clear_notifier_cache_triggers_reinspection(self, test_app: Engine):
-        """Test that clear_notifier_cache causes signature to be inspected again."""
-        from unittest.mock import patch
-
-        def notifier(_message: str) -> None:
-            pass
-
-        test_app.add_notifier(notifier)  # type: ignore[arg-type]
-
-        with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
-            test_app.notify("test1")
-            test_app.clear_notifier_cache()
-            test_app.notify("test2")
-            assert mock_sig.call_count == 2
-
-    def test_cache_is_engine_instance_specific(self):
-        """Test that cache is instance-specific, not shared across Engine instances."""
-        from unittest.mock import patch
-
-        config_data = {
-            "APP_NAME": "testApp",
-            "SECRET_KEY": "secret",
-            "BLOG_PREFIX": "/blog",
-            "TRANSLATION_DIRECTORIES": [],
-            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": []}}},
-        }
-        config = Config.model_validate(config_data)
-        db = db_from_config(config.db)  # type: ignore[arg-type]
-
-        engine1 = Engine(config, db, "test1")
-        engine2 = Engine(config, db, "test2")
-
-        def notifier(_message: str) -> None:
-            pass
-
-        engine1.add_notifier(notifier)  # type: ignore[arg-type]
-        engine2.add_notifier(notifier)  # type: ignore[arg-type]
-
-        with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
-            engine1.notify("test")
-            engine2.notify("test")
-            assert mock_sig.call_count == 2
+        assert simple_messages == ["test message"]
+        assert attachment_notifier_data[0] is not None
 
 
 class TestMagicByteValidation:

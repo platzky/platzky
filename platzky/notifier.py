@@ -1,40 +1,34 @@
 """Notification system types and protocols.
 
-This module provides the Notifier protocol for the platzky notification system.
-For the Attachment class and related utilities, see platzky.attachment module.
-
+This module provides notifier protocols for the platzky notification system.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from platzky.attachment import Attachment
+from typing import Protocol
 
 
 class Notifier(Protocol):
-    """Protocol for notification handlers.
-
-    Notifiers receive messages and optional attachments. They should handle
-    the actual delivery mechanism (email, Slack, webhook, etc.).
+    """Protocol for simple notification handlers (message only).
 
     Example:
-        class EmailNotifier:
-            def __call__(
-                self, message: str, attachments: list[Attachment] | None = None
-            ) -> None:
-                # Send email with message and attachments
-                ...
+        def slack_notifier(message: str) -> None:
+            slack.post(message)
 
-        engine.add_notifier(EmailNotifier())
+        engine.add_notifier(slack_notifier)
     """
 
-    def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
-        """Send a notification.
+    def __call__(self, message: str) -> None: ...
 
-        Args:
-            message: The notification message text.
-            attachments: Optional list of file attachments.
-        """
-        ...
+
+class NotifierWithAttachments(Protocol):
+    """Protocol for notification handlers that support attachments.
+
+    Example:
+        def email_notifier(message: str, attachments: list | None = None) -> None:
+            send_email(message, attachments=attachments)
+
+        engine.add_notifier_with_attachments(email_notifier)
+    """
+
+    def __call__(self, message: str, attachments: list | None = None) -> None: ...

@@ -1,6 +1,5 @@
 """Flask application engine with notification support."""
 
-import inspect
 import logging
 import os
 from collections.abc import Callable
@@ -14,7 +13,7 @@ from platzky.attachment import create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
-from platzky.notifier import Notifier
+from platzky.notifier import Notifier, NotifierWithAttachments
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ class Engine(Flask):
         self.db = db
         self.Attachment = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []
-        self._notifier_capability_cache: dict[int, bool] = {}
+        self.notifiers_with_attachments: list[NotifierWithAttachments] = []
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -65,59 +64,27 @@ class Engine(Flask):
         Args:
             message: The notification message text.
             attachments: Optional list of Attachment objects created via engine.Attachment().
-                Attachments are silently dropped for notifiers that don't support them.
         """
         for notifier in self.notifiers:
-            if self._notifier_supports_attachments(notifier):
-                notifier(message, attachments=attachments)
-            else:
-                notifier(message)
-
-    def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
-        """Check if a notifier supports attachments parameter.
-
-        Results are cached using id(notifier) as key to avoid repeated
-        inspect.signature() calls which are expensive.
-        """
-        notifier_id = id(notifier)
-        if notifier_id in self._notifier_capability_cache:
-            return self._notifier_capability_cache[notifier_id]
-
-        try:
-            sig = inspect.signature(notifier)
-        except (ValueError, TypeError) as e:
-            logger.warning(
-                "Failed to inspect signature of notifier %s: %s",
-                getattr(notifier, "__name__", type(notifier).__name__),
-                e,
-            )
-            self._notifier_capability_cache[notifier_id] = False
-            return False
-        else:
-            # Check for explicit 'attachments' parameter or **kwargs
-            has_attachments_param = "attachments" in sig.parameters
-            has_var_keyword = any(
-                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
-            )
-            result = has_attachments_param or has_var_keyword
-            self._notifier_capability_cache[notifier_id] = result
-            return result
-
-    def clear_notifier_cache(self) -> None:
-        """Clear the notifier capability cache.
-
-        This should be called if notifiers are modified at runtime
-        or replaced with new instances.
-        """
-        self._notifier_capability_cache.clear()
+            notifier(message)
+        for notifier in self.notifiers_with_attachments:
+            notifier(message, attachments=attachments)
 
     def add_notifier(self, notifier: Notifier) -> None:
-        """Register a notifier to receive notifications.
+        """Register a simple notifier (message only).
 
         Args:
-            notifier: A callable conforming to the Notifier protocol.
+            notifier: A callable that accepts a message string.
         """
         self.notifiers.append(notifier)
+
+    def add_notifier_with_attachments(self, notifier: NotifierWithAttachments) -> None:
+        """Register a notifier that supports attachments.
+
+        Args:
+            notifier: A callable that accepts message and optional attachments.
+        """
+        self.notifiers_with_attachments.append(notifier)
 
     def add_cms_module(self, module: CmsModule):
         """Add a CMS module to the modules list."""
