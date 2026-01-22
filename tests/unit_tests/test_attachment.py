@@ -9,8 +9,8 @@ from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.notifier import (
     DEFAULT_ALLOWED_MIME_TYPES,
-    MAX_ATTACHMENT_SIZE,
     MAGIC_BYTES,
+    MAX_ATTACHMENT_SIZE,
     Attachment,
     AttachmentSizeError,
     ContentMismatchError,
@@ -515,7 +515,7 @@ class TestNotifierWithAttachments:
         """Test that errors from notifiers propagate correctly."""
 
         def failing_notifier(
-            _message: str, attachments: list[Attachment] | None = None
+            _message: str, _attachments: list[Attachment] | None = None
         ) -> None:
             raise RuntimeError("Notifier failed")
 
@@ -541,6 +541,23 @@ class TestNotifierWithAttachments:
         assert received[0][1] is not None
         assert received[0][1][0].filename == "test.txt"
 
+    def test_kwargs_notifier_receives_attachments(self, test_app: Engine):
+        """Test that notifiers with **kwargs receive attachments."""
+        received: list[tuple[str, list[Attachment] | None]] = []
+
+        def kwargs_notifier(message: str, **kwargs: object) -> None:
+            attachments = kwargs.get("attachments")
+            received.append((message, attachments))  # type: ignore[arg-type]
+
+        attachment = Attachment(filename="test.txt", content=b"hello", mime_type="text/plain")
+        test_app.add_notifier(kwargs_notifier)
+        test_app.notify("test", attachments=[attachment])
+
+        assert len(received) == 1
+        assert received[0][0] == "test"
+        assert received[0][1] is not None
+        assert received[0][1][0].filename == "test.txt"
+
 
 # =============================================================================
 # Notifier Capability Cache Tests
@@ -555,7 +572,7 @@ class TestNotifierCapabilityCache:
         from unittest.mock import patch
 
         def notifier(
-            _message: str, attachments: list[Attachment] | None = None
+            _message: str, _attachments: list[Attachment] | None = None
         ) -> None:
             pass
 
@@ -608,7 +625,7 @@ class TestNotifierCapabilityCache:
             pass
 
         def modern_notifier(
-            _message: str, attachments: list[Attachment] | None = None
+            _message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
         ) -> None:
             pass
 

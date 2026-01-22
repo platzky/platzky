@@ -126,7 +126,7 @@ def test_that_default_page_title_is_app_name(test_app: Engine):
 
 
 @pytest.mark.parametrize(
-    "tag, subtag, value", [("link", "hreflang", "en"), ("html", "lang", "en-GB")]
+    ("tag", "subtag", "value"), [("link", "hreflang", "en"), ("html", "lang", "en-GB")]
 )
 def test_that_tag_has_proper_value(test_app: Engine, tag: str, subtag: str, value: str):
     response = test_app.test_client().get("/")
