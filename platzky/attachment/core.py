@@ -40,6 +40,7 @@ class AttachmentProtocol(Protocol):
         content: bytes,
         filename: str,
         mime_type: str,
+        max_size_override: int | None = None,
     ) -> "AttachmentProtocol": ...
 
     @classmethod
@@ -48,6 +49,7 @@ class AttachmentProtocol(Protocol):
         file_path: str | Path,
         filename: str | None = None,
         mime_type: str | None = None,
+        max_size_override: int | None = None,
     ) -> "AttachmentProtocol": ...
 
 
@@ -79,7 +81,8 @@ def create_attachment_class(config: AttachmentConfig) -> type:
 
     Args:
         config: Attachment configuration containing allowed_mime_types,
-            validate_content, allow_unrecognized_content, and max_size.
+            validate_content, allow_unrecognized_content, max_size,
+            and blocked_extensions.
 
     Returns:
         A configured Attachment class that validates attachments according
@@ -96,6 +99,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
     validate_content = config.validate_content
     allow_unrecognized_content = config.allow_unrecognized_content
     max_size = config.max_size
+    blocked_extensions = config.blocked_extensions
 
     @dataclass(frozen=True)
     class Attachment:
@@ -151,7 +155,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
         def _validate_extension(self) -> None:
             """Validate filename extension is not in the blocklist."""
             ext = _get_extension(self.filename)
-            if ext and ext in BLOCKED_EXTENSIONS:
+            if ext and ext in blocked_extensions:
                 raise BlockedExtensionError(self.filename, ext)
 
         def _validate_size(self) -> None:
@@ -181,6 +185,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             content: bytes,
             filename: str,
             mime_type: str,
+            max_size_override: int | None = None,
         ) -> "Attachment":
             """Create an Attachment from bytes with size validation before object creation.
 
@@ -191,6 +196,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 content: Binary content of the file.
                 filename: Name of the file (path components will be stripped).
                 mime_type: MIME type of the file (e.g., 'image/png').
+                max_size_override: Optional per-call max size limit. If None, uses configured max_size.
 
             Returns:
                 A validated Attachment instance.
@@ -199,9 +205,10 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 AttachmentSizeError: If content exceeds max_size.
                 ValueError: If filename is empty or MIME type is invalid.
             """
-            if len(content) > max_size:
+            effective_max_size = max_size_override if max_size_override is not None else max_size
+            if len(content) > effective_max_size:
                 sanitized_filename = _sanitize_filename(filename)
-                raise AttachmentSizeError(sanitized_filename, len(content), max_size)
+                raise AttachmentSizeError(sanitized_filename, len(content), effective_max_size)
 
             return cls(
                 filename=filename,
@@ -215,6 +222,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             file_path: str | Path,
             filename: str | None = None,
             mime_type: str | None = None,
+            max_size_override: int | None = None,
         ) -> "Attachment":
             """Create an Attachment from a file path with bounded read for size safety.
 
@@ -225,6 +233,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 file_path: Path to the file to read.
                 filename: Name to use for the attachment. If None, uses the basename of file_path.
                 mime_type: MIME type of the file. If None, guesses from filename.
+                max_size_override: Optional per-call max size limit. If None, uses configured max_size.
 
             Returns:
                 A validated Attachment instance.
@@ -234,19 +243,20 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 FileNotFoundError: If the file does not exist.
             """
             path = Path(file_path)
+            effective_max_size = max_size_override if max_size_override is not None else max_size
 
             # Early check to reject obviously oversized files without opening them
             file_size = path.stat().st_size
-            if file_size > max_size:
-                raise AttachmentSizeError(path.name, file_size, max_size)
+            if file_size > effective_max_size:
+                raise AttachmentSizeError(path.name, file_size, effective_max_size)
 
             # Bounded read to prevent TOCTOU: even if file grows after stat(),
             # we never load more than max_size + 1 bytes
             with path.open("rb") as f:
-                content = f.read(max_size + 1)
+                content = f.read(effective_max_size + 1)
 
-            if len(content) > max_size:
-                raise AttachmentSizeError(path.name, len(content), max_size)
+            if len(content) > effective_max_size:
+                raise AttachmentSizeError(path.name, len(content), effective_max_size)
 
             effective_filename = filename if filename is not None else path.name
             effective_mime_type = mime_type

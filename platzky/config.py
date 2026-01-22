@@ -9,7 +9,7 @@ import typing as t
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .attachment.constants import DEFAULT_MAX_ATTACHMENT_SIZE
+from .attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from .db.db import DBConfig
 from .db.db_loader import get_db_module
 
@@ -172,12 +172,14 @@ class AttachmentConfig(StrictBaseModel):
         validate_content: Whether to validate content matches declared MIME type.
         allow_unrecognized_content: If True, allow content that cannot be identified.
         max_size: Maximum attachment size in bytes (default: 10MB).
+        blocked_extensions: File extensions to block (executable and script formats).
     """
 
     allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
     validate_content: bool = Field(default=True)
     allow_unrecognized_content: bool = Field(default=False)
     max_size: int = Field(default=DEFAULT_MAX_ATTACHMENT_SIZE, gt=0)
+    blocked_extensions: frozenset[str] = Field(default=BLOCKED_EXTENSIONS)
 
 
 class Config(StrictBaseModel):
