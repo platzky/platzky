@@ -49,7 +49,7 @@ class AttachmentProtocol(Protocol):
         filename: str,
         mime_type: str,
         max_size_override: int | None = None,
-    ) -> "AttachmentProtocol": ...
+    ) -> AttachmentProtocol: ...
 
     @classmethod
     def from_file(
@@ -58,7 +58,7 @@ class AttachmentProtocol(Protocol):
         filename: str | None = None,
         mime_type: str | None = None,
         max_size_override: int | None = None,
-    ) -> "AttachmentProtocol": ...
+    ) -> AttachmentProtocol: ...
 
 
 def _sanitize_filename(filename: str) -> str:
