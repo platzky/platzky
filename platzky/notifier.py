@@ -24,7 +24,7 @@ from platzky.attachment import (
     DEFAULT_ALLOWED_MIME_TYPES as DEFAULT_ALLOWED_MIME_TYPES,
 )
 from platzky.attachment import (
-    DEFAULT_MAX_ATTACHMENT_SIZE as DEFAULT_MAX_ATTACHMENT_SIZE,
+    MAX_ATTACHMENT_SIZE as MAX_ATTACHMENT_SIZE,
 )
 from platzky.attachment import (
     MAGIC_BYTES as MAGIC_BYTES,

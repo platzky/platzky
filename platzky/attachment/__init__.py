@@ -21,7 +21,7 @@ For untrusted input, use factory methods:
 """
 
 from platzky.attachment.constants import (
-    DEFAULT_MAX_ATTACHMENT_SIZE,
+    MAX_ATTACHMENT_SIZE,
     AttachmentSizeError,
 )
 from platzky.attachment.core import Attachment

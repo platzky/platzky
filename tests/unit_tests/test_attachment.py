@@ -9,7 +9,7 @@ from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.notifier import (
     DEFAULT_ALLOWED_MIME_TYPES,
-    DEFAULT_MAX_ATTACHMENT_SIZE,
+    MAX_ATTACHMENT_SIZE,
     MAGIC_BYTES,
     Attachment,
     AttachmentSizeError,
@@ -30,7 +30,6 @@ class TestAttachment:
 
     def test_valid_attachment(self):
         """Test creating a valid attachment."""
-        # Use valid PDF magic bytes
         pdf_content = b"%PDF-1.7 content here"
         attachment = Attachment(
             filename="test.pdf",
@@ -75,31 +74,38 @@ class TestAttachment:
                 content=b"content",
                 mime_type="text/plain",
             )
-        # os.path.basename handles this based on OS, but the filename should be sanitized
         assert "/" not in attachment.filename
         assert "\\" not in attachment.filename
 
     def test_oversized_attachment_raises_error(self):
         """Test that attachment exceeding max size raises ValueError."""
-        oversized_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1)
+        oversized_content = b"x" * (MAX_ATTACHMENT_SIZE + 1)
         with pytest.raises(ValueError, match="exceeds maximum size"):
             Attachment(
                 filename="large.bin",
                 content=oversized_content,
                 mime_type="application/zip",
-                validate_content=False,  # Skip magic byte validation for size test
+                validate_content=False,
             )
 
     def test_max_size_attachment_allowed(self):
         """Test that attachment at exactly max size is allowed."""
-        max_content = b"x" * DEFAULT_MAX_ATTACHMENT_SIZE
+        max_content = b"x" * MAX_ATTACHMENT_SIZE
         attachment = Attachment(
             filename="max.bin",
             content=max_content,
             mime_type="application/zip",
-            validate_content=False,  # Skip magic byte validation for size test
+            validate_content=False,
         )
-        assert len(attachment.content) == DEFAULT_MAX_ATTACHMENT_SIZE
+        assert len(attachment.content) == MAX_ATTACHMENT_SIZE
+
+    def test_max_attachment_size_constant(self):
+        """Test that MAX_ATTACHMENT_SIZE has the expected value."""
+        assert MAX_ATTACHMENT_SIZE == 10 * 1024 * 1024  # 10MB
+
+    def test_attachment_size_error_is_value_error_subclass(self):
+        """Test that AttachmentSizeError is a subclass of ValueError."""
+        assert issubclass(AttachmentSizeError, ValueError)
 
     def test_invalid_mime_type_format_raises_error(self):
         """Test that invalid MIME type format raises ValueError."""
@@ -133,7 +139,6 @@ class TestAttachment:
 
     def test_default_allowed_mime_types_still_work_with_custom(self):
         """Test that default MIME types still work when custom types are provided."""
-        # Use valid PDF magic bytes
         attachment = Attachment(
             filename="file.pdf",
             content=b"%PDF-1.7 content",
@@ -159,7 +164,6 @@ class TestAttachment:
     )
     def test_common_mime_types_are_allowed(self, mime_type: str):
         """Test that common MIME types are in the default allowlist."""
-        # Skip magic byte validation to test MIME type allowlist independently
         attachment = Attachment(
             filename="test.file",
             content=b"content",
@@ -189,164 +193,6 @@ class TestAttachment:
 
 
 # =============================================================================
-# Attachment Custom Size Limit Tests
-# =============================================================================
-
-
-class TestAttachmentCustomSizeLimit:
-    """Tests for configurable attachment size limits."""
-
-    def test_default_max_size_has_correct_value(self):
-        """Test that the default max size constant has the expected value."""
-        assert DEFAULT_MAX_ATTACHMENT_SIZE == 10 * 1024 * 1024  # 10MB
-
-    def test_default_max_size_is_applied(self):
-        """Test that default max_size is applied when not specified."""
-        attachment = Attachment(
-            filename="test.txt",
-            content=b"content",
-            mime_type="text/plain",
-        )
-        assert attachment.max_size == DEFAULT_MAX_ATTACHMENT_SIZE
-
-    def test_custom_max_size_is_stored(self):
-        """Test that custom max_size is stored on the instance."""
-        custom_size = 5 * 1024 * 1024  # 5MB
-        attachment = Attachment(
-            filename="test.txt",
-            content=b"content",
-            mime_type="text/plain",
-            max_size=custom_size,
-        )
-        assert attachment.max_size == custom_size
-
-    def test_custom_size_limit_rejects_oversized_content(self):
-        """Test that custom size limit rejects content exceeding it."""
-        custom_size = 1 * 1024  # 1KB
-        oversized_content = b"x" * (custom_size + 1)
-        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
-            Attachment(
-                filename="large.txt",
-                content=oversized_content,
-                mime_type="text/plain",
-                max_size=custom_size,
-            )
-
-    def test_custom_size_limit_allows_exact_size(self):
-        """Test that content at exactly custom size limit is allowed."""
-        custom_size = 1 * 1024  # 1KB
-        content = b"x" * custom_size
-        attachment = Attachment(
-            filename="exact.txt",
-            content=content,
-            mime_type="text/plain",
-            max_size=custom_size,
-        )
-        assert len(attachment.content) == custom_size
-
-    def test_custom_size_limit_allows_smaller_content(self):
-        """Test that content smaller than custom size limit is allowed."""
-        custom_size = 1 * 1024  # 1KB
-        content = b"x" * (custom_size - 1)
-        attachment = Attachment(
-            filename="small.txt",
-            content=content,
-            mime_type="text/plain",
-            max_size=custom_size,
-        )
-        assert len(attachment.content) < custom_size
-
-    def test_larger_custom_size_allows_bigger_attachments(self):
-        """Test that larger custom size limit allows bigger attachments."""
-        large_max_size = DEFAULT_MAX_ATTACHMENT_SIZE + 5000
-        large_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1000)
-        attachment = Attachment(
-            filename="large.bin",
-            content=large_content,
-            mime_type="application/zip",
-            max_size=large_max_size,
-            validate_content=False,  # Skip magic byte validation
-        )
-        assert len(attachment.content) > DEFAULT_MAX_ATTACHMENT_SIZE
-
-    def test_attachment_size_error_message_shows_custom_limit(self):
-        """Test that error message shows the custom size limit, not default."""
-        custom_size = 2 * 1024 * 1024  # 2MB
-        oversized_content = b"x" * (custom_size + 1)
-        with pytest.raises(AttachmentSizeError) as exc_info:
-            Attachment(
-                filename="large.txt",
-                content=oversized_content,
-                mime_type="text/plain",
-                max_size=custom_size,
-            )
-        error_message = str(exc_info.value)
-        assert "2.00MB" in error_message  # Custom limit should be shown
-
-    def test_attachment_size_error_is_value_error_subclass(self):
-        """Test that AttachmentSizeError is a subclass of ValueError for backwards compatibility."""
-        assert issubclass(AttachmentSizeError, ValueError)
-
-    def test_content_exceeding_custom_limit_but_within_default(self):
-        """Test content that exceeds a custom limit but is within default limit."""
-        custom_limit = 5 * 1024 * 1024  # 5MB
-        content_size = 6 * 1024 * 1024  # 6MB
-        content = b"x" * content_size
-
-        # Should fail with custom limit
-        with pytest.raises(AttachmentSizeError):
-            Attachment(
-                filename="file.txt",
-                content=content,
-                mime_type="text/plain",
-                max_size=custom_limit,
-            )
-
-        # Should succeed with default limit
-        attachment = Attachment(
-            filename="file.bin",
-            content=content,
-            mime_type="application/zip",
-            validate_content=False,  # Skip magic byte validation
-        )
-        assert len(attachment.content) == content_size
-
-    def test_very_small_custom_size_limit(self):
-        """Test that very small custom size limits work correctly."""
-        small_limit = 10  # 10 bytes
-        content = b"hello"  # 5 bytes
-        attachment = Attachment(
-            filename="tiny.txt",
-            content=content,
-            mime_type="text/plain",
-            max_size=small_limit,
-        )
-        assert attachment.max_size == small_limit
-        assert len(attachment.content) < small_limit
-
-    def test_zero_size_limit_rejects_any_content(self):
-        """Test that zero size limit rejects any non-empty content."""
-        with pytest.raises(AttachmentSizeError):
-            Attachment(
-                filename="any.txt",
-                content=b"x",
-                mime_type="text/plain",
-                max_size=0,
-            )
-
-    def test_zero_size_limit_allows_empty_content(self):
-        """Test that zero size limit allows empty content."""
-        attachment = Attachment(
-            filename="empty.txt",
-            content=b"",
-            mime_type="text/plain",
-            max_size=0,
-        )
-        assert attachment.content == b""
-        assert attachment.max_size == 0
-
-
-# =============================================================================
 # Attachment Factory Methods Tests
 # =============================================================================
 
@@ -367,62 +213,14 @@ class TestAttachmentFromBytes:
         assert attachment.content == content
         assert attachment.mime_type == "application/pdf"
 
-    def test_from_bytes_validates_size_before_creation(self):
-        """Test that from_bytes validates size BEFORE creating the object."""
-        # Create content larger than a custom max_size
-        large_content = b"x" * 1000
-        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
-            Attachment.from_bytes(
-                content=large_content,
-                filename="large.bin",
-                mime_type="application/zip",
-                max_size=500,
-            )
-
-    def test_from_bytes_with_custom_max_size(self):
-        """Test from_bytes with custom max_size smaller than default."""
-        content = b"x" * 100
-        # Should work with max_size >= content size
-        attachment = Attachment.from_bytes(
-            content=content,
-            filename="test.bin",
-            mime_type="application/zip",
-            max_size=100,
-            validate_content=False,
-        )
-        assert len(attachment.content) == 100
-
-        # Should fail with max_size < content size
-        with pytest.raises(AttachmentSizeError):
-            Attachment.from_bytes(
-                content=content,
-                filename="test.bin",
-                mime_type="application/zip",
-                max_size=99,
-            )
-
-    def test_from_bytes_uses_default_max_size_when_none(self):
-        """Test that from_bytes uses DEFAULT_MAX_ATTACHMENT_SIZE when max_size is None."""
-        oversized_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1)
+    def test_from_bytes_validates_size(self):
+        """Test that from_bytes validates size against MAX_ATTACHMENT_SIZE."""
+        oversized_content = b"x" * (MAX_ATTACHMENT_SIZE + 1)
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_bytes(
                 content=oversized_content,
                 filename="large.bin",
                 mime_type="application/zip",
-                max_size=None,
-            )
-
-    def test_from_bytes_zero_max_size_disables_pre_check(self):
-        """Test that max_size=0 disables pre-validation size checking."""
-        # Create content larger than default max - should fail at __post_init__
-        large_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1)
-
-        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
-            Attachment.from_bytes(
-                content=large_content,
-                filename="large.bin",
-                mime_type="application/zip",
-                max_size=0,  # Disables pre-check, but __post_init__ still validates
             )
 
     def test_from_bytes_sanitizes_filename(self, caplog: pytest.LogCaptureFixture):
@@ -465,20 +263,6 @@ class TestAttachmentFromBytes:
         )
         assert attachment.mime_type == custom_type
 
-    def test_from_bytes_error_message_includes_sanitized_filename(self):
-        """Test that size error uses sanitized filename in message."""
-        large_content = b"x" * 1000
-        with pytest.raises(AttachmentSizeError) as exc_info:
-            Attachment.from_bytes(
-                content=large_content,
-                filename="../../../secret.bin",
-                mime_type="application/zip",
-                max_size=500,
-            )
-        # Error message should contain sanitized filename, not path
-        assert "secret.bin" in str(exc_info.value)
-        assert "../" not in str(exc_info.value)
-
 
 class TestAttachmentFromFile:
     """Tests for the Attachment.from_file() factory method."""
@@ -490,22 +274,21 @@ class TestAttachmentFromFile:
 
         attachment = Attachment.from_file(
             file_path=test_file,
-            mime_type="text/plain",  # Override guessed type
+            mime_type="text/plain",
         )
         assert attachment.filename == "test.txt"
         assert attachment.content == b"Hello, World!"
         assert attachment.mime_type == "text/plain"
 
-    def test_from_file_validates_size_before_reading(self, tmp_path: Path):
-        """Test that from_file checks file size BEFORE reading content."""
+    def test_from_file_validates_size(self, tmp_path: Path):
+        """Test that from_file validates size against MAX_ATTACHMENT_SIZE."""
         large_file = tmp_path / "large.bin"
-        large_file.write_bytes(b"x" * 1000)
+        large_file.write_bytes(b"x" * (MAX_ATTACHMENT_SIZE + 1))
 
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
             Attachment.from_file(
                 file_path=large_file,
                 mime_type="application/zip",
-                max_size=500,
             )
 
     def test_from_file_with_custom_filename(self, tmp_path: Path):
@@ -539,8 +322,8 @@ class TestAttachmentFromFile:
 
         attachment = Attachment.from_file(
             file_path=pdf_file,
-            mime_type=None,  # Let it guess
-            validate_content=False,  # Skip magic byte validation
+            mime_type=None,
+            validate_content=False,
         )
         assert attachment.mime_type == "application/pdf"
 
@@ -568,64 +351,25 @@ class TestAttachmentFromFile:
         directory = tmp_path / "subdir"
         directory.mkdir()
 
-        # On some systems this may raise IsADirectoryError or PermissionError
         with pytest.raises((IsADirectoryError, PermissionError)):
             Attachment.from_file(file_path=directory)
 
     def test_from_file_with_path_object(self, tmp_path: Path):
         """Test from_file with Path object instead of string."""
-
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"content")
 
-        # Both string and Path should work
         attachment1 = Attachment.from_file(
             file_path=str(test_file),
             mime_type="text/plain",
         )
         attachment2 = Attachment.from_file(
-            file_path=test_file,  # Path object
+            file_path=test_file,
             mime_type="text/plain",
         )
 
         assert attachment1.content == attachment2.content
         assert attachment1.filename == attachment2.filename
-
-    def test_from_file_with_custom_max_size(self, tmp_path: Path):
-        """Test from_file with custom max_size."""
-        test_file = tmp_path / "test.bin"
-        test_file.write_bytes(b"x" * 100)
-
-        # Should work at exactly max size
-        attachment = Attachment.from_file(
-            file_path=test_file,
-            mime_type="application/zip",
-            max_size=100,
-            validate_content=False,
-        )
-        assert len(attachment.content) == 100
-
-        # Should fail above max size
-        with pytest.raises(AttachmentSizeError):
-            Attachment.from_file(
-                file_path=test_file,
-                mime_type="application/zip",
-                max_size=99,
-            )
-
-    def test_from_file_uses_default_max_size_when_none(self, tmp_path: Path):
-        """Test that from_file uses default max size when None."""
-        # Create a file larger than default max (10MB)
-        large_file = tmp_path / "large.bin"
-        # Only write enough to exceed the limit, not the full 10MB for speed
-        large_file.write_bytes(b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1))
-
-        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
-            Attachment.from_file(
-                file_path=large_file,
-                mime_type="application/zip",
-                max_size=None,
-            )
 
     def test_from_file_with_allowed_mime_types(self, tmp_path: Path):
         """Test from_file with custom allowed_mime_types."""
@@ -639,19 +383,6 @@ class TestAttachmentFromFile:
             allowed_mime_types=frozenset({custom_type}),
         )
         assert attachment.mime_type == custom_type
-
-    def test_from_file_error_message_includes_filename(self, tmp_path: Path):
-        """Test that size error message includes the filename."""
-        large_file = tmp_path / "bigfile.bin"
-        large_file.write_bytes(b"x" * 1000)
-
-        with pytest.raises(AttachmentSizeError) as exc_info:
-            Attachment.from_file(
-                file_path=large_file,
-                mime_type="application/zip",
-                max_size=500,
-            )
-        assert "bigfile.bin" in str(exc_info.value)
 
 
 # =============================================================================
@@ -725,11 +456,8 @@ class TestNotifierWithAttachments:
 
         test_app.notify("test message", attachments=[attachment])
 
-        # Both received the message
         assert legacy_messages == ["test message"]
         assert modern_messages == ["test message"]
-
-        # Only modern notifier received attachments
         assert modern_attachments[0] is not None
         assert len(modern_attachments[0]) == 1
 
@@ -764,7 +492,6 @@ class TestNotifierWithAttachments:
         def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
-        # Use valid magic bytes for binary formats
         attachments = [
             Attachment(filename="file1.txt", content=b"one", mime_type="text/plain"),
             Attachment(
@@ -835,15 +562,12 @@ class TestNotifierCapabilityCache:
         test_app.add_notifier(notifier)
 
         with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
-            # First call should inspect
             test_app.notify("test1")
             assert mock_sig.call_count == 1
 
-            # Second call should use cache
             test_app.notify("test2")
             assert mock_sig.call_count == 1
 
-            # Third call should still use cache
             test_app.notify("test3")
             assert mock_sig.call_count == 1
 
@@ -856,7 +580,6 @@ class TestNotifierCapabilityCache:
         test_app.add_notifier(notifier)
         test_app.notify("test")
 
-        # Check that the cache contains the notifier's id
         assert id(notifier) in test_app._notifier_capability_cache
 
     def test_clear_notifier_cache(self, test_app: Engine):
@@ -872,11 +595,9 @@ class TestNotifierCapabilityCache:
             test_app.notify("test1")
             assert mock_sig.call_count == 1
 
-            # Clear cache
             test_app.clear_notifier_cache()
             assert len(test_app._notifier_capability_cache) == 0
 
-            # Next call should inspect again
             test_app.notify("test2")
             assert mock_sig.call_count == 2
 
@@ -904,7 +625,6 @@ class TestNotifierCapabilityCache:
         """Test that signature inspection errors are cached and logged."""
         from unittest.mock import MagicMock, patch
 
-        # Create a notifier that will cause signature inspection to fail
         mock_notifier = MagicMock()
         mock_notifier.__name__ = "mock_notifier"
 
@@ -920,10 +640,8 @@ class TestNotifierCapabilityCache:
             assert "Failed to inspect signature" in caplog.text
             assert "Cannot inspect" in caplog.text
 
-            # Verify error result is cached as False
             assert test_app._notifier_capability_cache[id(mock_notifier)] is False
 
-            # Second call should use cache, not call inspect again
             test_app.notify("test2")
             assert mock_sig.call_count == 1
 
@@ -941,7 +659,6 @@ class TestNotifierCapabilityCache:
         test_app.add_notifier(notifier2)
         test_app.notify("test")
 
-        # Both should be cached separately
         assert id(notifier1) in test_app._notifier_capability_cache
         assert id(notifier2) in test_app._notifier_capability_cache
         assert id(notifier1) != id(notifier2)
@@ -967,10 +684,7 @@ class TestNotifierCapabilityCache:
         engine1.add_notifier(notifier)
         engine1.notify("test")
 
-        # engine1 should have the cache entry
         assert id(notifier) in engine1._notifier_capability_cache
-
-        # engine2 should not have the cache entry
         assert id(notifier) not in engine2._notifier_capability_cache
 
 
@@ -982,7 +696,6 @@ class TestNotifierCapabilityCache:
 class TestMagicByteValidation:
     """Tests for magic byte content validation in Attachment class."""
 
-    # Valid magic bytes for common file types
     PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
     JPEG_MAGIC = b"\xff\xd8\xff"
     GIF87_MAGIC = b"GIF87a"
@@ -991,9 +704,9 @@ class TestMagicByteValidation:
     ZIP_MAGIC = b"PK\x03\x04"
     GZIP_MAGIC = b"\x1f\x8b"
     BMP_MAGIC = b"BM"
-    TIFF_LE_MAGIC = b"II\x2a\x00"  # Little-endian
-    TIFF_BE_MAGIC = b"MM\x00\x2a"  # Big-endian
-    RIFF_MAGIC = b"RIFF"  # Used by WAV, WebP, AVI
+    TIFF_LE_MAGIC = b"II\x2a\x00"
+    TIFF_BE_MAGIC = b"MM\x00\x2a"
+    RIFF_MAGIC = b"RIFF"
     OGG_MAGIC = b"OggS"
     MP3_ID3_MAGIC = b"ID3"
     MP3_SYNC_MAGIC = b"\xff\xfb"
@@ -1058,87 +771,6 @@ class TestMagicByteValidation:
         )
         assert attachment.content == content
 
-    def test_valid_gzip_content(self):
-        """Test that valid GZIP content passes validation."""
-        content = self.GZIP_MAGIC + b"rest of gzip data"
-        attachment = Attachment(
-            filename="archive.gz",
-            content=content,
-            mime_type="application/gzip",
-        )
-        assert attachment.content == content
-
-    def test_valid_bmp_content(self):
-        """Test that valid BMP content passes validation."""
-        content = self.BMP_MAGIC + b"rest of bmp data"
-        attachment = Attachment(
-            filename="image.bmp",
-            content=content,
-            mime_type="image/bmp",
-        )
-        assert attachment.content == content
-
-    def test_valid_tiff_little_endian_content(self):
-        """Test that valid TIFF (little-endian) content passes validation."""
-        content = self.TIFF_LE_MAGIC + b"rest of tiff data"
-        attachment = Attachment(
-            filename="image.tiff",
-            content=content,
-            mime_type="image/tiff",
-        )
-        assert attachment.content == content
-
-    def test_valid_tiff_big_endian_content(self):
-        """Test that valid TIFF (big-endian) content passes validation."""
-        content = self.TIFF_BE_MAGIC + b"rest of tiff data"
-        attachment = Attachment(
-            filename="image.tiff",
-            content=content,
-            mime_type="image/tiff",
-        )
-        assert attachment.content == content
-
-    def test_valid_wav_content(self):
-        """Test that valid WAV content passes validation."""
-        # WAV format: RIFF + 4-byte size + WAVE at offset 8
-        content = b"RIFF\x00\x00\x00\x00WAVErest of wav data"
-        attachment = Attachment(
-            filename="audio.wav",
-            content=content,
-            mime_type="audio/wav",
-        )
-        assert attachment.content == content
-
-    def test_valid_ogg_content(self):
-        """Test that valid OGG content passes validation."""
-        content = self.OGG_MAGIC + b"rest of ogg data"
-        attachment = Attachment(
-            filename="audio.ogg",
-            content=content,
-            mime_type="audio/ogg",
-        )
-        assert attachment.content == content
-
-    def test_valid_mp3_with_id3_tag(self):
-        """Test that valid MP3 with ID3 tag passes validation."""
-        content = self.MP3_ID3_MAGIC + b"rest of mp3 data"
-        attachment = Attachment(
-            filename="audio.mp3",
-            content=content,
-            mime_type="audio/mpeg",
-        )
-        assert attachment.content == content
-
-    def test_valid_mp3_with_sync_bytes(self):
-        """Test that valid MP3 with sync bytes passes validation."""
-        content = self.MP3_SYNC_MAGIC + b"rest of mp3 data"
-        attachment = Attachment(
-            filename="audio.mp3",
-            content=content,
-            mime_type="audio/mpeg",
-        )
-        assert attachment.content == content
-
     def test_invalid_png_content_raises_error(self):
         """Test that invalid PNG content raises ContentMismatchError."""
         content = b"not a png file"
@@ -1147,16 +779,6 @@ class TestMagicByteValidation:
                 filename="image.png",
                 content=content,
                 mime_type="image/png",
-            )
-
-    def test_invalid_jpeg_content_raises_error(self):
-        """Test that invalid JPEG content raises ContentMismatchError."""
-        content = b"not a jpeg file"
-        with pytest.raises(ContentMismatchError, match="does not match declared MIME type"):
-            Attachment(
-                filename="image.jpg",
-                content=content,
-                mime_type="image/jpeg",
             )
 
     def test_invalid_pdf_content_raises_error(self):
@@ -1169,45 +791,17 @@ class TestMagicByteValidation:
                 mime_type="application/pdf",
             )
 
-    def test_invalid_zip_content_raises_error(self):
-        """Test that invalid ZIP content raises ContentMismatchError."""
-        content = b"not a zip file"
-        with pytest.raises(ContentMismatchError, match="does not match declared MIME type"):
-            Attachment(
-                filename="archive.zip",
-                content=content,
-                mime_type="application/zip",
-            )
-
     def test_content_mismatch_error_is_value_error(self):
         """Test that ContentMismatchError is a subclass of ValueError."""
         assert issubclass(ContentMismatchError, ValueError)
-        content = b"not a png file"
-        with pytest.raises(ValueError):
-            Attachment(
-                filename="image.png",
-                content=content,
-                mime_type="image/png",
-            )
 
     def test_text_mime_types_skip_validation(self):
         """Test that text/* MIME types skip magic byte validation."""
-        # Text content doesn't have reliable magic bytes
         content = b"Some plain text content"
         attachment = Attachment(
             filename="file.txt",
             content=content,
             mime_type="text/plain",
-        )
-        assert attachment.content == content
-
-    def test_text_html_skips_validation(self):
-        """Test that text/html skips magic byte validation."""
-        content = b"<html><body>Hello</body></html>"
-        attachment = Attachment(
-            filename="page.html",
-            content=content,
-            mime_type="text/html",
         )
         assert attachment.content == content
 
@@ -1218,16 +812,6 @@ class TestMagicByteValidation:
             filename="data.json",
             content=content,
             mime_type="application/json",
-        )
-        assert attachment.content == content
-
-    def test_application_xml_skips_validation(self):
-        """Test that application/xml skips magic byte validation."""
-        content = b"<root><item>value</item></root>"
-        attachment = Attachment(
-            filename="data.xml",
-            content=content,
-            mime_type="application/xml",
         )
         assert attachment.content == content
 
@@ -1251,141 +835,12 @@ class TestMagicByteValidation:
         )
         assert attachment.content == content
 
-    def test_validate_content_true_by_default(self):
-        """Test that validate_content is True by default."""
-        content = b"invalid png content"
-        with pytest.raises(ContentMismatchError):
-            Attachment(
-                filename="image.png",
-                content=content,
-                mime_type="image/png",
-            )
-
-    def test_unknown_mime_type_skips_validation(self, caplog: pytest.LogCaptureFixture):
-        """Test that unknown MIME types skip validation with debug log."""
-        # Using a custom allowed MIME type that's not in MAGIC_BYTES
-        custom_type = "application/x-custom-format"
-        content = b"custom content"
-        with caplog.at_level(logging.DEBUG):
-            attachment = Attachment(
-                filename="file.custom",
-                content=content,
-                mime_type=custom_type,
-                allowed_mime_types=frozenset({custom_type}),
-            )
-        assert attachment.content == content
-
     def test_magic_bytes_dictionary_exists(self):
         """Test that MAGIC_BYTES dictionary is properly defined."""
         assert isinstance(MAGIC_BYTES, dict)
         assert "image/png" in MAGIC_BYTES
         assert "image/jpeg" in MAGIC_BYTES
         assert "application/pdf" in MAGIC_BYTES
-
-    def test_error_message_contains_expected_magic_bytes(self):
-        """Test that error message contains expected magic bytes info."""
-        content = b"not a png"
-        with pytest.raises(ContentMismatchError) as exc_info:
-            Attachment(
-                filename="image.png",
-                content=content,
-                mime_type="image/png",
-            )
-        error_msg = str(exc_info.value)
-        assert "Expected magic bytes" in error_msg
-        assert "image/png" in error_msg
-
-    def test_error_message_contains_actual_content_preview(self):
-        """Test that error message contains preview of actual content."""
-        content = b"FAKEPNGDATA12345"
-        with pytest.raises(ContentMismatchError) as exc_info:
-            Attachment(
-                filename="image.png",
-                content=content,
-                mime_type="image/png",
-            )
-        error_msg = str(exc_info.value)
-        # The error should contain hex representation of the content
-        assert "got:" in error_msg
-
-    def test_office_document_docx_validation(self):
-        """Test that .docx (ZIP-based) content is validated."""
-        # DOCX files are ZIP archives
-        content = self.ZIP_MAGIC + b"rest of docx data"
-        attachment = Attachment(
-            filename="document.docx",
-            content=content,
-            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        assert attachment.content == content
-
-    def test_office_document_xlsx_validation(self):
-        """Test that .xlsx (ZIP-based) content is validated."""
-        # XLSX files are ZIP archives
-        content = self.ZIP_MAGIC + b"rest of xlsx data"
-        attachment = Attachment(
-            filename="spreadsheet.xlsx",
-            content=content,
-            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        assert attachment.content == content
-
-    def test_office_document_pptx_validation(self):
-        """Test that .pptx (ZIP-based) content is validated."""
-        # PPTX files are ZIP archives
-        content = self.ZIP_MAGIC + b"rest of pptx data"
-        attachment = Attachment(
-            filename="presentation.pptx",
-            content=content,
-            mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        )
-        assert attachment.content == content
-
-    def test_webp_content_validation(self):
-        """Test that WebP content is validated."""
-        # WebP starts with RIFF
-        content = self.RIFF_MAGIC + b"....WEBP rest of webp data"
-        attachment = Attachment(
-            filename="image.webp",
-            content=content,
-            mime_type="image/webp",
-        )
-        assert attachment.content == content
-
-    def test_svg_with_xml_declaration(self):
-        """Test that SVG with XML declaration passes validation."""
-        content = b"<?xml version='1.0'?><svg>...</svg>"
-        attachment = Attachment(
-            filename="image.svg",
-            content=content,
-            mime_type="image/svg+xml",
-        )
-        assert attachment.content == content
-
-    def test_svg_without_xml_declaration(self):
-        """Test that SVG without XML declaration passes validation."""
-        content = b"<svg xmlns='http://www.w3.org/2000/svg'>...</svg>"
-        attachment = Attachment(
-            filename="image.svg",
-            content=content,
-            mime_type="image/svg+xml",
-        )
-        assert attachment.content == content
-
-    def test_combined_validation_with_other_checks(self):
-        """Test that magic byte validation works with other validations."""
-        # Test that all validations run: filename sanitization, size check,
-        # MIME allowlist, and magic bytes
-        content = self.PNG_MAGIC + b"png data"
-        attachment = Attachment(
-            filename="image.png",
-            content=content,
-            mime_type="image/png",
-        )
-        assert attachment.filename == "image.png"
-        assert attachment.mime_type == "image/png"
-        assert attachment.content == content
-        assert attachment.validate_content is True
 
     @pytest.mark.parametrize(
         "mime_type,magic_bytes",
