@@ -10,6 +10,8 @@ from flask import Blueprint, Flask, Response, jsonify, make_response, request, s
 from flask_babel import Babel
 
 from platzky.attachment import create_attachment_class
+
+logger = logging.getLogger(__name__)
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
@@ -140,7 +142,7 @@ class Engine(Flask):
             except TimeoutError:
                 return "failed: timeout"
             except Exception:
-                logging.exception("Health check failed")
+                logger.exception("Health check failed")
                 return "failed"
 
         @health_bp.route("/health/liveness")
