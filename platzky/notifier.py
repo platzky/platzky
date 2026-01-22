@@ -27,18 +27,6 @@ from platzky.attachment import (
     DEFAULT_MAX_ATTACHMENT_SIZE as DEFAULT_MAX_ATTACHMENT_SIZE,
 )
 from platzky.attachment import (
-    DISCORD_MAX_SIZE as DISCORD_MAX_SIZE,
-)
-from platzky.attachment import (
-    EMAIL_MAX_SIZE as EMAIL_MAX_SIZE,
-)
-from platzky.attachment import (
-    SLACK_MAX_SIZE as SLACK_MAX_SIZE,
-)
-from platzky.attachment import (
-    TELEGRAM_MAX_SIZE as TELEGRAM_MAX_SIZE,
-)
-from platzky.attachment import (
     Attachment as Attachment,
 )
 from platzky.attachment import (

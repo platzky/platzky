@@ -54,8 +54,7 @@ class Attachment:
         content: Binary content of the file.
         mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf').
         max_size: Maximum allowed size in bytes. Defaults to DEFAULT_MAX_ATTACHMENT_SIZE (10MB).
-            Use service-specific presets like SLACK_MAX_SIZE (5MB), DISCORD_MAX_SIZE (8MB),
-            or TELEGRAM_MAX_SIZE (50MB) for different platforms.
+            Can be overridden per-attachment with a custom value.
         allowed_mime_types: Optional set of additional allowed MIME types beyond the defaults.
             If provided, these are added to DEFAULT_ALLOWED_MIME_TYPES.
         validate_content: Whether to validate that content matches the declared MIME type
@@ -75,12 +74,11 @@ class Attachment:
         ... )
 
     Example - Custom size limit:
-        >>> from platzky.attachment import SLACK_MAX_SIZE
         >>> attachment = Attachment(
         ...     filename="image.png",
         ...     content=image_bytes,
         ...     mime_type="image/png",
-        ...     max_size=SLACK_MAX_SIZE  # 5MB limit
+        ...     max_size=5 * 1024 * 1024  # 5MB limit
         ... )
 
     Example - Untrusted content (use factory methods):

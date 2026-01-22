@@ -19,11 +19,7 @@ from platzky.models import CmsModule
 from platzky.notifier import (
     DEFAULT_ALLOWED_MIME_TYPES,
     DEFAULT_MAX_ATTACHMENT_SIZE,
-    DISCORD_MAX_SIZE,
-    EMAIL_MAX_SIZE,
     MAGIC_BYTES,
-    SLACK_MAX_SIZE,
-    TELEGRAM_MAX_SIZE,
     Attachment,
     AttachmentSizeError,
     ContentMismatchError,
@@ -565,13 +561,9 @@ class TestAttachment:
 class TestAttachmentCustomSizeLimit:
     """Tests for configurable attachment size limits."""
 
-    def test_size_presets_have_correct_values(self):
-        """Test that size presets have the expected values."""
+    def test_default_max_size_has_correct_value(self):
+        """Test that the default max size constant has the expected value."""
         assert DEFAULT_MAX_ATTACHMENT_SIZE == 10 * 1024 * 1024  # 10MB
-        assert EMAIL_MAX_SIZE == 10 * 1024 * 1024  # 10MB
-        assert SLACK_MAX_SIZE == 5 * 1024 * 1024  # 5MB
-        assert DISCORD_MAX_SIZE == 8 * 1024 * 1024  # 8MB
-        assert TELEGRAM_MAX_SIZE == 50 * 1024 * 1024  # 50MB
 
     def test_default_max_size_is_applied(self):
         """Test that default max_size is applied when not specified."""
@@ -592,39 +584,6 @@ class TestAttachmentCustomSizeLimit:
             max_size=custom_size,
         )
         assert attachment.max_size == custom_size
-
-    def test_slack_max_size_preset(self):
-        """Test using SLACK_MAX_SIZE preset."""
-        attachment = Attachment(
-            filename="test.txt",
-            content=b"content",
-            mime_type="text/plain",
-            max_size=SLACK_MAX_SIZE,
-        )
-        assert attachment.max_size == SLACK_MAX_SIZE
-        assert attachment.max_size == 5 * 1024 * 1024
-
-    def test_discord_max_size_preset(self):
-        """Test using DISCORD_MAX_SIZE preset."""
-        attachment = Attachment(
-            filename="test.txt",
-            content=b"content",
-            mime_type="text/plain",
-            max_size=DISCORD_MAX_SIZE,
-        )
-        assert attachment.max_size == DISCORD_MAX_SIZE
-        assert attachment.max_size == 8 * 1024 * 1024
-
-    def test_telegram_max_size_preset(self):
-        """Test using TELEGRAM_MAX_SIZE preset."""
-        attachment = Attachment(
-            filename="test.txt",
-            content=b"content",
-            mime_type="text/plain",
-            max_size=TELEGRAM_MAX_SIZE,
-        )
-        assert attachment.max_size == TELEGRAM_MAX_SIZE
-        assert attachment.max_size == 50 * 1024 * 1024
 
     def test_custom_size_limit_rejects_oversized_content(self):
         """Test that custom size limit rejects content exceeding it."""
@@ -664,13 +623,13 @@ class TestAttachmentCustomSizeLimit:
 
     def test_larger_custom_size_allows_bigger_attachments(self):
         """Test that larger custom size limit allows bigger attachments."""
-        # Create content larger than default but smaller than TELEGRAM_MAX_SIZE
+        large_max_size = DEFAULT_MAX_ATTACHMENT_SIZE + 5000
         large_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1000)
         attachment = Attachment(
             filename="large.bin",
             content=large_content,
             mime_type="application/zip",
-            max_size=TELEGRAM_MAX_SIZE,
+            max_size=large_max_size,
             validate_content=False,  # Skip magic byte validation
         )
         assert len(attachment.content) > DEFAULT_MAX_ATTACHMENT_SIZE
@@ -693,19 +652,19 @@ class TestAttachmentCustomSizeLimit:
         """Test that AttachmentSizeError is a subclass of ValueError for backwards compatibility."""
         assert issubclass(AttachmentSizeError, ValueError)
 
-    def test_content_exceeding_slack_limit_but_within_default(self):
-        """Test content that exceeds Slack limit but is within default limit."""
-        # Content between Slack limit (5MB) and default (10MB)
+    def test_content_exceeding_custom_limit_but_within_default(self):
+        """Test content that exceeds a custom limit but is within default limit."""
+        custom_limit = 5 * 1024 * 1024  # 5MB
         content_size = 6 * 1024 * 1024  # 6MB
         content = b"x" * content_size
 
-        # Should fail with Slack limit
+        # Should fail with custom limit
         with pytest.raises(AttachmentSizeError):
             Attachment(
                 filename="file.txt",
                 content=content,
                 mime_type="text/plain",
-                max_size=SLACK_MAX_SIZE,
+                max_size=custom_limit,
             )
 
         # Should succeed with default limit
@@ -716,40 +675,6 @@ class TestAttachmentCustomSizeLimit:
             validate_content=False,  # Skip magic byte validation
         )
         assert len(attachment.content) == content_size
-
-    @pytest.mark.parametrize(
-        "preset,expected_bytes",
-        [
-            (EMAIL_MAX_SIZE, 10 * 1024 * 1024),
-            (SLACK_MAX_SIZE, 5 * 1024 * 1024),
-            (DISCORD_MAX_SIZE, 8 * 1024 * 1024),
-            (TELEGRAM_MAX_SIZE, 50 * 1024 * 1024),
-        ],
-    )
-    def test_all_presets_enforce_correct_limits(self, preset: int, expected_bytes: int):
-        """Test that all presets enforce their correct limits."""
-        # Content at exact limit should pass
-        content = b"x" * expected_bytes
-        attachment = Attachment(
-            filename="file.bin",
-            content=content,
-            mime_type="application/zip",
-            max_size=preset,
-            validate_content=False,  # Skip magic byte validation
-        )
-        assert len(attachment.content) == expected_bytes
-        assert attachment.max_size == preset
-
-        # Content over limit should fail
-        oversized_content = b"x" * (expected_bytes + 1)
-        with pytest.raises(AttachmentSizeError):
-            Attachment(
-                filename="file.bin",
-                content=oversized_content,
-                mime_type="application/zip",
-                max_size=preset,
-                validate_content=False,
-            )
 
     def test_very_small_custom_size_limit(self):
         """Test that very small custom size limits work correctly."""
