@@ -20,7 +20,7 @@ from platzky.config import (
 )
 from platzky.db.json_db import db_from_config
 from platzky.engine import Engine
-from tests.unit_tests.fake_app import test_app  # noqa: F401
+from tests.unit_tests.fake_app import test_app  # noqa: F401  # pyright: ignore[reportUnusedImport]
 
 
 @pytest.fixture

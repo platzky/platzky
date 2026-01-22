@@ -34,6 +34,14 @@ class AttachmentProtocol(Protocol):
     content: bytes
     mime_type: str
 
+    def __init__(
+        self,
+        filename: str,
+        content: bytes,
+        mime_type: str,
+        _max_size: int | None = None,
+    ) -> None: ...
+
     @classmethod
     def from_bytes(
         cls,
