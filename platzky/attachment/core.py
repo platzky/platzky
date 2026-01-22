@@ -153,9 +153,10 @@ class Attachment:
         allowed_mime_types: frozenset[str] | None = None,
         validate_content: bool = True,
     ) -> Attachment:
-        """Create an Attachment from a file path with size checking BEFORE reading.
+        """Create an Attachment from a file path with bounded read for size safety.
 
-        Use this when reading files from disk to check size before loading into memory.
+        Uses a bounded read to prevent loading oversized files into memory,
+        avoiding TOCTOU issues where a file could grow between size check and read.
 
         Args:
             file_path: Path to the file to read.
@@ -173,9 +174,18 @@ class Attachment:
         """
         path = Path(file_path)
 
+        # Early check to reject obviously oversized files without opening them
         file_size = path.stat().st_size
         if file_size > MAX_ATTACHMENT_SIZE:
             raise AttachmentSizeError.for_file(path.name, file_size)
+
+        # Bounded read to prevent TOCTOU: even if file grows after stat(),
+        # we never load more than MAX_ATTACHMENT_SIZE + 1 bytes
+        with path.open("rb") as f:
+            content = f.read(MAX_ATTACHMENT_SIZE + 1)
+
+        if len(content) > MAX_ATTACHMENT_SIZE:
+            raise AttachmentSizeError.for_file(path.name, len(content))
 
         effective_filename = filename if filename is not None else path.name
         effective_mime_type = mime_type
@@ -185,7 +195,7 @@ class Attachment:
 
         return cls(
             filename=effective_filename,
-            content=path.read_bytes(),
+            content=content,
             mime_type=effective_mime_type,
             allowed_mime_types=allowed_mime_types,
             validate_content=validate_content,
