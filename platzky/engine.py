@@ -37,11 +37,24 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    def notify(self, message: str):
+    # TODO: Create a Notifier Protocol/interface instead of raw callables.
+    # This would provide a clear contract, proper type hints, and avoid
+    # the try/except TypeError hack for backwards compatibility.
+    def notify(
+        self, message: str, attachments: list[tuple[str, bytes, str]] | None = None
+    ):
         for notifier in self.notifiers:
-            notifier(message)
+            try:
+                notifier(message, attachments=attachments)
+            except TypeError:
+                # Fallback for notifiers that don't support attachments
+                notifier(message)
 
-    def add_notifier(self, notifier: Callable[[str], None]) -> None:
+    def add_notifier(
+        self,
+        notifier: Callable[[str], None]
+        | Callable[[str, list[tuple[str, bytes, str]] | None], None],
+    ) -> None:
         self.notifiers.append(notifier)
 
     def add_cms_module(self, module: CmsModule):
