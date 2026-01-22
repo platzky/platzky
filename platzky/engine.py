@@ -22,21 +22,6 @@ from platzky.notification_result import (
 )
 from platzky.notifier import Notifier
 
-# =============================================================================
-# Backward Compatibility Re-exports
-# =============================================================================
-# These re-exports ensure existing code continues to work:
-#   from platzky.engine import AttachmentDropPolicy, NotificationResult, etc.
-#
-# New code should import from the specific module:
-#   from platzky.notification_result import AttachmentDropPolicy
-
-# Re-export for backward compatibility (already imported above, just making explicit)
-AttachmentDropError = AttachmentDropError
-AttachmentDropPolicy = AttachmentDropPolicy
-NotificationResult = NotificationResult
-NotifierResult = NotifierResult
-
 logger = logging.getLogger(__name__)
 
 
