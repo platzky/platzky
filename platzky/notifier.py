@@ -2,12 +2,10 @@
 
 This module provides the Notifier protocol for the platzky notification system.
 
-For the Attachment class and related utilities, see:
-- platzky.attachment: Attachment class, size limits, AttachmentSizeError
-- platzky.mime_validation: MIME type validation, magic bytes, ContentMismatchError
+For the Attachment class and related utilities, see platzky.attachment module.
 
-For backward compatibility, this module re-exports all symbols from the above modules.
-New code should import directly from the specific modules for clarity.
+For backward compatibility, this module re-exports all symbols from the attachment module.
+New code should import directly from platzky.attachment for clarity.
 """
 
 from __future__ import annotations
@@ -20,11 +18,16 @@ from typing import TYPE_CHECKING, Protocol
 # These re-exports ensure existing code continues to work:
 #   from platzky.notifier import Attachment, MAGIC_BYTES, etc.
 #
-# New code should import from the specific modules:
-#   from platzky.attachment import Attachment
-#   from platzky.mime_validation import MAGIC_BYTES
+# New code should import from platzky.attachment:
+#   from platzky.attachment import Attachment, MAGIC_BYTES
+from platzky.attachment import (
+    DEFAULT_ALLOWED_MIME_TYPES as DEFAULT_ALLOWED_MIME_TYPES,
+)
 from platzky.attachment import (
     DEFAULT_MAX_ATTACHMENT_SIZE as DEFAULT_MAX_ATTACHMENT_SIZE,
+)
+from platzky.attachment import (
+    MAGIC_BYTES as MAGIC_BYTES,
 )
 from platzky.attachment import (
     Attachment as Attachment,
@@ -32,13 +35,7 @@ from platzky.attachment import (
 from platzky.attachment import (
     AttachmentSizeError as AttachmentSizeError,
 )
-from platzky.mime_validation import (
-    DEFAULT_ALLOWED_MIME_TYPES as DEFAULT_ALLOWED_MIME_TYPES,
-)
-from platzky.mime_validation import (
-    MAGIC_BYTES as MAGIC_BYTES,
-)
-from platzky.mime_validation import (
+from platzky.attachment import (
     ContentMismatchError as ContentMismatchError,
 )
 

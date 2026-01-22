@@ -13,7 +13,7 @@ from platzky.attachment.constants import (
     DEFAULT_MAX_ATTACHMENT_SIZE,
     AttachmentSizeError,
 )
-from platzky.mime_validation import (
+from platzky.attachment.mime_validation import (
     DEFAULT_ALLOWED_MIME_TYPES,
     validate_content_mime_type,
 )

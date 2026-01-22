@@ -25,9 +25,19 @@ from platzky.attachment.constants import (
     AttachmentSizeError,
 )
 from platzky.attachment.core import Attachment
+from platzky.attachment.mime_validation import (
+    DEFAULT_ALLOWED_MIME_TYPES,
+    MAGIC_BYTES,
+    ContentMismatchError,
+    validate_content_mime_type,
+)
 
 __all__ = [
     "Attachment",
     "AttachmentSizeError",
+    "ContentMismatchError",
+    "DEFAULT_ALLOWED_MIME_TYPES",
     "DEFAULT_MAX_ATTACHMENT_SIZE",
+    "MAGIC_BYTES",
+    "validate_content_mime_type",
 ]
