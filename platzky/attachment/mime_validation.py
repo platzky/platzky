@@ -163,12 +163,7 @@ def _validate_mp4(content: bytes) -> bool:
         return False
 
     # Check for ftyp at offset 4 (after the 4-byte size)
-    if content[4:8] == b"ftyp":
-        return True
-
-    # Some MP4 files may have ftyp at different positions, but typically it's at start
-    # Check first 32 bytes for ftyp box
-    return b"ftyp" in content[:32]
+    return content[4:8] == b"ftyp"
 
 
 def validate_content_mime_type(content: bytes, mime_type: str, filename: str) -> None:
@@ -231,7 +226,7 @@ def validate_content_mime_type(content: bytes, mime_type: str, filename: str) ->
     # Skip validation for MIME types we don't have signatures for
     if mime_type not in MAGIC_BYTES:
         logger.debug(
-            "No magic byte signature defined for MIME type '%s', " "skipping validation for '%s'",
+            "No magic byte signature defined for MIME type '%s', skipping validation for '%s'",
             mime_type,
             filename,
         )
