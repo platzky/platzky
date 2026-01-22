@@ -18,3 +18,13 @@ class AttachmentSizeError(ValueError):
     This is a subclass of ValueError for backwards compatibility with code
     that catches ValueError for size validation failures.
     """
+
+    @classmethod
+    def for_file(cls, filename: str, max_size: int, actual_size: int) -> "AttachmentSizeError":
+        """Create an AttachmentSizeError with a formatted message."""
+        message = (
+            f"Attachment '{filename}' exceeds maximum size of "
+            f"{max_size / (1024 * 1024):.2f}MB "
+            f"(size: {actual_size / (1024 * 1024):.2f}MB)"
+        )
+        return cls(message)

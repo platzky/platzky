@@ -26,15 +26,6 @@ def _sanitize_filename(filename: str) -> str:
     return os.path.basename(ntpath.basename(filename)) or filename
 
 
-def _format_size_error(filename: str, max_size: int, actual_size: int) -> str:
-    """Format a consistent size error message."""
-    return (
-        f"Attachment '{filename}' exceeds maximum size of "
-        f"{max_size / (1024 * 1024):.2f}MB "
-        f"(size: {actual_size / (1024 * 1024):.2f}MB)"
-    )
-
-
 @dataclass(frozen=True)
 class Attachment:
     """Represents a file attachment for notifications.
@@ -212,8 +203,8 @@ class Attachment:
         # Validate size BEFORE creating the Attachment object
         if effective_max_size > 0 and len(content) > effective_max_size:
             sanitized_filename = _sanitize_filename(filename)
-            raise AttachmentSizeError(
-                _format_size_error(sanitized_filename, effective_max_size, len(content))
+            raise AttachmentSizeError.for_file(
+                sanitized_filename, effective_max_size, len(content)
             )
 
         return cls(
@@ -286,7 +277,7 @@ class Attachment:
 
         file_size = path.stat().st_size
         if effective_max_size > 0 and file_size > effective_max_size:
-            raise AttachmentSizeError(_format_size_error(path.name, effective_max_size, file_size))
+            raise AttachmentSizeError.for_file(path.name, effective_max_size, file_size)
 
         effective_filename = filename if filename is not None else path.name
         effective_mime_type = mime_type
