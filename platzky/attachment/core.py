@@ -36,6 +36,8 @@ class Attachment:
         mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf').
         allowed_mime_types: Optional set of additional allowed MIME types beyond the defaults.
         validate_content: Whether to validate that content matches the declared MIME type.
+        allow_unrecognized_content: If True, allow content that cannot be identified.
+            If False (default), reject unrecognized content for security.
 
     Raises:
         ValueError: If filename is empty or MIME type is invalid/not allowed.
@@ -55,6 +57,7 @@ class Attachment:
     mime_type: str
     allowed_mime_types: frozenset[str] | None = field(default=None, repr=False)
     validate_content: bool = field(default=True, repr=False)
+    allow_unrecognized_content: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
         """Validate attachment data."""
@@ -63,7 +66,12 @@ class Attachment:
         self._validate_mime_type()
 
         if self.validate_content:
-            validate_content_mime_type(self.content, self.mime_type, self.filename)
+            validate_content_mime_type(
+                self.content,
+                self.mime_type,
+                self.filename,
+                allow_unrecognized=self.allow_unrecognized_content,
+            )
 
     def _sanitize_filename(self) -> None:
         """Sanitize filename by removing path components."""
@@ -112,6 +120,7 @@ class Attachment:
         mime_type: str,
         allowed_mime_types: frozenset[str] | None = None,
         validate_content: bool = True,
+        allow_unrecognized_content: bool = False,
     ) -> Attachment:
         """Create an Attachment from bytes with size validation before object creation.
 
@@ -124,6 +133,7 @@ class Attachment:
             mime_type: MIME type of the file (e.g., 'image/png').
             allowed_mime_types: Optional set of additional allowed MIME types.
             validate_content: Whether to validate content matches MIME type.
+            allow_unrecognized_content: If True, allow content that cannot be identified.
 
         Returns:
             A validated Attachment instance.
@@ -142,6 +152,7 @@ class Attachment:
             mime_type=mime_type,
             allowed_mime_types=allowed_mime_types,
             validate_content=validate_content,
+            allow_unrecognized_content=allow_unrecognized_content,
         )
 
     @classmethod
@@ -152,6 +163,7 @@ class Attachment:
         mime_type: str | None = None,
         allowed_mime_types: frozenset[str] | None = None,
         validate_content: bool = True,
+        allow_unrecognized_content: bool = False,
     ) -> Attachment:
         """Create an Attachment from a file path with bounded read for size safety.
 
@@ -164,6 +176,7 @@ class Attachment:
             mime_type: MIME type of the file. If None, guesses from filename.
             allowed_mime_types: Optional set of additional allowed MIME types.
             validate_content: Whether to validate content matches MIME type.
+            allow_unrecognized_content: If True, allow content that cannot be identified.
 
         Returns:
             A validated Attachment instance.
@@ -199,4 +212,5 @@ class Attachment:
             mime_type=effective_mime_type,
             allowed_mime_types=allowed_mime_types,
             validate_content=validate_content,
+            allow_unrecognized_content=allow_unrecognized_content,
         )

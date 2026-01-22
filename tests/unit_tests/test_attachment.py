@@ -133,6 +133,7 @@ class TestAttachment:
             content=b"content",
             mime_type=custom_type,
             allowed_mime_types=frozenset({custom_type}),
+            allow_unrecognized_content=True,
         )
         assert attachment.mime_type == custom_type
 
@@ -259,6 +260,7 @@ class TestAttachmentFromBytes:
             filename="test.custom",
             mime_type=custom_type,
             allowed_mime_types=frozenset({custom_type}),
+            allow_unrecognized_content=True,
         )
         assert attachment.mime_type == custom_type
 
@@ -335,6 +337,7 @@ class TestAttachmentFromFile:
             file_path=unknown_file,
             mime_type=None,
             allowed_mime_types=frozenset({"application/octet-stream"}),
+            allow_unrecognized_content=True,
         )
         assert attachment.mime_type == "application/octet-stream"
 
@@ -380,6 +383,7 @@ class TestAttachmentFromFile:
             file_path=custom_file,
             mime_type=custom_type,
             allowed_mime_types=frozenset({custom_type}),
+            allow_unrecognized_content=True,
         )
         assert attachment.mime_type == custom_type
 
@@ -809,6 +813,18 @@ class TestMagicByteValidation:
                 content=content,
                 mime_type="application/pdf",
             )
+
+    def test_allow_unrecognized_content_skips_validation(self):
+        """Test that allow_unrecognized_content=True allows unidentifiable content."""
+        content = b"random unidentifiable content xyz123"
+        attachment = Attachment(
+            filename="file.bin",
+            content=content,
+            mime_type="application/octet-stream",
+            allowed_mime_types=frozenset({"application/octet-stream"}),
+            allow_unrecognized_content=True,
+        )
+        assert attachment.content == content
 
     def test_content_mismatch_error_is_value_error(self):
         """Test that ContentMismatchError is a subclass of ValueError."""

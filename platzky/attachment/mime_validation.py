@@ -12,11 +12,7 @@ Example:
 
 from __future__ import annotations
 
-import logging
-
 import puremagic
-
-logger = logging.getLogger(__name__)
 
 
 class ContentMismatchError(ValueError):
@@ -88,8 +84,19 @@ MIME_TYPE_EQUIVALENCES: dict[str, set[str]] = {
     "application/zip": {"application/x-zip-compressed"},
 }
 
+# Module-level default for allowing unrecognized content.
+# This can be configured via Config.attachment.allow_unrecognized_content
+# and is applied by Engine at startup.
+ALLOW_UNRECOGNIZED_CONTENT_DEFAULT: bool = False
 
-def validate_content_mime_type(content: bytes, mime_type: str, filename: str) -> None:
+
+def validate_content_mime_type(
+    content: bytes,
+    mime_type: str,
+    filename: str,
+    *,
+    allow_unrecognized: bool | None = None,
+) -> None:
     """Validate that content matches the declared MIME type using magic bytes.
 
     Uses puremagic library for robust file type detection.
@@ -98,10 +105,17 @@ def validate_content_mime_type(content: bytes, mime_type: str, filename: str) ->
         content: The binary content to validate.
         mime_type: The declared MIME type.
         filename: The filename (used for error messages).
+        allow_unrecognized: If True, skip validation when content type cannot be
+            detected. If False, raise an error for unrecognized content.
+            If None (default), uses ALLOW_UNRECOGNIZED_CONTENT_DEFAULT.
 
     Raises:
-        ContentMismatchError: If the content does not match the declared MIME type.
+        ContentMismatchError: If the content does not match the declared MIME type,
+            or if content cannot be identified and allow_unrecognized is False.
     """
+    if allow_unrecognized is None:
+        allow_unrecognized = ALLOW_UNRECOGNIZED_CONTENT_DEFAULT
+
     # Skip validation for empty content
     if not content:
         return
@@ -118,34 +132,19 @@ def validate_content_mime_type(content: bytes, mime_type: str, filename: str) ->
     try:
         detected = puremagic.magic_string(content)
     except puremagic.PureError:
-        # puremagic couldn't identify the file type
-        # Only fail validation for MIME types we know puremagic should be able to detect
-        # For custom/unknown types, skip validation
-        if mime_type in DEFAULT_ALLOWED_MIME_TYPES:
-            raise ContentMismatchError(
-                f"Content of '{filename}' does not match declared MIME type '{mime_type}'. "
-                f"Could not identify file type from content."
-            )
-        logger.debug(
-            "Could not identify file type for '%s' with MIME type '%s', skipping validation",
-            filename,
-            mime_type,
+        if allow_unrecognized:
+            return
+        raise ContentMismatchError(
+            f"Content of '{filename}' does not match declared MIME type '{mime_type}'. "
+            "Could not identify file type from content."
         )
-        return
 
-    # Check if any detected type matches the declared type
     detected_mimes = {m.mime_type for m in detected if m.mime_type}
-
-    # Direct match
-    if mime_type in detected_mimes:
-        return
-
-    # Check equivalences (e.g., image/bmp == image/x-ms-bmp)
     equivalent_types = MIME_TYPE_EQUIVALENCES.get(mime_type, set())
-    if detected_mimes & equivalent_types:
+
+    if mime_type in detected_mimes or (detected_mimes & equivalent_types):
         return
 
-    # Content doesn't match declared MIME type
     raise ContentMismatchError(
         f"Content of '{filename}' does not match declared MIME type '{mime_type}'. "
         f"Detected types: {detected_mimes}"

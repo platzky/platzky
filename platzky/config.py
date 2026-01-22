@@ -126,6 +126,20 @@ class TelemetryConfig(StrictBaseModel):
         return v
 
 
+class AttachmentConfig(StrictBaseModel):
+    """Configuration for attachment handling.
+
+    Attributes:
+        allow_unrecognized_content: If True, allow attachments with content that
+            cannot be identified by magic bytes. If False (default), reject
+            unrecognized content for security.
+    """
+
+    allow_unrecognized_content: bool = Field(
+        default=False, alias="allow_unrecognized_content"
+    )
+
+
 class Config(StrictBaseModel):
     """Main application configuration.
 
@@ -143,6 +157,7 @@ class Config(StrictBaseModel):
         testing: Enable testing mode
         feature_flags: Feature flag configuration
         telemetry: OpenTelemetry configuration
+        attachment: Attachment handling configuration
     """
 
     app_name: str = Field(alias="APP_NAME")
@@ -161,6 +176,7 @@ class Config(StrictBaseModel):
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
+    attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
 
     @classmethod
     def model_validate(

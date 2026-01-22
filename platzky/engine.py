@@ -10,7 +10,7 @@ from typing import Any
 from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
 from flask_babel import Babel
 
-from platzky.attachment import Attachment
+from platzky.attachment import Attachment, mime_validation
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
@@ -40,6 +40,11 @@ class Engine(Flask):
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
+
+        # Apply attachment configuration to module-level default
+        mime_validation.ALLOW_UNRECOGNIZED_CONTENT_DEFAULT = (
+            config.attachment.allow_unrecognized_content
+        )
         self.notifiers: list[Notifier] = []
         self._notifier_capability_cache: dict[int, bool] = {}
         self.login_methods = []
