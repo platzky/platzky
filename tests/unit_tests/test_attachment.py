@@ -201,6 +201,50 @@ class TestAttachmentFromBytes:
                 mime_type="text/plain",
             )
 
+    def test_from_bytes_max_size_override_allows_larger_content(self):
+        """Test that max_size_override allows content larger than config max_size."""
+        small_max = 100
+        Attachment = create_attachment_class(
+            AttachmentConfig(
+                max_size=small_max,
+                allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
+                validate_content=False,
+                allowed_extensions=frozenset({"txt"}),
+            )
+        )
+
+        # Content larger than config max_size but within override
+        large_content = b"x" * 200
+        attachment = Attachment.from_bytes(
+            content=large_content,
+            filename="large.txt",
+            mime_type="text/plain",
+            max_size_override=500,
+        )
+        assert len(attachment.content) == 200
+
+    def test_from_bytes_max_size_override_still_enforces_limit(self):
+        """Test that max_size_override is still enforced when content exceeds it."""
+        small_max = 100
+        Attachment = create_attachment_class(
+            AttachmentConfig(
+                max_size=small_max,
+                allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
+                validate_content=False,
+                allowed_extensions=frozenset({"txt"}),
+            )
+        )
+
+        # Content exceeds both config max_size and override
+        large_content = b"x" * 600
+        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
+            Attachment.from_bytes(
+                content=large_content,
+                filename="huge.txt",
+                mime_type="text/plain",
+                max_size_override=500,
+            )
+
 
 class TestAttachmentFromFile:
     """Tests for the Attachment.from_file() factory method."""
@@ -283,6 +327,52 @@ class TestAttachmentFromFile:
         Attachment = default_attachment_class
         with pytest.raises(FileNotFoundError):
             Attachment.from_file(file_path=tmp_path / "nonexistent.txt")
+
+    def test_from_file_max_size_override_allows_larger_file(self, tmp_path: Path):
+        """Test that max_size_override allows files larger than config max_size."""
+        small_max = 100
+        Attachment = create_attachment_class(
+            AttachmentConfig(
+                max_size=small_max,
+                allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
+                validate_content=False,
+                allowed_extensions=frozenset({"txt"}),
+            )
+        )
+
+        # Create file larger than config max_size but within override
+        large_file = tmp_path / "large.txt"
+        large_file.write_bytes(b"x" * 200)
+
+        attachment = Attachment.from_file(
+            file_path=large_file,
+            mime_type="text/plain",
+            max_size_override=500,
+        )
+        assert len(attachment.content) == 200
+
+    def test_from_file_max_size_override_still_enforces_limit(self, tmp_path: Path):
+        """Test that max_size_override is still enforced when file exceeds it."""
+        small_max = 100
+        Attachment = create_attachment_class(
+            AttachmentConfig(
+                max_size=small_max,
+                allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
+                validate_content=False,
+                allowed_extensions=frozenset({"txt"}),
+            )
+        )
+
+        # Create file exceeding the override
+        huge_file = tmp_path / "huge.txt"
+        huge_file.write_bytes(b"x" * 600)
+
+        with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
+            Attachment.from_file(
+                file_path=huge_file,
+                mime_type="text/plain",
+                max_size_override=500,
+            )
 
 
 class TestEngineAttachment:

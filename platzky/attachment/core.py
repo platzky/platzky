@@ -6,7 +6,7 @@ import logging
 import mimetypes
 import ntpath
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -177,6 +177,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
         filename: str
         content: bytes
         mime_type: str
+        _max_size: int | None = field(default=None, repr=False, compare=False)
 
         def __post_init__(self) -> None:
             """Validate attachment data using config from closure."""
@@ -188,8 +189,9 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 self.filename, _get_extension(self.filename), blocked_extensions, allowed_extensions
             )
 
-            if len(self.content) > max_size:
-                raise AttachmentSizeError(self.filename, len(self.content), max_size)
+            effective_max_size = self._max_size if self._max_size is not None else max_size
+            if len(self.content) > effective_max_size:
+                raise AttachmentSizeError(self.filename, len(self.content), effective_max_size)
 
             _validate_mime_type(self.mime_type, self.filename, allowed_mime_types)
 
@@ -217,7 +219,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             limit = max_size if max_size_override is None else max_size_override
             if len(content) > limit:
                 raise AttachmentSizeError(_sanitize_filename(filename), len(content), limit)
-            return cls(filename=filename, content=content, mime_type=mime_type)
+            return cls(filename=filename, content=content, mime_type=mime_type, _max_size=limit)
 
         @classmethod
         def from_file(
@@ -253,6 +255,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 filename=effective_filename,
                 content=content,
                 mime_type=mime_type or _guess_mime_type(effective_filename),
+                _max_size=limit,
             )
 
     return Attachment
