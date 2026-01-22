@@ -9,50 +9,6 @@ class ContentMismatchError(ValueError):
     """Raised when attachment content does not match the declared MIME type."""
 
 
-# Default allowed MIME types - safe, common types for attachments
-DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
-    {
-        # Text types
-        "text/plain",
-        "text/html",
-        "text/csv",
-        "text/xml",
-        "text/css",
-        "text/javascript",
-        "text/markdown",
-        # Image types
-        "image/png",
-        "image/jpeg",
-        "image/gif",
-        "image/webp",
-        "image/svg+xml",
-        "image/bmp",
-        "image/tiff",
-        # Application types
-        "application/pdf",
-        "application/json",
-        "application/xml",
-        "application/zip",
-        "application/gzip",
-        "application/x-tar",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/rtf",
-        # Audio types
-        "audio/mpeg",
-        "audio/wav",
-        "audio/ogg",
-        # Video types
-        "video/mp4",
-        "video/webm",
-        "video/ogg",
-    }
-)
-
 # MIME type equivalences - puremagic may return alternative names for the same format
 _MIME_EQUIVALENCES: dict[str, set[str]] = {
     "image/bmp": {"image/x-ms-bmp"},

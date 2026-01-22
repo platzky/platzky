@@ -11,10 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from platzky.attachment.constants import AttachmentSizeError
-from platzky.attachment.mime_validation import (
-    DEFAULT_ALLOWED_MIME_TYPES,
-    validate_content_mime_type,
-)
+from platzky.attachment.mime_validation import validate_content_mime_type
 
 if TYPE_CHECKING:
     from platzky.config import AttachmentConfig
@@ -122,16 +119,10 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                     f"(e.g., 'text/plain', 'image/png')."
                 )
 
-            effective_allowed_types = DEFAULT_ALLOWED_MIME_TYPES
-            if allowed_mime_types:
-                effective_allowed_types = DEFAULT_ALLOWED_MIME_TYPES | allowed_mime_types
-
-            if self.mime_type not in effective_allowed_types:
+            if self.mime_type not in allowed_mime_types:
                 raise ValueError(
                     f"MIME type '{self.mime_type}' is not allowed for "
-                    f"attachment '{self.filename}'. "
-                    f"Allowed types include: text/plain, text/html, image/png, "
-                    f"image/jpeg, application/pdf, application/json, and others."
+                    f"attachment '{self.filename}'."
                 )
 
         @classmethod

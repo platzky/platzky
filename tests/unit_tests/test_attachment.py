@@ -9,7 +9,6 @@ from platzky.attachment import (
     ContentMismatchError,
     create_attachment_class,
 )
-from platzky.attachment.mime_validation import DEFAULT_ALLOWED_MIME_TYPES
 from platzky.config import AttachmentConfig, Config
 from platzky.db.json_db import db_from_config
 from platzky.engine import Engine
@@ -151,8 +150,9 @@ class TestAttachment:
             attachment.filename = "changed.txt"  # type: ignore[misc]
 
     def test_default_allowed_mime_types_is_frozenset(self):
-        """Test that DEFAULT_ALLOWED_MIME_TYPES is immutable."""
-        assert isinstance(DEFAULT_ALLOWED_MIME_TYPES, frozenset)
+        """Test that default allowed_mime_types in config is immutable."""
+        config = AttachmentConfig()
+        assert isinstance(config.allowed_mime_types, frozenset)
 
     def test_attachment_size_error_is_value_error_subclass(self):
         """Test that AttachmentSizeError is a subclass of ValueError."""

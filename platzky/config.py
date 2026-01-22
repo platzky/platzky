@@ -126,17 +126,61 @@ class TelemetryConfig(StrictBaseModel):
         return v
 
 
+_DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
+    {
+        # Text types
+        "text/plain",
+        "text/html",
+        "text/csv",
+        "text/xml",
+        "text/css",
+        "text/javascript",
+        "text/markdown",
+        # Image types
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/svg+xml",
+        "image/bmp",
+        "image/tiff",
+        # Application types
+        "application/pdf",
+        "application/json",
+        "application/xml",
+        "application/zip",
+        "application/gzip",
+        "application/x-tar",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/rtf",
+        # Audio types
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        # Video types
+        "video/mp4",
+        "video/webm",
+        "video/ogg",
+    }
+)
+
+
 class AttachmentConfig(StrictBaseModel):
     """Configuration for attachment handling.
 
     Attributes:
-        allowed_mime_types: Additional MIME types to allow beyond defaults.
+        allowed_mime_types: MIME types allowed for attachments.
         validate_content: Whether to validate content matches declared MIME type.
         allow_unrecognized_content: If True, allow content that cannot be identified.
         max_size: Maximum attachment size in bytes (default: 10MB).
     """
 
-    allowed_mime_types: frozenset[str] = Field(default_factory=frozenset)
+    allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
     validate_content: bool = Field(default=True)
     allow_unrecognized_content: bool = Field(default=False)
     max_size: int = Field(default=10 * 1024 * 1024, gt=0)
