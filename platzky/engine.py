@@ -3,6 +3,8 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from flask import Blueprint, Flask, jsonify, make_response, request, session
@@ -16,12 +18,121 @@ from platzky.notifier import Attachment, Notifier
 logger = logging.getLogger(__name__)
 
 
+class AttachmentDropPolicy(Enum):
+    """Policy for handling attachments when a notifier doesn't support them.
+
+    Values:
+        WARN: Log a warning and proceed without attachments (default, backward compatible).
+              WARNING: This may lead to silent data loss if attachments are critical.
+        ERROR: Raise an AttachmentDropError exception, preventing notification.
+        SKIP_NOTIFIER: Skip the notifier entirely and log a warning.
+    """
+
+    WARN = "warn"
+    ERROR = "error"
+    SKIP_NOTIFIER = "skip_notifier"
+
+
+class AttachmentDropError(Exception):
+    """Raised when attachments would be dropped and policy is ERROR.
+
+    Attributes:
+        notifier_name: Name of the notifier that doesn't support attachments.
+        attachment_count: Number of attachments that would be dropped.
+    """
+
+    def __init__(self, notifier_name: str, attachment_count: int) -> None:
+        self.notifier_name = notifier_name
+        self.attachment_count = attachment_count
+        super().__init__(
+            f"Notifier '{notifier_name}' does not support attachments. "
+            f"{attachment_count} attachment(s) would be dropped. "
+            f"Either upgrade the notifier or change attachment_drop_policy."
+        )
+
+
+@dataclass
+class NotifierResult:
+    """Result of sending notification to a single notifier.
+
+    Attributes:
+        notifier_name: Name of the notifier.
+        received_attachments: Whether the notifier received attachments.
+        skipped: Whether the notifier was skipped entirely.
+        attachments_dropped: Number of attachments dropped (0 if received or skipped).
+    """
+
+    notifier_name: str
+    received_attachments: bool = False
+    skipped: bool = False
+    attachments_dropped: int = 0
+
+
+@dataclass
+class NotificationResult:
+    """Result of sending notifications to all notifiers.
+
+    Attributes:
+        notifier_results: List of results for each notifier.
+        total_notifiers: Total number of registered notifiers.
+        notifiers_with_attachments: Number of notifiers that received attachments.
+        notifiers_without_attachments: Number of notifiers that didn't receive attachments.
+        notifiers_skipped: Number of notifiers that were skipped.
+    """
+
+    notifier_results: list[NotifierResult] = field(default_factory=list)
+
+    @property
+    def total_notifiers(self) -> int:
+        return len(self.notifier_results)
+
+    @property
+    def notifiers_with_attachments(self) -> int:
+        return sum(1 for r in self.notifier_results if r.received_attachments)
+
+    @property
+    def notifiers_without_attachments(self) -> int:
+        return sum(
+            1
+            for r in self.notifier_results
+            if not r.received_attachments and not r.skipped
+        )
+
+    @property
+    def notifiers_skipped(self) -> int:
+        return sum(1 for r in self.notifier_results if r.skipped)
+
+
 class Engine(Flask):
-    def __init__(self, config: Config, db: DB, import_name: str) -> None:
+    _notifier_capability_cache: dict[int, bool] = {}
+
+    def __init__(
+        self,
+        config: Config,
+        db: DB,
+        import_name: str,
+        attachment_drop_policy: AttachmentDropPolicy = AttachmentDropPolicy.WARN,
+    ) -> None:
+        """Initialize the Engine.
+
+        Args:
+            config: Application configuration.
+            db: Database instance.
+            import_name: Name of the application module.
+            attachment_drop_policy: Policy for handling attachments when a notifier
+                doesn't support them. Defaults to WARN for backward compatibility.
+
+                - WARN: Log a warning and proceed without attachments.
+                  WARNING: This may lead to silent data loss if attachments are critical.
+                - ERROR: Raise AttachmentDropError, preventing the notification.
+                - SKIP_NOTIFIER: Skip the notifier entirely and log a warning.
+        """
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
         self.notifiers: list[Notifier] = []
+        self._notifier_capability_cache: dict[int, bool] = {}
+        self.attachment_drop_policy = attachment_drop_policy
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -42,35 +153,110 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    def notify(self, message: str, attachments: list[Attachment] | None = None) -> None:
+    def notify(
+        self, message: str, attachments: list[Attachment] | None = None
+    ) -> NotificationResult:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             attachments: Optional list of validated Attachment objects.
+
+        Returns:
+            NotificationResult with details about which notifiers received
+            attachments, which didn't, and which were skipped.
+
+        Raises:
+            AttachmentDropError: If attachment_drop_policy is ERROR and a notifier
+                doesn't support attachments.
         """
+        result = NotificationResult()
+        attachment_count = len(attachments) if attachments else 0
+
         for notifier in self.notifiers:
+            notifier_name = getattr(notifier, "__name__", type(notifier).__name__)
             supports_attachments = self._notifier_supports_attachments(notifier)
 
             if supports_attachments:
                 notifier(message, attachments=attachments)
-            else:
-                if attachments:
-                    logger.warning(
-                        "Notifier %s does not support attachments, %d attachment(s) will be dropped",
-                        getattr(notifier, "__name__", type(notifier).__name__),
-                        len(attachments),
+                result.notifier_results.append(
+                    NotifierResult(
+                        notifier_name=notifier_name,
+                        received_attachments=bool(attachments),
                     )
+                )
+            elif attachments:
+                # Notifier doesn't support attachments and we have attachments
+                if self.attachment_drop_policy == AttachmentDropPolicy.ERROR:
+                    raise AttachmentDropError(notifier_name, attachment_count)
+                elif self.attachment_drop_policy == AttachmentDropPolicy.SKIP_NOTIFIER:
+                    logger.warning(
+                        "Skipping notifier %s: does not support attachments "
+                        "(%d attachment(s) would be dropped)",
+                        notifier_name,
+                        attachment_count,
+                    )
+                    result.notifier_results.append(
+                        NotifierResult(
+                            notifier_name=notifier_name,
+                            skipped=True,
+                        )
+                    )
+                else:  # WARN policy (default)
+                    logger.warning(
+                        "Notifier %s does not support attachments, "
+                        "%d attachment(s) will be dropped",
+                        notifier_name,
+                        attachment_count,
+                    )
+                    notifier(message)
+                    result.notifier_results.append(
+                        NotifierResult(
+                            notifier_name=notifier_name,
+                            attachments_dropped=attachment_count,
+                        )
+                    )
+            else:
+                # No attachments, just call the notifier normally
                 notifier(message)
+                result.notifier_results.append(
+                    NotifierResult(notifier_name=notifier_name)
+                )
+
+        return result
 
     def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
-        """Check if a notifier supports attachments parameter."""
+        """Check if a notifier supports attachments parameter.
+
+        Results are cached using id(notifier) as key to avoid repeated
+        inspect.signature() calls which are expensive.
+        """
+        notifier_id = id(notifier)
+        if notifier_id in self._notifier_capability_cache:
+            return self._notifier_capability_cache[notifier_id]
+
         try:
             sig = inspect.signature(notifier)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "Failed to inspect signature of notifier %s: %s",
+                getattr(notifier, "__name__", type(notifier).__name__),
+                e,
+            )
+            self._notifier_capability_cache[notifier_id] = False
             return False
         else:
-            return "attachments" in sig.parameters
+            result = "attachments" in sig.parameters
+            self._notifier_capability_cache[notifier_id] = result
+            return result
+
+    def clear_notifier_cache(self) -> None:
+        """Clear the notifier capability cache.
+
+        This should be called if notifiers are modified at runtime
+        or replaced with new instances.
+        """
+        self._notifier_capability_cache.clear()
 
     def add_notifier(self, notifier: Notifier) -> None:
         """Register a notifier to receive notifications.
