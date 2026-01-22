@@ -54,15 +54,16 @@ class Engine(Flask):
         for notifier in self.notifiers:
             supports_attachments = self._notifier_supports_attachments(notifier)
 
-            if attachments and not supports_attachments:
-                logger.warning(
-                    "Notifier %s does not support attachments, %d attachment(s) will be dropped",
-                    getattr(notifier, "__name__", type(notifier).__name__),
-                    len(attachments),
-                )
-                notifier(message)
-            else:
+            if supports_attachments:
                 notifier(message, attachments=attachments)
+            else:
+                if attachments:
+                    logger.warning(
+                        "Notifier %s does not support attachments, %d attachment(s) will be dropped",
+                        getattr(notifier, "__name__", type(notifier).__name__),
+                        len(attachments),
+                    )
+                notifier(message)
 
     def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
         """Check if a notifier supports attachments parameter."""

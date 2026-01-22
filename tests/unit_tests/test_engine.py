@@ -1,3 +1,4 @@
+import logging
 from typing import cast
 
 import pytest
@@ -8,6 +9,7 @@ from platzky.config import Config
 from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.models import CmsModule
+from platzky.notifier import Attachment, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
 
@@ -367,3 +369,276 @@ def test_add_health_check_not_callable(test_app: Engine):
     """Test that adding a non-callable health check raises TypeError"""
     with pytest.raises(TypeError, match="check_function must be callable"):
         test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type] - Intentionally passing invalid type to test error handling
+
+
+# =============================================================================
+# Attachment Tests
+# =============================================================================
+
+
+class TestAttachment:
+    """Tests for the Attachment dataclass validation."""
+
+    def test_valid_attachment(self):
+        """Test creating a valid attachment."""
+        attachment = Attachment(
+            filename="test.pdf",
+            content=b"PDF content here",
+            mime_type="application/pdf",
+        )
+        assert attachment.filename == "test.pdf"
+        assert attachment.content == b"PDF content here"
+        assert attachment.mime_type == "application/pdf"
+
+    def test_empty_filename_raises_error(self):
+        """Test that empty filename raises ValueError."""
+        with pytest.raises(ValueError, match="filename cannot be empty"):
+            Attachment(filename="", content=b"content", mime_type="text/plain")
+
+    def test_path_traversal_sanitized(self, caplog):
+        """Test that path components are stripped from filename."""
+        with caplog.at_level(logging.WARNING):
+            attachment = Attachment(
+                filename="../../../etc/passwd",
+                content=b"malicious",
+                mime_type="text/plain",
+            )
+        assert attachment.filename == "passwd"
+        assert "path components" in caplog.text
+
+    def test_absolute_path_sanitized(self, caplog):
+        """Test that absolute paths are sanitized."""
+        with caplog.at_level(logging.WARNING):
+            attachment = Attachment(
+                filename="/etc/passwd",
+                content=b"content",
+                mime_type="text/plain",
+            )
+        assert attachment.filename == "passwd"
+
+    def test_windows_path_sanitized(self, caplog):
+        """Test that Windows-style paths are sanitized."""
+        with caplog.at_level(logging.WARNING):
+            attachment = Attachment(
+                filename="C:\\Users\\test\\file.txt",
+                content=b"content",
+                mime_type="text/plain",
+            )
+        # os.path.basename handles this based on OS, but the filename should be sanitized
+        assert "/" not in attachment.filename
+        assert "\\" not in attachment.filename
+
+    def test_oversized_attachment_raises_error(self):
+        """Test that attachment exceeding max size raises ValueError."""
+        oversized_content = b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1)
+        with pytest.raises(ValueError, match="exceeds maximum size"):
+            Attachment(
+                filename="large.bin",
+                content=oversized_content,
+                mime_type="application/octet-stream",
+            )
+
+    def test_max_size_attachment_allowed(self):
+        """Test that attachment at exactly max size is allowed."""
+        max_content = b"x" * DEFAULT_MAX_ATTACHMENT_SIZE
+        attachment = Attachment(
+            filename="max.bin",
+            content=max_content,
+            mime_type="application/octet-stream",
+        )
+        assert len(attachment.content) == DEFAULT_MAX_ATTACHMENT_SIZE
+
+    def test_invalid_mime_type_raises_error(self):
+        """Test that invalid MIME type raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid MIME type"):
+            Attachment(filename="file.txt", content=b"content", mime_type="invalid")
+
+    def test_empty_mime_type_raises_error(self):
+        """Test that empty MIME type raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid MIME type"):
+            Attachment(filename="file.txt", content=b"content", mime_type="")
+
+    def test_attachment_is_immutable(self):
+        """Test that attachment is frozen (immutable)."""
+        attachment = Attachment(
+            filename="test.txt", content=b"content", mime_type="text/plain"
+        )
+        with pytest.raises(AttributeError):
+            attachment.filename = "changed.txt"  # type: ignore[misc]
+
+
+# =============================================================================
+# Notifier with Attachments Tests
+# =============================================================================
+
+
+class TestNotifierWithAttachments:
+    """Tests for notifier functionality with attachments."""
+
+    def test_notifier_receives_attachments(self, test_app: Engine):
+        """Test that notifier with attachments parameter receives them."""
+        received_attachments = []
+
+        def notifier_with_attachments(
+            message: str, attachments: list[Attachment] | None = None
+        ) -> None:
+            received_attachments.append(attachments)
+
+        attachment = Attachment(
+            filename="test.txt", content=b"hello", mime_type="text/plain"
+        )
+        test_app.add_notifier(notifier_with_attachments)
+        test_app.notify("test message", attachments=[attachment])
+
+        assert len(received_attachments) == 1
+        assert received_attachments[0] is not None
+        assert len(received_attachments[0]) == 1
+        assert received_attachments[0][0].filename == "test.txt"
+
+    def test_legacy_notifier_still_works(self, test_app: Engine):
+        """Test that legacy notifier without attachments parameter still works."""
+        received_messages = []
+
+        def legacy_notifier(message: str) -> None:
+            received_messages.append(message)
+
+        test_app.add_notifier(legacy_notifier)
+        test_app.notify("test message")
+
+        assert received_messages == ["test message"]
+
+    def test_legacy_notifier_drops_attachments_with_warning(
+        self, test_app: Engine, caplog
+    ):
+        """Test that legacy notifier drops attachments and logs warning."""
+        received_messages = []
+
+        def legacy_notifier(message: str) -> None:
+            received_messages.append(message)
+
+        attachment = Attachment(
+            filename="test.txt", content=b"hello", mime_type="text/plain"
+        )
+        test_app.add_notifier(legacy_notifier)
+
+        with caplog.at_level(logging.WARNING):
+            test_app.notify("test message", attachments=[attachment])
+
+        assert received_messages == ["test message"]
+        assert "does not support attachments" in caplog.text
+        assert "1 attachment(s) will be dropped" in caplog.text
+
+    def test_mixed_notifiers(self, test_app: Engine, caplog):
+        """Test mixed notifiers - some with attachments, some without."""
+        legacy_messages = []
+        modern_messages = []
+        modern_attachments = []
+
+        def legacy_notifier(message: str) -> None:
+            legacy_messages.append(message)
+
+        def modern_notifier(
+            message: str, attachments: list[Attachment] | None = None
+        ) -> None:
+            modern_messages.append(message)
+            modern_attachments.append(attachments)
+
+        attachment = Attachment(
+            filename="test.txt", content=b"hello", mime_type="text/plain"
+        )
+        test_app.add_notifier(legacy_notifier)
+        test_app.add_notifier(modern_notifier)
+
+        with caplog.at_level(logging.WARNING):
+            test_app.notify("test message", attachments=[attachment])
+
+        # Both received the message
+        assert legacy_messages == ["test message"]
+        assert modern_messages == ["test message"]
+
+        # Only modern notifier received attachments
+        assert modern_attachments[0] is not None
+        assert len(modern_attachments[0]) == 1
+
+        # Warning logged for legacy notifier
+        assert "does not support attachments" in caplog.text
+
+    def test_notify_with_none_attachments(self, test_app: Engine):
+        """Test that None attachments work correctly."""
+        received_attachments = []
+
+        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+            received_attachments.append(attachments)
+
+        test_app.add_notifier(notifier)
+        test_app.notify("test", attachments=None)
+
+        assert received_attachments == [None]
+
+    def test_notify_with_empty_attachments_list(self, test_app: Engine):
+        """Test that empty attachments list works correctly."""
+        received_attachments = []
+
+        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+            received_attachments.append(attachments)
+
+        test_app.add_notifier(notifier)
+        test_app.notify("test", attachments=[])
+
+        assert received_attachments == [[]]
+
+    def test_notify_with_multiple_attachments(self, test_app: Engine):
+        """Test notifying with multiple attachments."""
+        received_attachments = []
+
+        def notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+            received_attachments.append(attachments)
+
+        attachments = [
+            Attachment(filename="file1.txt", content=b"one", mime_type="text/plain"),
+            Attachment(filename="file2.pdf", content=b"two", mime_type="application/pdf"),
+            Attachment(filename="file3.png", content=b"three", mime_type="image/png"),
+        ]
+        test_app.add_notifier(notifier)
+        test_app.notify("test", attachments=attachments)
+
+        assert len(received_attachments[0]) == 3
+        assert [a.filename for a in received_attachments[0]] == [
+            "file1.txt",
+            "file2.pdf",
+            "file3.png",
+        ]
+
+    def test_notifier_error_propagates(self, test_app: Engine):
+        """Test that errors from notifiers propagate correctly."""
+
+        def failing_notifier(
+            message: str, attachments: list[Attachment] | None = None
+        ) -> None:
+            raise RuntimeError("Notifier failed")
+
+        test_app.add_notifier(failing_notifier)
+
+        with pytest.raises(RuntimeError, match="Notifier failed"):
+            test_app.notify("test")
+
+    def test_class_based_notifier(self, test_app: Engine):
+        """Test that class-based notifiers work correctly."""
+        received = []
+
+        class MyNotifier:
+            def __call__(
+                self, message: str, attachments: list[Attachment] | None = None
+            ) -> None:
+                received.append((message, attachments))
+
+        attachment = Attachment(
+            filename="test.txt", content=b"hello", mime_type="text/plain"
+        )
+        test_app.add_notifier(MyNotifier())
+        test_app.notify("test", attachments=[attachment])
+
+        assert len(received) == 1
+        assert received[0][0] == "test"
+        assert received[0][1] is not None
+        assert received[0][1][0].filename == "test.txt"
