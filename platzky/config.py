@@ -128,26 +128,15 @@ class TelemetryConfig(StrictBaseModel):
 
 _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
     {
-        # Text types
-        "text/plain",
-        "text/html",
-        "text/csv",
-        "text/xml",
-        "text/css",
-        "text/javascript",
-        "text/markdown",
-        # Image types
+        # Image types (binary formats with verifiable magic bytes)
         "image/png",
         "image/jpeg",
         "image/gif",
         "image/webp",
-        "image/svg+xml",
         "image/bmp",
         "image/tiff",
-        # Application types
+        # Application types (binary formats)
         "application/pdf",
-        "application/json",
-        "application/xml",
         "application/zip",
         "application/gzip",
         "application/x-tar",
@@ -157,7 +146,6 @@ _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/rtf",
         # Audio types
         "audio/mpeg",
         "audio/wav",
@@ -166,6 +154,11 @@ _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
         "video/mp4",
         "video/webm",
         "video/ogg",
+        # Note: Text types (text/*, application/json, application/xml, application/rtf,
+        # image/svg+xml) are NOT included by default for security reasons. They can
+        # bypass content validation and may contain executable code. To allow text
+        # types, explicitly add them:
+        #   AttachmentConfig(allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"})
     }
 )
 

@@ -8,15 +8,47 @@ import ntpath
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from platzky.attachment.constants import AttachmentSizeError
+from platzky.attachment.constants import (
+    BLOCKED_EXTENSIONS,
+    AttachmentSizeError,
+    BlockedExtensionError,
+)
 from platzky.attachment.mime_validation import validate_content_mime_type
 
 if TYPE_CHECKING:
     from platzky.config import AttachmentConfig
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class AttachmentProtocol(Protocol):
+    """Protocol defining the interface for Attachment classes.
+
+    This protocol allows type-safe usage of dynamically created Attachment classes.
+    """
+
+    filename: str
+    content: bytes
+    mime_type: str
+
+    @classmethod
+    def from_bytes(
+        cls,
+        content: bytes,
+        filename: str,
+        mime_type: str,
+    ) -> "AttachmentProtocol": ...
+
+    @classmethod
+    def from_file(
+        cls,
+        file_path: str | Path,
+        filename: str | None = None,
+        mime_type: str | None = None,
+    ) -> "AttachmentProtocol": ...
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -31,7 +63,18 @@ def _sanitize_filename(filename: str) -> str:
     return os.path.basename(ntpath.basename(stripped))
 
 
-def create_attachment_class(config: AttachmentConfig) -> type:
+def _get_extension(filename: str) -> str | None:
+    """Extract the file extension from a filename, lowercased.
+
+    Returns None if no extension is found.
+    """
+    if "." not in filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1]
+    return ext.lower() if ext else None
+
+
+def create_attachment_class(config: AttachmentConfig) -> type[AttachmentProtocol]:
     """Create an Attachment class with configuration captured via closure.
 
     Args:
@@ -79,6 +122,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
         def __post_init__(self) -> None:
             """Validate attachment data using config from closure."""
             self._sanitize_filename()
+            self._validate_extension()
             self._validate_size()
             self._validate_mime_type()
 
@@ -103,6 +147,12 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                     original_filename,
                     sanitized,
                 )
+
+        def _validate_extension(self) -> None:
+            """Validate filename extension is not in the blocklist."""
+            ext = _get_extension(self.filename)
+            if ext and ext.lower() in BLOCKED_EXTENSIONS:
+                raise BlockedExtensionError(self.filename, ext)
 
         def _validate_size(self) -> None:
             """Validate content size against configured max_size."""

@@ -16,11 +16,18 @@ Direct usage with factory:
 """
 
 from platzky.attachment.constants import (
+    BLOCKED_EXTENSIONS as BLOCKED_EXTENSIONS,
+)
+from platzky.attachment.constants import (
     DEFAULT_MAX_ATTACHMENT_SIZE as DEFAULT_MAX_ATTACHMENT_SIZE,
 )
 from platzky.attachment.constants import (
     AttachmentSizeError as AttachmentSizeError,
 )
+from platzky.attachment.constants import (
+    BlockedExtensionError as BlockedExtensionError,
+)
+from platzky.attachment.core import AttachmentProtocol as AttachmentProtocol
 from platzky.attachment.core import create_attachment_class as create_attachment_class
 from platzky.attachment.mime_validation import (
     ContentMismatchError as ContentMismatchError,

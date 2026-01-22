@@ -16,7 +16,9 @@ _MIME_EQUIVALENCES: dict[str, set[str]] = {
     "application/zip": {"application/x-zip-compressed"},
 }
 
-# Text-based formats that don't have reliable magic bytes
+# Text-based formats that don't have reliable magic bytes.
+# Note: These types are NOT in the default allowed MIME types for security reasons.
+# If users explicitly allow these types, content validation will be skipped.
 _SKIP_VALIDATION_TYPES = {"application/json", "application/xml", "application/rtf", "image/svg+xml"}
 
 

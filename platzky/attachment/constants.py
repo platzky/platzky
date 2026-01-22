@@ -3,6 +3,87 @@
 # Default maximum attachment size: 10MB
 DEFAULT_MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 
+# Blocked file extensions - dangerous executable and script formats
+BLOCKED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        # Windows executables
+        "exe",
+        "dll",
+        "scr",
+        "msi",
+        "com",
+        "pif",
+        # Windows scripts
+        "bat",
+        "cmd",
+        "vbs",
+        "vbe",
+        "js",
+        "jse",
+        "ws",
+        "wsf",
+        "wsc",
+        "wsh",
+        "ps1",
+        "psm1",
+        "psd1",
+        # Shortcuts and links
+        "lnk",
+        "url",
+        "hta",
+        # macOS executables
+        "app",
+        "dmg",
+        "pkg",
+        # Linux packages
+        "deb",
+        "rpm",
+        "AppImage",
+        # Shell scripts
+        "sh",
+        "bash",
+        "zsh",
+        "ksh",
+        "csh",
+        # Scripting languages
+        "py",
+        "pyc",
+        "pyo",
+        "pyw",
+        "rb",
+        "pl",
+        "php",
+        "php3",
+        "php4",
+        "php5",
+        "phtml",
+        # Java
+        "jar",
+        "class",
+        "war",
+        # Other dangerous formats
+        "reg",  # Windows registry
+        "inf",  # Windows setup information
+        "scf",  # Windows Explorer command
+        "cpl",  # Control panel extension
+        "msc",  # Microsoft Management Console
+        "gadget",  # Windows gadget
+    }
+)
+
+
+class BlockedExtensionError(ValueError):
+    """Raised when attachment has a blocked file extension."""
+
+    def __init__(self, filename: str, extension: str) -> None:
+        self.filename = filename
+        self.extension = extension
+        message = (
+            f"Attachment '{filename}' has blocked extension '.{extension}'. "
+            f"Executable and script file types are not allowed for security reasons."
+        )
+        super().__init__(message)
+
 
 class AttachmentSizeError(ValueError):
     """Raised when attachment content exceeds the maximum allowed size."""
