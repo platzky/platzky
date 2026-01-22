@@ -30,6 +30,7 @@ opentelemetry-sdk = {version = "^1.27.0", optional = true}
 opentelemetry-instrumentation-flask = {version = "^0.48b0", optional = true}
 opentelemetry-instrumentation-logging = {version = "^0.48b0", optional = true}
 opentelemetry-exporter-otlp-proto-grpc = {version = "^1.27.0", optional = true}
+puremagic = "^1.30"
 
 [tool.poetry.extras]
 docs = [

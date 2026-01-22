@@ -82,7 +82,7 @@ class Attachment:
     def _validate_size(self) -> None:
         """Validate content size against MAX_ATTACHMENT_SIZE."""
         if len(self.content) > MAX_ATTACHMENT_SIZE:
-            raise AttachmentSizeError.for_file(self.filename, len(self.content))
+            raise AttachmentSizeError(self.filename, len(self.content))
 
     def _validate_mime_type(self) -> None:
         """Validate MIME type format and against allowlist."""
@@ -134,7 +134,7 @@ class Attachment:
         """
         if len(content) > MAX_ATTACHMENT_SIZE:
             sanitized_filename = _sanitize_filename(filename)
-            raise AttachmentSizeError.for_file(sanitized_filename, len(content))
+            raise AttachmentSizeError(sanitized_filename, len(content))
 
         return cls(
             filename=filename,
@@ -177,7 +177,7 @@ class Attachment:
         # Early check to reject obviously oversized files without opening them
         file_size = path.stat().st_size
         if file_size > MAX_ATTACHMENT_SIZE:
-            raise AttachmentSizeError.for_file(path.name, file_size)
+            raise AttachmentSizeError(path.name, file_size)
 
         # Bounded read to prevent TOCTOU: even if file grows after stat(),
         # we never load more than MAX_ATTACHMENT_SIZE + 1 bytes
@@ -185,7 +185,7 @@ class Attachment:
             content = f.read(MAX_ATTACHMENT_SIZE + 1)
 
         if len(content) > MAX_ATTACHMENT_SIZE:
-            raise AttachmentSizeError.for_file(path.name, len(content))
+            raise AttachmentSizeError(path.name, len(content))
 
         effective_filename = filename if filename is not None else path.name
         effective_mime_type = mime_type

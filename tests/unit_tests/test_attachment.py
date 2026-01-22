@@ -10,10 +10,7 @@ from platzky.attachment import (
     AttachmentSizeError,
     ContentMismatchError,
 )
-from platzky.attachment.mime_validation import (
-    DEFAULT_ALLOWED_MIME_TYPES,
-    MAGIC_BYTES,
-)
+from platzky.attachment.mime_validation import DEFAULT_ALLOWED_MIME_TYPES
 from platzky.config import Config
 from platzky.db.json_db import db_from_config
 from platzky.engine import Engine
@@ -857,13 +854,6 @@ class TestMagicByteValidation:
         )
         assert attachment.content == content
 
-    def test_magic_bytes_dictionary_exists(self):
-        """Test that MAGIC_BYTES dictionary is properly defined."""
-        assert isinstance(MAGIC_BYTES, dict)
-        assert "image/png" in MAGIC_BYTES
-        assert "image/jpeg" in MAGIC_BYTES
-        assert "application/pdf" in MAGIC_BYTES
-
     @pytest.mark.parametrize(
         "mime_type,magic_bytes",
         [
@@ -872,7 +862,7 @@ class TestMagicByteValidation:
             ("image/gif", b"GIF89a"),
             ("application/pdf", b"%PDF"),
             ("application/zip", b"PK\x03\x04"),
-            ("application/gzip", b"\x1f\x8b"),
+            ("application/gzip", b"\x1f\x8b\x08"),
             ("image/bmp", b"BM"),
             ("audio/ogg", b"OggS"),
         ],
