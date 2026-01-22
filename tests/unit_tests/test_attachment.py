@@ -5,12 +5,14 @@ from pathlib import Path
 import pytest
 
 from platzky.attachment import (
-    DEFAULT_ALLOWED_MIME_TYPES,
-    MAGIC_BYTES,
     MAX_ATTACHMENT_SIZE,
     Attachment,
     AttachmentSizeError,
     ContentMismatchError,
+)
+from platzky.attachment.mime_validation import (
+    DEFAULT_ALLOWED_MIME_TYPES,
+    MAGIC_BYTES,
 )
 from platzky.config import Config
 from platzky.db.json_db import db_from_config
@@ -398,7 +400,7 @@ class TestNotifierWithAttachments:
         received_attachments = []
 
         def notifier_with_attachments(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
+            _message: str, attachments: list[Attachment] | None = None
         ) -> None:
             received_attachments.append(attachments)
 
@@ -465,9 +467,7 @@ class TestNotifierWithAttachments:
         """Test that None attachments work correctly."""
         received_attachments = []
 
-        def notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -479,9 +479,7 @@ class TestNotifierWithAttachments:
         """Test that empty attachments list works correctly."""
         received_attachments = []
 
-        def notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         test_app.add_notifier(notifier)
@@ -493,9 +491,7 @@ class TestNotifierWithAttachments:
         """Test notifying with multiple attachments."""
         received_attachments = []
 
-        def notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
+        def notifier(_message: str, attachments: list[Attachment] | None = None) -> None:
             received_attachments.append(attachments)
 
         attachments = [
@@ -520,9 +516,7 @@ class TestNotifierWithAttachments:
     def test_notifier_error_propagates(self, test_app: Engine):
         """Test that errors from notifiers propagate correctly."""
 
-        def failing_notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
+        def failing_notifier(_message: str, _attachments: list[Attachment] | None = None) -> None:
             raise RuntimeError("Notifier failed")
 
         test_app.add_notifier(failing_notifier)
@@ -577,9 +571,7 @@ class TestNotifierCapabilityCache:
         """Test that signature inspection is only called once per notifier."""
         from unittest.mock import patch
 
-        def notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
+        def notifier(_message: str, _attachments: list[Attachment] | None = None) -> None:
             pass
 
         test_app.add_notifier(notifier)
@@ -598,7 +590,7 @@ class TestNotifierCapabilityCache:
         """Test that clear_notifier_cache causes signature to be inspected again."""
         from unittest.mock import patch
 
-        def notifier(message: str) -> None:  # noqa: ARG001
+        def notifier(_message: str) -> None:
             pass
 
         test_app.add_notifier(notifier)  # type: ignore[arg-type]
@@ -703,7 +695,7 @@ class TestNotifierCapabilityCache:
         engine1 = Engine(config, db, "test1")
         engine2 = Engine(config, db, "test2")
 
-        def notifier(message: str) -> None:  # noqa: ARG001
+        def notifier(_message: str) -> None:
             pass
 
         engine1.add_notifier(notifier)  # type: ignore[arg-type]

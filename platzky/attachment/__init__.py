@@ -24,6 +24,8 @@ For bytes already in memory, use from_bytes() to validate before object creation
 
 from platzky.attachment.constants import (
     MAX_ATTACHMENT_SIZE as MAX_ATTACHMENT_SIZE,
+)
+from platzky.attachment.constants import (
     AttachmentSizeError as AttachmentSizeError,
 )
 from platzky.attachment.core import Attachment as Attachment

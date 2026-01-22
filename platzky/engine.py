@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from typing import Any
 
-from flask import Blueprint, Flask, jsonify, make_response, request, session
+from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
 from flask_babel import Babel
 
 from platzky.attachment import Attachment
@@ -209,12 +209,12 @@ class Engine(Flask):
                 return f"failed: {e!s}"
 
         @health_bp.route("/health/liveness")
-        def liveness():
+        def liveness() -> tuple[Response, int]:
             """Simple liveness check - is the app running?"""
             return jsonify({"status": "alive"}), 200
 
         @health_bp.route("/health/readiness")
-        def readiness():
+        def readiness() -> Response:
             """Readiness check - can the app serve traffic?"""
             health_status: dict[str, Any] = {"status": "ready", "checks": {}}
 
@@ -234,7 +234,7 @@ class Engine(Flask):
             return make_response(jsonify(health_status), status_code)
 
         @health_bp.route("/health")
-        def health():
+        def health() -> tuple[Response, int]:
             """Simple /health alias for liveness."""
             return liveness()
 
