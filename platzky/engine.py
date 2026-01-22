@@ -1,3 +1,5 @@
+import inspect
+import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -9,6 +11,9 @@ from flask_babel import Babel
 from platzky.config import Config
 from platzky.db.db import DB
 from platzky.models import CmsModule
+from platzky.notifier import Attachment, Notifier
+
+logger = logging.getLogger(__name__)
 
 
 class Engine(Flask):
@@ -16,7 +21,7 @@ class Engine(Flask):
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.db = db
-        self.notifiers = []
+        self.notifiers: list[Notifier] = []
         self.login_methods = []
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -37,24 +42,42 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    # TODO: Create a Notifier Protocol/interface instead of raw callables.
-    # This would provide a clear contract, proper type hints, and avoid
-    # the try/except TypeError hack for backwards compatibility.
     def notify(
-        self, message: str, attachments: list[tuple[str, bytes, str]] | None = None
-    ):
-        for notifier in self.notifiers:
-            try:
-                notifier(message, attachments=attachments)
-            except TypeError:
-                # Fallback for notifiers that don't support attachments
-                notifier(message)
-
-    def add_notifier(
-        self,
-        notifier: Callable[[str], None]
-        | Callable[[str, list[tuple[str, bytes, str]] | None], None],
+        self, message: str, attachments: list[Attachment] | None = None
     ) -> None:
+        """Send a notification to all registered notifiers.
+
+        Args:
+            message: The notification message text.
+            attachments: Optional list of validated Attachment objects.
+        """
+        for notifier in self.notifiers:
+            supports_attachments = self._notifier_supports_attachments(notifier)
+
+            if attachments and not supports_attachments:
+                logger.warning(
+                    "Notifier %s does not support attachments, %d attachment(s) will be dropped",
+                    getattr(notifier, "__name__", type(notifier).__name__),
+                    len(attachments),
+                )
+                notifier(message)
+            else:
+                notifier(message, attachments=attachments)
+
+    def _notifier_supports_attachments(self, notifier: Notifier) -> bool:
+        """Check if a notifier supports attachments parameter."""
+        try:
+            sig = inspect.signature(notifier)
+            return "attachments" in sig.parameters
+        except (ValueError, TypeError):
+            return False
+
+    def add_notifier(self, notifier: Notifier) -> None:
+        """Register a notifier to receive notifications.
+
+        Args:
+            notifier: A callable conforming to the Notifier protocol.
+        """
         self.notifiers.append(notifier)
 
     def add_cms_module(self, module: CmsModule):
