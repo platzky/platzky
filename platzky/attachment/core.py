@@ -75,6 +75,12 @@ def _get_extension(filename: str) -> str | None:
     return ext.lower() or None
 
 
+def _guess_mime_type(filename: str) -> str:
+    """Guess MIME type from filename, defaulting to application/octet-stream."""
+    guessed_type, _ = mimetypes.guess_type(filename)
+    return guessed_type or "application/octet-stream"
+
+
 def create_attachment_class(config: AttachmentConfig) -> type:
     """Create an Attachment class with configuration captured via closure.
 
@@ -260,11 +266,8 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             if len(content) > effective_max_size:
                 raise AttachmentSizeError(path.name, len(content), effective_max_size)
 
-            effective_filename = filename if filename is not None else path.name
-            effective_mime_type = mime_type
-            if effective_mime_type is None:
-                guessed_type, _ = mimetypes.guess_type(effective_filename)
-                effective_mime_type = guessed_type or "application/octet-stream"
+            effective_filename = filename or path.name
+            effective_mime_type = mime_type or _guess_mime_type(effective_filename)
 
             return cls(
                 filename=effective_filename,
