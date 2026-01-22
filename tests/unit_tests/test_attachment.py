@@ -594,19 +594,8 @@ class TestNotifierCapabilityCache:
             test_app.notify("test3")
             assert mock_sig.call_count == 1
 
-    def test_cache_uses_notifier_id_as_key(self, test_app: Engine):
-        """Test that cache uses id(notifier) as key."""
-
-        def notifier(message: str) -> None:  # noqa: ARG001
-            pass
-
-        test_app.add_notifier(notifier)  # type: ignore[arg-type]
-        test_app.notify("test")
-
-        assert id(notifier) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
-
-    def test_clear_notifier_cache(self, test_app: Engine):
-        """Test that clear_notifier_cache clears the cache."""
+    def test_clear_notifier_cache_triggers_reinspection(self, test_app: Engine):
+        """Test that clear_notifier_cache causes signature to be inspected again."""
         from unittest.mock import patch
 
         def notifier(message: str) -> None:  # noqa: ARG001
@@ -619,30 +608,34 @@ class TestNotifierCapabilityCache:
             assert mock_sig.call_count == 1
 
             test_app.clear_notifier_cache()
-            assert len(test_app._notifier_capability_cache) == 0  # type: ignore[attr-defined]
 
             test_app.notify("test2")
             assert mock_sig.call_count == 2
 
-    def test_cache_stores_correct_values(self, test_app: Engine):
-        """Test that cache stores correct boolean values for different notifiers."""
+    def test_legacy_and_modern_notifiers_behave_correctly(self, test_app: Engine):
+        """Test that legacy notifiers don't receive attachments, modern ones do."""
+        legacy_received: list[str] = []
+        modern_received: list[tuple[str, list[Attachment] | None]] = []
 
-        def legacy_notifier(message: str) -> None:  # noqa: ARG001
-            pass
+        def legacy_notifier(message: str) -> None:
+            legacy_received.append(message)
 
-        def modern_notifier(
-            message: str, attachments: list[Attachment] | None = None  # noqa: ARG001
-        ) -> None:
-            pass
+        def modern_notifier(message: str, attachments: list[Attachment] | None = None) -> None:
+            modern_received.append((message, attachments))
 
         test_app.add_notifier(legacy_notifier)  # type: ignore[arg-type]
         test_app.add_notifier(modern_notifier)
-        test_app.notify("test")
 
-        assert test_app._notifier_capability_cache[id(legacy_notifier)] is False  # type: ignore[attr-defined]
-        assert test_app._notifier_capability_cache[id(modern_notifier)] is True  # type: ignore[attr-defined]
+        attachment = Attachment(filename="test.txt", content=b"data", mime_type="text/plain")
+        test_app.notify("hello", attachments=[attachment])
 
-    def test_cache_handles_signature_inspection_errors(
+        assert legacy_received == ["hello"]
+        assert len(modern_received) == 1
+        assert modern_received[0][0] == "hello"
+        assert modern_received[0][1] is not None
+        assert modern_received[0][1][0].filename == "test.txt"
+
+    def test_signature_inspection_error_is_cached_and_logged(
         self, test_app: Engine, caplog: pytest.LogCaptureFixture
     ):
         """Test that signature inspection errors are cached and logged."""
@@ -663,13 +656,16 @@ class TestNotifierCapabilityCache:
             assert "Failed to inspect signature" in caplog.text
             assert "Cannot inspect" in caplog.text
 
-            assert test_app._notifier_capability_cache[id(mock_notifier)] is False  # type: ignore[attr-defined]
-
+            # Second call should not re-inspect (error is cached)
             test_app.notify("test2")
             assert mock_sig.call_count == 1
 
-    def test_different_notifier_instances_have_separate_cache_entries(self, test_app: Engine):
-        """Test that different instances of same class have separate cache entries."""
+        # Notifier was still called both times (falls back to no-attachments mode)
+        assert mock_notifier.call_count == 2
+
+    def test_different_notifier_instances_inspected_separately(self, test_app: Engine):
+        """Test that different instances of same class are inspected separately."""
+        from unittest.mock import patch
 
         class MyNotifier:
             def __call__(self, message: str, attachments: list[Attachment] | None = None) -> None:
@@ -680,14 +676,20 @@ class TestNotifierCapabilityCache:
 
         test_app.add_notifier(notifier1)
         test_app.add_notifier(notifier2)
-        test_app.notify("test")
 
-        assert id(notifier1) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
-        assert id(notifier2) in test_app._notifier_capability_cache  # type: ignore[attr-defined]
-        assert id(notifier1) != id(notifier2)
+        with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
+            test_app.notify("test")
+            # Both notifiers should be inspected separately
+            assert mock_sig.call_count == 2
 
-    def test_cache_is_instance_specific(self):
+            # Second notification should not re-inspect either
+            test_app.notify("test2")
+            assert mock_sig.call_count == 2
+
+    def test_cache_is_engine_instance_specific(self):
         """Test that cache is instance-specific, not shared across Engine instances."""
+        from unittest.mock import patch
+
         config_data = {
             "APP_NAME": "testApp",
             "SECRET_KEY": "secret",
@@ -705,10 +707,15 @@ class TestNotifierCapabilityCache:
             pass
 
         engine1.add_notifier(notifier)  # type: ignore[arg-type]
-        engine1.notify("test")
+        engine2.add_notifier(notifier)  # type: ignore[arg-type]
 
-        assert id(notifier) in engine1._notifier_capability_cache  # type: ignore[attr-defined]
-        assert id(notifier) not in engine2._notifier_capability_cache  # type: ignore[attr-defined]
+        with patch("platzky.engine.inspect.signature", wraps=inspect.signature) as mock_sig:
+            engine1.notify("test")
+            assert mock_sig.call_count == 1
+
+            # engine2 should inspect separately (not share engine1's cache)
+            engine2.notify("test")
+            assert mock_sig.call_count == 2
 
 
 # =============================================================================
