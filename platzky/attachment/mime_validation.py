@@ -10,10 +10,16 @@ class ContentMismatchError(ValueError):
 
 
 # MIME type equivalences - puremagic may return alternative names for the same format
+# Maps canonical types to their aliases
 _MIME_EQUIVALENCES: dict[str, set[str]] = {
     "image/bmp": {"image/x-ms-bmp"},
     "application/gzip": {"application/x-gzip"},
     "application/zip": {"application/x-zip-compressed"},
+}
+
+# Reverse mapping: alias -> canonical type
+_ALIAS_TO_CANONICAL: dict[str, str] = {
+    alias: canonical for canonical, aliases in _MIME_EQUIVALENCES.items() for alias in aliases
 }
 
 # Text-based formats that don't have reliable magic bytes.
@@ -55,9 +61,19 @@ def validate_content_mime_type(
         ) from err
 
     detected_mimes = {m.mime_type for m in detected if m.mime_type}
-    equivalent_types = _MIME_EQUIVALENCES.get(mime_type, set())
 
-    if mime_type in detected_mimes or (detected_mimes & equivalent_types):
+    # Direct match
+    if mime_type in detected_mimes:
+        return
+
+    # Check if declared type is canonical and detected includes an alias
+    equivalent_aliases = _MIME_EQUIVALENCES.get(mime_type, set())
+    if detected_mimes & equivalent_aliases:
+        return
+
+    # Check if declared type is an alias and detected includes the canonical
+    canonical = _ALIAS_TO_CANONICAL.get(mime_type)
+    if canonical and canonical in detected_mimes:
         return
 
     raise ContentMismatchError(

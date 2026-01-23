@@ -14,6 +14,7 @@ from platzky.attachment import (
     BlockedExtensionError,
     ContentMismatchError,
     ExtensionNotAllowedError,
+    InvalidMimeTypeError,
     create_attachment_class,
 )
 from platzky.config import (
@@ -78,6 +79,12 @@ class TestAttachmentBasics:
         with pytest.raises(ValueError, match="filename cannot be empty"):
             text_allowed_attachment_class(filename="", content=b"content", mime_type="text/plain")
 
+    @pytest.mark.parametrize("filename", [".", "..", "/", "//"])
+    def test_invalid_filenames_rejected(self, filename: str, text_allowed_attachment_class: type):
+        """Test that directory traversal filenames are rejected."""
+        with pytest.raises(ValueError, match="filename cannot be empty"):
+            text_allowed_attachment_class(filename=filename, content=b"c", mime_type="text/plain")
+
     @pytest.mark.parametrize(
         ("filename", "expected"),
         [
@@ -136,13 +143,16 @@ class TestAttachmentBasics:
         """Test MIME type validation."""
         Attachment = default_attachment_class
         # Invalid format
-        with pytest.raises(ValueError, match="Invalid MIME type format"):
+        with pytest.raises(InvalidMimeTypeError, match="Invalid MIME type format") as exc_info:
             Attachment(filename="file.pdf", content=b"content", mime_type="invalid")
+        assert exc_info.value.invalid_format is True
+
         # Not in allowlist
-        with pytest.raises(ValueError, match="is not allowed"):
+        with pytest.raises(InvalidMimeTypeError, match="is not allowed") as exc_info:
             Attachment(
                 filename="file.bin", content=b"content", mime_type="application/x-executable"
             )
+        assert exc_info.value.invalid_format is False
 
 
 class TestAttachmentFactoryMethods:

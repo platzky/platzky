@@ -2,8 +2,9 @@
 
 import logging
 import os
+import threading
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import Future, TimeoutError
 from typing import Any
 
 from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
@@ -130,12 +131,28 @@ class Engine(Flask):
         health_check_timeout = 10  # seconds
 
         def run_health_check(
-            executor: ThreadPoolExecutor,
             check_func: Callable[[], None],
             timeout: int,
         ) -> str:
-            """Run a health check with timeout, returning status string."""
-            future = executor.submit(check_func)
+            """Run a health check with timeout using a daemon thread.
+
+            Uses daemon threads so stuck checks don't prevent app shutdown.
+            Note: Health checks should implement their own internal timeouts
+            for proper resource cleanup - the external timeout only prevents
+            blocking the response, but the check continues running.
+            """
+            future: Future[None] = Future()
+
+            def run() -> None:
+                try:
+                    check_func()
+                    future.set_result(None)
+                except Exception as e:
+                    future.set_exception(e)
+
+            thread = threading.Thread(target=run, daemon=True)
+            thread.start()
+
             try:
                 future.result(timeout=timeout)
             except TimeoutError:
@@ -158,15 +175,11 @@ class Engine(Flask):
 
             all_checks = [("database", self.db.health_check), *self.health_checks]
 
-            executor = ThreadPoolExecutor(max_workers=1)
-            try:
-                for check_name, check_func in all_checks:
-                    status = run_health_check(executor, check_func, health_check_timeout)
-                    health_status["checks"][check_name] = status
-                    if status != "ok":
-                        health_status["status"] = "not_ready"
-            finally:
-                executor.shutdown(wait=False)
+            for check_name, check_func in all_checks:
+                status = run_health_check(check_func, health_check_timeout)
+                health_status["checks"][check_name] = status
+                if status != "ok":
+                    health_status["status"] = "not_ready"
 
             status_code = 200 if health_status["status"] == "ready" else 503
             return make_response(jsonify(health_status), status_code)

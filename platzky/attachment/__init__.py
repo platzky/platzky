@@ -21,6 +21,7 @@ from platzky.attachment.constants import (
     AttachmentSizeError,
     BlockedExtensionError,
     ExtensionNotAllowedError,
+    InvalidMimeTypeError,
 )
 from platzky.attachment.core import AttachmentProtocol, create_attachment_class
 from platzky.attachment.mime_validation import ContentMismatchError
@@ -33,5 +34,6 @@ __all__ = [
     "BlockedExtensionError",
     "ContentMismatchError",
     "ExtensionNotAllowedError",
+    "InvalidMimeTypeError",
     "create_attachment_class",
 ]

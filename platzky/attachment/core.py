@@ -14,6 +14,7 @@ from platzky.attachment.constants import (
     AttachmentSizeError,
     BlockedExtensionError,
     ExtensionNotAllowedError,
+    InvalidMimeTypeError,
 )
 from platzky.attachment.mime_validation import validate_content_mime_type
 
@@ -115,19 +116,16 @@ def _validate_extension(
 def _validate_mime_type(mime_type: str, filename: str, allowed_mime_types: frozenset[str]) -> None:
     """Validate MIME type format and against allowlist."""
     if not mime_type or "/" not in mime_type:
-        raise ValueError(
-            f"Invalid MIME type format '{mime_type}' for attachment '{filename}'. "
-            f"MIME type must be in 'type/subtype' format (e.g., 'text/plain', 'image/png')."
-        )
+        raise InvalidMimeTypeError(filename, mime_type, invalid_format=True)
 
     if mime_type not in allowed_mime_types:
-        raise ValueError(f"MIME type '{mime_type}' is not allowed for attachment '{filename}'.")
+        raise InvalidMimeTypeError(filename, mime_type)
 
 
 def _do_sanitize_filename(filename: str) -> str:
-    """Sanitize filename and return result. Raises if empty after sanitization."""
+    """Sanitize filename and return result. Raises if empty or invalid after sanitization."""
     sanitized = _sanitize_filename(filename)
-    if not sanitized:
+    if not sanitized or sanitized in (".", ".."):
         raise ValueError("Attachment filename cannot be empty")
     if sanitized != filename:
         logger.warning(
@@ -218,7 +216,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             filename: str,
             mime_type: str,
             max_size_override: int | None = None,
-        ) -> "Attachment":
+        ) -> Attachment:
             """Create an Attachment from bytes with size validation before object creation.
 
             Note: The bytes must already be in memory. This method validates size before
@@ -236,7 +234,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
             filename: str | None = None,
             mime_type: str | None = None,
             max_size_override: int | None = None,
-        ) -> "Attachment":
+        ) -> Attachment:
             """Create an Attachment from a file path with bounded read for size safety.
 
             Uses a bounded read to prevent loading oversized files into memory,

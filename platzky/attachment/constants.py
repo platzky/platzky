@@ -120,3 +120,20 @@ class AttachmentSizeError(ValueError):
             f"(size: {actual_size / (1024 * 1024):.2f}MB)"
         )
         super().__init__(message)
+
+
+class InvalidMimeTypeError(ValueError):
+    """Raised when MIME type format is invalid or not in the allowlist."""
+
+    def __init__(self, filename: str, mime_type: str, *, invalid_format: bool = False) -> None:
+        self.filename = filename
+        self.mime_type = mime_type
+        self.invalid_format = invalid_format
+        if invalid_format:
+            message = (
+                f"Invalid MIME type format '{mime_type}' for attachment '{filename}'. "
+                f"MIME type must be in 'type/subtype' format (e.g., 'text/plain', 'image/png')."
+            )
+        else:
+            message = f"MIME type '{mime_type}' is not allowed for attachment '{filename}'."
+        super().__init__(message)
