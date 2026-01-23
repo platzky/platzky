@@ -145,7 +145,13 @@ commit_author = "semantic-release <semantic-release>"
 commit_message = "chore(release): {version}"
 tag_format = "{version}"
 commit_parser = "conventional"
+
+[tool.semantic_release.changelog]
+mode = "update"
+
+[tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
+output_format = "md"
 
 [tool.semantic_release.branches.main]
 match = "main"
