@@ -94,7 +94,10 @@ class TestAttachmentBasics:
         ],
     )
     def test_path_sanitization(
-        self, filename: str, expected: str, caplog: pytest.LogCaptureFixture,
+        self,
+        filename: str,
+        expected: str,
+        caplog: pytest.LogCaptureFixture,
         text_allowed_attachment_class: type,
     ):
         """Test that path components are stripped from filename."""
@@ -244,7 +247,9 @@ class TestAttachmentFactoryMethods:
 
         # from_bytes: override allows larger content
         attachment = Attachment.from_bytes(
-            content=b"x" * 200, filename="large.txt", mime_type="text/plain",
+            content=b"x" * 200,
+            filename="large.txt",
+            mime_type="text/plain",
             max_size_override=500,
         )
         assert len(attachment.content) == 200
@@ -252,7 +257,9 @@ class TestAttachmentFactoryMethods:
         # from_bytes: override still enforced
         with pytest.raises(AttachmentSizeError):
             Attachment.from_bytes(
-                content=b"x" * 600, filename="huge.txt", mime_type="text/plain",
+                content=b"x" * 600,
+                filename="huge.txt",
+                mime_type="text/plain",
                 max_size_override=500,
             )
 
@@ -419,9 +426,7 @@ class TestMimeTypeRestrictions:
     ):
         """Test that text/* and related types are rejected by default."""
         with pytest.raises(ValueError, match="is not allowed"):
-            default_attachment_class(
-                filename="test.bin", content=b"content", mime_type=mime_type
-            )
+            default_attachment_class(filename="test.bin", content=b"content", mime_type=mime_type)
 
     def test_text_types_can_be_explicitly_allowed(self):
         """Test that text types can be explicitly allowed."""
