@@ -915,7 +915,14 @@ class TestExtensionAllowList:
         assert Attachment("photo.jpg", b"content", "image/jpeg").filename == "photo.jpg"
         assert Attachment("doc.pdf", b"content", "application/pdf").filename == "doc.pdf"
         assert Attachment("data.zip", b"content", "application/zip").filename == "data.zip"
-        assert Attachment("slides.pptx", b"content", "application/vnd.openxmlformats-officedocument.presentationml.presentation").filename == "slides.pptx"
+        assert (
+            Attachment(
+                "slides.pptx",
+                b"content",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ).filename
+            == "slides.pptx"
+        )
 
         # Extensions not in the default list should be rejected
         with pytest.raises(ExtensionNotAllowedError, match="not in the allowed"):
