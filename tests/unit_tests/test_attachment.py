@@ -771,11 +771,11 @@ class TestExtensionAllowList:
     """Tests for extension allow-list functionality."""
 
     def test_allowed_extensions_none_blocks_all(self):
-        """Test that allowed_extensions=None blocks all extensions by default."""
+        """Test that allowed_extensions=None blocks all extensions."""
         Attachment: type[AttachmentProtocol] = create_attachment_class(
             AttachmentConfig(
                 validate_content=False,
-                allowed_extensions=None,  # Default - block all
+                allowed_extensions=None,  # Explicitly None - block all
             )
         )
         with pytest.raises(ExtensionNotAllowedError, match="not in the allowed extensions"):
@@ -900,3 +900,23 @@ class TestExtensionAllowList:
         # This should be rejected - not in allow-list
         with pytest.raises(ExtensionNotAllowedError, match="not in the allowed"):
             Attachment("data.csv", b"content", "text/csv")
+
+    def test_default_allowed_extensions_work(self):
+        """Test that the default allowed_extensions allow common file types."""
+        Attachment: type[AttachmentProtocol] = create_attachment_class(
+            AttachmentConfig(
+                validate_content=False,
+                # Use default allowed_extensions (not explicitly None)
+            )
+        )
+
+        # These common extensions should work with defaults
+        assert Attachment("photo.png", b"content", "image/png").filename == "photo.png"
+        assert Attachment("photo.jpg", b"content", "image/jpeg").filename == "photo.jpg"
+        assert Attachment("doc.pdf", b"content", "application/pdf").filename == "doc.pdf"
+        assert Attachment("data.zip", b"content", "application/zip").filename == "data.zip"
+        assert Attachment("slides.pptx", b"content", "application/vnd.openxmlformats-officedocument.presentationml.presentation").filename == "slides.pptx"
+
+        # Extensions not in the default list should be rejected
+        with pytest.raises(ExtensionNotAllowedError, match="not in the allowed"):
+            Attachment("code.json", b"{}", "application/json")

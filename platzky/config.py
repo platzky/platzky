@@ -138,6 +138,7 @@ _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
         "image/tiff",
         # Application types (binary formats)
         "application/pdf",
+        # Archive types - validated but NEVER auto-extracted (zip bomb protection)
         "application/zip",
         "application/gzip",
         "application/x-tar",
@@ -172,9 +173,10 @@ class AttachmentConfig(StrictBaseModel):
         validate_content: Whether to validate content matches declared MIME type.
         allow_unrecognized_content: If True, allow content that cannot be identified.
         max_size: Maximum attachment size in bytes (default: 10MB).
-        blocked_extensions: File extensions to block (executable and script formats).
-        allowed_extensions: File extensions to allow. If None (default), all extensions
-            are blocked. Extensions must be explicitly allowed for security.
+        blocked_extensions: File extensions that are PERMANENTLY blocked (executable
+            and script formats). These cannot be overridden via allowed_extensions.
+        allowed_extensions: File extensions to allow. Defaults to common safe formats
+            (images, documents, archives, audio/video). Set to None to block all.
             Note: blocked_extensions takes precedence over allowed_extensions.
             Files without extensions are always blocked when allowed_extensions is set.
     """
@@ -184,7 +186,38 @@ class AttachmentConfig(StrictBaseModel):
     allow_unrecognized_content: bool = Field(default=False)
     max_size: int = Field(default=DEFAULT_MAX_ATTACHMENT_SIZE, gt=0)
     blocked_extensions: frozenset[str] = Field(default=BLOCKED_EXTENSIONS)
-    allowed_extensions: frozenset[str] | None = Field(default=None)
+    allowed_extensions: frozenset[str] | None = Field(
+        default=frozenset(
+            {
+                # Images
+                "png",
+                "jpg",
+                "jpeg",
+                "gif",
+                "webp",
+                "bmp",
+                "tiff",
+                # Documents
+                "pdf",
+                "doc",
+                "docx",
+                "xls",
+                "xlsx",
+                "ppt",
+                "pptx",
+                # Archives
+                "zip",
+                "gz",
+                "tar",
+                # Audio/Video
+                "mp3",
+                "wav",
+                "ogg",
+                "mp4",
+                "webm",
+            }
+        )
+    )
 
 
 class Config(StrictBaseModel):

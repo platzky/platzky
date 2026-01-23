@@ -242,7 +242,7 @@ def test_health_readiness_endpoint_db_failure(test_app: Engine):
     assert response.status_code == 503
     json_data = response.get_json()
     assert json_data["status"] == "not_ready"
-    assert json_data["checks"]["database"] == "failed"
+    assert json_data["checks"]["database"] == "failed: DB connection failed"
 
     # Restore original method
     test_app.db.health_check = original_method
@@ -279,7 +279,7 @@ def test_add_health_check_failure(test_app: Engine):
     assert response.status_code == 503
     json_data = response.get_json()
     assert json_data["status"] == "not_ready"
-    assert json_data["checks"]["failing_service"] == "failed"
+    assert json_data["checks"]["failing_service"] == "failed: Custom service unavailable"
 
 
 def test_multiple_health_checks(test_app: Engine):
@@ -300,7 +300,7 @@ def test_multiple_health_checks(test_app: Engine):
     json_data = response.get_json()
     assert json_data["status"] == "not_ready"
     assert json_data["checks"]["service1"] == "ok"
-    assert json_data["checks"]["service2"] == "failed"
+    assert json_data["checks"]["service2"] == "failed: Service down"
     assert json_data["checks"]["database"] == "ok"
 
 

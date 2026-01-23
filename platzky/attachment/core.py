@@ -256,6 +256,7 @@ def create_attachment_class(config: AttachmentConfig) -> type:
                 content = f.read(limit + 1)
 
             if len(content) > limit:
+                # Report actual bytes read (not stat size) for TOCTOU consistency
                 raise AttachmentSizeError(path.name, len(content), limit)
 
             effective_filename = filename or path.name

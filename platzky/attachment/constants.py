@@ -3,7 +3,10 @@
 # Default maximum attachment size: 10MB
 DEFAULT_MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
 
-# Blocked file extensions - dangerous executable and script formats
+# Blocked file extensions - dangerous executable and script formats.
+# SECURITY: These extensions are PERMANENTLY blocked and cannot be overridden
+# via allowed_extensions. This includes .js which can execute via Windows
+# Script Host, Node.js, or browsers.
 BLOCKED_EXTENSIONS: frozenset[str] = frozenset(
     {
         # Windows executables

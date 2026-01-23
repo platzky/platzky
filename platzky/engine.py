@@ -58,7 +58,7 @@ class Engine(Flask):
         # TODO add plugins as CMS Module - all plugins should be visible from
         # admin page at least as configuration
 
-    def notify(self, message: str, attachments: list[Any] | None = None) -> None:
+    def notify(self, message: str, attachments: list[AttachmentProtocol] | None = None) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
@@ -140,9 +140,9 @@ class Engine(Flask):
                 future.result(timeout=timeout)
             except TimeoutError:
                 return "failed: timeout"
-            except Exception:
+            except Exception as e:
                 logger.exception("Health check failed")
-                return "failed"
+                return f"failed: {e!s}"
             else:
                 return "ok"
 
