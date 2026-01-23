@@ -391,7 +391,6 @@ class TestMagicByteValidation:
 
     def test_validation_bypass_options(self):
         """Test various ways to bypass content validation."""
-        # allow_unrecognized_content=True
         Attachment1 = create_attachment_class(
             AttachmentConfig(
                 allowed_mime_types=frozenset({"application/octet-stream"}),
@@ -401,7 +400,6 @@ class TestMagicByteValidation:
         )
         assert Attachment1("f.bin", b"random xyz", "application/octet-stream").content is not None
 
-        # validate_content=False
         Attachment2 = create_attachment_class(
             AttachmentConfig(validate_content=False, allowed_extensions=frozenset({"png"}))
         )
