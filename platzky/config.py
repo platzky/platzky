@@ -9,6 +9,7 @@ import typing as t
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from .db.db import DBConfig
 from .db.db_loader import get_db_module
 
@@ -126,6 +127,99 @@ class TelemetryConfig(StrictBaseModel):
         return v
 
 
+_DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
+    {
+        # Image types (binary formats with verifiable magic bytes)
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "image/tiff",
+        # Application types (binary formats)
+        "application/pdf",
+        # Archive types - validated but NEVER auto-extracted (zip bomb protection)
+        "application/zip",
+        "application/gzip",
+        "application/x-tar",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        # Audio types
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        # Video types
+        "video/mp4",
+        "video/webm",
+        "video/ogg",
+        # Note: Text types (text/*, application/json, application/xml, application/rtf,
+        # image/svg+xml) are NOT included by default for security reasons. They can
+        # bypass content validation and may contain executable code. To allow text
+        # types, explicitly add them:
+        #   AttachmentConfig(allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"})
+    }
+)
+
+
+class AttachmentConfig(StrictBaseModel):
+    """Configuration for attachment handling.
+
+    Attributes:
+        allowed_mime_types: MIME types allowed for attachments.
+        validate_content: Whether to validate content matches declared MIME type.
+        allow_unrecognized_content: If True, allow content that cannot be identified.
+        max_size: Maximum attachment size in bytes (default: 10MB).
+        blocked_extensions: File extensions that are PERMANENTLY blocked (executable
+            and script formats). These cannot be overridden via allowed_extensions.
+        allowed_extensions: File extensions to allow. Defaults to common safe formats
+            (images, documents, archives, audio/video). Set to None to block all.
+            Note: blocked_extensions takes precedence over allowed_extensions.
+            Files without extensions are always blocked when allowed_extensions is set.
+    """
+
+    allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
+    validate_content: bool = Field(default=True)
+    allow_unrecognized_content: bool = Field(default=False)
+    max_size: int = Field(default=DEFAULT_MAX_ATTACHMENT_SIZE, gt=0)
+    blocked_extensions: frozenset[str] = Field(default=BLOCKED_EXTENSIONS)
+    allowed_extensions: frozenset[str] | None = Field(
+        default=frozenset(
+            {
+                # Images
+                "png",
+                "jpg",
+                "jpeg",
+                "gif",
+                "webp",
+                "bmp",
+                "tiff",
+                # Documents
+                "pdf",
+                "doc",
+                "docx",
+                "xls",
+                "xlsx",
+                "ppt",
+                "pptx",
+                # Archives
+                "zip",
+                "gz",
+                "tar",
+                # Audio/Video
+                "mp3",
+                "wav",
+                "ogg",
+                "mp4",
+                "webm",
+            }
+        )
+    )
+
+
 class Config(StrictBaseModel):
     """Main application configuration.
 
@@ -143,6 +237,7 @@ class Config(StrictBaseModel):
         testing: Enable testing mode
         feature_flags: Feature flag configuration
         telemetry: OpenTelemetry configuration
+        attachment: Attachment handling configuration
     """
 
     app_name: str = Field(alias="APP_NAME")
@@ -161,6 +256,7 @@ class Config(StrictBaseModel):
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
+    attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
 
     @classmethod
     def model_validate(
