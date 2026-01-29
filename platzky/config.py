@@ -231,7 +231,6 @@ class Config(StrictBaseModel):
         seo_prefix: URL prefix for SEO routes
         blog_prefix: URL prefix for blog routes
         languages: Supported languages configuration
-        domain_to_lang: Domain to language mapping
         translation_directories: Additional translation directories
         debug: Enable debug mode
         testing: Enable testing mode
@@ -247,7 +246,6 @@ class Config(StrictBaseModel):
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
     blog_prefix: str = Field(default="/", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")
-    domain_to_lang: dict[str, str] = Field(default_factory=dict, alias="DOMAIN_TO_LANG")
     translation_directories: list[str] = Field(
         default_factory=list,
         alias="TRANSLATION_DIRECTORIES",

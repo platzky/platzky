@@ -102,19 +102,13 @@ class Engine(Flask):
         self.dynamic_head += body
 
     def get_locale(self) -> str:
-        domain = request.headers.get("Host", "localhost")
-        domain_to_lang = self.config.get("DOMAIN_TO_LANG")
-
         languages = self.config.get("LANGUAGES", {}).keys()
-        backup_lang = session.get(
-            "language",
-            request.accept_languages.best_match(languages, "en"),
-        )
 
-        if domain_to_lang:
-            lang = domain_to_lang.get(domain, backup_lang)
+        session_lang = session.get("language")
+        if isinstance(session_lang, str) and session_lang in languages:
+            lang = session_lang
         else:
-            lang = backup_lang
+            lang = request.accept_languages.best_match(languages) or "en"
 
         session["language"] = lang
         return lang
