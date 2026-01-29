@@ -72,18 +72,27 @@ def get_fake_login_html() -> Callable[[], str]:
     return generate_html
 
 
-def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
-    """Add fake login routes to the provided admin_blueprint."""
+def setup_fake_login_routes(
+    admin_blueprint: Blueprint, *, is_dev_or_testing: bool | None = None
+) -> Blueprint:
+    """Add fake login routes to the provided admin_blueprint.
 
-    env = os.environ
-    is_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") in (
-        "1",
-        "true",
-        "True",
-        True,
-    )
+    Args:
+        admin_blueprint: The admin blueprint to add routes to.
+        is_dev_or_testing: If True, skip the safety check. If None (default),
+            check environment variables for backward compatibility.
+    """
+    if is_dev_or_testing is None:
+        # Backward compatibility: check environment variables
+        env = os.environ
+        is_dev_or_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") in (
+            "1",
+            "true",
+            "True",
+            True,
+        )
 
-    if not is_testing:
+    if not is_dev_or_testing:
         raise RuntimeError(
             "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
             "This functionality must only be used during development or testing."

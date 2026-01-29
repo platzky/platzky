@@ -49,9 +49,19 @@ class FeatureFlagsDirective(SphinxDirective):
         rst_lines: list[str] = []
 
         for field_name, field_info in FeatureFlagsConfig.model_fields.items():
-            alias = field_info.alias or field_name.upper()
+            # Use alias if defined, otherwise use field name as-is (don't uppercase)
+            config_key = field_info.alias if field_info.alias else field_name
             description = field_info.description or "No description available."
             default = field_info.default
+
+            # Derive type from annotation for future-proofing
+            type_annotation = field_info.annotation
+            if type_annotation is bool:
+                type_str = "bool"
+            elif type_annotation is not None:
+                type_str = getattr(type_annotation, "__name__", str(type_annotation))
+            else:
+                type_str = "Any"
 
             # Format default value for display
             if isinstance(default, bool):
@@ -60,9 +70,9 @@ class FeatureFlagsDirective(SphinxDirective):
                 default_str = str(default)
 
             # Generate RST for this flag
-            rst_lines.append(f"**{alias}**")
+            rst_lines.append(f"**{config_key}**")
             rst_lines.append("")
-            rst_lines.append(":Type: ``bool``")
+            rst_lines.append(f":Type: ``{type_str}``")
             rst_lines.append(f":Default: ``{default_str}``")
             rst_lines.append(f":Field name: ``{field_name}``")
             rst_lines.append("")
@@ -72,14 +82,14 @@ class FeatureFlagsDirective(SphinxDirective):
             # Add warning for dangerous flags
             if "never" in description.lower() and "production" in description.lower():
                 rst_lines.append(".. warning::")
-                rst_lines.append(f"   Never enable {alias} in production.")
+                rst_lines.append(f"   Never enable {config_key} in production.")
                 rst_lines.append("")
 
             # Add YAML example
             rst_lines.append(".. code-block:: yaml")
             rst_lines.append("")
             rst_lines.append("    FEATURE_FLAGS:")
-            rst_lines.append(f"      {alias}: {default_str}")
+            rst_lines.append(f"      {config_key}: {default_str}")
             rst_lines.append("")
 
         # Parse RST content into nodes

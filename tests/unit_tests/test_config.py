@@ -1,6 +1,7 @@
 import warnings
 
 import pytest
+from pydantic import ValidationError
 
 from platzky.config import Config, FeatureFlagsConfig, languages_dict
 
@@ -79,7 +80,7 @@ class TestFeatureFlagsConfig:
     def test_frozen_config(self) -> None:
         """Test that the config is immutable."""
         flags = FeatureFlagsConfig()
-        with pytest.raises(Exception):  # Pydantic raises ValidationError for frozen models
+        with pytest.raises(ValidationError):
             flags.fake_login = True
 
 
