@@ -11,13 +11,72 @@ This will generate a formatted list of all available feature flags with their
 descriptions, types, defaults, and YAML examples.
 """
 
+from __future__ import annotations
+
 from docutils import nodes
 from docutils.statemachine import StringList
+from pydantic.fields import FieldInfo
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
 
 logger = getLogger(__name__)
+
+
+def _type_display_name(annotation: type[object] | None) -> str:
+    """Return a human-readable type name for a field annotation."""
+    if annotation is bool:
+        return "bool"
+    if annotation is not None:
+        return getattr(annotation, "__name__", str(annotation))
+    return "Any"
+
+
+def _default_display_value(default: object) -> str:
+    """Return a YAML-friendly display string for a default value."""
+    if isinstance(default, bool):
+        return "true" if default else "false"
+    return str(default)
+
+
+def _build_flag_rst(field_name: str, field_info: FieldInfo) -> list[str]:
+    """Build RST lines documenting a single feature flag."""
+    config_key = field_info.alias if field_info.alias else field_name
+    description = field_info.description or "No description available."
+    type_str = _type_display_name(field_info.annotation)
+    default_str = _default_display_value(field_info.default)
+
+    lines = [
+        f"**{config_key}**",
+        "",
+        f":Type: ``{type_str}``",
+        f":Default: ``{default_str}``",
+        f":Field name: ``{field_name}``",
+        "",
+        description,
+        "",
+    ]
+
+    if "never" in description.lower() and "production" in description.lower():
+        lines.extend(
+            [
+                ".. warning::",
+                f"   Never enable {config_key} in production.",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            ".. code-block:: yaml",
+            "",
+            "    FEATURE_FLAGS:",
+            f"      {config_key}: {default_str}",
+            "",
+        ]
+    )
+
+    return lines
 
 
 class FeatureFlagsDirective(SphinxDirective):
@@ -38,7 +97,6 @@ class FeatureFlagsDirective(SphinxDirective):
                 "Ensure platzky is installed in the documentation build environment.",
                 e,
             )
-            # Return a warning paragraph instead of failing
             warning = nodes.warning()
             warning += nodes.paragraph(
                 text="Feature flags documentation could not be generated. "
@@ -46,54 +104,10 @@ class FeatureFlagsDirective(SphinxDirective):
             )
             return [warning]
 
-        # Build RST content
         rst_lines: list[str] = []
-
         for field_name, field_info in FeatureFlagsConfig.model_fields.items():
-            # Use alias if defined, otherwise use field name as-is (don't uppercase)
-            config_key = field_info.alias if field_info.alias else field_name
-            description = field_info.description or "No description available."
-            default = field_info.default
+            rst_lines.extend(_build_flag_rst(field_name, field_info))
 
-            # Derive type from annotation for future-proofing
-            type_annotation = field_info.annotation
-            if type_annotation is bool:
-                type_str = "bool"
-            elif type_annotation is not None:
-                type_str = getattr(type_annotation, "__name__", str(type_annotation))
-            else:
-                type_str = "Any"
-
-            # Format default value for display
-            if isinstance(default, bool):
-                default_str = "true" if default else "false"
-            else:
-                default_str = str(default)
-
-            # Generate RST for this flag
-            rst_lines.append(f"**{config_key}**")
-            rst_lines.append("")
-            rst_lines.append(f":Type: ``{type_str}``")
-            rst_lines.append(f":Default: ``{default_str}``")
-            rst_lines.append(f":Field name: ``{field_name}``")
-            rst_lines.append("")
-            rst_lines.append(description)
-            rst_lines.append("")
-
-            # Add warning for dangerous flags
-            if "never" in description.lower() and "production" in description.lower():
-                rst_lines.append(".. warning::")
-                rst_lines.append(f"   Never enable {config_key} in production.")
-                rst_lines.append("")
-
-            # Add YAML example
-            rst_lines.append(".. code-block:: yaml")
-            rst_lines.append("")
-            rst_lines.append("    FEATURE_FLAGS:")
-            rst_lines.append(f"      {config_key}: {default_str}")
-            rst_lines.append("")
-
-        # Parse RST content into nodes
         node = nodes.container()
         self.state.nested_parse(
             StringList(rst_lines),

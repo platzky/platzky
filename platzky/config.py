@@ -258,7 +258,7 @@ class FeatureFlagsConfig(BaseModel):
             cls._field_lookup_cache = cache
         return cache
 
-    def get(self, key: str, default: bool = False) -> bool:
+    def get(self, key: str, *, default: bool = False) -> bool:
         """Dict-like access for backward compatibility.
 
         Typed flags work directly. Untyped flags emit deprecation warning.

@@ -27,18 +27,18 @@ class TestFeatureFlagsConfig:
     def test_get_typed_flag_by_alias(self) -> None:
         """Test .get() method returns typed flag value by alias."""
         flags = FeatureFlagsConfig.model_validate({"FAKE_LOGIN": True})
-        assert flags.get("FAKE_LOGIN", False) is True
+        assert flags.get("FAKE_LOGIN", default=False) is True
 
     def test_get_typed_flag_by_name(self) -> None:
         """Test .get() method returns typed flag value by field name."""
         flags = FeatureFlagsConfig.model_validate({"fake_login": True})
-        assert flags.get("fake_login", False) is True
+        assert flags.get("fake_login", default=False) is True
 
     def test_get_unknown_flag_returns_default(self) -> None:
         """Test .get() returns default for unknown flags."""
         flags = FeatureFlagsConfig()
-        assert flags.get("UNKNOWN_FLAG", False) is False
-        assert flags.get("UNKNOWN_FLAG", True) is True
+        assert flags.get("UNKNOWN_FLAG", default=False) is False
+        assert flags.get("UNKNOWN_FLAG", default=True) is True
 
     def test_untyped_flag_stored_in_extra(self) -> None:
         """Test that untyped flags are stored in model_extra."""
@@ -54,7 +54,7 @@ class TestFeatureFlagsConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = flags.get("CUSTOM_FLAG", False)
+            result = flags.get("CUSTOM_FLAG", default=False)
 
             assert result is True
             assert len(w) == 1
@@ -72,7 +72,7 @@ class TestFeatureFlagsConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = flags.get("FAKE_LOGIN", False)
+            result = flags.get("FAKE_LOGIN", default=False)
 
             assert result is True
             assert len(w) == 0
