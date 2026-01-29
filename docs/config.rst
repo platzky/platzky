@@ -164,22 +164,7 @@ Each language configuration includes:
         name: Deutsch
         flag: de
         country: DE
-        domain: example.de  # Optional: language-specific domain
-
-``DOMAIN_TO_LANG``
-^^^^^^^^^^^^^^^^^^
-
-:Type: ``dict[str, str]``
-:Default: ``{}``
-
-Map domains to specific languages. Useful for serving different languages on different domains.
-
-.. code-block:: yaml
-
-    DOMAIN_TO_LANG:
-      example.com: en
-      example.de: de
-      example.pl: pl
+        domain: example.de  # Optional: language-specific domain for redirects
 
 ``TRANSLATION_DIRECTORIES``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -364,10 +349,7 @@ Here's a complete configuration example for a production application:
         name: Deutsch
         flag: de
         country: DE
-
-    DOMAIN_TO_LANG:
-      myblog.com: en
-      myblog.de: de
+        domain: myblog.de  # Optional: redirect to this domain when switching to German
 
     # URLs
     USE_WWW: true
