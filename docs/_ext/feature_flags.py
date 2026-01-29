@@ -15,6 +15,9 @@ from docutils import nodes
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
+from sphinx.util.logging import getLogger
+
+logger = getLogger(__name__)
 
 
 class FeatureFlagsDirective(SphinxDirective):
@@ -26,7 +29,21 @@ class FeatureFlagsDirective(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         """Generate feature flags documentation nodes."""
-        from platzky.config import FeatureFlagsConfig
+        try:
+            from platzky.config import FeatureFlagsConfig
+        except ImportError as e:
+            logger.warning(
+                f"Could not import FeatureFlagsConfig: {e}. "
+                "Feature flags documentation will not be generated. "
+                "Ensure platzky is installed in the documentation build environment."
+            )
+            # Return a warning paragraph instead of failing
+            warning = nodes.warning()
+            warning += nodes.paragraph(
+                text="Feature flags documentation could not be generated. "
+                "See build logs for details."
+            )
+            return [warning]
 
         # Build RST content
         rst_lines: list[str] = []

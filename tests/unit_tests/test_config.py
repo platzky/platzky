@@ -48,7 +48,7 @@ class TestFeatureFlagsConfig:
         assert extra["CUSTOM_FLAG"] is True
 
     def test_get_untyped_flag_emits_deprecation_warning(self) -> None:
-        """Test .get() emits deprecation warning for untyped flags."""
+        """Test .get() emits deprecation warning for untyped flags with migration example."""
         flags = FeatureFlagsConfig.model_validate({"CUSTOM_FLAG": True})
 
         with warnings.catch_warnings(record=True) as w:
@@ -58,8 +58,12 @@ class TestFeatureFlagsConfig:
             assert result is True
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
-            assert "CUSTOM_FLAG" in str(w[0].message)
-            assert "2.0.0" in str(w[0].message)
+            warning_msg = str(w[0].message)
+            assert "CUSTOM_FLAG" in warning_msg
+            assert "2.0.0" in warning_msg
+            # Check migration example is included
+            assert "class MyFeatureFlags" in warning_msg
+            assert "custom_flag: bool = Field" in warning_msg
 
     def test_get_typed_flag_no_warning(self) -> None:
         """Test .get() does not emit warning for typed flags."""

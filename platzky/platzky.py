@@ -240,6 +240,12 @@ def create_app_from_config(config: Config) -> Engine:
     )
 
     if config.feature_flags.fake_login:
+        if not (config.debug or config.testing):
+            raise RuntimeError(
+                "SECURITY ERROR: FAKE_LOGIN is enabled but DEBUG and TESTING are both False. "
+                "FAKE_LOGIN must only be used in development or testing environments. "
+                "Set DEBUG: true or TESTING: true in your config, or disable FAKE_LOGIN."
+            )
         from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
 
         engine.login_methods.append(get_fake_login_html())

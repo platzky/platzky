@@ -386,6 +386,7 @@ def test_get_all_feature_flags(test_app: Engine):
     assert flags["fake_login"]["default"] is False
     assert isinstance(flags["fake_login"]["description"], str)
     assert "value" in flags["fake_login"]
+    assert flags["fake_login"]["typed"] is True
 
 
 def test_get_all_feature_flags_with_enabled_flag():
@@ -394,6 +395,7 @@ def test_get_all_feature_flags_with_enabled_flag():
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
         "BLOG_PREFIX": "/blog",
+        "TESTING": True,  # Required for FAKE_LOGIN
         "FEATURE_FLAGS": {"FAKE_LOGIN": True},
         "DB": {
             "TYPE": "json",
@@ -410,3 +412,36 @@ def test_get_all_feature_flags_with_enabled_flag():
     flags = app.get_all_feature_flags()
 
     assert flags["fake_login"]["value"] is True
+    assert flags["fake_login"]["typed"] is True
+
+
+def test_get_all_feature_flags_includes_untyped():
+    """Test that get_all_feature_flags includes untyped flags from model_extra"""
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",
+        "BLOG_PREFIX": "/blog",
+        "FEATURE_FLAGS": {"CUSTOM_FLAG": True},
+        "DB": {
+            "TYPE": "json",
+            "DATA": {
+                "site_content": {
+                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
+                }
+            },
+        },
+    }
+    config = Config.model_validate(config_data)
+    app = create_app_from_config(config)
+
+    flags = app.get_all_feature_flags()
+
+    # Typed flag should be present
+    assert "fake_login" in flags
+    assert flags["fake_login"]["typed"] is True
+
+    # Untyped flag should also be present
+    assert "CUSTOM_FLAG" in flags
+    assert flags["CUSTOM_FLAG"]["value"] is True
+    assert flags["CUSTOM_FLAG"]["typed"] is False
+    assert "deprecated" in flags["CUSTOM_FLAG"]["description"].lower()

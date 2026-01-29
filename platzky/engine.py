@@ -125,18 +125,35 @@ class Engine(Flask):
 
         Returns:
             Dict mapping flag names to their info (value, description, default, alias).
-            Useful for admin panels and debugging.
+            Typed flags include full metadata. Untyped flags (from model_extra) are
+            marked as deprecated. Useful for admin panels and debugging.
         """
         flags_config: FeatureFlagsConfig = self._platzky_config.feature_flags
-        return {
-            name: {
+        result: dict[str, dict[str, Any]] = {}
+
+        # Add typed flags with full metadata
+        for name, field in type(flags_config).model_fields.items():
+            result[name] = {
                 "value": getattr(flags_config, name),
                 "description": field.description or "",
                 "default": field.default,
                 "alias": field.alias,
+                "typed": True,
             }
-            for name, field in type(flags_config).model_fields.items()
-        }
+
+        # Add untyped flags from model_extra (deprecated)
+        extra = flags_config.model_extra
+        if extra:
+            for key, value in extra.items():
+                result[key] = {
+                    "value": value,
+                    "description": "(Untyped flag - deprecated)",
+                    "default": None,
+                    "alias": key,
+                    "typed": False,
+                }
+
+        return result
 
     def _register_default_health_endpoints(self) -> None:
         """Register default health endpoints."""

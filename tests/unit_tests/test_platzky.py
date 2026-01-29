@@ -125,6 +125,7 @@ class TestPlatzky:
                 "APP_NAME": "testing App Name",
                 "SECRET_KEY": "secret",
                 "SEO_PREFIX": "/seo",
+                "TESTING": True,  # Required for FAKE_LOGIN
                 "DB": {"TYPE": "json", "DATA": {}},
                 "FEATURE_FLAGS": {"FAKE_LOGIN": True},
             }
@@ -191,7 +192,6 @@ class TestPlatzky:
 
         with pytest.raises(
             RuntimeError,
-            match="SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
-            "This functionality must only be used during development or testing.",
+            match="SECURITY ERROR: FAKE_LOGIN is enabled but DEBUG and TESTING are both False",
         ):
             create_app_from_config(config)

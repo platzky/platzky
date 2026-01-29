@@ -239,6 +239,24 @@ class FeatureFlagsConfig(BaseModel):
         description="Enable fake login for development. WARNING: Never enable in production.",
     )
 
+    @classmethod
+    def _get_field_lookup(cls) -> dict[str, str]:
+        """Build cached lookup mapping aliases and names to field names.
+
+        Returns:
+            Dict mapping both field names and aliases to the canonical field name.
+        """
+        # Cache is stored on the class to avoid rebuilding on every call
+        cache_attr = "_field_lookup_cache"
+        if not hasattr(cls, cache_attr):
+            lookup: dict[str, str] = {}
+            for name, field in cls.model_fields.items():
+                lookup[name] = name
+                if field.alias:
+                    lookup[field.alias] = name
+            setattr(cls, cache_attr, lookup)
+        return getattr(cls, cache_attr)
+
     def get(self, key: str, default: bool = False) -> bool:
         """Dict-like access for backward compatibility.
 
@@ -251,18 +269,21 @@ class FeatureFlagsConfig(BaseModel):
         Returns:
             The flag value or default
         """
-        # Check typed fields by alias or name
-        for name, field in self.model_fields.items():
-            if field.alias == key or name == key:
-                return getattr(self, name)
+        # Check typed fields using cached lookup (O(1) instead of O(n))
+        lookup = self._get_field_lookup()
+        if key in lookup:
+            return getattr(self, lookup[key])
 
         # Untyped flag in model_extra - deprecated
         extra = self.model_extra
         if extra is not None and key in extra:
+            field_name = key.lower().replace("-", "_")
             warnings.warn(
                 f"Untyped feature flag '{key}' is deprecated. "
-                f"Define it as a typed field in a FeatureFlagsConfig subclass. "
-                f"Untyped flags will be removed in version 2.0.0.",
+                f"Untyped flags will be removed in version 2.0.0. "
+                f"To migrate, define it as a typed field:\n"
+                f"  class MyFeatureFlags(FeatureFlagsConfig):\n"
+                f"      {field_name}: bool = Field(default=False, alias='{key}')",
                 DeprecationWarning,
                 stacklevel=2,
             )
