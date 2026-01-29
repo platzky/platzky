@@ -5,7 +5,6 @@ WARNING: This module provides fake login functionality and should NEVER be used 
 environments as it bypasses proper authentication and authorization controls.
 """
 
-import os
 from collections.abc import Callable
 
 from flask import Blueprint, flash, redirect, render_template_string, session, url_for
@@ -72,26 +71,14 @@ def get_fake_login_html() -> Callable[[], str]:
     return generate_html
 
 
-def setup_fake_login_routes(
-    admin_blueprint: Blueprint, *, is_dev_or_testing: bool | None = None
-) -> Blueprint:
+def setup_fake_login_routes(admin_blueprint: Blueprint, *, is_dev_or_testing: bool) -> Blueprint:
     """Add fake login routes to the provided admin_blueprint.
 
     Args:
         admin_blueprint: The admin blueprint to add routes to.
-        is_dev_or_testing: If True, skip the safety check. If None (default),
-            check environment variables for backward compatibility.
+        is_dev_or_testing: Must be True (from config.debug or config.testing).
+            Raises RuntimeError if False.
     """
-    if is_dev_or_testing is None:
-        # Backward compatibility: check environment variables
-        env = os.environ
-        is_dev_or_testing = "PYTEST_CURRENT_TEST" in env.keys() or env.get("FLASK_DEBUG") in (
-            "1",
-            "true",
-            "True",
-            True,
-        )
-
     if not is_dev_or_testing:
         raise RuntimeError(
             "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
