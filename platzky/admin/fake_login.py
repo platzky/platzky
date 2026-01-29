@@ -71,19 +71,15 @@ def get_fake_login_html() -> Callable[[], str]:
     return generate_html
 
 
-def setup_fake_login_routes(admin_blueprint: Blueprint, *, is_dev_or_testing: bool) -> Blueprint:
+def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
     """Add fake login routes to the provided admin_blueprint.
+
+    WARNING: Only call this after verifying config.debug or config.testing is True.
+    The caller (create_app_from_config) is responsible for this safety check.
 
     Args:
         admin_blueprint: The admin blueprint to add routes to.
-        is_dev_or_testing: Must be True (from config.debug or config.testing).
-            Raises RuntimeError if False.
     """
-    if not is_dev_or_testing:
-        raise RuntimeError(
-            "SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
-            "This functionality must only be used during development or testing."
-        )
 
     @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Response:

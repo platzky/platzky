@@ -240,19 +240,17 @@ def create_app_from_config(config: Config) -> Engine:
     )
 
     if config.feature_flags.fake_login:
-        is_dev_or_testing = config.debug or config.testing
-        if not is_dev_or_testing:
+        if not (config.debug or config.testing):
             raise RuntimeError(
                 "SECURITY ERROR: FAKE_LOGIN is enabled but DEBUG and TESTING are both False. "
                 "FAKE_LOGIN must only be used in development or testing environments. "
                 "Set DEBUG: true or TESTING: true in your config, or disable FAKE_LOGIN."
             )
+        # Safe to enable fake login - we're in dev/testing mode
         from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
 
         engine.login_methods.append(get_fake_login_html())
-        admin_blueprint = setup_fake_login_routes(
-            admin_blueprint, is_dev_or_testing=is_dev_or_testing
-        )
+        admin_blueprint = setup_fake_login_routes(admin_blueprint)
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
