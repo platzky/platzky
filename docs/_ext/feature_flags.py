@@ -33,9 +33,10 @@ class FeatureFlagsDirective(SphinxDirective):
             from platzky.config import FeatureFlagsConfig
         except ImportError as e:
             logger.warning(
-                f"Could not import FeatureFlagsConfig: {e}. "
+                "Could not import FeatureFlagsConfig: %s. "
                 "Feature flags documentation will not be generated. "
-                "Ensure platzky is installed in the documentation build environment."
+                "Ensure platzky is installed in the documentation build environment.",
+                e,
             )
             # Return a warning paragraph instead of failing
             warning = nodes.warning()

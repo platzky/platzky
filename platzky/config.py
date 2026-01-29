@@ -246,16 +246,17 @@ class FeatureFlagsConfig(BaseModel):
         Returns:
             Dict mapping both field names and aliases to the canonical field name.
         """
-        # Cache is stored on the class to avoid rebuilding on every call
-        cache_attr = "_field_lookup_cache"
-        if not hasattr(cls, cache_attr):
-            lookup: dict[str, str] = {}
+        # Cache keyed by class identity so subclasses build their own lookup
+        try:
+            cache = cls.__dict__["_field_lookup_cache"]
+        except KeyError:
+            cache: dict[str, str] = {}
             for name, field in cls.model_fields.items():
-                lookup[name] = name
+                cache[name] = name
                 if field.alias:
-                    lookup[field.alias] = name
-            setattr(cls, cache_attr, lookup)
-        return getattr(cls, cache_attr)
+                    cache[field.alias] = name
+            cls._field_lookup_cache = cache
+        return cache
 
     def get(self, key: str, default: bool = False) -> bool:
         """Dict-like access for backward compatibility.
