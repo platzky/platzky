@@ -240,7 +240,7 @@ def create_app_from_config(config: Config) -> Engine:
     )
 
     if config.feature_flags.fake_login:
-        from platzky.admin.fake_login import create_fake_login_blueprint, get_fake_login_html
+        from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
 
         engine.login_methods.append(get_fake_login_html())
         # DebugBlueprint.register() will raise if not in debug/testing mode
