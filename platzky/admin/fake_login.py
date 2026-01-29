@@ -6,11 +6,33 @@ environments as it bypasses proper authentication and authorization controls.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 from flask import Blueprint, flash, redirect, render_template_string, session, url_for
+from flask.sansio.app import App
 from flask_wtf import FlaskForm
 from markupsafe import Markup
 from werkzeug.wrappers import Response
+
+
+class DebugBlueprint(Blueprint):
+    """A Blueprint that can only be registered on apps in debug/testing mode.
+
+    Raises RuntimeError during registration if the app is not in debug or testing mode.
+    This provides a structural guarantee that debug-only routes cannot be accidentally
+    enabled in production.
+    """
+
+    def register(self, app: App, options: dict[str, Any]) -> None:
+        """Register the blueprint, but only if app is in debug/testing mode."""
+        if not (app.config.get("DEBUG") or app.config.get("TESTING")):
+            raise RuntimeError(
+                f"SECURITY ERROR: Cannot register DebugBlueprint '{self.name}' in production. "
+                f"DEBUG and TESTING are both False. "
+                f"Set DEBUG: true or TESTING: true in your config."
+            )
+        super().register(app, options)
+
 
 ROLE_ADMIN = "admin"
 ROLE_NONADMIN = "nonadmin"
@@ -32,8 +54,8 @@ def get_fake_login_html() -> Callable[[], str]:
     """Return a callable that generates HTML for fake login buttons."""
 
     def generate_html() -> str:
-        admin_url = url_for("admin.handle_fake_login", role="admin")
-        nonadmin_url = url_for("admin.handle_fake_login", role="nonadmin")
+        admin_url = url_for("fake_login.handle_fake_login", role="admin")
+        nonadmin_url = url_for("fake_login.handle_fake_login", role="nonadmin")
 
         # Create a form instance to get the CSRF token
         form = FakeLoginForm()
@@ -71,17 +93,18 @@ def get_fake_login_html() -> Callable[[], str]:
     return generate_html
 
 
-def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
-    """Add fake login routes to the provided admin_blueprint.
+def create_fake_login_blueprint() -> DebugBlueprint:
+    """Create a DebugBlueprint with fake login routes.
 
-    WARNING: Only call this after verifying config.debug or config.testing is True.
-    The caller (create_app_from_config) is responsible for this safety check.
+    The returned blueprint will raise RuntimeError if registered on an app
+    that is not in debug or testing mode.
 
-    Args:
-        admin_blueprint: The admin blueprint to add routes to.
+    Returns:
+        DebugBlueprint with fake login routes at /admin/fake-login/<role>.
     """
+    bp = DebugBlueprint("fake_login", __name__, url_prefix="/admin")
 
-    @admin_blueprint.route("/fake-login/<role>", methods=["POST"])
+    @bp.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Response:
         form = FakeLoginForm()
         if form.validate_on_submit() and role in VALID_ROLES:
@@ -94,4 +117,4 @@ def setup_fake_login_routes(admin_blueprint: Blueprint) -> Blueprint:
         flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
         return redirect(url_for("admin.admin_panel_home"))
 
-    return admin_blueprint
+    return bp

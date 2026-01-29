@@ -192,6 +192,6 @@ class TestPlatzky:
 
         with pytest.raises(
             RuntimeError,
-            match="SECURITY ERROR: FAKE_LOGIN is enabled but DEBUG and TESTING are both False",
+            match="SECURITY ERROR: Cannot register DebugBlueprint 'fake_login' in production",
         ):
             create_app_from_config(config)
