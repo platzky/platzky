@@ -239,7 +239,7 @@ def create_app_from_config(config: Config) -> Engine:
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
 
-    if config.feature_flags and config.feature_flags.get("FAKE_LOGIN", False):
+    if config.feature_flags.fake_login:
         from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
 
         engine.login_methods.append(get_fake_login_html())

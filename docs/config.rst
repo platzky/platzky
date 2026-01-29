@@ -226,24 +226,16 @@ Feature Flags
 ``FEATURE_FLAGS``
 ^^^^^^^^^^^^^^^^^
 
-:Type: ``dict[str, bool]``
+:Type: ``FeatureFlagsConfig``
 :Default: ``{}``
 
-Enable or disable specific features in your application.
+Enable or disable specific features in your application. Feature flags can be accessed
+directly as typed attributes (``config.feature_flags.fake_login``) or via dict-like
+access for backward compatibility (``config.feature_flags.get("FAKE_LOGIN", False)``).
 
 Available feature flags:
 
-**FAKE_LOGIN**
-
-Enable fake/test login for the admin panel. Useful for development and testing environments.
-
-.. warning::
-    Never enable FAKE_LOGIN in production as it bypasses authentication.
-
-.. code-block:: yaml
-
-    FEATURE_FLAGS:
-      FAKE_LOGIN: true
+.. feature-flags::
 
 Telemetry Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~

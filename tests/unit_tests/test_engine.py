@@ -375,3 +375,38 @@ def test_add_health_check_not_callable(test_app: Engine):
     """Test that adding a non-callable health check raises TypeError"""
     with pytest.raises(TypeError, match="check_function must be callable"):
         test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type] - Intentionally passing invalid type to test error handling
+
+
+def test_get_all_feature_flags(test_app: Engine):
+    """Test that get_all_feature_flags returns flag metadata"""
+    flags = test_app.get_all_feature_flags()
+
+    assert "fake_login" in flags
+    assert flags["fake_login"]["alias"] == "FAKE_LOGIN"
+    assert flags["fake_login"]["default"] is False
+    assert isinstance(flags["fake_login"]["description"], str)
+    assert "value" in flags["fake_login"]
+
+
+def test_get_all_feature_flags_with_enabled_flag():
+    """Test get_all_feature_flags with fake_login enabled"""
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",
+        "BLOG_PREFIX": "/blog",
+        "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+        "DB": {
+            "TYPE": "json",
+            "DATA": {
+                "site_content": {
+                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
+                }
+            },
+        },
+    }
+    config = Config.model_validate(config_data)
+    app = create_app_from_config(config)
+
+    flags = app.get_all_feature_flags()
+
+    assert flags["fake_login"]["value"] is True

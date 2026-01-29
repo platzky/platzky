@@ -1,0 +1,9 @@
+APP_NAME: Test App With Feature Flags
+SECRET_KEY: test-secret
+
+DB:
+  TYPE: json_file
+  PATH: data.json
+
+FEATURE_FLAGS:
+  FAKE_LOGIN: true

@@ -11,7 +11,7 @@ from flask import Blueprint, Flask, Response, jsonify, make_response, request, s
 from flask_babel import Babel
 
 from platzky.attachment import AttachmentProtocol, create_attachment_class
-from platzky.config import Config
+from platzky.config import Config, FeatureFlagsConfig
 from platzky.db.db import DB
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
@@ -35,6 +35,7 @@ class Engine(Flask):
         """
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
+        self._platzky_config = config  # Store for typed access
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []
@@ -118,6 +119,24 @@ class Engine(Flask):
         if not callable(check_function):
             raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))
+
+    def get_all_feature_flags(self) -> dict[str, dict[str, Any]]:
+        """Return all feature flags with their values and metadata.
+
+        Returns:
+            Dict mapping flag names to their info (value, description, default, alias).
+            Useful for admin panels and debugging.
+        """
+        flags_config: FeatureFlagsConfig = self._platzky_config.feature_flags
+        return {
+            name: {
+                "value": getattr(flags_config, name),
+                "description": field.description or "",
+                "default": field.default,
+                "alias": field.alias,
+            }
+            for name, field in type(flags_config).model_fields.items()
+        }
 
     def _register_default_health_endpoints(self) -> None:
         """Register default health endpoints."""

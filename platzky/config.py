@@ -5,6 +5,7 @@ This module defines all configuration models and parsing logic for the applicati
 
 import sys
 import typing as t
+import warnings
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -220,6 +221,57 @@ class AttachmentConfig(StrictBaseModel):
     )
 
 
+class FeatureFlagsConfig(BaseModel):
+    """Feature flags configuration.
+
+    Provides typed access for core flags while allowing arbitrary flags
+    for backward compatibility with apps like goodmap.
+
+    Attributes:
+        fake_login: Enable fake login for development. WARNING: Never enable in production.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="allow", populate_by_name=True)
+
+    fake_login: bool = Field(
+        default=False,
+        alias="FAKE_LOGIN",
+        description="Enable fake login for development. WARNING: Never enable in production.",
+    )
+
+    def get(self, key: str, default: bool = False) -> bool:
+        """Dict-like access for backward compatibility.
+
+        Typed flags work directly. Untyped flags emit deprecation warning.
+
+        Args:
+            key: The feature flag name (can be alias like "FAKE_LOGIN" or field name)
+            default: Default value if flag is not found
+
+        Returns:
+            The flag value or default
+        """
+        # Check typed fields by alias or name
+        for name, field in self.model_fields.items():
+            if field.alias == key or name == key:
+                return getattr(self, name)
+
+        # Untyped flag in model_extra - deprecated
+        extra = self.model_extra
+        if extra is not None and key in extra:
+            warnings.warn(
+                f"Untyped feature flag '{key}' is deprecated. "
+                f"Define it as a typed field in a FeatureFlagsConfig subclass. "
+                f"Untyped flags will be removed in version 2.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            value = extra.get(key)
+            return value if isinstance(value, bool) else default
+
+        return default
+
+
 class Config(StrictBaseModel):
     """Main application configuration.
 
@@ -252,7 +304,9 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
+    feature_flags: FeatureFlagsConfig = Field(
+        default_factory=FeatureFlagsConfig, alias="FEATURE_FLAGS"
+    )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
 
