@@ -13,7 +13,7 @@ from flask_babel import Babel
 from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
-from platzky.feature_flags import Flag
+from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
 
@@ -115,13 +115,13 @@ class Engine(Flask):
         session["language"] = lang
         return lang
 
-    def is_enabled(self, flag_type: type[Flag]) -> bool:
+    def is_enabled(self, flag_type: type[FeatureFlag]) -> bool:
         """Check whether a feature flag is enabled.
 
         This is the primary API for flag checks.
 
         Args:
-            flag_type: A Flag subclass.
+            flag_type: A FeatureFlag subclass.
 
         Returns:
             True if the flag is enabled.

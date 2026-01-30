@@ -1,7 +1,7 @@
 """Sphinx extension for auto-documenting feature flags.
 
 This extension provides the ``feature-flags`` directive that automatically
-generates documentation for all feature flags defined as ``Flag`` subclasses.
+generates documentation for all feature flags defined as ``FeatureFlag`` subclasses.
 
 Usage in RST:
 

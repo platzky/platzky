@@ -1,16 +1,16 @@
 import pytest
 
 from platzky.config import Config, languages_dict
-from platzky.feature_flags import FakeLogin, Flag, parse_flags
+from platzky.feature_flags import FakeLogin, FeatureFlag, parse_flags
 
 
 class TestFlagSubclass:
-    """Tests for Flag.__init_subclass__ validation."""
+    """Tests for FeatureFlag.__init_subclass__ validation."""
 
     def test_valid_flag(self) -> None:
-        """Test that a valid Flag subclass can be created."""
+        """Test that a valid FeatureFlag subclass can be created."""
 
-        class MyFlag(Flag):
+        class MyFlag(FeatureFlag):
             alias = "MY_FLAG"
             default = True
             description = "A test flag."
@@ -20,23 +20,23 @@ class TestFlagSubclass:
         assert MyFlag.description == "A test flag."
 
     def test_flag_without_alias_raises(self) -> None:
-        """Test that Flag subclass without alias raises TypeError."""
+        """Test that FeatureFlag subclass without alias raises TypeError."""
         with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
 
-            class BadFlag(Flag):
+            class BadFlag(FeatureFlag):
                 pass
 
     def test_flag_with_empty_alias_raises(self) -> None:
-        """Test that Flag subclass with empty alias raises TypeError."""
+        """Test that FeatureFlag subclass with empty alias raises TypeError."""
         with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
 
-            class BadFlag(Flag):
+            class BadFlag(FeatureFlag):
                 alias = ""
 
     def test_flag_defaults(self) -> None:
-        """Test that Flag subclass inherits defaults."""
+        """Test that FeatureFlag subclass inherits defaults."""
 
-        class MinimalFlag(Flag):
+        class MinimalFlag(FeatureFlag):
             alias = "MINIMAL"
 
         assert MinimalFlag.default is False
@@ -78,7 +78,7 @@ class TestParseFlags:
     def test_flag_with_default_true(self) -> None:
         """Test that a flag with default=True is enabled without raw_data."""
 
-        class DefaultOn(Flag):
+        class DefaultOn(FeatureFlag):
             alias = "DEFAULT_ON"
             default = True
 
