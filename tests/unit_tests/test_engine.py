@@ -392,7 +392,6 @@ def test_get_all_feature_flags(test_app: Engine):
     assert flags["FAKE_LOGIN"]["default"] is False
     assert isinstance(flags["FAKE_LOGIN"]["description"], str)
     assert "value" in flags["FAKE_LOGIN"]
-    assert flags["FAKE_LOGIN"]["typed"] is True
 
 
 def test_get_all_feature_flags_with_enabled_flag():
@@ -419,11 +418,10 @@ def test_get_all_feature_flags_with_enabled_flag():
 
     flags = app.get_all_feature_flags()
     assert flags["FAKE_LOGIN"]["value"] is True
-    assert flags["FAKE_LOGIN"]["typed"] is True
 
 
-def test_get_all_feature_flags_includes_unregistered():
-    """Test that get_all_feature_flags includes unregistered flags."""
+def test_get_all_feature_flags_ignores_unknown_yaml_keys():
+    """Test that unknown YAML flag keys are silently ignored."""
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
@@ -445,10 +443,6 @@ def test_get_all_feature_flags_includes_unregistered():
 
     # Registered flag should be present
     assert "FAKE_LOGIN" in flags
-    assert flags["FAKE_LOGIN"]["typed"] is True
 
-    # Unregistered flag should also be present
-    assert "CUSTOM_FLAG" in flags
-    assert flags["CUSTOM_FLAG"]["value"] is True
-    assert flags["CUSTOM_FLAG"]["typed"] is False
-    assert "deprecated" in str(flags["CUSTOM_FLAG"]["description"]).lower()
+    # Unknown YAML key is silently ignored — not in output
+    assert "CUSTOM_FLAG" not in flags

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
-from platzky.feature_flags import BUILTIN_FLAGS, FeatureFlags, Flag
+from platzky.feature_flags import BUILTIN_FLAGS, EnabledFlags, Flag, parse_flags
 
 
 class StrictBaseModel(BaseModel):
@@ -240,9 +240,12 @@ class Config(StrictBaseModel):
         attachment: Attachment handling configuration
     """
 
-    model_config = ConfigDict(frozen=True)
-
     _flag_types: t.ClassVar[tuple[type[Flag], ...]] = BUILTIN_FLAGS
+
+    @classmethod
+    def get_flag_types(cls) -> tuple[type[Flag], ...]:
+        """Return the registered flag types for this Config class."""
+        return cls._flag_types
 
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
@@ -257,8 +260,8 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: FeatureFlags = Field(
-        default_factory=lambda: FeatureFlags(BUILTIN_FLAGS, {}),
+    feature_flags: EnabledFlags = Field(
+        default_factory=lambda: parse_flags(BUILTIN_FLAGS),
         alias="FEATURE_FLAGS",
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
@@ -292,7 +295,7 @@ class Config(StrictBaseModel):
 
         raw_flags = obj.get("FEATURE_FLAGS")
         if isinstance(raw_flags, dict):
-            obj["FEATURE_FLAGS"] = FeatureFlags(cls._flag_types, raw_flags)
+            obj["FEATURE_FLAGS"] = parse_flags(cls._flag_types, raw_flags)
 
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context

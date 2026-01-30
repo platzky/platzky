@@ -1,7 +1,9 @@
 from platzky.engine import Engine as Engine
+from platzky.feature_flags import EnabledFlags as EnabledFlags
 from platzky.feature_flags import FakeLogin as FakeLogin
-from platzky.feature_flags import FeatureFlags as FeatureFlags
-from platzky.feature_flags import FeatureFlagsCompat as FeatureFlagsCompat
 from platzky.feature_flags import Flag as Flag
+from platzky.feature_flags import flags_to_dict as flags_to_dict
+from platzky.feature_flags import get_all_flags_metadata as get_all_flags_metadata
+from platzky.feature_flags import parse_flags as parse_flags
 from platzky.platzky import create_app_from_config as create_app_from_config
 from platzky.platzky import create_engine as create_engine

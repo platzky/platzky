@@ -226,12 +226,11 @@ Feature Flags
 ``FEATURE_FLAGS``
 ^^^^^^^^^^^^^^^^^
 
-:Type: ``FeatureFlagsConfig``
-:Default: ``{}``
+:Type: ``frozenset[type[Flag]]``
+:Default: ``frozenset()``
 
-Enable or disable specific features in your application. Feature flags can be accessed
-directly as typed attributes (``config.feature_flags.fake_login``) or via dict-like
-access for backward compatibility (``config.feature_flags.get("FAKE_LOGIN", False)``).
+Enable or disable specific features in your application. Feature flags are checked
+via ``engine.is_enabled(FlagType)``.
 
 Available feature flags:
 
