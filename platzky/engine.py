@@ -13,7 +13,7 @@ from flask_babel import Babel
 from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
-from platzky.feature_flags import FeatureFlags, Flag
+from platzky.feature_flags import FeatureFlags, FeatureFlagsCompat, Flag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
 
@@ -59,10 +59,9 @@ class Engine(Flask):
 
         # JSON provider for FeatureFlags serialization (Jinja ``tojson`` filter)
         original_default = self.json.default  # type: ignore[reportAttributeAccessIssue]
-        _ff_cls = FeatureFlags
 
         def extended_default(o: object) -> object:
-            if isinstance(o, _ff_cls):
+            if isinstance(o, (FeatureFlags, FeatureFlagsCompat)):
                 return o.to_dict()
             return original_default(o)
 

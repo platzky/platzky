@@ -7,12 +7,12 @@ import sys
 import typing as t
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
-from .db.db import DBConfig
-from .db.db_loader import get_db_module
-from .feature_flags import BUILTIN_FLAGS, FeatureFlags, Flag
+from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
+from platzky.db.db import DBConfig
+from platzky.db.db_loader import get_db_module
+from platzky.feature_flags import BUILTIN_FLAGS, FeatureFlags, Flag
 
 
 class StrictBaseModel(BaseModel):
@@ -240,7 +240,7 @@ class Config(StrictBaseModel):
         attachment: Attachment handling configuration
     """
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
     _flag_types: t.ClassVar[tuple[type[Flag], ...]] = BUILTIN_FLAGS
 
@@ -263,22 +263,6 @@ class Config(StrictBaseModel):
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
-
-    @field_validator("feature_flags", mode="before")
-    @classmethod
-    def _coerce_feature_flags(cls, v: object) -> FeatureFlags | object:
-        """Coerce dicts into FeatureFlags so ``Config(FEATURE_FLAGS={...})`` works."""
-        if isinstance(v, FeatureFlags):
-            return v
-        if isinstance(v, dict):
-            return FeatureFlags(cls._flag_types, v)
-        return v
-
-    @field_serializer("feature_flags")
-    @classmethod
-    def _serialize_feature_flags(cls, v: FeatureFlags) -> dict[str, bool]:
-        """Serialize FeatureFlags to dict for ``model_dump(by_alias=True)``."""
-        return v.to_dict()
 
     @classmethod
     def model_validate(

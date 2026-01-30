@@ -1,10 +1,10 @@
 """Debug-only Platzky blueprint."""
 
 from typing import Any
-from typing_extensions import override
 
 from flask import Blueprint
 from flask.sansio.app import App
+from typing_extensions import override
 
 
 class DebugBlueprintProductionError(RuntimeError):

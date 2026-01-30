@@ -3,7 +3,7 @@ import warnings
 import pytest
 
 from platzky.config import Config, languages_dict
-from platzky.feature_flags import FakeLogin, FeatureFlags, Flag
+from platzky.feature_flags import FakeLogin, FeatureFlags, FeatureFlagsCompat, Flag
 
 
 class TestFlagSubclass:
@@ -46,7 +46,7 @@ class TestFlagSubclass:
 
 
 class TestFeatureFlags:
-    """Tests for FeatureFlags container."""
+    """Tests for FeatureFlags core container (no backward compat)."""
 
     def test_construction_with_defaults(self) -> None:
         """Test FeatureFlags uses defaults when no raw_data."""
@@ -58,11 +58,6 @@ class TestFeatureFlags:
         ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
         assert ff[FakeLogin] is True
 
-    def test_is_enabled(self) -> None:
-        """Test is_enabled method."""
-        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
-        assert ff.is_enabled(FakeLogin) is True
-
     def test_getitem_unregistered_raises(self) -> None:
         """Test that looking up an unregistered Flag class raises KeyError."""
 
@@ -73,58 +68,11 @@ class TestFeatureFlags:
         with pytest.raises(KeyError, match="not registered"):
             ff[Unregistered]
 
-    def test_get_registered_by_alias(self) -> None:
-        """Test .get() returns value for registered flag by alias."""
-        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
-        assert ff.get("FAKE_LOGIN") is True
-
-    def test_get_registered_no_warning(self) -> None:
-        """Test .get() does not warn for registered flags."""
-        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            ff.get("FAKE_LOGIN")
-            assert len(w) == 0
-
-    def test_get_unregistered_warns(self) -> None:
-        """Test .get() emits deprecation warning for unregistered flags."""
-        ff = FeatureFlags((FakeLogin,), {"CUSTOM_FLAG": True})
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = ff.get("CUSTOM_FLAG")
-            assert result is True
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "CUSTOM_FLAG" in str(w[0].message)
-            assert "2.0.0" in str(w[0].message)
-
-    def test_get_unknown_returns_default(self) -> None:
-        """Test .get() returns default for completely unknown flags."""
-        ff = FeatureFlags((FakeLogin,), {})
-        assert ff.get("UNKNOWN", default=False) is False
-        assert ff.get("UNKNOWN", default=True) is True
-
-    def test_getattr_alias(self) -> None:
-        """Test attribute access by alias."""
-        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
-        assert ff.FAKE_LOGIN is True
-
-    def test_getattr_lowercase(self) -> None:
-        """Test attribute access by lowercase name."""
-        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
-        assert ff.fake_login is True
-
-    def test_getattr_missing_raises(self) -> None:
-        """Test attribute access for missing flag raises AttributeError."""
-        ff = FeatureFlags((FakeLogin,), {})
-        with pytest.raises(AttributeError, match="no flag"):
-            ff.nonexistent
-
     def test_immutability(self) -> None:
         """Test that FeatureFlags cannot be mutated."""
         ff = FeatureFlags((FakeLogin,), {})
         with pytest.raises(AttributeError, match="immutable"):
-            ff.FAKE_LOGIN = True  # type: ignore[misc]
+            ff.FAKE_LOGIN = True
 
     def test_to_dict(self) -> None:
         """Test to_dict() returns all flags."""
@@ -161,6 +109,168 @@ class TestFeatureFlags:
         assert "CUSTOM" in all_flags
         assert all_flags["CUSTOM"]["value"] is True
         assert all_flags["CUSTOM"]["typed"] is False
+
+    def test_pydantic_core_schema_passthrough(self) -> None:
+        """Test that __get_pydantic_core_schema__ passes through FeatureFlags instances."""
+        from pydantic import BaseModel, ConfigDict, Field
+
+        class TestModel(BaseModel):
+            model_config = ConfigDict(frozen=True)
+            flags: FeatureFlags = Field(default_factory=lambda: FeatureFlags((), {}))
+
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        m = TestModel(flags=ff)
+        assert m.flags is ff
+        assert m.flags[FakeLogin] is True
+
+    def test_pydantic_core_schema_dict_coercion(self) -> None:
+        """Test that __get_pydantic_core_schema__ coerces dicts to FeatureFlags."""
+        from pydantic import BaseModel, ConfigDict, Field
+
+        class TestModel(BaseModel):
+            model_config = ConfigDict(frozen=True)
+            flags: FeatureFlags = Field(default_factory=lambda: FeatureFlags((), {}))
+
+        m = TestModel(flags={"FAKE_LOGIN": True})  # type: ignore[arg-type]
+        assert isinstance(m.flags, FeatureFlags)
+        assert m.flags.to_dict() == {"FAKE_LOGIN": True}
+
+    def test_pydantic_core_schema_serialization(self) -> None:
+        """Test that __get_pydantic_core_schema__ serializes via to_dict()."""
+        from pydantic import BaseModel, ConfigDict, Field
+
+        class TestModel(BaseModel):
+            model_config = ConfigDict(frozen=True)
+            flags: FeatureFlags = Field(default_factory=lambda: FeatureFlags((), {}))
+
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        m = TestModel(flags=ff)
+        dumped = m.model_dump()
+        assert dumped["flags"] == {"FAKE_LOGIN": True}
+
+
+class TestFeatureFlagsCompat:
+    """Tests for FeatureFlagsCompat backward-compatible wrapper."""
+
+    def test_is_enabled(self) -> None:
+        """Test is_enabled method."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.is_enabled(FakeLogin) is True
+
+    def test_getitem(self) -> None:
+        """Test __getitem__ delegation."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat[FakeLogin] is True
+
+    def test_get_registered_by_alias(self) -> None:
+        """Test .get() returns value for registered flag by alias."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.get("FAKE_LOGIN") is True
+
+    def test_get_registered_no_warning(self) -> None:
+        """Test .get() does not warn for registered flags."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            compat.get("FAKE_LOGIN")
+            assert len(w) == 0
+
+    def test_get_unregistered_warns(self) -> None:
+        """Test .get() emits deprecation warning for unregistered flags."""
+        ff = FeatureFlags((FakeLogin,), {"CUSTOM_FLAG": True})
+        compat = FeatureFlagsCompat(ff)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = compat.get("CUSTOM_FLAG")
+            assert result is True
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "CUSTOM_FLAG" in str(w[0].message)
+            assert "2.0.0" in str(w[0].message)
+
+    def test_get_unknown_returns_default(self) -> None:
+        """Test .get() returns default for completely unknown flags."""
+        ff = FeatureFlags((FakeLogin,), {})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.get("UNKNOWN", False) is False
+        assert compat.get("UNKNOWN", True) is True
+
+    def test_get_positional_default(self) -> None:
+        """Test .get() accepts default as positional argument."""
+        ff = FeatureFlags((FakeLogin,), {})
+        compat = FeatureFlagsCompat(ff)
+        # default is positional (not keyword-only) in compat
+        assert compat.get("UNKNOWN", True) is True
+
+    def test_getattr_alias(self) -> None:
+        """Test attribute access by alias."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.FAKE_LOGIN is True
+
+    def test_getattr_lowercase(self) -> None:
+        """Test attribute access by lowercase name."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.fake_login is True
+
+    def test_getattr_missing_raises(self) -> None:
+        """Test attribute access for missing flag raises AttributeError."""
+        ff = FeatureFlags((FakeLogin,), {})
+        compat = FeatureFlagsCompat(ff)
+        with pytest.raises(AttributeError, match="no flag"):
+            compat.nonexistent
+
+    def test_immutability(self) -> None:
+        """Test that FeatureFlagsCompat cannot be mutated."""
+        ff = FeatureFlags((FakeLogin,), {})
+        compat = FeatureFlagsCompat(ff)
+        with pytest.raises(AttributeError, match="immutable"):
+            compat.FAKE_LOGIN = True
+
+    def test_to_dict(self) -> None:
+        """Test to_dict() delegation."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True, "CUSTOM": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat.to_dict() == {"FAKE_LOGIN": True, "CUSTOM": True}
+
+    def test_eq_with_dict(self) -> None:
+        """Test __eq__ supports dict comparison."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat == {"FAKE_LOGIN": True}
+
+    def test_eq_with_feature_flags(self) -> None:
+        """Test __eq__ supports FeatureFlags comparison."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        assert compat == ff
+
+    def test_repr(self) -> None:
+        """Test __repr__."""
+        ff = FeatureFlags((FakeLogin,), {})
+        compat = FeatureFlagsCompat(ff)
+        assert "FeatureFlagsCompat" in repr(compat)
+        assert "FAKE_LOGIN" in repr(compat)
+
+    def test_bool(self) -> None:
+        """Test __bool__ delegation."""
+        ff_off = FeatureFlags((FakeLogin,), {})
+        assert not bool(FeatureFlagsCompat(ff_off))
+        ff_on = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert bool(FeatureFlagsCompat(ff_on))
+
+    def test_get_all(self) -> None:
+        """Test get_all() delegation."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        compat = FeatureFlagsCompat(ff)
+        all_flags = compat.get_all()
+        assert "FAKE_LOGIN" in all_flags
+        assert all_flags["FAKE_LOGIN"]["value"] is True
 
 
 class TestConfigWithFeatureFlags:

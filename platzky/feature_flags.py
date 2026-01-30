@@ -20,7 +20,10 @@ Example::
 from __future__ import annotations
 
 import warnings
-from typing import ClassVar
+from typing import Any, ClassVar
+
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema, core_schema
 
 
 class Flag:
@@ -62,8 +65,8 @@ BUILTIN_FLAGS: tuple[type[Flag], ...] = (FakeLogin,)
 class FeatureFlags:
     """Immutable container for feature flag values.
 
-    Provides class-based lookup (primary API), string-based lookup (backward
-    compatibility), and attribute access (Jinja template compatibility).
+    Provides class-based lookup (primary API) and serialization helpers.
+    For backward-compatible string access, use ``FeatureFlagsCompat``.
 
     Args:
         flag_types: Tuple of Flag subclasses to register.
@@ -126,91 +129,6 @@ class FeatureFlags:
                 f"Add it to _flag_types on your Config subclass."
             ) from None
 
-    def is_enabled(self, flag_type: type[Flag]) -> bool:
-        """Check whether a flag is enabled. Same as ``__getitem__``.
-
-        Args:
-            flag_type: A Flag subclass that was registered.
-
-        Returns:
-            The flag value.
-        """
-        return self[flag_type]
-
-    # -- Backward-compatible string access ------------------------------------
-
-    def get(self, key: str, *, default: bool = False) -> bool:
-        """Dict-like access by alias string.
-
-        Registered flags are returned directly. Unregistered flags emit a
-        deprecation warning.
-
-        Args:
-            key: Flag alias (e.g. ``"FAKE_LOGIN"``).
-            default: Default value if the flag is not found at all.
-
-        Returns:
-            The flag value.
-        """
-        # Registered flag
-        flag_cls = self._alias_to_flag.get(key)
-        if flag_cls is not None:
-            return self._values[flag_cls]
-
-        # Unregistered flag (backward compat)
-        if key in self._unregistered:
-            flag_name = key.lower().replace("-", "_")
-            warnings.warn(
-                f"Unregistered feature flag '{key}' is deprecated. "
-                f"Unregistered flags will be removed in version 2.0.0. "
-                f"To migrate, define a Flag class:\n"
-                f"  class {flag_name.title().replace('_', '')}(Flag):\n"
-                f"      alias = '{key}'\n"
-                f"      default = False\n"
-                f"Then add it to _flag_types on your Config subclass.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return self._unregistered[key]
-
-        return default
-
-    # -- Template / attribute access ------------------------------------------
-
-    def __getattr__(self, name: str) -> bool:
-        """Attribute access for Jinja templates.
-
-        Supports both alias (``flags.FAKE_LOGIN``) and lowercase
-        (``flags.fake_login``).
-
-        Args:
-            name: Attribute name.
-
-        Returns:
-            The flag value.
-
-        Raises:
-            AttributeError: If not found.
-        """
-        # Try alias directly
-        flag_cls = self._alias_to_flag.get(name)
-        if flag_cls is not None:
-            return self._values[flag_cls]
-
-        # Try lowercase -> alias mapping
-        upper_name = name.upper()
-        flag_cls = self._alias_to_flag.get(upper_name)
-        if flag_cls is not None:
-            return self._values[flag_cls]
-
-        # Try unregistered
-        if name in self._unregistered:
-            return self._unregistered[name]
-        if upper_name in self._unregistered:
-            return self._unregistered[upper_name]
-
-        raise AttributeError(f"FeatureFlags has no flag '{name}'")
-
     # -- Serialization --------------------------------------------------------
 
     def to_dict(self) -> dict[str, bool]:
@@ -266,3 +184,157 @@ class FeatureFlags:
     def __bool__(self) -> bool:
         """True if any flag is enabled."""
         return any(self._values.values()) or any(self._unregistered.values())
+
+    # -- Pydantic integration -------------------------------------------------
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,
+    ) -> CoreSchema:
+        """Pydantic core schema: accept FeatureFlags or coerce from dict."""
+        return core_schema.union_schema(
+            [
+                core_schema.is_instance_schema(FeatureFlags),
+                core_schema.chain_schema(
+                    [
+                        core_schema.dict_schema(),
+                        core_schema.no_info_plain_validator_function(
+                            lambda v: FeatureFlags(BUILTIN_FLAGS, v)
+                        ),
+                    ]
+                ),
+            ],
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda v: v.to_dict(), info_arg=False
+            ),
+        )
+
+
+class FeatureFlagsCompat:
+    """Backward-compatible wrapper around ``FeatureFlags``.
+
+    Adds ``.is_enabled()``, ``.get(key, default)``, and attribute access
+    (``__getattr__``) for Jinja templates and legacy code.
+
+    Args:
+        inner: The ``FeatureFlags`` instance to wrap.
+    """
+
+    __slots__ = ("_inner",)
+
+    def __init__(self, inner: FeatureFlags) -> None:
+        object.__setattr__(self, "_inner", inner)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent mutation."""
+        raise AttributeError("FeatureFlagsCompat is immutable")
+
+    def __delattr__(self, name: str) -> None:
+        """Prevent deletion."""
+        raise AttributeError("FeatureFlagsCompat is immutable")
+
+    # -- Delegated core API ---------------------------------------------------
+
+    def __getitem__(self, flag_type: type[Flag]) -> bool:
+        return self._inner[flag_type]
+
+    def to_dict(self) -> dict[str, bool]:
+        return self._inner.to_dict()
+
+    def get_all(self) -> dict[str, dict[str, bool | str | None]]:
+        return self._inner.get_all()
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, FeatureFlagsCompat):
+            return self._inner == other._inner
+        if isinstance(other, FeatureFlags):
+            return self._inner == other
+        if isinstance(other, dict):
+            return self._inner == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"FeatureFlagsCompat({self._inner.to_dict()!r})"
+
+    def __bool__(self) -> bool:
+        return bool(self._inner)
+
+    # -- Backward-compatible methods ------------------------------------------
+
+    def is_enabled(self, flag_type: type[Flag]) -> bool:
+        """Check whether a flag is enabled. Same as ``__getitem__``.
+
+        Args:
+            flag_type: A Flag subclass that was registered.
+
+        Returns:
+            The flag value.
+        """
+        return self._inner[flag_type]
+
+    def get(self, key: str, default: bool = False) -> bool:
+        """Dict-like access by alias string.
+
+        Registered flags are returned directly. Unregistered flags emit a
+        deprecation warning.
+
+        Args:
+            key: Flag alias (e.g. ``"FAKE_LOGIN"``).
+            default: Default value if the flag is not found at all.
+
+        Returns:
+            The flag value.
+        """
+        flag_cls = self._inner._alias_to_flag.get(key)
+        if flag_cls is not None:
+            return self._inner._values[flag_cls]
+
+        if key in self._inner._unregistered:
+            flag_name = key.lower().replace("-", "_")
+            warnings.warn(
+                f"Unregistered feature flag '{key}' is deprecated. "
+                f"Unregistered flags will be removed in version 2.0.0. "
+                f"To migrate, define a Flag class:\n"
+                f"  class {flag_name.title().replace('_', '')}(Flag):\n"
+                f"      alias = '{key}'\n"
+                f"      default = False\n"
+                f"Then add it to _flag_types on your Config subclass.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._inner._unregistered[key]
+
+        return default
+
+    def __getattr__(self, name: str) -> bool:
+        """Attribute access for Jinja templates.
+
+        Supports both alias (``flags.FAKE_LOGIN``) and lowercase
+        (``flags.fake_login``).
+
+        Args:
+            name: Attribute name.
+
+        Returns:
+            The flag value.
+
+        Raises:
+            AttributeError: If not found.
+        """
+        flag_cls = self._inner._alias_to_flag.get(name)
+        if flag_cls is not None:
+            return self._inner._values[flag_cls]
+
+        upper_name = name.upper()
+        flag_cls = self._inner._alias_to_flag.get(upper_name)
+        if flag_cls is not None:
+            return self._inner._values[flag_cls]
+
+        if name in self._inner._unregistered:
+            return self._inner._unregistered[name]
+        if upper_name in self._inner._unregistered:
+            return self._inner._unregistered[upper_name]
+
+        raise AttributeError(f"FeatureFlagsCompat has no flag '{name}'")
