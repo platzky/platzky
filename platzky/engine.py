@@ -36,7 +36,6 @@ class Engine(Flask):
         """
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
-        self._platzky_config = config  # Store for typed access
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []
@@ -126,7 +125,7 @@ class Engine(Flask):
         Returns:
             True if the flag is enabled.
         """
-        return flag in self._platzky_config.feature_flags
+        return flag in self.config["FEATURE_FLAGS"]
 
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""
