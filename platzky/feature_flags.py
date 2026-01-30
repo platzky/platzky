@@ -1,73 +1,85 @@
-"""Feature flags system with class-based flag registration.
+"""Feature flags system with instance-based registration.
 
-Flags are defined as classes deriving from ``FeatureFlag``. Any ``FeatureFlag`` subclass
-is automatically discovered via ``all_flags()``. The primary API is
-``engine.is_enabled(FlagClass)``.
+Flags are created as instances of ``FeatureFlag``. Each instance is
+automatically registered and discovered via ``all_flags()``. The primary
+API is ``engine.is_enabled(flag_instance)``.
 
 Example::
 
-    class CategoriesHelp(FeatureFlag):
-        alias = "CATEGORIES_HELP"
-        default = False
+    CategoriesHelp = FeatureFlag(alias="CATEGORIES_HELP")
 
-    # Usage — no Config subclass needed
+    # Usage
     app.is_enabled(CategoriesHelp)  # True/False
 """
 
 from __future__ import annotations
 
-from typing import ClassVar
+_registry: set[FeatureFlag] = set()
 
 
 class FeatureFlag:
-    """Base class for feature flags.
+    """A feature flag.
 
-    Subclasses must define ``alias`` (the YAML/dict key).
-    Optional: ``default`` (bool, defaults to False), ``description`` (str).
+    Args:
+        alias: The YAML/dict key for this flag.
+        default: Whether the flag is enabled by default.
+        description: Human-readable description.
 
     Example::
 
-        class FakeLogin(FeatureFlag):
-            alias = "FAKE_LOGIN"
-            default = False
-            description = "Enable fake login. Never in production."
+        FakeLogin = FeatureFlag(
+            alias="FAKE_LOGIN",
+            default=False,
+            description="Enable fake login. Never in production.",
+        )
     """
 
-    alias: ClassVar[str]
-    default: ClassVar[bool] = False
-    description: ClassVar[str] = ""
+    __slots__ = ("alias", "default", "description")
 
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        """Validate that subclasses define ``alias``."""
-        super().__init_subclass__(**kwargs)
-        if not hasattr(cls, "alias") or not cls.alias:
-            raise TypeError(
-                f"FeatureFlag subclass {cls.__name__!r} must define a non-empty 'alias' str"
-            )
+    def __init__(
+        self, *, alias: str, default: bool = False, description: str = "", register: bool = True
+    ) -> None:
+        if not alias:
+            raise ValueError("FeatureFlag requires a non-empty 'alias'")
+        self.alias = alias
+        self.default = default
+        self.description = description
+        if register:
+            _registry.add(self)
+
+    def __repr__(self) -> str:
+        return f"FeatureFlag(alias={self.alias!r})"
+
+    def __hash__(self) -> int:
+        return hash(self.alias)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, FeatureFlag):
+            return self.alias == other.alias
+        return NotImplemented
 
 
-class FakeLogin(FeatureFlag):
-    """Enable fake login for development."""
+FakeLogin = FeatureFlag(
+    alias="FAKE_LOGIN",
+    default=False,
+    description="Enable fake login for development. WARNING: Never enable in production.",
+)
 
-    alias = "FAKE_LOGIN"
-    default = False
-    description = "Enable fake login for development. WARNING: Never enable in production."
+
+def all_flags() -> frozenset[FeatureFlag]:
+    """Return all registered feature flags."""
+    return frozenset(_registry)
 
 
-def all_flags() -> frozenset[type[FeatureFlag]]:
-    """Return all valid FeatureFlag subclasses via automatic discovery.
-
-    Skips subclasses that failed validation (e.g. missing ``alias``).
-    """
-    return frozenset(
-        cls for cls in FeatureFlag.__subclasses__() if hasattr(cls, "alias") and cls.alias
-    )
+def unregister(flag: FeatureFlag) -> None:
+    """Remove a flag from the registry."""
+    _registry.discard(flag)
 
 
 def parse_flags(
     raw_data: dict[str, bool] | None = None,
-) -> frozenset[type[FeatureFlag]]:
-    """Build a frozenset of *enabled* flag types from raw config data.
+) -> frozenset[FeatureFlag]:
+    """Build a frozenset of *enabled* flags from raw config data.
 
     Uses ``all_flags()`` for discovery. Unknown keys in *raw_data* are
     silently ignored.
@@ -76,15 +88,9 @@ def parse_flags(
         raw_data: Dict of flag alias -> value from config / YAML.
 
     Returns:
-        A frozenset containing the FeatureFlag subclasses that are enabled.
+        A frozenset containing the enabled FeatureFlag instances.
     """
     if raw_data is None:
         raw_data = {}
 
-    enabled: set[type[FeatureFlag]] = set()
-    for flag_cls in all_flags():
-        value = bool(raw_data.get(flag_cls.alias, flag_cls.default))
-        if value:
-            enabled.add(flag_cls)
-
-    return frozenset(enabled)
+    return frozenset(flag for flag in all_flags() if raw_data.get(flag.alias, flag.default))

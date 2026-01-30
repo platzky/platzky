@@ -1,46 +1,43 @@
 import pytest
 
 from platzky.config import Config, languages_dict
-from platzky.feature_flags import FakeLogin, FeatureFlag, parse_flags
+from platzky.feature_flags import FakeLogin, FeatureFlag, parse_flags, unregister
 
 
-class TestFlagSubclass:
-    """Tests for FeatureFlag.__init_subclass__ validation."""
+class TestFeatureFlag:
+    """Tests for FeatureFlag construction and validation."""
 
     def test_valid_flag(self) -> None:
-        """Test that a valid FeatureFlag subclass can be created."""
+        """Test that a valid FeatureFlag can be created."""
+        flag = FeatureFlag(
+            alias="MY_FLAG", default=True, description="A test flag.", register=False
+        )
+        assert flag.alias == "MY_FLAG"
+        assert flag.default is True
+        assert flag.description == "A test flag."
 
-        class MyFlag(FeatureFlag):
-            alias = "MY_FLAG"
-            default = True
-            description = "A test flag."
+    def test_empty_alias_raises(self) -> None:
+        """Test that FeatureFlag with empty alias raises ValueError."""
+        with pytest.raises(ValueError, match="non-empty"):
+            FeatureFlag(alias="")
 
-        assert MyFlag.alias == "MY_FLAG"
-        assert MyFlag.default is True
-        assert MyFlag.description == "A test flag."
+    def test_defaults(self) -> None:
+        """Test that FeatureFlag has correct defaults."""
+        flag = FeatureFlag(alias="MINIMAL", register=False)
+        assert flag.default is False
+        assert flag.description == ""
 
-    def test_flag_without_alias_raises(self) -> None:
-        """Test that FeatureFlag subclass without alias raises TypeError."""
-        with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
+    def test_equality_by_alias(self) -> None:
+        """Test that two flags with the same alias are equal."""
+        a = FeatureFlag(alias="SAME", register=False)
+        b = FeatureFlag(alias="SAME", register=False)
+        assert a == b
 
-            class BadFlag(FeatureFlag):
-                pass
-
-    def test_flag_with_empty_alias_raises(self) -> None:
-        """Test that FeatureFlag subclass with empty alias raises TypeError."""
-        with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
-
-            class BadFlag(FeatureFlag):
-                alias = ""
-
-    def test_flag_defaults(self) -> None:
-        """Test that FeatureFlag subclass inherits defaults."""
-
-        class MinimalFlag(FeatureFlag):
-            alias = "MINIMAL"
-
-        assert MinimalFlag.default is False
-        assert MinimalFlag.description == ""
+    def test_hash_by_alias(self) -> None:
+        """Test that two flags with the same alias have the same hash."""
+        a = FeatureFlag(alias="SAME_HASH", register=False)
+        b = FeatureFlag(alias="SAME_HASH", register=False)
+        assert hash(a) == hash(b)
 
 
 class TestParseFlags:
@@ -75,13 +72,12 @@ class TestParseFlags:
 
     def test_flag_with_default_true(self) -> None:
         """Test that a flag with default=True is enabled without raw_data."""
-
-        class DefaultOn(FeatureFlag):
-            alias = "DEFAULT_ON"
-            default = True
-
-        result = parse_flags()
-        assert DefaultOn in result
+        default_on = FeatureFlag(alias="DEFAULT_ON", default=True)
+        try:
+            result = parse_flags()
+            assert default_on in result
+        finally:
+            unregister(default_on)
 
     def test_result_is_frozenset(self) -> None:
         """Test that parse_flags returns a frozenset."""

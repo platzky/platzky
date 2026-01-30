@@ -379,7 +379,7 @@ def test_add_health_check_not_callable(test_app: Engine):
 
 
 def test_is_enabled(test_app: Engine):
-    """Test that engine.is_enabled works with FeatureFlag classes"""
+    """Test that engine.is_enabled works with FeatureFlag instances"""
     assert test_app.is_enabled(FakeLogin) is False
 
 

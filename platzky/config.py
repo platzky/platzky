@@ -18,7 +18,7 @@ from platzky.feature_flags import FeatureFlag, parse_flags
 class StrictBaseModel(BaseModel):
     """Base model with immutable (frozen) configuration."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 
 class LanguageConfig(StrictBaseModel):
@@ -253,7 +253,7 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: frozenset[type[FeatureFlag]] = Field(
+    feature_flags: frozenset[FeatureFlag] = Field(
         default_factory=parse_flags,
         alias="FEATURE_FLAGS",
     )

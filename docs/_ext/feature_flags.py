@@ -1,7 +1,7 @@
 """Sphinx extension for auto-documenting feature flags.
 
 This extension provides the ``feature-flags`` directive that automatically
-generates documentation for all feature flags defined as ``FeatureFlag`` subclasses.
+generates documentation for all registered ``FeatureFlag`` instances.
 
 Usage in RST:
 
@@ -27,11 +27,11 @@ def _default_display_value(default: bool) -> str:
     return "true" if default else "false"
 
 
-def _build_flag_rst(flag_cls: type[object]) -> list[str]:
+def _build_flag_rst(flag: object) -> list[str]:
     """Build RST lines documenting a single feature flag."""
-    alias = getattr(flag_cls, "alias", flag_cls.__name__)
-    description = getattr(flag_cls, "description", "") or "No description available."
-    default = getattr(flag_cls, "default", False)
+    alias = getattr(flag, "alias", repr(flag))
+    description = getattr(flag, "description", "") or "No description available."
+    default = getattr(flag, "default", False)
     default_str = _default_display_value(default)
 
     lines = [
@@ -39,7 +39,6 @@ def _build_flag_rst(flag_cls: type[object]) -> list[str]:
         "",
         ":Type: ``bool``",
         f":Default: ``{default_str}``",
-        f":Class: ``{flag_cls.__name__}``",
         "",
         description,
         "",
@@ -93,8 +92,8 @@ class FeatureFlagsDirective(SphinxDirective):
             return [warning]
 
         rst_lines: list[str] = []
-        for flag_cls in all_flags():
-            rst_lines.extend(_build_flag_rst(flag_cls))
+        for flag in all_flags():
+            rst_lines.extend(_build_flag_rst(flag))
 
         node = nodes.container()
         self.state.nested_parse(

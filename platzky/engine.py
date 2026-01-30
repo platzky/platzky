@@ -115,18 +115,18 @@ class Engine(Flask):
         session["language"] = lang
         return lang
 
-    def is_enabled(self, flag_type: type[FeatureFlag]) -> bool:
+    def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.
 
         This is the primary API for flag checks.
 
         Args:
-            flag_type: A FeatureFlag subclass.
+            flag: A FeatureFlag instance.
 
         Returns:
             True if the flag is enabled.
         """
-        return flag_type in self._platzky_config.feature_flags
+        return flag in self._platzky_config.feature_flags
 
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""
