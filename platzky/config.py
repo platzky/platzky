@@ -5,14 +5,14 @@ This module defines all configuration models and parsing logic for the applicati
 
 import sys
 import typing as t
-import warnings
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from .attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from .db.db import DBConfig
 from .db.db_loader import get_db_module
+from .feature_flags import BUILTIN_FLAGS, FeatureFlags, Flag
 
 
 class StrictBaseModel(BaseModel):
@@ -221,79 +221,6 @@ class AttachmentConfig(StrictBaseModel):
     )
 
 
-class FeatureFlagsConfig(BaseModel):
-    """Feature flags configuration.
-
-    Provides typed access for core flags while allowing arbitrary flags
-    for backward compatibility with apps like goodmap.
-
-    Attributes:
-        fake_login: Enable fake login for development. WARNING: Never enable in production.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="allow", populate_by_name=True)
-
-    fake_login: bool = Field(
-        default=False,
-        alias="FAKE_LOGIN",
-        description="Enable fake login for development. WARNING: Never enable in production.",
-    )
-
-    @classmethod
-    def _get_field_lookup(cls) -> dict[str, str]:
-        """Build cached lookup mapping aliases and names to field names.
-
-        Returns:
-            Dict mapping both field names and aliases to the canonical field name.
-        """
-        # Cache keyed by class identity so subclasses build their own lookup
-        try:
-            cache = cls.__dict__["_field_lookup_cache"]
-        except KeyError:
-            cache: dict[str, str] = {}
-            for name, field in cls.model_fields.items():
-                cache[name] = name
-                if field.alias:
-                    cache[field.alias] = name
-            cls._field_lookup_cache = cache
-        return cache
-
-    def get(self, key: str, *, default: bool = False) -> bool:
-        """Dict-like access for backward compatibility.
-
-        Typed flags work directly. Untyped flags emit deprecation warning.
-
-        Args:
-            key: The feature flag name (can be alias like "FAKE_LOGIN" or field name)
-            default: Default value if flag is not found
-
-        Returns:
-            The flag value or default
-        """
-        # Check typed fields using cached lookup (O(1) instead of O(n))
-        lookup = self._get_field_lookup()
-        if key in lookup:
-            return getattr(self, lookup[key])
-
-        # Untyped flag in model_extra - deprecated
-        extra = self.model_extra
-        if extra is not None and key in extra:
-            field_name = key.lower().replace("-", "_")
-            warnings.warn(
-                f"Untyped feature flag '{key}' is deprecated. "
-                f"Untyped flags will be removed in version 2.0.0. "
-                f"To migrate, define it as a typed field:\n"
-                f"  class MyFeatureFlags(FeatureFlagsConfig):\n"
-                f"      {field_name}: bool = Field(default=False, alias='{key}')",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            value = extra.get(key)
-            return value if isinstance(value, bool) else default
-
-        return default
-
-
 class Config(StrictBaseModel):
     """Main application configuration.
 
@@ -313,6 +240,10 @@ class Config(StrictBaseModel):
         attachment: Attachment handling configuration
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    _flag_types: t.ClassVar[tuple[type[Flag], ...]] = BUILTIN_FLAGS
+
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
     db: DBConfig = Field(alias="DB")
@@ -326,11 +257,28 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: FeatureFlagsConfig = Field(
-        default_factory=FeatureFlagsConfig, alias="FEATURE_FLAGS"
+    feature_flags: FeatureFlags = Field(
+        default_factory=lambda: FeatureFlags(BUILTIN_FLAGS, {}),
+        alias="FEATURE_FLAGS",
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
+
+    @field_validator("feature_flags", mode="before")
+    @classmethod
+    def _coerce_feature_flags(cls, v: object) -> FeatureFlags | object:
+        """Coerce dicts into FeatureFlags so ``Config(FEATURE_FLAGS={...})`` works."""
+        if isinstance(v, FeatureFlags):
+            return v
+        if isinstance(v, dict):
+            return FeatureFlags(cls._flag_types, v)
+        return v
+
+    @field_serializer("feature_flags")
+    @classmethod
+    def _serialize_feature_flags(cls, v: FeatureFlags) -> dict[str, bool]:
+        """Serialize FeatureFlags to dict for ``model_dump(by_alias=True)``."""
+        return v.to_dict()
 
     @classmethod
     def model_validate(
@@ -343,6 +291,9 @@ class Config(StrictBaseModel):
     ) -> "Config":
         """Validate and construct Config from dictionary.
 
+        Constructs FeatureFlags from the raw FEATURE_FLAGS dict using
+        the class's ``_flag_types``.
+
         Args:
             obj: Configuration dictionary
             strict: Enable strict validation
@@ -354,6 +305,11 @@ class Config(StrictBaseModel):
         """
         db_cfg_type = get_db_module(obj["DB"]["TYPE"]).db_config_type()
         obj["DB"] = db_cfg_type.model_validate(obj["DB"])
+
+        raw_flags = obj.get("FEATURE_FLAGS")
+        if isinstance(raw_flags, dict):
+            obj["FEATURE_FLAGS"] = FeatureFlags(cls._flag_types, raw_flags)
+
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
         )

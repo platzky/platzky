@@ -1,6 +1,7 @@
 """Debug-only Platzky blueprint."""
 
-from typing import Any, override
+from typing import Any
+from typing_extensions import override
 
 from flask import Blueprint
 from flask.sansio.app import App
@@ -24,6 +25,7 @@ class DebugBlueprint(Blueprint):
     in debug or testing mode. This provides a structural guarantee that debug-only
     routes cannot be accidentally enabled in production.
     """
+
     @override
     def register(self, app: App, options: dict[str, Any]) -> None:
         """Register the blueprint, but only if app is in debug/testing mode."""

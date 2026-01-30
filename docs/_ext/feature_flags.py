@@ -1,7 +1,8 @@
 """Sphinx extension for auto-documenting feature flags.
 
 This extension provides the ``feature-flags`` directive that automatically
-generates documentation for all feature flags defined in FeatureFlagsConfig.
+generates documentation for all feature flags defined via Flag classes
+registered in ``Config._flag_types``.
 
 Usage in RST:
 
@@ -15,7 +16,6 @@ from __future__ import annotations
 
 from docutils import nodes
 from docutils.statemachine import StringList
-from pydantic.fields import FieldInfo
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
@@ -23,35 +23,24 @@ from sphinx.util.logging import getLogger
 logger = getLogger(__name__)
 
 
-def _type_display_name(annotation: type[object] | None) -> str:
-    """Return a human-readable type name for a field annotation."""
-    if annotation is bool:
-        return "bool"
-    if annotation is not None:
-        return getattr(annotation, "__name__", str(annotation))
-    return "Any"
-
-
-def _default_display_value(default: object) -> str:
+def _default_display_value(default: bool) -> str:
     """Return a YAML-friendly display string for a default value."""
-    if isinstance(default, bool):
-        return "true" if default else "false"
-    return str(default)
+    return "true" if default else "false"
 
 
-def _build_flag_rst(field_name: str, field_info: FieldInfo) -> list[str]:
+def _build_flag_rst(flag_cls: type[object]) -> list[str]:
     """Build RST lines documenting a single feature flag."""
-    config_key = field_info.alias if field_info.alias else field_name
-    description = field_info.description or "No description available."
-    type_str = _type_display_name(field_info.annotation)
-    default_str = _default_display_value(field_info.default)
+    alias = getattr(flag_cls, "alias", flag_cls.__name__)
+    description = getattr(flag_cls, "description", "") or "No description available."
+    default = getattr(flag_cls, "default", False)
+    default_str = _default_display_value(default)
 
     lines = [
-        f"**{config_key}**",
+        f"**{alias}**",
         "",
-        f":Type: ``{type_str}``",
+        ":Type: ``bool``",
         f":Default: ``{default_str}``",
-        f":Field name: ``{field_name}``",
+        f":Class: ``{flag_cls.__name__}``",
         "",
         description,
         "",
@@ -61,7 +50,7 @@ def _build_flag_rst(field_name: str, field_info: FieldInfo) -> list[str]:
         lines.extend(
             [
                 ".. warning::",
-                f"   Never enable {config_key} in production.",
+                f"   Never enable {alias} in production.",
                 "",
             ]
         )
@@ -71,7 +60,7 @@ def _build_flag_rst(field_name: str, field_info: FieldInfo) -> list[str]:
             ".. code-block:: yaml",
             "",
             "    FEATURE_FLAGS:",
-            f"      {config_key}: {default_str}",
+            f"      {alias}: {default_str}",
             "",
         ]
     )
@@ -89,10 +78,10 @@ class FeatureFlagsDirective(SphinxDirective):
     def run(self) -> list[nodes.Node]:
         """Generate feature flags documentation nodes."""
         try:
-            from platzky.config import FeatureFlagsConfig
+            from platzky.config import Config
         except ImportError as e:
             logger.warning(
-                "Could not import FeatureFlagsConfig: %s. "
+                "Could not import Config: %s. "
                 "Feature flags documentation will not be generated. "
                 "Ensure platzky is installed in the documentation build environment.",
                 e,
@@ -105,8 +94,8 @@ class FeatureFlagsDirective(SphinxDirective):
             return [warning]
 
         rst_lines: list[str] = []
-        for field_name, field_info in FeatureFlagsConfig.model_fields.items():
-            rst_lines.extend(_build_flag_rst(field_name, field_info))
+        for flag_cls in Config._flag_types:
+            rst_lines.extend(_build_flag_rst(flag_cls))
 
         node = nodes.container()
         self.state.nested_parse(

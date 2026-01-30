@@ -1,102 +1,216 @@
 import warnings
 
 import pytest
-from pydantic import ValidationError
 
-from platzky.config import Config, FeatureFlagsConfig, languages_dict
+from platzky.config import Config, languages_dict
+from platzky.feature_flags import FakeLogin, FeatureFlags, Flag
 
 
-class TestFeatureFlagsConfig:
-    """Tests for FeatureFlagsConfig class."""
+class TestFlagSubclass:
+    """Tests for Flag.__init_subclass__ validation."""
 
-    def test_default_values(self) -> None:
-        """Test that default values are set correctly."""
-        flags = FeatureFlagsConfig()
-        assert flags.fake_login is False
+    def test_valid_flag(self) -> None:
+        """Test that a valid Flag subclass can be created."""
 
-    def test_typed_flag_via_alias(self) -> None:
-        """Test that typed flags can be set via alias."""
-        flags = FeatureFlagsConfig.model_validate({"FAKE_LOGIN": True})
-        assert flags.fake_login is True
+        class MyFlag(Flag):
+            alias = "MY_FLAG"
+            default = True
+            description = "A test flag."
 
-    def test_typed_flag_via_name(self) -> None:
-        """Test that typed flags can be set via field name."""
-        flags = FeatureFlagsConfig.model_validate({"fake_login": True})
-        assert flags.fake_login is True
+        assert MyFlag.alias == "MY_FLAG"
+        assert MyFlag.default is True
+        assert MyFlag.description == "A test flag."
 
-    def test_get_typed_flag_by_alias(self) -> None:
-        """Test .get() method returns typed flag value by alias."""
-        flags = FeatureFlagsConfig.model_validate({"FAKE_LOGIN": True})
-        assert flags.get("FAKE_LOGIN", default=False) is True
+    def test_flag_without_alias_raises(self) -> None:
+        """Test that Flag subclass without alias raises TypeError."""
+        with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
 
-    def test_get_typed_flag_by_name(self) -> None:
-        """Test .get() method returns typed flag value by field name."""
-        flags = FeatureFlagsConfig.model_validate({"fake_login": True})
-        assert flags.get("fake_login", default=False) is True
+            class BadFlag(Flag):
+                pass
 
-    def test_get_unknown_flag_returns_default(self) -> None:
-        """Test .get() returns default for unknown flags."""
-        flags = FeatureFlagsConfig()
-        assert flags.get("UNKNOWN_FLAG", default=False) is False
-        assert flags.get("UNKNOWN_FLAG", default=True) is True
+    def test_flag_with_empty_alias_raises(self) -> None:
+        """Test that Flag subclass with empty alias raises TypeError."""
+        with pytest.raises(TypeError, match="must define a non-empty 'alias'"):
 
-    def test_untyped_flag_stored_in_extra(self) -> None:
-        """Test that untyped flags are stored in model_extra."""
-        flags = FeatureFlagsConfig.model_validate({"CUSTOM_FLAG": True})
-        extra = flags.model_extra
-        assert extra is not None
-        assert "CUSTOM_FLAG" in extra
-        assert extra["CUSTOM_FLAG"] is True
+            class BadFlag(Flag):
+                alias = ""
 
-    def test_get_untyped_flag_emits_deprecation_warning(self) -> None:
-        """Test .get() emits deprecation warning for untyped flags with migration example."""
-        flags = FeatureFlagsConfig.model_validate({"CUSTOM_FLAG": True})
+    def test_flag_defaults(self) -> None:
+        """Test that Flag subclass inherits defaults."""
 
+        class MinimalFlag(Flag):
+            alias = "MINIMAL"
+
+        assert MinimalFlag.default is False
+        assert MinimalFlag.description == ""
+
+
+class TestFeatureFlags:
+    """Tests for FeatureFlags container."""
+
+    def test_construction_with_defaults(self) -> None:
+        """Test FeatureFlags uses defaults when no raw_data."""
+        ff = FeatureFlags((FakeLogin,), {})
+        assert ff[FakeLogin] is False
+
+    def test_construction_with_override(self) -> None:
+        """Test FeatureFlags picks up values from raw_data."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff[FakeLogin] is True
+
+    def test_is_enabled(self) -> None:
+        """Test is_enabled method."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff.is_enabled(FakeLogin) is True
+
+    def test_getitem_unregistered_raises(self) -> None:
+        """Test that looking up an unregistered Flag class raises KeyError."""
+
+        class Unregistered(Flag):
+            alias = "UNREG"
+
+        ff = FeatureFlags((FakeLogin,), {})
+        with pytest.raises(KeyError, match="not registered"):
+            ff[Unregistered]
+
+    def test_get_registered_by_alias(self) -> None:
+        """Test .get() returns value for registered flag by alias."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff.get("FAKE_LOGIN") is True
+
+    def test_get_registered_no_warning(self) -> None:
+        """Test .get() does not warn for registered flags."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = flags.get("CUSTOM_FLAG", default=False)
+            ff.get("FAKE_LOGIN")
+            assert len(w) == 0
 
+    def test_get_unregistered_warns(self) -> None:
+        """Test .get() emits deprecation warning for unregistered flags."""
+        ff = FeatureFlags((FakeLogin,), {"CUSTOM_FLAG": True})
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = ff.get("CUSTOM_FLAG")
             assert result is True
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
-            warning_msg = str(w[0].message)
-            assert "CUSTOM_FLAG" in warning_msg
-            assert "2.0.0" in warning_msg
-            # Check migration example is included
-            assert "class MyFeatureFlags" in warning_msg
-            assert "custom_flag: bool = Field" in warning_msg
+            assert "CUSTOM_FLAG" in str(w[0].message)
+            assert "2.0.0" in str(w[0].message)
 
-    def test_get_typed_flag_no_warning(self) -> None:
-        """Test .get() does not emit warning for typed flags."""
-        flags = FeatureFlagsConfig.model_validate({"FAKE_LOGIN": True})
+    def test_get_unknown_returns_default(self) -> None:
+        """Test .get() returns default for completely unknown flags."""
+        ff = FeatureFlags((FakeLogin,), {})
+        assert ff.get("UNKNOWN", default=False) is False
+        assert ff.get("UNKNOWN", default=True) is True
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = flags.get("FAKE_LOGIN", default=False)
+    def test_getattr_alias(self) -> None:
+        """Test attribute access by alias."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff.FAKE_LOGIN is True
 
-            assert result is True
-            assert len(w) == 0
+    def test_getattr_lowercase(self) -> None:
+        """Test attribute access by lowercase name."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff.fake_login is True
 
-    def test_frozen_config(self) -> None:
-        """Test that the config is immutable."""
-        flags = FeatureFlagsConfig()
-        with pytest.raises(ValidationError):
-            flags.fake_login = True
+    def test_getattr_missing_raises(self) -> None:
+        """Test attribute access for missing flag raises AttributeError."""
+        ff = FeatureFlags((FakeLogin,), {})
+        with pytest.raises(AttributeError, match="no flag"):
+            ff.nonexistent
+
+    def test_immutability(self) -> None:
+        """Test that FeatureFlags cannot be mutated."""
+        ff = FeatureFlags((FakeLogin,), {})
+        with pytest.raises(AttributeError, match="immutable"):
+            ff.FAKE_LOGIN = True  # type: ignore[misc]
+
+    def test_to_dict(self) -> None:
+        """Test to_dict() returns all flags."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True, "CUSTOM": True})
+        d = ff.to_dict()
+        assert d == {"FAKE_LOGIN": True, "CUSTOM": True}
+
+    def test_eq_with_dict(self) -> None:
+        """Test __eq__ supports dict comparison."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True, "CUSTOM": True})
+        assert ff == {"FAKE_LOGIN": True, "CUSTOM": True}
+
+    def test_eq_with_feature_flags(self) -> None:
+        """Test __eq__ supports FeatureFlags comparison."""
+        ff1 = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        ff2 = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True})
+        assert ff1 == ff2
+
+    def test_repr(self) -> None:
+        """Test __repr__."""
+        ff = FeatureFlags((FakeLogin,), {})
+        assert "FAKE_LOGIN" in repr(ff)
+
+    def test_get_all(self) -> None:
+        """Test get_all() returns metadata."""
+        ff = FeatureFlags((FakeLogin,), {"FAKE_LOGIN": True, "CUSTOM": True})
+        all_flags = ff.get_all()
+
+        assert "FAKE_LOGIN" in all_flags
+        assert all_flags["FAKE_LOGIN"]["value"] is True
+        assert all_flags["FAKE_LOGIN"]["typed"] is True
+        assert all_flags["FAKE_LOGIN"]["alias"] == "FAKE_LOGIN"
+
+        assert "CUSTOM" in all_flags
+        assert all_flags["CUSTOM"]["value"] is True
+        assert all_flags["CUSTOM"]["typed"] is False
 
 
 class TestConfigWithFeatureFlags:
-    """Tests for Config with FeatureFlagsConfig integration."""
+    """Tests for Config with FeatureFlags integration."""
 
     def test_default_feature_flags(self) -> None:
-        """Test that feature_flags has a default FeatureFlagsConfig instance."""
+        """Test that feature_flags has a default FeatureFlags instance."""
         config = Config.parse_yaml("config-template.yml")
-        assert isinstance(config.feature_flags, FeatureFlagsConfig)
-        assert config.feature_flags.fake_login is False
+        assert isinstance(config.feature_flags, FeatureFlags)
+        assert config.feature_flags[FakeLogin] is False
 
     def test_config_with_feature_flags_from_yaml(self) -> None:
         """Test that template config can be parsed with feature flags."""
         config = Config.parse_yaml("tests/unit_tests/test_data/config_with_flags.yml")
-        assert config.feature_flags.fake_login is True
+        assert config.feature_flags[FakeLogin] is True
+
+    def test_config_model_validate_with_dict(self) -> None:
+        """Test that Config.model_validate coerces FEATURE_FLAGS dict."""
+        config_data = {
+            "APP_NAME": "test",
+            "SECRET_KEY": "secret",
+            "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+            "DB": {"TYPE": "json", "DATA": {}},
+        }
+        config = Config.model_validate(config_data)
+        assert isinstance(config.feature_flags, FeatureFlags)
+        assert config.feature_flags[FakeLogin] is True
+
+    def test_config_feature_flags_eq_dict(self) -> None:
+        """Test that config.feature_flags == dict works."""
+        config_data = {
+            "APP_NAME": "test",
+            "SECRET_KEY": "secret",
+            "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+            "DB": {"TYPE": "json", "DATA": {}},
+        }
+        config = Config.model_validate(config_data)
+        assert config.feature_flags == {"FAKE_LOGIN": True}
+
+    def test_config_model_dump_serializes_feature_flags(self) -> None:
+        """Test that model_dump serializes FeatureFlags to dict."""
+        config_data = {
+            "APP_NAME": "test",
+            "SECRET_KEY": "secret",
+            "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+            "DB": {"TYPE": "json", "DATA": {}},
+        }
+        config = Config.model_validate(config_data)
+        dumped = config.model_dump(by_alias=True)
+        assert dumped["FEATURE_FLAGS"] == {"FAKE_LOGIN": True}
 
 
 def test_parse_template_config() -> None:

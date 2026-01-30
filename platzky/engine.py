@@ -11,8 +11,9 @@ from flask import Blueprint, Flask, Response, jsonify, make_response, request, s
 from flask_babel import Babel
 
 from platzky.attachment import AttachmentProtocol, create_attachment_class
-from platzky.config import Config, FeatureFlagsConfig
+from platzky.config import Config
 from platzky.db.db import DB
+from platzky.feature_flags import FeatureFlags, Flag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
 
@@ -55,6 +56,17 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
         self._register_default_health_endpoints()
+
+        # JSON provider for FeatureFlags serialization (Jinja ``tojson`` filter)
+        original_default = self.json.default  # type: ignore[reportAttributeAccessIssue]
+        _ff_cls = FeatureFlags
+
+        def extended_default(o: object) -> object:
+            if isinstance(o, _ff_cls):
+                return o.to_dict()
+            return original_default(o)
+
+        self.json.default = staticmethod(extended_default)  # type: ignore[reportAttributeAccessIssue]
 
         self.cms_modules: list[CmsModule] = []
         # TODO add plugins as CMS Module - all plugins should be visible from
@@ -114,46 +126,34 @@ class Engine(Flask):
         session["language"] = lang
         return lang
 
+    def is_enabled(self, flag_type: type[Flag]) -> bool:
+        """Check whether a feature flag is enabled.
+
+        This is the primary API for flag checks.
+
+        Args:
+            flag_type: A Flag subclass registered in Config._flag_types.
+
+        Returns:
+            True if the flag is enabled.
+        """
+        return self._platzky_config.feature_flags[flag_type]
+
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""
         if not callable(check_function):
             raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))
 
-    def get_all_feature_flags(self) -> dict[str, dict[str, Any]]:
+    def get_all_feature_flags(self) -> dict[str, dict[str, bool | str | None]]:
         """Return all feature flags with their values and metadata.
 
         Returns:
-            Dict mapping flag names to their info (value, description, default, alias).
-            Typed flags include full metadata. Untyped flags (from model_extra) are
-            marked as deprecated. Useful for admin panels and debugging.
+            Dict mapping flag alias to metadata dict with keys:
+            ``value``, ``description``, ``default``, ``alias``, ``typed``.
+            Useful for admin panels and debugging.
         """
-        flags_config: FeatureFlagsConfig = self._platzky_config.feature_flags
-        result: dict[str, dict[str, Any]] = {}
-
-        # Add typed flags with full metadata
-        for name, field in type(flags_config).model_fields.items():
-            result[name] = {
-                "value": getattr(flags_config, name),
-                "description": field.description or "",
-                "default": field.default,
-                "alias": field.alias,
-                "typed": True,
-            }
-
-        # Add untyped flags from model_extra (deprecated)
-        extra = flags_config.model_extra
-        if extra:
-            for key, value in extra.items():
-                result[key] = {
-                    "value": value,
-                    "description": "(Untyped flag - deprecated)",
-                    "default": None,
-                    "alias": key,
-                    "typed": False,
-                }
-
-        return result
+        return self._platzky_config.feature_flags.get_all()
 
     def _register_default_health_endpoints(self) -> None:
         """Register default health endpoints."""

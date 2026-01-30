@@ -7,6 +7,7 @@ from werkzeug.test import TestResponse
 from platzky.config import Config
 from platzky.db.json_db import Json
 from platzky.engine import Engine
+from platzky.feature_flags import FakeLogin
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
@@ -377,16 +378,21 @@ def test_add_health_check_not_callable(test_app: Engine):
         test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type] - Intentionally passing invalid type to test error handling
 
 
+def test_is_enabled(test_app: Engine):
+    """Test that engine.is_enabled works with Flag classes"""
+    assert test_app.is_enabled(FakeLogin) is False
+
+
 def test_get_all_feature_flags(test_app: Engine):
     """Test that get_all_feature_flags returns flag metadata"""
     flags = test_app.get_all_feature_flags()
 
-    assert "fake_login" in flags
-    assert flags["fake_login"]["alias"] == "FAKE_LOGIN"
-    assert flags["fake_login"]["default"] is False
-    assert isinstance(flags["fake_login"]["description"], str)
-    assert "value" in flags["fake_login"]
-    assert flags["fake_login"]["typed"] is True
+    assert "FAKE_LOGIN" in flags
+    assert flags["FAKE_LOGIN"]["alias"] == "FAKE_LOGIN"
+    assert flags["FAKE_LOGIN"]["default"] is False
+    assert isinstance(flags["FAKE_LOGIN"]["description"], str)
+    assert "value" in flags["FAKE_LOGIN"]
+    assert flags["FAKE_LOGIN"]["typed"] is True
 
 
 def test_get_all_feature_flags_with_enabled_flag():
@@ -409,14 +415,15 @@ def test_get_all_feature_flags_with_enabled_flag():
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
 
+    assert app.is_enabled(FakeLogin) is True
+
     flags = app.get_all_feature_flags()
+    assert flags["FAKE_LOGIN"]["value"] is True
+    assert flags["FAKE_LOGIN"]["typed"] is True
 
-    assert flags["fake_login"]["value"] is True
-    assert flags["fake_login"]["typed"] is True
 
-
-def test_get_all_feature_flags_includes_untyped():
-    """Test that get_all_feature_flags includes untyped flags from model_extra"""
+def test_get_all_feature_flags_includes_unregistered():
+    """Test that get_all_feature_flags includes unregistered flags."""
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
@@ -436,11 +443,11 @@ def test_get_all_feature_flags_includes_untyped():
 
     flags = app.get_all_feature_flags()
 
-    # Typed flag should be present
-    assert "fake_login" in flags
-    assert flags["fake_login"]["typed"] is True
+    # Registered flag should be present
+    assert "FAKE_LOGIN" in flags
+    assert flags["FAKE_LOGIN"]["typed"] is True
 
-    # Untyped flag should also be present
+    # Unregistered flag should also be present
     assert "CUSTOM_FLAG" in flags
     assert flags["CUSTOM_FLAG"]["value"] is True
     assert flags["CUSTOM_FLAG"]["typed"] is False

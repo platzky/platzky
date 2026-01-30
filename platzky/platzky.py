@@ -16,6 +16,7 @@ from platzky.config import (
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
+from platzky.feature_flags import FakeLogin
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
@@ -239,7 +240,7 @@ def create_app_from_config(config: Config) -> Engine:
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
 
-    if config.feature_flags.fake_login:
+    if engine.is_enabled(FakeLogin):
         from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
 
         engine.login_methods.append(get_fake_login_html())
