@@ -16,6 +16,7 @@ Example::
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import ClassVar
 
 
@@ -52,16 +53,16 @@ class FakeLogin(Flag):
     description = "Enable fake login for development. WARNING: Never enable in production."
 
 
-def all_flags() -> tuple[type[Flag], ...]:
+def all_flags() -> frozenset[type[Flag]]:
     """Return all valid Flag subclasses via automatic discovery.
 
     Skips subclasses that failed validation (e.g. missing ``alias``).
     """
-    return tuple(cls for cls in Flag.__subclasses__() if hasattr(cls, "alias") and cls.alias)
+    return frozenset(cls for cls in Flag.__subclasses__() if hasattr(cls, "alias") and cls.alias)
 
 
 def parse_flags(
-    flag_types: tuple[type[Flag], ...],
+    flag_types: Iterable[type[Flag]],
     raw_data: dict[str, bool] | None = None,
 ) -> frozenset[type[Flag]]:
     """Build a frozenset of *enabled* flag types from raw config data.
@@ -69,7 +70,7 @@ def parse_flags(
     Unknown keys in *raw_data* are silently ignored.
 
     Args:
-        flag_types: Tuple of Flag subclasses to consider.
+        flag_types: Flag subclasses to consider.
         raw_data: Dict of flag alias -> value from config / YAML.
 
     Returns:
