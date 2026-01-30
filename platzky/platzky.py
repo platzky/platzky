@@ -244,7 +244,6 @@ def create_app_from_config(config: Config) -> Engine:
         from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
 
         engine.login_methods.append(get_fake_login_html())
-        # DebugBlueprint.register() will raise if not in debug/testing mode
         engine.register_blueprint(create_fake_login_blueprint())
 
     blog_blueprint = blog.create_blog_blueprint(

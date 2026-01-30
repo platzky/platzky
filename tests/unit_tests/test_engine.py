@@ -451,4 +451,4 @@ def test_get_all_feature_flags_includes_unregistered():
     assert "CUSTOM_FLAG" in flags
     assert flags["CUSTOM_FLAG"]["value"] is True
     assert flags["CUSTOM_FLAG"]["typed"] is False
-    assert "deprecated" in flags["CUSTOM_FLAG"]["description"].lower()
+    assert "deprecated" in str(flags["CUSTOM_FLAG"]["description"]).lower()
