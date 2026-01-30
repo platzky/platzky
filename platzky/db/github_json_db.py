@@ -52,13 +52,7 @@ def get_db(config: dict[str, Any]) -> "GithubJsonDb":
     Returns:
         Configured GitHub JSON database instance
     """
-    github_json_db_config = GithubJsonDbConfig.model_validate(config)
-    return GithubJsonDb(
-        github_json_db_config.github_token,
-        github_json_db_config.repo_name,
-        github_json_db_config.branch_name,
-        github_json_db_config.path_to_file,
-    )
+    return db_from_config(GithubJsonDbConfig.model_validate(config))
 
 
 class GithubJsonDb(JsonDB):

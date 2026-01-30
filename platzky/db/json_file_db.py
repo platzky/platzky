@@ -33,8 +33,7 @@ def get_db(config: dict[str, Any]) -> "JsonFile":
     Returns:
         Configured JSON file database instance
     """
-    json_file_db_config = JsonFileDbConfig.model_validate(config)
-    return JsonFile(json_file_db_config.path)
+    return db_from_config(JsonFileDbConfig.model_validate(config))
 
 
 def db_from_config(config: JsonFileDbConfig) -> "JsonFile":

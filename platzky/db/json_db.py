@@ -33,8 +33,7 @@ def get_db(config: dict[str, Any]) -> "Json":
     Returns:
         Configured JSON database instance
     """
-    json_db_config = JsonDbConfig.model_validate(config)
-    return Json(json_db_config.data)
+    return db_from_config(JsonDbConfig.model_validate(config))
 
 
 def db_from_config(config: JsonDbConfig) -> "Json":
@@ -129,12 +128,10 @@ class Json(DB):
         pages = self._get_site_content().get("pages")
         if pages is None:
             raise ValueError("Pages data is missing")
-        list_of_pages = (page for page in pages if page["slug"] == slug)
-        wanted_page = next(list_of_pages, None)
+        wanted_page = next((page for page in pages if page["slug"] == slug), None)
         if wanted_page is None:
             raise ValueError(f"Page with slug {slug} not found")
-        page = Page.model_validate(wanted_page)
-        return page
+        return Page.model_validate(wanted_page)
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
@@ -146,10 +143,8 @@ class Json(DB):
             List of MenuItem objects
         """
         menu_items_raw = self._get_site_content().get("menu_items", {})
-        items_in_lang = menu_items_raw.get(lang, {})
-
-        menu_items_list = [MenuItem.model_validate(x) for x in items_in_lang]
-        return menu_items_list
+        items_in_lang = menu_items_raw.get(lang, [])
+        return [MenuItem.model_validate(x) for x in items_in_lang]
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
@@ -236,12 +231,9 @@ class Json(DB):
             "date": now_utc,
         }
 
-        post_index = next(
-            i
-            for i in range(len(self._get_site_content()["posts"]))
-            if self._get_site_content()["posts"][i]["slug"] == post_slug
-        )
-        self._get_site_content()["posts"][post_index]["comments"].append(comment_data)
+        posts = self._get_site_content()["posts"]
+        post = next(p for p in posts if p["slug"] == post_slug)
+        post["comments"].append(comment_data)
 
     def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.

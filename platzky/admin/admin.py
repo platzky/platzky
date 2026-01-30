@@ -20,7 +20,6 @@ def create_admin_blueprint(
     Returns:
         Configured Flask Blueprint for admin panel
     """
-    # …rest of the function…
     admin = Blueprint(
         "admin",
         __name__,
@@ -49,7 +48,7 @@ def create_admin_blueprint(
         Returns:
             Rendered login page if not authenticated, admin panel if authenticated
         """
-        user = session.get("user", None)
+        user = session.get("user")
 
         if not user:
             return render_template("login.html", login_methods=login_methods)

@@ -27,10 +27,10 @@ class LanguageConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    name: str = Field(alias="name")
-    flag: str = Field(alias="flag")
-    country: str = Field(alias="country")
-    domain: t.Optional[str] = Field(default=None, alias="domain")
+    name: str
+    flag: str
+    country: str
+    domain: t.Optional[str] = None
 
 
 Languages = dict[str, LanguageConfig]
@@ -78,15 +78,15 @@ class TelemetryConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    enabled: bool = Field(default=False, alias="enabled")
-    endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
-    console_export: bool = Field(default=False, alias="console_export")
-    timeout: int = Field(default=10, alias="timeout", gt=0)
-    deployment_environment: t.Optional[str] = Field(default=None, alias="deployment_environment")
-    service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
-    flush_on_request: bool = Field(default=True, alias="flush_on_request")
-    flush_timeout_ms: int = Field(default=5000, alias="flush_timeout_ms", gt=0)
-    instrument_logging: bool = Field(default=True, alias="instrument_logging")
+    enabled: bool = False
+    endpoint: t.Optional[str] = None
+    console_export: bool = False
+    timeout: int = Field(default=10, gt=0)
+    deployment_environment: t.Optional[str] = None
+    service_instance_id: t.Optional[str] = None
+    flush_on_request: bool = True
+    flush_timeout_ms: int = Field(default=5000, gt=0)
+    instrument_logging: bool = True
 
     @field_validator("endpoint")
     @classmethod

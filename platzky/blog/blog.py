@@ -31,11 +31,10 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
     Returns:
         Configured Flask Blueprint for blog functionality
     """
-    url_prefix = blog_prefix
     blog = Blueprint(
         "blog",
         __name__,
-        url_prefix=url_prefix,
+        url_prefix=blog_prefix,
         template_folder=f"{dirname(__file__)}/../templates",
     )
 
@@ -159,8 +158,7 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
             Rendered HTML template of the page
         """
         page = _get_content_or_404(db.get_page, page_slug)
-        cover_image_url = page.coverImage.url if page.coverImage.url else None
-        return render_template("page.html", page=page, cover_image=cover_image_url)
+        return render_template("page.html", page=page, cover_image=page.coverImage.url or None)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:

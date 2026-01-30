@@ -29,18 +29,6 @@ class GraphQlDbConfig(DBConfig):
     token: str = Field(alias="CMS_TOKEN")
 
 
-def get_db(config: GraphQlDbConfig) -> "GraphQL":
-    """Get a GraphQL database instance from configuration.
-
-    Args:
-        config: GraphQL database configuration
-
-    Returns:
-        Configured GraphQL database instance
-    """
-    return GraphQL(config.endpoint, config.token)
-
-
 def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
     """Create a GraphQL database instance from configuration.
 
@@ -51,6 +39,10 @@ def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
         Configured GraphQL database instance
     """
     return GraphQL(config.endpoint, config.token)
+
+
+# Legacy alias retained for backward compatibility
+get_db = db_from_config
 
 
 def _standardize_comment(

@@ -88,7 +88,7 @@ class Engine(Flask):
         """
         self.notifiers_with_attachments.append(notifier)
 
-    def add_cms_module(self, module: CmsModule):
+    def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
 
@@ -96,11 +96,11 @@ class Engine(Flask):
     def add_login_method(self, login_method: Callable[[], str]) -> None:
         self.login_methods.append(login_method)
 
-    def add_dynamic_body(self, body: str):
+    def add_dynamic_body(self, body: str) -> None:
         self.dynamic_body += body
 
-    def add_dynamic_head(self, body: str):
-        self.dynamic_head += body
+    def add_dynamic_head(self, head: str) -> None:
+        self.dynamic_head += head
 
     def get_locale(self) -> str:
         languages = self.config.get("LANGUAGES", {}).keys()
