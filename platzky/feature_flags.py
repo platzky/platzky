@@ -34,16 +34,23 @@ class FeatureFlag:
         )
     """
 
-    __slots__ = ("alias", "default", "description")
+    __slots__ = ("alias", "default", "description", "production_warning")
 
     def __init__(
-        self, *, alias: str, default: bool = False, description: str = "", register: bool = True
+        self,
+        *,
+        alias: str,
+        default: bool = False,
+        description: str = "",
+        production_warning: bool = False,
+        register: bool = True,
     ) -> None:
         if not alias:
             raise ValueError("FeatureFlag requires a non-empty 'alias'")
         self.alias = alias
         self.default = default
         self.description = description
+        self.production_warning = production_warning
         if register:
             _registry.add(self)
 
@@ -63,6 +70,7 @@ FakeLogin = FeatureFlag(
     alias="FAKE_LOGIN",
     default=False,
     description="Enable fake login for development. WARNING: Never enable in production.",
+    production_warning=True,
 )
 
 

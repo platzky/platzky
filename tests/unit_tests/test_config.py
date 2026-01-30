@@ -121,8 +121,8 @@ class TestConfigWithFeatureFlags:
         }
         config = Config.model_validate(config_data)
         assert FakeLogin in config.feature_flags
-        # Unknown flags are simply ignored, only registered flags matter
-        assert len(config.feature_flags) == 1
+        # UNKNOWN_FLAG is not a registered flag — only FakeLogin should be enabled
+        assert config.feature_flags == frozenset({FakeLogin})
 
 
 def test_parse_template_config() -> None:

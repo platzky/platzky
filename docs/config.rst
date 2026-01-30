@@ -226,11 +226,18 @@ Feature Flags
 ``FEATURE_FLAGS``
 ^^^^^^^^^^^^^^^^^
 
-:Type: ``frozenset[type[Flag]]``
+:Type: ``frozenset[FeatureFlag]`` (internal)
 :Default: ``frozenset()``
 
-Enable or disable specific features in your application. Feature flags are checked
-via ``engine.is_enabled(FlagType)``.
+Enable or disable specific features in your application. In YAML, supply a
+mapping of flag alias to ``bool``:
+
+.. code-block:: yaml
+
+    FEATURE_FLAGS:
+      FAKE_LOGIN: true
+
+At runtime, flags are checked via ``engine.is_enabled(FakeLogin)``.
 
 Available feature flags:
 

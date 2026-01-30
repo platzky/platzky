@@ -44,7 +44,7 @@ def _build_flag_rst(flag: object) -> list[str]:
         "",
     ]
 
-    if "never" in description.lower() and "production" in description.lower():
+    if getattr(flag, "production_warning", False):
         lines.extend(
             [
                 ".. warning::",
