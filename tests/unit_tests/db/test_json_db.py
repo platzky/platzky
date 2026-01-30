@@ -295,7 +295,7 @@ class TestJsonDbComments:
         assert comment["date"] == "2023-01-01T12:00:00"
 
     def test_add_comment_to_nonexistent_post(self, db: Json):
-        with pytest.raises(StopIteration):
+        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
             db.add_comment("Test User", "Comment", "non-existent")
 
 

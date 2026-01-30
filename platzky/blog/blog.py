@@ -158,7 +158,8 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
             Rendered HTML template of the page
         """
         page = _get_content_or_404(db.get_page, page_slug)
-        return render_template("page.html", page=page, cover_image=page.coverImage.url or None)
+        cover_image_url = (page.coverImage.url or None) if page.coverImage else None
+        return render_template("page.html", page=page, cover_image=cover_image_url)
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:

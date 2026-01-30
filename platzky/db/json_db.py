@@ -232,7 +232,9 @@ class Json(DB):
         }
 
         posts = self._get_site_content()["posts"]
-        post = next(p for p in posts if p["slug"] == post_slug)
+        post = next((p for p in posts if p["slug"] == post_slug), None)
+        if post is None:
+            raise ValueError(f"Post with slug {post_slug} not found")
         post["comments"].append(comment_data)
 
     def get_plugins_data(self) -> list[dict[str, Any]]:

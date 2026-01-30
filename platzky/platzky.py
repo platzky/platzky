@@ -229,6 +229,9 @@ def create_app_from_config(config: Config) -> Engine:
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
 
+    # Two-layer defense: is_enabled() gates the feature flag, and
+    # DebugBlueprint.register() independently blocks registration
+    # unless the app is in debug or testing mode.
     if engine.is_enabled(FakeLogin):
         from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
 
