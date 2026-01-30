@@ -189,6 +189,7 @@ class TestPlatzky:
         }
 
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.delenv("FLASK_DEBUG", raising=False)
         config = Config.model_validate(config_raw)
 
         with pytest.raises(
