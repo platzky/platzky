@@ -16,7 +16,6 @@ Example::
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import ClassVar
 
 
@@ -66,15 +65,14 @@ def all_flags() -> frozenset[type[FeatureFlag]]:
 
 
 def parse_flags(
-    flag_types: Iterable[type[FeatureFlag]],
     raw_data: dict[str, bool] | None = None,
 ) -> frozenset[type[FeatureFlag]]:
     """Build a frozenset of *enabled* flag types from raw config data.
 
-    Unknown keys in *raw_data* are silently ignored.
+    Uses ``all_flags()`` for discovery. Unknown keys in *raw_data* are
+    silently ignored.
 
     Args:
-        flag_types: FeatureFlag subclasses to consider.
         raw_data: Dict of flag alias -> value from config / YAML.
 
     Returns:
@@ -84,7 +82,7 @@ def parse_flags(
         raw_data = {}
 
     enabled: set[type[FeatureFlag]] = set()
-    for flag_cls in flag_types:
+    for flag_cls in all_flags():
         value = bool(raw_data.get(flag_cls.alias, flag_cls.default))
         if value:
             enabled.add(flag_cls)

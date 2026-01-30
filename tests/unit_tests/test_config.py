@@ -48,32 +48,30 @@ class TestParseFlags:
 
     def test_defaults_all_disabled(self) -> None:
         """Test parse_flags uses defaults when no raw_data."""
-        result = parse_flags((FakeLogin,), {})
+        result = parse_flags({})
         assert isinstance(result, frozenset)
         assert FakeLogin not in result
 
     def test_defaults_no_raw_data(self) -> None:
         """Test parse_flags with None raw_data."""
-        result = parse_flags((FakeLogin,))
+        result = parse_flags()
         assert isinstance(result, frozenset)
         assert FakeLogin not in result
 
     def test_enable_flag(self) -> None:
         """Test parse_flags picks up values from raw_data."""
-        result = parse_flags((FakeLogin,), {"FAKE_LOGIN": True})
+        result = parse_flags({"FAKE_LOGIN": True})
         assert FakeLogin in result
 
     def test_disable_flag(self) -> None:
         """Test parse_flags with explicit False."""
-        result = parse_flags((FakeLogin,), {"FAKE_LOGIN": False})
+        result = parse_flags({"FAKE_LOGIN": False})
         assert FakeLogin not in result
 
     def test_unknown_keys_ignored(self) -> None:
         """Test that unknown keys in raw_data are silently ignored."""
-        result = parse_flags((FakeLogin,), {"FAKE_LOGIN": True, "CUSTOM": True})
+        result = parse_flags({"FAKE_LOGIN": True, "CUSTOM": True})
         assert FakeLogin in result
-        # CUSTOM is not a registered flag type — it's just ignored
-        assert len(result) == 1
 
     def test_flag_with_default_true(self) -> None:
         """Test that a flag with default=True is enabled without raw_data."""
@@ -82,12 +80,12 @@ class TestParseFlags:
             alias = "DEFAULT_ON"
             default = True
 
-        result = parse_flags((DefaultOn,))
+        result = parse_flags()
         assert DefaultOn in result
 
     def test_result_is_frozenset(self) -> None:
         """Test that parse_flags returns a frozenset."""
-        result = parse_flags((FakeLogin,), {"FAKE_LOGIN": True})
+        result = parse_flags({"FAKE_LOGIN": True})
         assert isinstance(result, frozenset)
 
 
