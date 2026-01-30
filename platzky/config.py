@@ -15,13 +15,7 @@ from platzky.db.db_loader import get_db_module
 from platzky.feature_flags import FeatureFlag, parse_flags
 
 
-class StrictBaseModel(BaseModel):
-    """Base model with immutable (frozen) configuration."""
-
-    model_config = ConfigDict(frozen=True)
-
-
-class LanguageConfig(StrictBaseModel):
+class LanguageConfig(BaseModel):
     """Configuration for a single language.
 
     Attributes:
@@ -30,6 +24,8 @@ class LanguageConfig(StrictBaseModel):
         country: Country code
         domain: Optional domain specific to this language
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str = Field(alias="name")
     flag: str = Field(alias="flag")
@@ -65,7 +61,7 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
     }
 
 
-class TelemetryConfig(StrictBaseModel):
+class TelemetryConfig(BaseModel):
     """OpenTelemetry configuration for application tracing.
 
     Attributes:
@@ -79,6 +75,8 @@ class TelemetryConfig(StrictBaseModel):
         flush_timeout_ms: Timeout in milliseconds for per-request flush (default: 5000)
         instrument_logging: Enable automatic logging instrumentation (default: True)
     """
+
+    model_config = ConfigDict(frozen=True)
 
     enabled: bool = Field(default=False, alias="enabled")
     endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
@@ -166,7 +164,7 @@ _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
 )
 
 
-class AttachmentConfig(StrictBaseModel):
+class AttachmentConfig(BaseModel):
     """Configuration for attachment handling.
 
     Attributes:
@@ -181,6 +179,8 @@ class AttachmentConfig(StrictBaseModel):
             Note: blocked_extensions takes precedence over allowed_extensions.
             Files without extensions are always blocked when allowed_extensions is set.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
     validate_content: bool = Field(default=True)
@@ -221,7 +221,7 @@ class AttachmentConfig(StrictBaseModel):
     )
 
 
-class Config(StrictBaseModel):
+class Config(BaseModel):
     """Main application configuration.
 
     Attributes:
