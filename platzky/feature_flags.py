@@ -1,7 +1,7 @@
 """Feature flags system with class-based flag registration.
 
-Flags are defined as classes deriving from ``Flag``. Clients register flags via
-a ``_flag_types`` tuple on their ``Config`` subclass. The primary API is
+Flags are defined as classes deriving from ``Flag``. Any ``Flag`` subclass
+is automatically discovered via ``all_flags()``. The primary API is
 ``engine.is_enabled(FlagClass)``.
 
 Example::
@@ -10,10 +10,7 @@ Example::
         alias = "CATEGORIES_HELP"
         default = False
 
-    class GoodmapConfig(PlatzkyConfig):
-        _flag_types = PlatzkyConfig._flag_types + (CategoriesHelp,)
-
-    # Usage
+    # Usage — no Config subclass needed
     app.is_enabled(CategoriesHelp)  # True/False
 """
 
@@ -55,7 +52,12 @@ class FakeLogin(Flag):
     description = "Enable fake login for development. WARNING: Never enable in production."
 
 
-BUILTIN_FLAGS: tuple[type[Flag], ...] = (FakeLogin,)
+def all_flags() -> tuple[type[Flag], ...]:
+    """Return all valid Flag subclasses via automatic discovery.
+
+    Skips subclasses that failed validation (e.g. missing ``alias``).
+    """
+    return tuple(cls for cls in Flag.__subclasses__() if hasattr(cls, "alias") and cls.alias)
 
 
 def parse_flags(

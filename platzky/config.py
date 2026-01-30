@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
-from platzky.feature_flags import BUILTIN_FLAGS, Flag, parse_flags
+from platzky.feature_flags import Flag, all_flags, parse_flags
 
 
 class StrictBaseModel(BaseModel):
@@ -240,8 +240,6 @@ class Config(StrictBaseModel):
         attachment: Attachment handling configuration
     """
 
-    _flag_types: t.ClassVar[tuple[type[Flag], ...]] = BUILTIN_FLAGS
-
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
     db: DBConfig = Field(alias="DB")
@@ -256,7 +254,7 @@ class Config(StrictBaseModel):
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: frozenset[type[Flag]] = Field(
-        default_factory=lambda: parse_flags(BUILTIN_FLAGS),
+        default_factory=lambda: parse_flags(all_flags()),
         alias="FEATURE_FLAGS",
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
@@ -274,7 +272,7 @@ class Config(StrictBaseModel):
         """Validate and construct Config from dictionary.
 
         Parses the raw FEATURE_FLAGS dict into a frozenset of enabled
-        Flag types using the class's ``_flag_types``.
+        Flag types using auto-discovered ``all_flags()``.
 
         Args:
             obj: Configuration dictionary
@@ -290,7 +288,7 @@ class Config(StrictBaseModel):
 
         raw_flags = obj.get("FEATURE_FLAGS")
         if isinstance(raw_flags, dict):
-            obj["FEATURE_FLAGS"] = parse_flags(cls._flag_types, raw_flags)
+            obj["FEATURE_FLAGS"] = parse_flags(all_flags(), raw_flags)
 
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context

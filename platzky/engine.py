@@ -121,7 +121,7 @@ class Engine(Flask):
         This is the primary API for flag checks.
 
         Args:
-            flag_type: A Flag subclass registered in Config._flag_types.
+            flag_type: A Flag subclass.
 
         Returns:
             True if the flag is enabled.

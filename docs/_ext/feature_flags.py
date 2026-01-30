@@ -1,8 +1,7 @@
 """Sphinx extension for auto-documenting feature flags.
 
 This extension provides the ``feature-flags`` directive that automatically
-generates documentation for all feature flags defined via Flag classes
-registered in ``Config._flag_types``.
+generates documentation for all feature flags defined as ``Flag`` subclasses.
 
 Usage in RST:
 
@@ -78,10 +77,10 @@ class FeatureFlagsDirective(SphinxDirective):
     def run(self) -> list[nodes.Node]:
         """Generate feature flags documentation nodes."""
         try:
-            from platzky.config import Config
+            from platzky.feature_flags import all_flags
         except ImportError as e:
             logger.warning(
-                "Could not import Config: %s. "
+                "Could not import all_flags: %s. "
                 "Feature flags documentation will not be generated. "
                 "Ensure platzky is installed in the documentation build environment.",
                 e,
@@ -94,7 +93,7 @@ class FeatureFlagsDirective(SphinxDirective):
             return [warning]
 
         rst_lines: list[str] = []
-        for flag_cls in Config._flag_types:
+        for flag_cls in all_flags():
             rst_lines.extend(_build_flag_rst(flag_cls))
 
         node = nodes.container()
