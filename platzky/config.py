@@ -18,7 +18,7 @@ from platzky.feature_flags import FeatureFlag, parse_flags
 class StrictBaseModel(BaseModel):
     """Base model with immutable (frozen) configuration."""
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
 
 class LanguageConfig(StrictBaseModel):
@@ -239,6 +239,8 @@ class Config(StrictBaseModel):
         telemetry: OpenTelemetry configuration
         attachment: Attachment handling configuration
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
