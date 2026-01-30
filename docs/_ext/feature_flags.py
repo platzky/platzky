@@ -92,7 +92,7 @@ class FeatureFlagsDirective(SphinxDirective):
             return [warning]
 
         rst_lines: list[str] = []
-        for flag in all_flags():
+        for flag in sorted(all_flags(), key=lambda f: f.alias):
             rst_lines.extend(_build_flag_rst(flag))
 
         node = nodes.container()

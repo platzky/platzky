@@ -285,8 +285,13 @@ class Config(BaseModel):
         Returns:
             Validated Config instance
         """
-        db_cfg_type = get_db_module(obj["DB"]["TYPE"]).db_config_type()
-        obj["DB"] = db_cfg_type.model_validate(obj["DB"])
+        try:
+            db_section = obj["DB"]
+            db_type = db_section["TYPE"]
+        except KeyError as e:
+            raise ValueError(f"Missing required config key: {e}. DB.TYPE is required.") from e
+        db_cfg_type = get_db_module(db_type).db_config_type()
+        obj["DB"] = db_cfg_type.model_validate(db_section)
 
         raw_flags = obj.get("FEATURE_FLAGS")
         if isinstance(raw_flags, dict):

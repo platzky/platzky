@@ -20,6 +20,10 @@ _registry: set[FeatureFlag] = set()
 class FeatureFlag:
     """A feature flag.
 
+    Identity is based solely on ``alias``: two flags with the same alias
+    are considered equal regardless of ``default`` or ``description``.
+    Aliases are expected to be unique across the application.
+
     Args:
         alias: The YAML/dict key for this flag.
         default: Whether the flag is enabled by default.
@@ -75,13 +79,23 @@ FakeLogin = FeatureFlag(
 
 
 def all_flags() -> frozenset[FeatureFlag]:
-    """Return all registered feature flags."""
+    """Return all registered feature flags.
+
+    Note: The returned frozenset has no guaranteed iteration order.
+    Use ``sorted(all_flags(), key=lambda f: f.alias)`` when
+    deterministic ordering is needed (e.g., documentation generation).
+    """
     return frozenset(_registry)
 
 
 def unregister(flag: FeatureFlag) -> None:
     """Remove a flag from the registry."""
     _registry.discard(flag)
+
+
+def clear_registry() -> None:
+    """Remove all flags from the registry. Intended for test isolation."""
+    _registry.clear()
 
 
 def parse_flags(
