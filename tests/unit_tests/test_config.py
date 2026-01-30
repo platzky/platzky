@@ -1,13 +1,7 @@
 import pytest
 
 from platzky.config import Config, languages_dict
-from platzky.feature_flags import (
-    FakeLogin,
-    Flag,
-    flags_to_dict,
-    get_all_flags_metadata,
-    parse_flags,
-)
+from platzky.feature_flags import FakeLogin, Flag, parse_flags
 
 
 class TestFlagSubclass:
@@ -97,102 +91,6 @@ class TestParseFlags:
         assert isinstance(result, frozenset)
 
 
-class TestFlagsToDict:
-    """Tests for flags_to_dict standalone function."""
-
-    def test_enabled_flag(self) -> None:
-        """Test flags_to_dict with enabled flag."""
-        enabled = frozenset({FakeLogin})
-        d = flags_to_dict(enabled, (FakeLogin,))
-        assert d == {"FAKE_LOGIN": True}
-
-    def test_disabled_flag(self) -> None:
-        """Test flags_to_dict with disabled flag."""
-        enabled: frozenset[type[Flag]] = frozenset()
-        d = flags_to_dict(enabled, (FakeLogin,))
-        assert d == {"FAKE_LOGIN": False}
-
-    def test_multiple_flags(self) -> None:
-        """Test flags_to_dict with multiple flags."""
-
-        class Extra(Flag):
-            alias = "EXTRA"
-
-        enabled = frozenset({FakeLogin})
-        d = flags_to_dict(enabled, (FakeLogin, Extra))
-        assert d == {"FAKE_LOGIN": True, "EXTRA": False}
-
-
-class TestGetAllFlagsMetadata:
-    """Tests for get_all_flags_metadata standalone function."""
-
-    def test_metadata_structure(self) -> None:
-        """Test get_all_flags_metadata returns correct metadata."""
-        enabled = frozenset({FakeLogin})
-        all_flags = get_all_flags_metadata(enabled, (FakeLogin,))
-
-        assert "FAKE_LOGIN" in all_flags
-        assert all_flags["FAKE_LOGIN"]["value"] is True
-        assert all_flags["FAKE_LOGIN"]["alias"] == "FAKE_LOGIN"
-        assert all_flags["FAKE_LOGIN"]["default"] is False
-        assert isinstance(all_flags["FAKE_LOGIN"]["description"], str)
-
-    def test_disabled_flag_metadata(self) -> None:
-        """Test get_all_flags_metadata with disabled flag."""
-        enabled: frozenset[type[Flag]] = frozenset()
-        all_flags = get_all_flags_metadata(enabled, (FakeLogin,))
-
-        assert all_flags["FAKE_LOGIN"]["value"] is False
-
-
-class TestPydanticIntegration:
-    """Tests for Pydantic integration with EnabledFlags type."""
-
-    def test_pydantic_core_schema_passthrough(self) -> None:
-        """Test that Pydantic passes through frozenset instances."""
-        from pydantic import BaseModel, ConfigDict, Field
-
-        from platzky.feature_flags import EnabledFlags
-
-        class TestModel(BaseModel):
-            model_config = ConfigDict(frozen=True)
-            flags: EnabledFlags = Field(default_factory=frozenset)
-
-        ff = frozenset({FakeLogin})
-        m = TestModel(flags=ff)
-        assert m.flags is ff
-        assert FakeLogin in m.flags
-
-    def test_pydantic_core_schema_dict_coercion(self) -> None:
-        """Test that Pydantic coerces dicts to frozenset."""
-        from pydantic import BaseModel, ConfigDict, Field
-
-        from platzky.feature_flags import EnabledFlags
-
-        class TestModel(BaseModel):
-            model_config = ConfigDict(frozen=True)
-            flags: EnabledFlags = Field(default_factory=frozenset)
-
-        m = TestModel(flags={"FAKE_LOGIN": True})  # type: ignore[arg-type]
-        assert isinstance(m.flags, frozenset)
-        assert FakeLogin in m.flags
-
-    def test_pydantic_core_schema_serialization(self) -> None:
-        """Test that Pydantic serializes via flags_to_dict."""
-        from pydantic import BaseModel, ConfigDict, Field
-
-        from platzky.feature_flags import EnabledFlags
-
-        class TestModel(BaseModel):
-            model_config = ConfigDict(frozen=True)
-            flags: EnabledFlags = Field(default_factory=frozenset)
-
-        ff = frozenset({FakeLogin})
-        m = TestModel(flags=ff)
-        dumped = m.model_dump()
-        assert dumped["flags"] == {"FAKE_LOGIN": True}
-
-
 class TestConfigWithFeatureFlags:
     """Tests for Config with feature flags integration."""
 
@@ -218,18 +116,6 @@ class TestConfigWithFeatureFlags:
         config = Config.model_validate(config_data)
         assert isinstance(config.feature_flags, frozenset)
         assert FakeLogin in config.feature_flags
-
-    def test_config_model_dump_serializes_feature_flags(self) -> None:
-        """Test that model_dump serializes feature flags to dict."""
-        config_data = {
-            "APP_NAME": "test",
-            "SECRET_KEY": "secret",
-            "FEATURE_FLAGS": {"FAKE_LOGIN": True},
-            "DB": {"TYPE": "json", "DATA": {}},
-        }
-        config = Config.model_validate(config_data)
-        dumped = config.model_dump(by_alias=True)
-        assert dumped["FEATURE_FLAGS"] == {"FAKE_LOGIN": True}
 
     def test_config_unknown_flags_ignored(self) -> None:
         """Test that unknown YAML flag keys are silently ignored."""

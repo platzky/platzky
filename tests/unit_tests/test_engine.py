@@ -383,24 +383,13 @@ def test_is_enabled(test_app: Engine):
     assert test_app.is_enabled(FakeLogin) is False
 
 
-def test_get_all_feature_flags(test_app: Engine):
-    """Test that get_all_feature_flags returns flag metadata"""
-    flags = test_app.get_all_feature_flags()
-
-    assert "FAKE_LOGIN" in flags
-    assert flags["FAKE_LOGIN"]["alias"] == "FAKE_LOGIN"
-    assert flags["FAKE_LOGIN"]["default"] is False
-    assert isinstance(flags["FAKE_LOGIN"]["description"], str)
-    assert "value" in flags["FAKE_LOGIN"]
-
-
-def test_get_all_feature_flags_with_enabled_flag():
-    """Test get_all_feature_flags with fake_login enabled"""
+def test_is_enabled_with_flag_on():
+    """Test engine.is_enabled with fake_login enabled"""
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",
         "BLOG_PREFIX": "/blog",
-        "TESTING": True,  # Required for FAKE_LOGIN
+        "TESTING": True,
         "FEATURE_FLAGS": {"FAKE_LOGIN": True},
         "DB": {
             "TYPE": "json",
@@ -415,34 +404,3 @@ def test_get_all_feature_flags_with_enabled_flag():
     app = create_app_from_config(config)
 
     assert app.is_enabled(FakeLogin) is True
-
-    flags = app.get_all_feature_flags()
-    assert flags["FAKE_LOGIN"]["value"] is True
-
-
-def test_get_all_feature_flags_ignores_unknown_yaml_keys():
-    """Test that unknown YAML flag keys are silently ignored."""
-    config_data = {
-        "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",
-        "BLOG_PREFIX": "/blog",
-        "FEATURE_FLAGS": {"CUSTOM_FLAG": True},
-        "DB": {
-            "TYPE": "json",
-            "DATA": {
-                "site_content": {
-                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
-                }
-            },
-        },
-    }
-    config = Config.model_validate(config_data)
-    app = create_app_from_config(config)
-
-    flags = app.get_all_feature_flags()
-
-    # Registered flag should be present
-    assert "FAKE_LOGIN" in flags
-
-    # Unknown YAML key is silently ignored — not in output
-    assert "CUSTOM_FLAG" not in flags

@@ -13,7 +13,7 @@ from flask_babel import Babel
 from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
-from platzky.feature_flags import Flag, flags_to_dict, get_all_flags_metadata
+from platzky.feature_flags import Flag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
 
@@ -56,16 +56,6 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
         self._register_default_health_endpoints()
-
-        # JSON provider for frozenset[type[Flag]] serialization (Jinja ``tojson`` filter)
-        original_default = self.json.default  # type: ignore[reportAttributeAccessIssue]
-
-        def extended_default(o: object) -> object:
-            if isinstance(o, frozenset):
-                return flags_to_dict(o, type(config).get_flag_types())
-            return original_default(o)
-
-        self.json.default = staticmethod(extended_default)  # type: ignore[reportAttributeAccessIssue]
 
         self.cms_modules: list[CmsModule] = []
         # TODO add plugins as CMS Module - all plugins should be visible from
@@ -143,19 +133,6 @@ class Engine(Flask):
         if not callable(check_function):
             raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))
-
-    def get_all_feature_flags(self) -> dict[str, dict[str, bool | str]]:
-        """Return all feature flags with their values and metadata.
-
-        Returns:
-            Dict mapping flag alias to metadata dict with keys:
-            ``value``, ``description``, ``default``, ``alias``.
-            Useful for admin panels and debugging.
-        """
-        return get_all_flags_metadata(
-            self._platzky_config.feature_flags,
-            type(self._platzky_config).get_flag_types(),
-        )
 
     def _register_default_health_endpoints(self) -> None:
         """Register default health endpoints."""

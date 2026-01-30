@@ -19,10 +19,7 @@ Example::
 
 from __future__ import annotations
 
-from typing import Annotated, Any, ClassVar
-
-from pydantic import GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
+from typing import ClassVar
 
 
 class Flag:
@@ -61,11 +58,6 @@ class FakeLogin(Flag):
 BUILTIN_FLAGS: tuple[type[Flag], ...] = (FakeLogin,)
 
 
-# ---------------------------------------------------------------------------
-# Standalone functions
-# ---------------------------------------------------------------------------
-
-
 def parse_flags(
     flag_types: tuple[type[Flag], ...],
     raw_data: dict[str, bool] | None = None,
@@ -91,84 +83,3 @@ def parse_flags(
             enabled.add(flag_cls)
 
     return frozenset(enabled)
-
-
-def flags_to_dict(
-    enabled: frozenset[type[Flag]],
-    flag_types: tuple[type[Flag], ...],
-) -> dict[str, bool]:
-    """Serialize enabled flags as ``{alias: bool}`` for every registered type.
-
-    Args:
-        enabled: The frozenset of enabled Flag subclasses.
-        flag_types: All registered Flag subclasses.
-
-    Returns:
-        Dict mapping each flag alias to its enabled status.
-    """
-    return {flag_cls.alias: (flag_cls in enabled) for flag_cls in flag_types}
-
-
-def get_all_flags_metadata(
-    enabled: frozenset[type[Flag]],
-    flag_types: tuple[type[Flag], ...],
-) -> dict[str, dict[str, bool | str]]:
-    """Return all flags with metadata, suitable for admin panels.
-
-    Args:
-        enabled: The frozenset of enabled Flag subclasses.
-        flag_types: All registered Flag subclasses.
-
-    Returns:
-        Dict mapping flag alias to metadata dict with keys:
-        ``value``, ``description``, ``default``, ``alias``.
-    """
-    result: dict[str, dict[str, bool | str]] = {}
-    for flag_cls in flag_types:
-        result[flag_cls.alias] = {
-            "value": flag_cls in enabled,
-            "description": flag_cls.description,
-            "default": flag_cls.default,
-            "alias": flag_cls.alias,
-        }
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Pydantic integration
-# ---------------------------------------------------------------------------
-
-
-class _EnabledFlagsMarker:
-    """Pydantic schema marker: accept frozenset[type[Flag]] or coerce from dict.
-
-    Serialises as ``{alias: True}`` for each enabled flag (builtin types only).
-    """
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,
-    ) -> CoreSchema:
-        """Pydantic core schema: accept frozenset or coerce from dict."""
-        return core_schema.union_schema(
-            [
-                core_schema.is_instance_schema(frozenset),
-                core_schema.chain_schema(
-                    [
-                        core_schema.dict_schema(),
-                        core_schema.no_info_plain_validator_function(
-                            lambda v: parse_flags(BUILTIN_FLAGS, v)
-                        ),
-                    ]
-                ),
-            ],
-            serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda v: flags_to_dict(v, BUILTIN_FLAGS), info_arg=False
-            ),
-        )
-
-
-EnabledFlags = Annotated[frozenset[type[Flag]], _EnabledFlagsMarker]
-"""Type alias for a frozenset of enabled Flag types, with Pydantic support."""
