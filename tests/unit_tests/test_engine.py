@@ -7,6 +7,7 @@ from werkzeug.test import TestResponse
 from platzky.config import Config
 from platzky.db.json_db import Json
 from platzky.engine import Engine
+from platzky.feature_flags import FakeLogin
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from tests.unit_tests.fake_app import test_app
@@ -375,3 +376,31 @@ def test_add_health_check_not_callable(test_app: Engine):
     """Test that adding a non-callable health check raises TypeError"""
     with pytest.raises(TypeError, match="check_function must be callable"):
         test_app.add_health_check("invalid", "not a function")  # type: ignore[arg-type] - Intentionally passing invalid type to test error handling
+
+
+def test_is_enabled(test_app: Engine):
+    """Test that engine.is_enabled works with FeatureFlag instances"""
+    assert test_app.is_enabled(FakeLogin) is False
+
+
+def test_is_enabled_with_flag_on():
+    """Test engine.is_enabled with fake_login enabled"""
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",
+        "BLOG_PREFIX": "/blog",
+        "TESTING": True,
+        "FEATURE_FLAGS": {"FAKE_LOGIN": True},
+        "DB": {
+            "TYPE": "json",
+            "DATA": {
+                "site_content": {
+                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
+                }
+            },
+        },
+    }
+    config = Config.model_validate(config_data)
+    app = create_app_from_config(config)
+
+    assert app.is_enabled(FakeLogin) is True

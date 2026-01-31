@@ -37,8 +37,7 @@ def get_db(config: dict[str, Any]) -> "MongoDB":
     Returns:
         Configured MongoDB database instance
     """
-    mongodb_config = MongoDbConfig.model_validate(config)
-    return MongoDB(mongodb_config.connection_string, mongodb_config.database_name)
+    return db_from_config(MongoDbConfig.model_validate(config))
 
 
 def db_from_config(config: MongoDbConfig) -> "MongoDB":
@@ -78,6 +77,10 @@ class MongoDB(DB):
         self.menu_items: Collection[Any] = self.db.menu_items
         self.plugins: Collection[Any] = self.db.plugins
 
+    def _get_site_config(self) -> dict[str, Any] | None:
+        """Retrieve the site configuration document."""
+        return self.site_content.find_one({"_id": "config"})
+
     def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
 
@@ -87,9 +90,9 @@ class MongoDB(DB):
         Returns:
             Application description text or empty string if not found
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content and "app_description" in site_content:
-            return site_content["app_description"].get(lang, "")
+        site_config = self._get_site_config()
+        if site_config and "app_description" in site_config:
+            return site_config["app_description"].get(lang, "")
         return ""
 
     def get_all_posts(self, lang: str) -> list[Post]:
@@ -193,10 +196,8 @@ class MongoDB(DB):
         Returns:
             Logo image URL or empty string if not found
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content:
-            return site_content.get("logo_url", "")
-        return ""
+        site_config = self._get_site_config()
+        return site_config.get("logo_url", "") if site_config else ""
 
     def get_favicon_url(self) -> str:
         """Retrieve the URL of the application favicon.
@@ -204,10 +205,8 @@ class MongoDB(DB):
         Returns:
             Favicon URL or empty string if not found
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content:
-            return site_content.get("favicon_url", "")
-        return ""
+        site_config = self._get_site_config()
+        return site_config.get("favicon_url", "") if site_config else ""
 
     def get_primary_color(self) -> str:
         """Retrieve the primary color for the application theme.
@@ -215,10 +214,8 @@ class MongoDB(DB):
         Returns:
             Primary color value, defaults to 'white'
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content:
-            return site_content.get("primary_color", "white")
-        return "white"
+        site_config = self._get_site_config()
+        return site_config.get("primary_color", "white") if site_config else "white"
 
     def get_secondary_color(self) -> str:
         """Retrieve the secondary color for the application theme.
@@ -226,10 +223,8 @@ class MongoDB(DB):
         Returns:
             Secondary color value, defaults to 'navy'
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content:
-            return site_content.get("secondary_color", "navy")
-        return "navy"
+        site_config = self._get_site_config()
+        return site_config.get("secondary_color", "navy") if site_config else "navy"
 
     def get_plugins_data(self) -> list[dict[str, Any]]:
         """Retrieve configuration data for all plugins.
@@ -248,10 +243,8 @@ class MongoDB(DB):
         Returns:
             Font name or empty string if not configured
         """
-        site_content = self.site_content.find_one({"_id": "config"})
-        if site_content:
-            return site_content.get("font", "")
-        return ""
+        site_config = self._get_site_config()
+        return site_config.get("font", "") if site_config else ""
 
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.

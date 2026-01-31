@@ -89,6 +89,7 @@ show_missing = true
 pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "strict"
+exclude = ["docs"]  # Sphinx extension has optional deps not in dev group
 reportMissingImports = true
 reportMissingTypeStubs = false
 reportMissingParameterType = false

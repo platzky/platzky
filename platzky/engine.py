@@ -13,6 +13,7 @@ from flask_babel import Babel
 from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
 from platzky.db.db import DB
+from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
 
@@ -35,6 +36,7 @@ class Engine(Flask):
         """
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
+        self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []
@@ -87,7 +89,7 @@ class Engine(Flask):
         """
         self.notifiers_with_attachments.append(notifier)
 
-    def add_cms_module(self, module: CmsModule):
+    def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
 
@@ -95,11 +97,11 @@ class Engine(Flask):
     def add_login_method(self, login_method: Callable[[], str]) -> None:
         self.login_methods.append(login_method)
 
-    def add_dynamic_body(self, body: str):
+    def add_dynamic_body(self, body: str) -> None:
         self.dynamic_body += body
 
-    def add_dynamic_head(self, body: str):
-        self.dynamic_head += body
+    def add_dynamic_head(self, head: str) -> None:
+        self.dynamic_head += head
 
     def get_locale(self) -> str:
         languages = self.config.get("LANGUAGES", {}).keys()
@@ -112,6 +114,19 @@ class Engine(Flask):
 
         session["language"] = lang
         return lang
+
+    def is_enabled(self, flag: FeatureFlag) -> bool:
+        """Check whether a feature flag is enabled.
+
+        This is the primary API for flag checks.
+
+        Args:
+            flag: A FeatureFlag instance.
+
+        Returns:
+            True if the flag is enabled.
+        """
+        return flag in self.config["FEATURE_FLAGS"]
 
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
         """Register a health check function"""

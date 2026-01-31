@@ -9,6 +9,9 @@ import tomli
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Add local extensions path
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
+
 # Read version from pyproject.toml
 with open(project_root / "pyproject.toml", "rb") as f:
     pyproject = tomli.load(f)
@@ -26,6 +29,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "myst_parser",
+    "feature_flags",  # Auto-generate feature flags docs from FeatureFlagsConfig
 ]
 
 templates_path = ["_templates"]

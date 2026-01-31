@@ -6,6 +6,7 @@ import pytest
 
 from platzky import create_app_from_config
 from platzky.config import Config, LanguageConfig
+from platzky.debug import DebugBlueprintProductionError
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -125,6 +126,7 @@ class TestPlatzky:
                 "APP_NAME": "testing App Name",
                 "SECRET_KEY": "secret",
                 "SEO_PREFIX": "/seo",
+                "TESTING": True,  # Required for FAKE_LOGIN
                 "DB": {"TYPE": "json", "DATA": {}},
                 "FEATURE_FLAGS": {"FAKE_LOGIN": True},
             }
@@ -187,11 +189,11 @@ class TestPlatzky:
         }
 
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.delenv("FLASK_DEBUG", raising=False)
         config = Config.model_validate(config_raw)
 
         with pytest.raises(
-            RuntimeError,
-            match="SECURITY ERROR: Fake login routes are enabled outside of a testing environment! "
-            "This functionality must only be used during development or testing.",
+            DebugBlueprintProductionError,
+            match="Cannot register DebugBlueprint 'fake_login' in production",
         ):
             create_app_from_config(config)

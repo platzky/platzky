@@ -1,6 +1,7 @@
 APP_NAME: Literature
 SECRET_KEY: SECRET
 BLOG_PREFIX: "/blog"
+TESTING: true  # Required for FAKE_LOGIN
 DB:
   TYPE: json_file
   PATH: tests/e2e_tests/e2e_test_data.json

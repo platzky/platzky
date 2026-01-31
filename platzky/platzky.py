@@ -16,6 +16,7 @@ from platzky.config import (
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
+from platzky.feature_flags import FakeLogin
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
@@ -129,17 +130,6 @@ def create_engine(config: Config, db: DB) -> Engine:
         redirect_url = _get_safe_redirect_url(request.referrer, request.host)
         return redirect(redirect_url)
 
-    def url_link(x: str) -> str:
-        """URL-encode a string for safe use in URLs.
-
-        Args:
-            x: String to encode
-
-        Returns:
-            URL-encoded string with all characters except safe ones escaped
-        """
-        return _url_encode(x)
-
     @app.context_processor
     def utils() -> dict[str, t.Any]:
         """Provide utility variables and functions to all templates.
@@ -150,8 +140,8 @@ def create_engine(config: Config, db: DB) -> Engine:
         """
         locale = app.get_locale()
         lang = config.languages.get(locale)
-        flag = lang.flag if lang is not None else ""
-        country = lang.country if lang is not None else ""
+        flag = lang.flag if lang else ""
+        country = lang.country if lang else ""
         return {
             "app_name": config.app_name,
             "app_description": app.db.get_app_description(locale) or config.app_name,
@@ -159,7 +149,7 @@ def create_engine(config: Config, db: DB) -> Engine:
             "current_flag": flag,
             "current_lang_country": country,
             "current_language": locale,
-            "url_link": url_link,
+            "url_link": _url_encode,
             "menu_items": app.db.get_menu_items_in_lang(locale),
             "logo_url": app.db.get_logo_url(),
             "favicon_url": app.db.get_favicon_url(),
@@ -239,11 +229,14 @@ def create_app_from_config(config: Config) -> Engine:
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
 
-    if config.feature_flags and config.feature_flags.get("FAKE_LOGIN", False):
-        from platzky.admin.fake_login import get_fake_login_html, setup_fake_login_routes
+    # Two-layer defense: is_enabled() gates the feature flag, and
+    # DebugBlueprint.register() independently blocks registration
+    # unless the app is in debug or testing mode.
+    if engine.is_enabled(FakeLogin):
+        from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
 
         engine.login_methods.append(get_fake_login_html())
-        admin_blueprint = setup_fake_login_routes(admin_blueprint)
+        engine.register_blueprint(create_fake_login_blueprint())
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,

@@ -50,8 +50,7 @@ def get_db(config: dict[str, Any]) -> "GoogleJsonDb":
     Returns:
         Configured Google Cloud Storage JSON database instance
     """
-    google_json_db_config = GoogleJsonDbConfig.model_validate(config)
-    return GoogleJsonDb(google_json_db_config.bucket_name, google_json_db_config.source_blob_name)
+    return db_from_config(GoogleJsonDbConfig.model_validate(config))
 
 
 def get_blob(bucket_name: str, source_blob_name: str) -> "Blob":
