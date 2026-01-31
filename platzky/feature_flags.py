@@ -123,7 +123,7 @@ def parse_flags(
     return frozenset(flag for flag in all_flags() if raw_data.get(flag.alias, flag.default))
 
 
-def build_flag_set(raw_data: dict[str, bool] | None = None) -> "FeatureFlagSet":
+def build_flag_set(raw_data: dict[str, bool] | None = None) -> FeatureFlagSet:
     """Build a FeatureFlagSet from raw config data.
 
     Preserves ALL keys (including unregistered ones) for backward
