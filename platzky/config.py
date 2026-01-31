@@ -12,7 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
-from platzky.feature_flags import FeatureFlag, parse_flags
+from platzky.feature_flags import build_flag_set
+from platzky.feature_flags_wrapper import FeatureFlagSet
 
 
 class LanguageConfig(BaseModel):
@@ -255,12 +256,24 @@ class Config(BaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: frozenset[FeatureFlag] = Field(
-        default_factory=parse_flags,
+    feature_flags: FeatureFlagSet = Field(
+        default_factory=build_flag_set,
         alias="FEATURE_FLAGS",
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
+
+    @field_validator("feature_flags", mode="before")
+    @classmethod
+    def validate_feature_flags(cls, v: FeatureFlagSet | dict[str, bool] | None) -> FeatureFlagSet:
+        """Coerce dict or None into a FeatureFlagSet."""
+        if isinstance(v, FeatureFlagSet):
+            return v
+        if isinstance(v, dict):
+            return build_flag_set(v)
+        if v is None:
+            return build_flag_set()
+        return v
 
     @classmethod
     def model_validate(
@@ -292,10 +305,6 @@ class Config(BaseModel):
             raise ValueError(f"Missing required config key: {e}. DB.TYPE is required.") from e
         db_cfg_type = get_db_module(db_type).db_config_type()
         obj["DB"] = db_cfg_type.model_validate(db_section)
-
-        raw_flags = obj.get("FEATURE_FLAGS")
-        if isinstance(raw_flags, dict):
-            obj["FEATURE_FLAGS"] = parse_flags(raw_flags)
 
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context

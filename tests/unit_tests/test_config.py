@@ -2,6 +2,7 @@ import pytest
 
 from platzky.config import Config, languages_dict
 from platzky.feature_flags import FakeLogin, FeatureFlag, parse_flags, unregister
+from platzky.feature_flags_wrapper import FeatureFlagSet
 
 
 class TestFeatureFlag:
@@ -89,9 +90,9 @@ class TestConfigWithFeatureFlags:
     """Tests for Config with feature flags integration."""
 
     def test_default_feature_flags(self) -> None:
-        """Test that feature_flags has a default frozenset instance."""
+        """Test that feature_flags defaults to a FeatureFlagSet instance."""
         config = Config.parse_yaml("config-template.yml")
-        assert isinstance(config.feature_flags, frozenset)
+        assert isinstance(config.feature_flags, FeatureFlagSet)
         assert FakeLogin not in config.feature_flags
 
     def test_config_with_feature_flags_from_yaml(self) -> None:
@@ -108,11 +109,11 @@ class TestConfigWithFeatureFlags:
             "DB": {"TYPE": "json", "DATA": {}},
         }
         config = Config.model_validate(config_data)
-        assert isinstance(config.feature_flags, frozenset)
+        assert isinstance(config.feature_flags, FeatureFlagSet)
         assert FakeLogin in config.feature_flags
 
-    def test_config_unknown_flags_ignored(self) -> None:
-        """Test that unknown YAML flag keys are silently ignored."""
+    def test_unknown_keys_preserved(self) -> None:
+        """Test that unknown YAML flag keys are preserved in dict layer."""
         config_data = {
             "APP_NAME": "test",
             "SECRET_KEY": "secret",
@@ -121,8 +122,75 @@ class TestConfigWithFeatureFlags:
         }
         config = Config.model_validate(config_data)
         assert FakeLogin in config.feature_flags
-        # UNKNOWN_FLAG is not a registered flag — only FakeLogin should be enabled
-        assert config.feature_flags == frozenset({FakeLogin})
+        assert config.feature_flags.get("UNKNOWN_FLAG") is True
+        assert config.feature_flags.get("FAKE_LOGIN") is True
+
+
+class TestFeatureFlagSet:
+    """Tests for the FeatureFlagSet backward-compatible wrapper."""
+
+    def test_dict_get_access(self) -> None:
+        """Test that dict .get() works for raw keys."""
+        flag_set = FeatureFlagSet(frozenset(), {"MY_KEY": True})
+        assert flag_set.get("MY_KEY") is True
+        assert flag_set.get("MISSING") is None
+
+    def test_dict_bracket_access(self) -> None:
+        """Test that dict bracket access works."""
+        flag_set = FeatureFlagSet(frozenset(), {"MY_KEY": True})
+        assert flag_set["MY_KEY"] is True
+
+    def test_attribute_access(self) -> None:
+        """Test Jinja2 dot-notation attribute access."""
+        flag_set = FeatureFlagSet(frozenset(), {"MY_KEY": True, "OFF": False})
+        assert flag_set.MY_KEY is True
+        assert flag_set.OFF is False
+
+    def test_attribute_access_missing_raises(self) -> None:
+        """Test that missing attribute raises AttributeError."""
+        flag_set = FeatureFlagSet(frozenset(), {})
+        with pytest.raises(AttributeError, match="MISSING"):
+            _ = flag_set.MISSING
+
+    def test_feature_flag_membership(self) -> None:
+        """Test that FeatureFlag 'in' check uses typed set."""
+        flag = FeatureFlag(alias="TEST_MEMBER", register=False)
+        flag_set = FeatureFlagSet(frozenset({flag}), {"TEST_MEMBER": True})
+        assert flag in flag_set
+
+    def test_feature_flag_not_member(self) -> None:
+        """Test that absent FeatureFlag is not in the set."""
+        flag = FeatureFlag(alias="NOT_THERE", register=False)
+        flag_set = FeatureFlagSet(frozenset(), {"OTHER": True})
+        assert flag not in flag_set
+
+    def test_string_key_membership(self) -> None:
+        """Test that string 'in' check uses dict layer."""
+        flag_set = FeatureFlagSet(frozenset(), {"MY_KEY": True})
+        assert "MY_KEY" in flag_set
+        assert "MISSING" not in flag_set
+
+    def test_enabled_flags_property(self) -> None:
+        """Test the enabled_flags property returns the frozenset."""
+        flag = FeatureFlag(alias="PROP_TEST", register=False)
+        enabled = frozenset({flag})
+        flag_set = FeatureFlagSet(enabled, {"PROP_TEST": True})
+        assert flag_set.enabled_flags == enabled
+
+    def test_dict_equality(self) -> None:
+        """Test that FeatureFlagSet compares equal to an equivalent dict."""
+        raw = {"KEY_A": True, "KEY_B": False}
+        flag_set = FeatureFlagSet(frozenset(), raw)
+        assert flag_set == {"KEY_A": True, "KEY_B": False}
+
+    def test_tojson_serializable(self) -> None:
+        """Test that FeatureFlagSet is JSON-serializable (dict subclass)."""
+        import json
+
+        raw = {"FLAG_A": True, "FLAG_B": False}
+        flag_set = FeatureFlagSet(frozenset(), raw)
+        result = json.dumps(flag_set)
+        assert json.loads(result) == raw
 
 
 def test_parse_template_config() -> None:

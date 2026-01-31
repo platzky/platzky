@@ -36,6 +36,7 @@ class Engine(Flask):
         """
         super().__init__(import_name)
         self.config.from_mapping(config.model_dump(by_alias=True))
+        self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.notifiers: list[Notifier] = []

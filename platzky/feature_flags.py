@@ -14,6 +14,11 @@ Example::
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from platzky.feature_flags_wrapper import FeatureFlagSet
+
 _registry: set[FeatureFlag] = set()
 
 
@@ -116,3 +121,21 @@ def parse_flags(
         raw_data = {}
 
     return frozenset(flag for flag in all_flags() if raw_data.get(flag.alias, flag.default))
+
+
+def build_flag_set(raw_data: dict[str, bool] | None = None) -> "FeatureFlagSet":
+    """Build a FeatureFlagSet from raw config data.
+
+    Preserves ALL keys (including unregistered ones) for backward
+    compatibility with consumers that use dict-like access.
+    """
+    from platzky.feature_flags_wrapper import FeatureFlagSet
+
+    if raw_data is None:
+        raw_data = {}
+
+    enabled_flags = frozenset(
+        flag for flag in all_flags() if raw_data.get(flag.alias, flag.default)
+    )
+
+    return FeatureFlagSet(enabled_flags, raw_data)
