@@ -6,13 +6,11 @@ on:
       - main
       - next
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
 
   release:
     runs-on: ubuntu-latest
