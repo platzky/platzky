@@ -1,11 +1,9 @@
 """Backward-compatible wrapper for feature flags.
 
-.. deprecated:: 1.5.0
+.. deprecated:: 1.4.0
     Dict-like access is deprecated. Use typed FeatureFlag instances
     with engine.is_enabled(flag) instead.
 """
-
-from __future__ import annotations
 
 import warnings
 
@@ -21,7 +19,7 @@ _MIGRATION_MSG = (
 
 _DEPRECATION_WARNING = deprecation.DeprecatedWarning(
     "feature_flags dict access",
-    "1.5.0",
+    "1.4.0",
     "2.0.0",
     _MIGRATION_MSG,
 )
@@ -34,7 +32,7 @@ def _warn_dict_access() -> None:
 class FeatureFlagSet(dict[str, bool]):
     """Backward-compatible feature flag collection (dict subclass).
 
-    .. deprecated:: 1.5.0
+    .. deprecated:: 1.4.0
         Dict-like access (.get, .KEY, [key]) is deprecated.
         Migrate to typed FeatureFlag + engine.is_enabled().
 
@@ -64,6 +62,17 @@ class FeatureFlagSet(dict[str, bool]):
         """Dict .get() access with deprecation warning."""
         _warn_dict_access()
         return super().get(key, default)
+
+    def _raise_immutable(self, *_args: object, **_kwargs: object) -> None:
+        raise TypeError("FeatureFlagSet is immutable")
+
+    __setitem__ = _raise_immutable
+    __delitem__ = _raise_immutable
+    pop = _raise_immutable  # type: ignore[assignment]
+    update = _raise_immutable
+    clear = _raise_immutable
+    setdefault = _raise_immutable  # type: ignore[assignment]
+    __ior__ = _raise_immutable  # type: ignore[assignment]
 
     def __contains__(self, item: object) -> bool:
         """Support both FeatureFlag membership and string key lookup."""

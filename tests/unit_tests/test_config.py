@@ -183,6 +183,22 @@ class TestFeatureFlagSet:
         flag_set = FeatureFlagSet(frozenset(), raw)
         assert flag_set == {"KEY_A": True, "KEY_B": False}
 
+    def test_immutable(self) -> None:
+        """Test that FeatureFlagSet rejects all dict mutations."""
+        flag_set = FeatureFlagSet(frozenset(), {"MY_KEY": True})
+        with pytest.raises(TypeError, match="immutable"):
+            flag_set["X"] = True
+        with pytest.raises(TypeError, match="immutable"):
+            del flag_set["MY_KEY"]
+        with pytest.raises(TypeError, match="immutable"):
+            flag_set.pop("MY_KEY")
+        with pytest.raises(TypeError, match="immutable"):
+            flag_set.update({"X": True})
+        with pytest.raises(TypeError, match="immutable"):
+            flag_set.clear()
+        with pytest.raises(TypeError, match="immutable"):
+            flag_set.setdefault("X", True)
+
     def test_tojson_serializable(self) -> None:
         """Test that FeatureFlagSet is JSON-serializable (dict subclass)."""
         import json
