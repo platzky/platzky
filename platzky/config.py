@@ -9,18 +9,14 @@ import typing as t
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
-from .db.db import DBConfig
-from .db.db_loader import get_db_module
+from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
+from platzky.db.db import DBConfig
+from platzky.db.db_loader import get_db_module
+from platzky.feature_flags import build_flag_set
+from platzky.feature_flags_wrapper import FeatureFlagSet
 
 
-class StrictBaseModel(BaseModel):
-    """Base model with immutable (frozen) configuration."""
-
-    model_config = ConfigDict(frozen=True)
-
-
-class LanguageConfig(StrictBaseModel):
+class LanguageConfig(BaseModel):
     """Configuration for a single language.
 
     Attributes:
@@ -30,10 +26,12 @@ class LanguageConfig(StrictBaseModel):
         domain: Optional domain specific to this language
     """
 
-    name: str = Field(alias="name")
-    flag: str = Field(alias="flag")
-    country: str = Field(alias="country")
-    domain: t.Optional[str] = Field(default=None, alias="domain")
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    flag: str
+    country: str
+    domain: t.Optional[str] = None
 
 
 Languages = dict[str, LanguageConfig]
@@ -64,7 +62,7 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
     }
 
 
-class TelemetryConfig(StrictBaseModel):
+class TelemetryConfig(BaseModel):
     """OpenTelemetry configuration for application tracing.
 
     Attributes:
@@ -79,15 +77,17 @@ class TelemetryConfig(StrictBaseModel):
         instrument_logging: Enable automatic logging instrumentation (default: True)
     """
 
-    enabled: bool = Field(default=False, alias="enabled")
-    endpoint: t.Optional[str] = Field(default=None, alias="endpoint")
-    console_export: bool = Field(default=False, alias="console_export")
-    timeout: int = Field(default=10, alias="timeout", gt=0)
-    deployment_environment: t.Optional[str] = Field(default=None, alias="deployment_environment")
-    service_instance_id: t.Optional[str] = Field(default=None, alias="service_instance_id")
-    flush_on_request: bool = Field(default=True, alias="flush_on_request")
-    flush_timeout_ms: int = Field(default=5000, alias="flush_timeout_ms", gt=0)
-    instrument_logging: bool = Field(default=True, alias="instrument_logging")
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = False
+    endpoint: t.Optional[str] = None
+    console_export: bool = False
+    timeout: int = Field(default=10, gt=0)
+    deployment_environment: t.Optional[str] = None
+    service_instance_id: t.Optional[str] = None
+    flush_on_request: bool = True
+    flush_timeout_ms: int = Field(default=5000, gt=0)
+    instrument_logging: bool = True
 
     @field_validator("endpoint")
     @classmethod
@@ -165,7 +165,7 @@ _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
 )
 
 
-class AttachmentConfig(StrictBaseModel):
+class AttachmentConfig(BaseModel):
     """Configuration for attachment handling.
 
     Attributes:
@@ -180,6 +180,8 @@ class AttachmentConfig(StrictBaseModel):
             Note: blocked_extensions takes precedence over allowed_extensions.
             Files without extensions are always blocked when allowed_extensions is set.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     allowed_mime_types: frozenset[str] = Field(default=_DEFAULT_ALLOWED_MIME_TYPES)
     validate_content: bool = Field(default=True)
@@ -220,7 +222,7 @@ class AttachmentConfig(StrictBaseModel):
     )
 
 
-class Config(StrictBaseModel):
+class Config(BaseModel):
     """Main application configuration.
 
     Attributes:
@@ -239,6 +241,8 @@ class Config(StrictBaseModel):
         attachment: Attachment handling configuration
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     app_name: str = Field(alias="APP_NAME")
     secret_key: str = Field(alias="SECRET_KEY")
     db: DBConfig = Field(alias="DB")
@@ -252,9 +256,24 @@ class Config(StrictBaseModel):
     )
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
-    feature_flags: t.Optional[dict[str, bool]] = Field(default=None, alias="FEATURE_FLAGS")
+    feature_flags: FeatureFlagSet = Field(
+        default_factory=build_flag_set,
+        alias="FEATURE_FLAGS",
+    )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
+
+    @field_validator("feature_flags", mode="before")
+    @classmethod
+    def validate_feature_flags(cls, v: FeatureFlagSet | dict[str, bool] | None) -> FeatureFlagSet:
+        """Coerce dict or None into a FeatureFlagSet."""
+        if isinstance(v, FeatureFlagSet):
+            return v
+        if isinstance(v, dict):
+            return build_flag_set(v)
+        if v is None:
+            return build_flag_set()
+        return v
 
     @classmethod
     def model_validate(
@@ -267,6 +286,9 @@ class Config(StrictBaseModel):
     ) -> "Config":
         """Validate and construct Config from dictionary.
 
+        Parses the raw FEATURE_FLAGS dict into a frozenset of enabled
+        FeatureFlag types via ``parse_flags()``.
+
         Args:
             obj: Configuration dictionary
             strict: Enable strict validation
@@ -276,8 +298,14 @@ class Config(StrictBaseModel):
         Returns:
             Validated Config instance
         """
-        db_cfg_type = get_db_module(obj["DB"]["TYPE"]).db_config_type()
-        obj["DB"] = db_cfg_type.model_validate(obj["DB"])
+        try:
+            db_section = obj["DB"]
+            db_type = db_section["TYPE"]
+        except KeyError as e:
+            raise ValueError(f"Missing required config key: {e}. DB.TYPE is required.") from e
+        db_cfg_type = get_db_module(db_type).db_config_type()
+        obj["DB"] = db_cfg_type.model_validate(db_section)
+
         return super().model_validate(
             obj, strict=strict, from_attributes=from_attributes, context=context
         )

@@ -77,16 +77,15 @@ def create_seo_blueprint(
         """
         lang = locale_func()
 
-        global url
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc
 
         # Static routes with static content
-        static_urls = []
-        for rule in current_app.url_map.iter_rules():
-            if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0:
-                url = {"loc": f"{host_base}{rule!s}"}
-                static_urls.append(url)
+        static_urls = [
+            {"loc": f"{host_base}{rule!s}"}
+            for rule in current_app.url_map.iter_rules()
+            if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0
+        ]
 
         dynamic_urls = get_blog_entries(host_base, lang, db, config["BLOG_PREFIX"])
 
