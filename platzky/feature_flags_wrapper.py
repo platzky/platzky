@@ -42,16 +42,8 @@ class FeatureFlagSet(dict[str, bool]):
     - ``flag_set.KEY`` -- deprecated Jinja2 attribute access.
     """
 
-    _enabled_flags: frozenset[FeatureFlag]
-
-    def __init__(
-        self,
-        enabled_flags: frozenset[FeatureFlag],
-        raw_data: dict[str, bool],
-    ) -> None:
+    def __init__(self, raw_data: dict[str, bool]) -> None:
         super().__init__(raw_data)
-        # Use object.__setattr__ to bypass __getattr__ override
-        object.__setattr__(self, "_enabled_flags", enabled_flags)
 
     def __getitem__(self, key: str) -> bool:
         """Dict bracket access with deprecation warning."""
@@ -77,7 +69,9 @@ class FeatureFlagSet(dict[str, bool]):
     def __contains__(self, item: object) -> bool:
         """Support both FeatureFlag membership and string key lookup."""
         if isinstance(item, FeatureFlag):
-            return item in self._enabled_flags
+            if super().__contains__(item.alias):
+                return bool(super().__getitem__(item.alias))
+            return item.default
         return super().__contains__(item)
 
     def __getattr__(self, name: str) -> bool:
@@ -86,8 +80,3 @@ class FeatureFlagSet(dict[str, bool]):
             return self[name]
         except KeyError:
             raise AttributeError(f"'{type(self).__name__}' has no attribute {name!r}") from None
-
-    @property
-    def enabled_flags(self) -> frozenset[FeatureFlag]:
-        """The set of enabled typed FeatureFlag instances."""
-        return self._enabled_flags
