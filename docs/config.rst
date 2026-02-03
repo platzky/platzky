@@ -226,8 +226,8 @@ Feature Flags
 ``FEATURE_FLAGS``
 ^^^^^^^^^^^^^^^^^
 
-:Type: ``frozenset[FeatureFlag]`` (internal)
-:Default: ``frozenset()``
+:Type: ``dict[str, bool]`` (YAML) / ``FeatureFlagSet`` (internal)
+:Default: ``{}``
 
 Enable or disable specific features in your application. In YAML, supply a
 mapping of flag alias to ``bool``:
@@ -239,9 +239,52 @@ mapping of flag alias to ``bool``:
 
 At runtime, flags are checked via ``engine.is_enabled(FakeLogin)``.
 
-Available feature flags:
+Built-in feature flags
+""""""""""""""""""""""
 
 .. feature-flags::
+
+Defining custom feature flags
+"""""""""""""""""""""""""""""
+
+Downstream applications and plugins can define their own flags. Create a
+``FeatureFlag`` instance with a unique ``alias``, then enable it in the
+YAML config:
+
+.. code-block:: python
+
+    # my_app/flags.py
+    from platzky.feature_flags import FeatureFlag
+
+    DarkMode = FeatureFlag(
+        alias="DARK_MODE",
+        default=False,
+        description="Enable dark-mode theme.",
+    )
+
+.. code-block:: yaml
+
+    # config.yml
+    FEATURE_FLAGS:
+      DARK_MODE: true
+
+Then check it at runtime:
+
+.. code-block:: python
+
+    from my_app.flags import DarkMode
+
+    if app.is_enabled(DarkMode):
+        ...
+
+Resolution is dynamic: the ``FeatureFlagSet`` looks up the flag's ``alias``
+in the raw config dict and falls back to its ``default``. No registration
+step is required — any ``FeatureFlag`` instance can be checked against any
+``FeatureFlagSet``.
+
+A flag whose ``alias`` is absent from the YAML config resolves to its
+``default`` value. This means a flag with ``default=True`` is enabled
+unless the config explicitly sets it to ``false``.
 
 Telemetry Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~
