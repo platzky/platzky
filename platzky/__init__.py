@@ -1,4 +1,5 @@
 from platzky.engine import Engine as Engine
+from platzky.feature_flags import BUILTIN_FLAGS as BUILTIN_FLAGS
 from platzky.feature_flags import FakeLogin as FakeLogin
 from platzky.feature_flags import FeatureFlag as FeatureFlag
 from platzky.feature_flags import all_flags as all_flags

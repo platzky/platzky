@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
-from platzky.feature_flags import build_flag_set
 from platzky.feature_flags_wrapper import FeatureFlagSet
 
 
@@ -257,7 +256,7 @@ class Config(BaseModel):
     debug: bool = Field(default=False, alias="DEBUG")
     testing: bool = Field(default=False, alias="TESTING")
     feature_flags: FeatureFlagSet = Field(
-        default_factory=build_flag_set,
+        default_factory=lambda: FeatureFlagSet({}),
         alias="FEATURE_FLAGS",
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
@@ -270,9 +269,9 @@ class Config(BaseModel):
         if isinstance(v, FeatureFlagSet):
             return v
         if isinstance(v, dict):
-            return build_flag_set(v)
+            return FeatureFlagSet(v)
         if v is None:
-            return build_flag_set()
+            return FeatureFlagSet({})
         return v
 
     @classmethod
@@ -286,8 +285,7 @@ class Config(BaseModel):
     ) -> "Config":
         """Validate and construct Config from dictionary.
 
-        Parses the raw FEATURE_FLAGS dict into a frozenset of enabled
-        FeatureFlag types via ``parse_flags()``.
+        Parses the raw FEATURE_FLAGS dict into a ``FeatureFlagSet``.
 
         Args:
             obj: Configuration dictionary
