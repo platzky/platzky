@@ -160,6 +160,8 @@ The check function should raise an exception if the check fails.
 
 .. code-block:: python
 
+    import requests
+
     def process(self, app: Engine) -> Engine:
         def check():
             # Raise an exception if unhealthy

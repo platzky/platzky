@@ -55,6 +55,7 @@ jobs:
 
       - name: Action | Semantic Version Release
         id: release
+        # v10.5.3
         uses: python-semantic-release/python-semantic-release@350c48fcb3ffcdfd2e0a235206bc2ecea6b69df0
         with:
           github_token: ${{ steps.generate_token.outputs.token }}
@@ -67,6 +68,7 @@ jobs:
         run: poetry build
 
       - name: Publish | Upload to GitHub Release Assets
+        # v10.5.3
         uses: python-semantic-release/publish-action@310a9983a0ae878b29f3aac778d7c77c1db27378
         if: steps.release.outputs.released == 'true'
         with:
