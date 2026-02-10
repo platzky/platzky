@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.5 (2026-02-10)
+
+### Bug Fixes
+
+- Migrated to new way of inserting Changelog ([#175](https://github.com/platzky/platzky/pull/175),
+  [`79e4574`](https://github.com/platzky/platzky/commit/79e457470903d7f6d7ce39bf5564f2925e17b04d))
+
+
 ## v1.4.3 (2026-02-10)
 
 - fix: fix semantic-release config and add comprehensive plugin documentation (#173)
