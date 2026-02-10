@@ -1,6 +1,67 @@
 # CHANGELOG
 
 
+## v1.4.3 (2026-02-10)
+
+- fix: fix semantic-release config and add comprehensive plugin documentation (#173)
+
+
+## v1.4.2 (2026-02-03)
+
+- fix: simplify feature flags (#172)
+
+
+## v1.4.1 (2026-02-01)
+
+- fix: lower privileges for pipeline (#171)
+
+
+## v1.4.0 (2026-02-01)
+
+- feat: implement feature flags system with config refactor (#169)
+
+
+## v1.3.1 (2026-01-29)
+
+- fix: can use domains which are not specified in config (#170)
+
+
+## v1.3.0 (2026-01-23)
+
+- feat: added attachments support in notifiers (#164)
+
+
+## v1.2.2 (2026-01-18)
+
+- fix: styling fixes for left panel (#158)
+
+
+## v1.2.1 (2026-01-15)
+
+- fix: page allows back lack of language - it has default (#157)
+
+
+## v1.2.0 (2026-01-12)
+
+- feat: better returns and linting (#156)
+
+
+## v1.1.0 (2026-01-05)
+
+- feat: add plugin translation support with security and stability fixes (#135)
+
+
+## v1.0.1 (2025-10-16)
+
+- fix: Add OpenTelemetry logging instrumentation for trace context propagation (#127)
+
+
+## v1.0.0 (2025-10-13)
+
+- feat: introduce telemetry support (#120)
+- docs: add documentation (#118)
+
+
 ## v0.4.3 (2025-10-02)
 
 ### Bug Fixes
