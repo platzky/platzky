@@ -68,8 +68,12 @@
 
 ## v0.3.6 (2025-06-05)
 
+- fix: fixed issue with not displaying plugins in the admin panel
+
 
 ## v0.3.5 (2025-06-01)
+
+- fix: fake login and whole engine now uses csrf
 
 
 ## v0.3.4 (2025-06-01)
@@ -77,35 +81,64 @@
 
 ## v0.3.3 (2025-05-26)
 
+- feat: added support for using github as database
+
 
 ## v0.3.2 (2025-05-18)
+
+- feat: Fake login functionality introduced
 
 
 ## v0.3.1 (2025-03-16)
 
+- feat: Added a new plugin loading mechanism to manage and process plugins effectively.
+
 
 ## v0.3.0 (2025-02-19)
+
+- removed deprecated plugins import (now they are only loaded if they are installed)
 
 
 ## v0.2.18 (2025-02-06)
 
+- fix: UTF emails working
+
 
 ## v0.2.17 (2025-02-05)
+
+- fix: fixed dynamic css
 
 
 ## v0.2.16 (2025-02-05)
 
+- feature: added app_description for applications
+
+
+## v0.2.15 (2025-02-02)
+
+- fix: plugins loading
+
 
 ## v0.2.14 (2025-02-02)
+
+- fix: plugins loading
 
 
 ## v0.2.13 (2024-11-30)
 
+- feat: added handling multiple languages in menu
+
 
 ## v0.2.12 (2024-11-20)
 
+- feat: added feature flags
+
 
 ## v0.2.11 (2024-10-29)
+
+- feat: add alt text for language icons
+- fix: insufficient sidebar responsiveness
+- feat: add alt text for link in logo
 
 
 ## v0.2.10 (2024-10-13)
@@ -144,6 +177,8 @@ closes Problematy/goodmap#125
 
 ## v0.2.9 (2024-09-27)
 
+- fix: sitemap gives proper links for blog posts
+
 
 ## v0.2.8 (2024-09-26)
 
@@ -155,38 +190,46 @@ closes Problematy/goodmap#125
 
 ## v0.2.7 (2024-09-26)
 
+- fix: add alt text for logo
+- fix: removed leaflet dependency
+
 
 ## v0.2.6 (2024-08-24)
+
+- feature: add support for favicons
 
 
 ## v0.2.5 (2024-07-25)
 
+- fix: plugin loader now loads plugins when db is set to graphql
+
 
 ## v0.2.4 (2024-07-23)
+
+- fix: set default page title as app name
+- fix: added missing google tag manager plugin
+- fix: fixed hreflang and html lang
 
 
 ## v0.2.3 (2024-07-17)
 
+- fix: added necessary interface for platzky
+
 
 ## v0.2.2 (2024-05-30)
+
+- fix: fixed standardization of comments in gql db
 
 
 ## v0.2.1 (2024-05-28)
 
+- fix: moved pydantic to requirements
+- fix: removed questions from core logic
+
 
 ## v0.2.0 (2024-05-27)
 
-
-## v0.1.19 (2023-01-27)
-
-
-## v0.1.18 (2023-01-03)
-
-
-## v0.1.17 (2022-12-28)
-
-
-## v0.1.16 (2022-11-04)
-
-
-## v0.1.15 (2022-11-04)
+- made config file stricter
+- created DB dynamic loading
+- introduced models for webpage
+- improved better plugin loader
