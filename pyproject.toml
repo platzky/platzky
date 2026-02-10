@@ -145,7 +145,6 @@ remove_dist = false
 commit_author = "semantic-release <semantic-release>"
 commit_message = "chore(release): {version}"
 tag_format = "{version}"
-commit_parser = "conventional"
 
 [tool.semantic_release.changelog]
 exclude_commit_patterns = []
@@ -164,15 +163,14 @@ match = "next"
 prerelease = true
 prerelease_token = "alpha"
 
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-
-[tool.semantic_release.remote]
-type = "github"
-
-[tool.semantic_release.remote.token]
-env = "GH_TOKEN"
 
 [tool.interrogate]
 fail-under = 88
