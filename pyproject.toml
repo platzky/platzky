@@ -56,7 +56,7 @@ black = "^24.8.0"
 ruff = "^0.4.4"
 pyright = "^1.1.364"
 beautifulsoup4 = "^4.12.3"
-python-semantic-release = "^9.8.0"
+python-semantic-release = "^10.5.3"
 interrogate = "^1.7.0"
 opentelemetry-api = "^1.27.0"
 opentelemetry-sdk = "^1.27.0"
@@ -146,7 +146,14 @@ commit_author = "semantic-release <semantic-release>"
 commit_message = "chore(release): {version}"
 tag_format = "{version}"
 commit_parser = "conventional"
+
+[tool.semantic_release.changelog]
+exclude_commit_patterns = []
+
+[tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
+output_format = "md"
+mask_initial_release = true
 
 [tool.semantic_release.branches.main]
 match = "main"
