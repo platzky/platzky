@@ -31,8 +31,6 @@ Here is a minimal example:
 
 .. code-block:: python
 
-    from typing import Any
-
     from platzky.engine import Engine
     from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
@@ -46,11 +44,6 @@ Here is a minimal example:
 
     class MyPlugin(PluginBase[MyPluginConfig]):
         """A plugin that adds custom functionality."""
-
-        config: MyPluginConfig
-
-        def __init__(self, config: dict[str, Any]):
-            super().__init__(config)
 
         @classmethod
         def get_config_model(cls) -> type[MyPluginConfig]:
@@ -72,6 +65,11 @@ Here is a minimal example:
 * The ``process`` method receives the Platzky ``Engine`` (a Flask subclass) and must
   return it after applying modifications.
 * The module must expose a ``Plugin`` attribute at the top level.
+
+**Optional overrides:**
+
+* Add a ``config: MyPluginConfig`` type hint to the class body for better type checking.
+* Override ``__init__`` if you need custom initialization beyond config validation.
 
 Plugin Configuration
 --------------------
