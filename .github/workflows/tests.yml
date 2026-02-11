@@ -37,6 +37,8 @@ jobs:
     - uses: actions/checkout@v6
     - name: Install Poetry
       run: pip install poetry==2.0.1
+    - name: Install poetry-audit-plugin
+      run: poetry self add poetry-audit-plugin
     - name: Set up Python 3.10
       uses: actions/setup-python@v6
       with:
