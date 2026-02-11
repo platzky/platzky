@@ -10,7 +10,6 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
-      - 'CHANGELOG.md'
   push:
     branches:
       - main
@@ -20,7 +19,6 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
-      - 'CHANGELOG.md'
   workflow_call:
 
 concurrency:
@@ -35,7 +33,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - name: Install Poetry
-      run: pip install poetry==2.0.1 poetry-audit-plugin
+      run: pip install poetry==2.0.1 poetry-audit-plugin==1.0.0
     - name: Set up Python 3.10
       uses: actions/setup-python@v6
       with:

@@ -60,16 +60,16 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
         ConsoleSpanExporter,
         SimpleSpanProcessor,
     )
-    from opentelemetry.semconv._incubating.attributes.deployment_attributes import (
-        DEPLOYMENT_ENVIRONMENT_NAME,
-    )
-    from opentelemetry.semconv._incubating.attributes.service_attributes import (
-        SERVICE_INSTANCE_ID,
-    )
+
+    # Stable attributes from semconv; incubating keys inlined as string literals
+    # to avoid depending on unstable _incubating module paths.
     from opentelemetry.semconv.attributes.service_attributes import (
         SERVICE_NAME,
         SERVICE_VERSION,
     )
+
+    SERVICE_INSTANCE_ID = "service.instance.id"
+    DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name"
 
     # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")
