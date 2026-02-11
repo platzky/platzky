@@ -35,6 +35,10 @@ extract-translations:
 	poetry run pybabel extract ./platzky -o extracted.pot -F ./babel.cfg --project=platzky
 	poetry run pybabel update -i extracted.pot -d platzky/locale --ignore-pot-creation-date --ignore-obsolete
 
+audit:  # audit only production deps (excludes dev tools like interrogate which pull in unfixable vulnerabilities)
+	poetry export --only=main --without-hashes -o /tmp/platzky-requirements.txt
+	poetry run pip-audit -r /tmp/platzky-requirements.txt
+
 build:
 	poetry run pybabel compile -d platzky/locale
 	poetry build

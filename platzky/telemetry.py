@@ -60,12 +60,21 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
         ConsoleSpanExporter,
         SimpleSpanProcessor,
     )
-    from opentelemetry.semconv.resource import ResourceAttributes
+    from opentelemetry.semconv._incubating.attributes.deployment_attributes import (
+        DEPLOYMENT_ENVIRONMENT_NAME,
+    )
+    from opentelemetry.semconv._incubating.attributes.service_attributes import (
+        SERVICE_INSTANCE_ID,
+    )
+    from opentelemetry.semconv.attributes.service_attributes import (
+        SERVICE_NAME,
+        SERVICE_VERSION,
+    )
 
     # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")
     resource_attrs: dict[str, str] = {
-        ResourceAttributes.SERVICE_NAME: service_name,
+        SERVICE_NAME: service_name,
     }
 
     # Auto-detect service version from package metadata
@@ -73,25 +82,21 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     from importlib.metadata import version as get_version
 
     try:
-        resource_attrs[ResourceAttributes.SERVICE_VERSION] = get_version("platzky")
+        resource_attrs[SERVICE_VERSION] = get_version("platzky")
     except PackageNotFoundError:
         pass  # Version not available
 
     if telemetry_config.deployment_environment:
-        resource_attrs[ResourceAttributes.DEPLOYMENT_ENVIRONMENT] = (
-            telemetry_config.deployment_environment
-        )
+        resource_attrs[DEPLOYMENT_ENVIRONMENT_NAME] = telemetry_config.deployment_environment
 
     # Add instance ID (user-provided or auto-generated)
     if telemetry_config.service_instance_id:
-        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = (
-            telemetry_config.service_instance_id
-        )
+        resource_attrs[SERVICE_INSTANCE_ID] = telemetry_config.service_instance_id
     else:
         # Generate unique instance ID: hostname + short UUID
         hostname = socket.gethostname()
         instance_uuid = str(uuid.uuid4())[:8]
-        resource_attrs[ResourceAttributes.SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
+        resource_attrs[SERVICE_INSTANCE_ID] = f"{hostname}-{instance_uuid}"
 
     resource = Resource.create(resource_attrs)
     provider = TracerProvider(resource=resource)

@@ -8,6 +8,7 @@ import typing as t
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.config import ExtraValues
 
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
@@ -282,6 +283,9 @@ class Config(BaseModel):
         strict: bool | None = None,
         from_attributes: bool | None = None,
         context: dict[str, t.Any] | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+        extra: ExtraValues | None = None,
     ) -> "Config":
         """Validate and construct Config from dictionary.
 
@@ -292,6 +296,9 @@ class Config(BaseModel):
             strict: Enable strict validation
             from_attributes: Populate from object attributes
             context: Additional validation context
+            by_alias: Whether to use field aliases
+            by_name: Whether to use field names
+            extra: Extra fields handling
 
         Returns:
             Validated Config instance
@@ -305,7 +312,13 @@ class Config(BaseModel):
         obj["DB"] = db_cfg_type.model_validate(db_section)
 
         return super().model_validate(
-            obj, strict=strict, from_attributes=from_attributes, context=context
+            obj,
+            strict=strict,
+            from_attributes=from_attributes,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+            extra=extra,
         )
 
     @classmethod
