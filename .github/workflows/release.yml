@@ -6,6 +6,13 @@ on:
       - main
       - next
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
@@ -19,10 +26,6 @@ jobs:
       released: ${{ steps.release.outputs.released }}
       tag: ${{ steps.release.outputs.tag }}
 
-    concurrency:
-      group: ${{ github.workflow }}-release-${{ github.ref_name }}
-      cancel-in-progress: false
-
     permissions:
       contents: write
       issues: write
@@ -31,27 +34,28 @@ jobs:
     steps:
       - name: Generate bot app token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf
         with:
           app-id: ${{ secrets.MY_RELEASER_ID }}
           private-key: ${{ secrets.MY_RELEASER_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ steps.generate_token.outputs.token }}
           fetch-depth: 0
 
+      - name: Install Poetry
+        run: pip install poetry==2.0.1
+
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
+          cache: 'poetry'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-          poetry install
+        run: poetry install
 
       - name: Action | Semantic Version Release
         id: release
@@ -76,7 +80,7 @@ jobs:
           tag: ${{ steps.release.outputs.tag }}
 
       - name: Upload | Distribution Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: steps.release.outputs.released == 'true'
         with:
           name: distribution-artifacts
@@ -98,7 +102,7 @@ jobs:
 
     steps:
       - name: Setup | Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: distribution-artifacts
           path: dist

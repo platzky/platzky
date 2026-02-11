@@ -5,44 +5,88 @@ on:
     branches:
       - main
       - next
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  push:
+    branches:
+      - main
+      - next
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_call:
 
-permissions:
-  contents: 'read'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  tests:
+  lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@v6
+    - name: Install Poetry
+      run: pip install poetry==2.0.1 poetry-audit-plugin==1.0.0
     - name: Set up Python 3.10
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: "3.10"
-
+        cache: 'poetry'
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install poetry==2.0.1
-        poetry install
-
+      run: poetry install
     - name: Run linters
       run: make lint-check
+    - name: Security audit
+      run: make audit
 
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install Poetry
+      run: pip install poetry==2.0.1
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.10"
+        cache: 'poetry'
+    - name: Install dependencies
+      run: poetry install
     - name: Run tests with coverage
       run: make coverage
-
     - name: Coveralls
       uses: coverallsapp/github-action@v2
       with:
         path-to-lcov: "./coverage.lcov"
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install Poetry
+      run: pip install poetry==2.0.1
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.10"
+        cache: 'poetry'
+    - name: Install dependencies
+      run: poetry install
     - name: Install Cypress
       working-directory: "./tests/e2e_tests"
       run: npm install cypress
-
     - name: Run e2e tests
       run: |
         make run-e2e-instance &

@@ -61,7 +61,7 @@ class FeatureFlagSet(dict[str, bool]):
     __setitem__ = _raise_immutable
     __delitem__ = _raise_immutable
     pop = _raise_immutable  # type: ignore[assignment]
-    update = _raise_immutable
+    update = _raise_immutable  # type: ignore[assignment]
     clear = _raise_immutable
     setdefault = _raise_immutable  # type: ignore[assignment]
     __ior__ = _raise_immutable  # type: ignore[assignment]
