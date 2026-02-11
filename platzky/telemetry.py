@@ -60,7 +60,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
         ConsoleSpanExporter,
         SimpleSpanProcessor,
     )
-
     from opentelemetry.semconv.attributes.service_attributes import (
         SERVICE_NAME,
         SERVICE_VERSION,
