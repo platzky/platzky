@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.4.6 (2026-02-11)
+
+### Bug Fixes
+
+- Add security audit step and update GitHub Actions workflows
+  ([#176](https://github.com/platzky/platzky/pull/176),
+  [`b39aa25`](https://github.com/platzky/platzky/commit/b39aa258055ebc45144727ce0b5849800b03d5e4))
+
+
 ## v1.4.5 (2026-02-10)
 
 ### Bug Fixes
