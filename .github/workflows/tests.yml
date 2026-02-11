@@ -27,18 +27,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: 'read'
-
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v6
     - name: Install Poetry
-      run: pip install poetry==2.0.1
-    - name: Install poetry-audit-plugin
-      run: poetry self add poetry-audit-plugin
+      run: pip install poetry==2.0.1 poetry-audit-plugin
     - name: Set up Python 3.10
       uses: actions/setup-python@v6
       with:
@@ -53,6 +50,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v6
     - name: Install Poetry
@@ -74,6 +73,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - uses: actions/checkout@v6
     - name: Install Poetry
