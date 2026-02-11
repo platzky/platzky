@@ -61,8 +61,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
         SimpleSpanProcessor,
     )
 
-    # Stable attributes from semconv; incubating keys inlined as string literals
-    # to avoid depending on unstable _incubating module paths.
     from opentelemetry.semconv.attributes.service_attributes import (
         SERVICE_NAME,
         SERVICE_VERSION,
@@ -71,7 +69,6 @@ def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optiona
     SERVICE_INSTANCE_ID = "service.instance.id"
     DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name"
 
-    # Build resource attributes
     service_name = app.config.get("APP_NAME", "platzky")
     resource_attrs: dict[str, str] = {
         SERVICE_NAME: service_name,
