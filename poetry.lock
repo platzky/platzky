@@ -969,24 +969,27 @@ pytz = ">=2022.7"
 
 [[package]]
 name = "flask-minify"
-version = "0.42"
+version = "0.50"
 description = "Flask extension to minify html, css, js and less."
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "Flask-Minify-0.42.tar.gz", hash = "sha256:cdae9bd492b4200ebbf9fd0b08878452274ddca454f3eb1dff8b900629538c8b"},
-    {file = "Flask_Minify-0.42-py3-none-any.whl", hash = "sha256:54211e09e0d1596d2e2897bbb4ffd8c96bb269fa959d6ae5be83fc0da14f4358"},
+    {file = "Flask_Minify-0.50-py3-none-any.whl", hash = "sha256:682d7555ff961fdb0ce43cc2ed2a755df5c1306e74cd3a0ecc80ba9ebfb7e7b4"},
+    {file = "flask_minify-0.50.tar.gz", hash = "sha256:c1fd3e82cb41ed7507d3756008b74d1e56d5c9ddf81983a1a4d70874ffaeaa6d"},
 ]
 
 [package.dependencies]
 flask = "*"
-htmlmin = "*"
+htmlminf = "*"
 jsmin = "*"
 lesscpy = "*"
 rcssmin = "*"
 six = "*"
 xxhash = "*"
+
+[package.extras]
+go = ["tdewolff-minify (>=2.20.34) ; platform_system == \"Linux\""]
 
 [[package]]
 name = "flask-wtf"
@@ -1495,14 +1498,15 @@ typing-extensions = ">=4.12,<5.0"
 protobuf = ["grpcio-tools (>=1.78.0)"]
 
 [[package]]
-name = "htmlmin"
-version = "0.1.12"
+name = "htmlminf"
+version = "0.1.13"
 description = "An HTML Minifier"
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "htmlmin-0.1.12.tar.gz", hash = "sha256:50c1ef4630374a5d723900096a961cff426dff46b48f34d194a81bbe14eca178"},
+    {file = "htmlminf-0.1.13-py3-none-any.whl", hash = "sha256:a4948d0a9084e0846dce3c841a671616399eaa7427a4ed40a4622321837f4d59"},
+    {file = "htmlminf-0.1.13.tar.gz", hash = "sha256:371ee3caf1174b1af387925f3ac999cb7e63d203fdaea299119345e41561c5b2"},
 ]
 
 [[package]]
@@ -4200,4 +4204,4 @@ telemetry = ["opentelemetry-api", "opentelemetry-exporter-otlp-proto-grpc", "ope
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "81e35e98ae041ee4cea48411c7183fa7de4236286da326fa644431949dedda42"
+content-hash = "9bc4451e3e52b1b31218478c90894779bc8ab9eb4cdee11a326f94d8f84315e9"
