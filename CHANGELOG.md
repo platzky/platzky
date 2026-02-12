@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v1.4.8 (2026-02-12)
+
+### Bug Fixes
+
+- Main sonarqube issues fixed ([#186](https://github.com/platzky/platzky/pull/186),
+  [`c25acd2`](https://github.com/platzky/platzky/commit/c25acd2977967482b979232e382c40dcd20ffce9))
+
+### Chores
+
+- **deps)(deps-dev**: Bump pytest from 8.4.2 to 9.0.2
+  ([#181](https://github.com/platzky/platzky/pull/181),
+  [`55c6987`](https://github.com/platzky/platzky/commit/55c698787be9200aab60a2c3129fdee56bcac324))
+
+
 ## v1.4.7 (2026-02-12)
 
 ### Bug Fixes
