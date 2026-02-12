@@ -58,6 +58,41 @@ Here is a minimal example:
     # Required: module-level attribute for plugin discovery
     Plugin = MyPlugin
 
+Quick Start with Cookiecutter
+-----------------------------
+
+The fastest way to create a new plugin is using the official
+`cookiecutter template <https://github.com/platzky/plugin-cookiecutter>`_:
+
+.. code-block:: bash
+
+    pip install cookiecutter
+    cookiecutter gh:platzky/plugin-cookiecutter
+
+You will be prompted for:
+
+* ``plugin_name`` -- snake_case name for your plugin (e.g. ``analytics``)
+* ``plugin_class_name`` -- PascalCase class name (must match ``plugin_name``)
+* ``description`` -- short description of the plugin
+* ``author`` -- author name used in the license and package metadata
+
+The generated project includes:
+
+* A ready-to-use class-based plugin with config model
+* ``pyproject.toml`` with Poetry, linting (black, ruff), type checking (pyright), and test setup
+* ``Makefile`` with ``lint``, ``dev``, ``lint-check``, ``unit-tests``, ``coverage``, and ``build`` targets
+* CI/CD workflows for testing and semantic release
+* MIT license
+
+After generation:
+
+.. code-block:: bash
+
+    cd platzky-<your_plugin_name>
+    poetry install
+    make dev          # lint + type check
+    make unit-tests   # run tests
+
 **Key points:**
 
 * Override ``get_config_model()`` to return your config class so Platzky can validate
