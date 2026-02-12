@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v1.4.7 (2026-02-12)
+
+### Bug Fixes
+
+- Support Python 3.14 by bumping Flask-Minify to ^0.50
+  ([#184](https://github.com/platzky/platzky/pull/184),
+  [`94a3d34`](https://github.com/platzky/platzky/commit/94a3d3465db4c5705ecb83178d986ef3edebe573))
+
+### Chores
+
+- Added docs for cookiecuttero ([#183](https://github.com/platzky/platzky/pull/183),
+  [`d4137af`](https://github.com/platzky/platzky/commit/d4137afecf6c640026f715ec648f6925c382b712))
+
+
 ## v1.4.6 (2026-02-11)
 
 ### Bug Fixes
