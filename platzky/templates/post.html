@@ -35,7 +35,7 @@
       <h2>
         {{_("Leave your comment here:")}}
       </h2>
-      <form class="form form-horizontal" method="post" role="form" action={{ url_for('blog.get_post', post_slug=post_slug) }} autocomplete="off">
+      <form class="form form-horizontal" method="post" action={{ url_for('blog.get_post', post_slug=post_slug) }} autocomplete="off">
       {{ form.hidden_tag() }}
       <p>
         {{ form.author_name(placeholder=form.author_name.label.text) }}
@@ -56,6 +56,12 @@
 
 
       <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">{{ _("Comments") }}</th>
+          </tr>
+        </thead>
+        <tbody>
         {% for comment in post.comments %}
         <tr>
           <td>
@@ -68,6 +74,7 @@
           </td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
     </div>
   </div>

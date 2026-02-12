@@ -55,15 +55,14 @@ def test_favicon_is_applied(test_app: Engine):
 
 def test_notifier(test_app: Engine):
     engine = test_app
-    notifier_msg = None
+    messages: list[str] = []
 
     def notifier(message: str) -> None:
-        nonlocal notifier_msg
-        notifier_msg = message
+        messages.append(message)
 
     engine.add_notifier(notifier)
     engine.notify("test")
-    assert notifier_msg == "test"
+    assert messages == ["test"]
 
 
 @pytest.mark.parametrize("content_type", ["body", "head"])
@@ -144,12 +143,13 @@ def test_that_logo_has_proper_alt_text(test_app: Engine):
     assert logo_img.get("alt") == "testing App Name logo"
 
 
-def test_that_logo_link_has_proper_aria_label_text(test_app: Engine):
+def test_that_logo_link_has_no_redundant_aria_label(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     logo_link = soup.find("a", class_="navbar-brand")
     assert isinstance(logo_link, Tag)
-    assert logo_link.get("aria-label") == "Link to home page"
+    # aria-label removed: link content (logo alt text or app name) provides the accessible name
+    assert logo_link.get("aria-label") is None
 
 
 def test_that_language_menu_has_proper_code(test_app: Engine):
@@ -287,6 +287,7 @@ def test_multiple_health_checks(test_app: Engine):
     """Test multiple custom health checks with mixed results"""
 
     def check_ok():
+        # Intentionally empty: a health check that doesn't raise is considered successful
         pass
 
     def check_fail():
