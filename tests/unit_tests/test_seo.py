@@ -17,7 +17,7 @@ def test_config_creation_with_incorrect_mappings():
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/robots.txt")
-    assert b"Sitemap: https://localhost/sitemap.xml" in response.get_data()
+    assert b"Sitemap: https://localhost/sitemap.xml" in response.data
     assert response.status_code == 200
 
 
@@ -60,4 +60,4 @@ def test_sitemap():
 
     response = app.test_client().get("/prefix/sitemap.xml")
     assert response.status_code == 200
-    assert b"http://localhost/blog/slug" in response.get_data()
+    assert b"http://localhost/blog/slug" in response.data
