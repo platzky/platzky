@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.10 (2026-02-12)
+
+### Bug Fixes
+
+- Sonarqube .get fix ([#188](https://github.com/platzky/platzky/pull/188),
+  [`cfdecb8`](https://github.com/platzky/platzky/commit/cfdecb8a37610fb0f1c0652a15da943e7fcd5633))
+
+
 ## v1.4.9 (2026-02-12)
 
 ### Bug Fixes
