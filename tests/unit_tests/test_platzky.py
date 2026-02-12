@@ -51,7 +51,7 @@ class TestPlatzky:
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
             # When request.referrer is None, it should redirect to "/" instead
-            assert response.headers.get("Location") is "/"
+            assert response.headers.get("Location") == "/"
 
     def test_change_language_invalid_locale(self, mock_db: MagicMock):
         """Test that invalid language codes return 404."""
