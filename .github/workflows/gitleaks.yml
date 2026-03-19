@@ -20,8 +20,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # We use the gitleaks CLI directly instead of the gitleaks-action wrapper.
+      # The action requires a GITLEAKS_LICENSE secret, which would force us to use
+      # pull_request_target to expose secrets to fork PRs — a security risk, as it
+      # would allow untrusted fork code to access repository secrets.
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.26.0/gitleaks_8.26.0_linux_x64.tar.gz | tar -xz
+          ./gitleaks detect --source . --log-level info
