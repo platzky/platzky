@@ -33,7 +33,7 @@ class TestPlatzky:
             app.secret_key = "test_secret_key"
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
-            assert response.headers["Location"] == "http://example.de"
+            assert response.headers.get("Location") == "http://example.de"
 
     def test_change_language_without_domain(self, mock_db: MagicMock):
         """Test the change_language function when no domain is specified."""
@@ -51,7 +51,7 @@ class TestPlatzky:
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
             # When request.referrer is None, it should redirect to "/" instead
-            assert response.headers["Location"] == "/"
+            assert response.headers.get("Location") == "/"
 
     def test_change_language_invalid_locale(self, mock_db: MagicMock):
         """Test that invalid language codes return 404."""
