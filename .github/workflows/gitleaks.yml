@@ -20,7 +20,7 @@ jobs:
         with:
           # Fetch only the PR's commits + 1 (the base commit) so Gitleaks can
           # diff against it without downloading the full repository history.
-          fetch-depth: ${{ github.event.pull_request.commits + 1 }}
+          fetch-depth: 0
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.4
