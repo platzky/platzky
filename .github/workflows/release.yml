@@ -40,7 +40,7 @@ jobs:
           private-key: ${{ secrets.MY_RELEASER_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.generate_token.outputs.token }}
           fetch-depth: 0
@@ -49,7 +49,7 @@ jobs:
         run: pip install poetry==2.0.1
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.10"
           cache: 'poetry'
@@ -80,7 +80,7 @@ jobs:
           tag: ${{ steps.release.outputs.tag }}
 
       - name: Upload | Distribution Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: steps.release.outputs.released == 'true'
         with:
           name: distribution-artifacts
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Setup | Download Build Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: distribution-artifacts
           path: dist
