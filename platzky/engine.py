@@ -7,6 +7,9 @@ from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    from platzky.plugin.plugin import PluginBase
+
 from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
 from flask_babel import Babel
 
@@ -16,9 +19,6 @@ from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
-
-if TYPE_CHECKING:
-    from platzky.plugin.plugin import PluginBase
 
 logger = logging.getLogger(__name__)
 

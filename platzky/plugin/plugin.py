@@ -5,12 +5,9 @@ import logging
 import os
 import types
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict
-
-if TYPE_CHECKING:
-    from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 
