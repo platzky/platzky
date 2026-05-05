@@ -170,8 +170,7 @@ class GraphQL(DB):
         Returns:
             List of Post objects
         """
-        all_posts = gql(
-            """
+        all_posts = gql("""
             query MyQuery($lang: Lang!) {
               posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
                 createdAt
@@ -200,8 +199,7 @@ class GraphQL(DB):
                 }
               }
             }
-            """
-        )
+            """)
         raw_ql_posts = self.client.execute(all_posts, variable_values={"lang": lang})["posts"]
 
         return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
@@ -217,16 +215,14 @@ class GraphQL(DB):
         """
         menu_items = []
         try:
-            menu_items_with_lang = gql(
-                """
+            menu_items_with_lang = gql("""
                 query MyQuery($lang: Lang!) {
                   menuItems(where: {language: $lang}, stage: PUBLISHED){
                     name
                     url
                   }
                 }
-                """
-            )
+                """)
             menu_items = self.client.execute(
                 menu_items_with_lang, variable_values={"language": lang}
             )
@@ -234,16 +230,14 @@ class GraphQL(DB):
         # TODO remove try except block after bumping up version
         # now it's backwards compatible with older versions
         except TransportQueryError:
-            menu_items_without_lang = gql(
-                """
+            menu_items_without_lang = gql("""
                 query MyQuery {
                   menuItems(stage: PUBLISHED){
                     name
                     url
                   }
                 }
-                """
-            )
+                """)
             menu_items = self.client.execute(menu_items_without_lang)
 
         return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
@@ -257,8 +251,7 @@ class GraphQL(DB):
         Returns:
             Post object
         """
-        post = gql(
-            """
+        post = gql("""
             query MyQuery($slug: String!) {
               post(where: {slug: $slug}, stage: PUBLISHED) {
                 date
@@ -287,8 +280,7 @@ class GraphQL(DB):
                 }
               }
             }
-            """
-        )
+            """)
 
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
         return Post.model_validate(_standardize_post(post_raw))
@@ -303,8 +295,7 @@ class GraphQL(DB):
         Returns:
             Page object
         """
-        page_query = gql(
-            """
+        page_query = gql("""
             query MyQuery ($slug: String!){
               page(where: {slug: $slug}, stage: PUBLISHED) {
                 slug
@@ -316,8 +307,7 @@ class GraphQL(DB):
                 }
               }
             }
-            """
-        )
+            """)
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
         return Page.model_validate(_standardize_page(page_raw))
 
@@ -331,8 +321,7 @@ class GraphQL(DB):
         Returns:
             List of Post objects
         """
-        post = gql(
-            """
+        post = gql("""
             query MyQuery ($tag: String!, $lang: Lang!){
               posts(where: {tags_contains_some: [$tag], language: $lang}, stage: PUBLISHED) {
                     tags
@@ -348,8 +337,7 @@ class GraphQL(DB):
                     }
               }
             }
-            """
-        )
+            """)
         raw_posts = self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
         return [Post.model_validate(_standardize_post_by_tag(p)) for p in raw_posts]
 
@@ -361,8 +349,7 @@ class GraphQL(DB):
             comment: Comment text content
             post_slug: URL-friendly identifier of the post
         """
-        add_comment = gql(
-            """
+        add_comment = gql("""
             mutation MyMutation($author: String!, $comment: String!, $slug: String!) {
                 createComment(
                     data: {
@@ -374,8 +361,7 @@ class GraphQL(DB):
                     id
                 }
             }
-            """
-        )
+            """)
         self.client.execute(
             add_comment,
             variable_values={
@@ -399,8 +385,7 @@ class GraphQL(DB):
         Returns:
             Logo image URL or empty string if not found
         """
-        logo = gql(
-            """
+        logo = gql("""
             query myquery {
               logos(stage: PUBLISHED) {
               logo {
@@ -411,8 +396,7 @@ class GraphQL(DB):
                 }
               }
             }
-            """
-        )
+            """)
         try:
             return self.client.execute(logo)["logos"][0]["logo"]["image"]["url"]
         except IndexError:
@@ -427,15 +411,13 @@ class GraphQL(DB):
         Returns:
             Application description text or empty string if not found
         """
-        description_query = gql(
-            """
+        description_query = gql("""
             query myquery($lang: Lang!) {
               applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
                 applicationDescription
               }
             }
-            """
-        )
+            """)
 
         return self.client.execute(description_query, variable_values={"lang": lang})[
             "applicationSetups"
@@ -447,8 +429,7 @@ class GraphQL(DB):
         Returns:
             Favicon URL
         """
-        favicon = gql(
-            """
+        favicon = gql("""
             query myquery {
               favicons(stage: PUBLISHED) {
               favicon {
@@ -456,8 +437,7 @@ class GraphQL(DB):
                 }
               }
             }
-            """
-        )
+            """)
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
@@ -473,16 +453,14 @@ class GraphQL(DB):
         Returns:
             List of plugin configuration dictionaries
         """
-        plugins_data = gql(
-            """
+        plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
                 name
                 config
               }
             }
-            """
-        )
+            """)
         return self.client.execute(plugins_data)["pluginConfigs"]
 
     def health_check(self) -> None:
@@ -491,11 +469,9 @@ class GraphQL(DB):
         Raises an exception if the database is not accessible.
         """
         # Simple query to check connectivity
-        health_query = gql(
-            """
+        health_query = gql("""
             query {
               __typename
             }
-            """
-        )
+            """)
         self.client.execute(health_query)
