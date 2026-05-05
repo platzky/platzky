@@ -16,6 +16,7 @@ from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notifier import Notifier, NotifierWithAttachments
+from platzky.plugin.plugin import PluginBase
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class Engine(Flask):
         self.dynamic_head = ""
         self.health_checks: list[tuple[str, Callable[[], None]]] = []
         self.telemetry_instrumented: bool = False
+        self.plugins: list[PluginBase[Any]] = []
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
         config.translation_directories.append(locale_dir)

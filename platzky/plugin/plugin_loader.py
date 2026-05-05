@@ -185,6 +185,7 @@ def plugify(app: Engine) -> Engine:
                 plugin_instance = plugin_class(plugin_config)
                 _register_plugin_locale(app, plugin_instance, plugin_name)
                 app = plugin_instance.process(app)
+                app.plugins.append(plugin_instance)
                 logger.info("Processed class-based plugin: %s", plugin_name)
             elif hasattr(plugin_module, "process"):
                 # Handle legacy entrypoint plugins with deprecation warning

@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import inspect
 import logging
 import os
 import types
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
-from platzky.platzky import Engine as PlatzkyEngine
+if TYPE_CHECKING:
+    from platzky.platzky import Engine as PlatzkyEngine
 
 logger = logging.getLogger(__name__)
 
