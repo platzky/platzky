@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import importlib
 import inspect
 import logging
 import os
 from types import ModuleType
-from typing import Any, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
 
-from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginError
+
+if TYPE_CHECKING:
+    from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 

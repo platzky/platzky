@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    from platzky.platzky import Engine as PlatzkyEngine
+    from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class PluginBase(Generic[T], ABC):
         return self.get_locale_dir_from_module(module)
 
     @abstractmethod
-    def process(self, app: PlatzkyEngine) -> PlatzkyEngine:
+    def process(self, app: Engine) -> Engine:
         """Process the plugin with the given app.
 
         Args:
