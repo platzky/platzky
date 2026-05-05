@@ -81,7 +81,7 @@ def test_raises_error_for_directory_path():
         MockGithub.return_value.get_repo.return_value = mock_repo
 
         with pytest.raises(
-            ValueError, match="Path 'path/to/file.json' points to a directory, not a file"
+            ValueError, match=r"Path 'path/to/file\.json' points to a directory, not a file"
         ):
             GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
