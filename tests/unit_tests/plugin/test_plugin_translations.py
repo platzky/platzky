@@ -39,16 +39,14 @@ class TestPluginLocaleIntegration:
 
             # Create a real plugin module
             init_file = plugin_dir / "__init__.py"
-            init_file.write_text(
-                """
+            init_file.write_text("""
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
 class TestPlugin(PluginBase[PluginBaseConfig]):
     def process(self, app: Engine) -> Engine:
         return app
-"""
-            )
+""")
 
             with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find:
                 import importlib.util
@@ -151,16 +149,14 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
 
             # Create plugin
             init_file = plugin_dir / "__init__.py"
-            init_file.write_text(
-                """
+            init_file.write_text("""
 from platzky.engine import Engine
 from platzky.plugin.plugin import PluginBase, PluginBaseConfig
 
 class SymlinkPlugin(PluginBase[PluginBaseConfig]):
     def process(self, app: Engine) -> Engine:
         return app
-"""
-            )
+""")
 
             with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find:
                 import importlib.util

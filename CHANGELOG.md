@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.4.11 (2026-05-05)
+
+### Bug Fixes
+
+- Updated dependencies failing audit ([#197](https://github.com/platzky/platzky/pull/197),
+  [`8657864`](https://github.com/platzky/platzky/commit/8657864fcdfd4c755b881043a7cd490431a77286))
+
+### Chores
+
+- More security checks introduced ([#192](https://github.com/platzky/platzky/pull/192),
+  [`a5f5acb`](https://github.com/platzky/platzky/commit/a5f5acb9602b427b238731066bba610ea089da05))
+
+- **ci**: Bump actions/download-artifact from 7 to 8
+  ([#189](https://github.com/platzky/platzky/pull/189),
+  [`4b0eefb`](https://github.com/platzky/platzky/commit/4b0eefbbd6740f62e9f348574393b4aa43b6c5bf))
+
+- **ci**: Bump actions/upload-artifact from 6 to 7
+  ([#190](https://github.com/platzky/platzky/pull/190),
+  [`d7441ec`](https://github.com/platzky/platzky/commit/d7441ec05b700446fd5fd51d4c532c42637fca7c))
+
+
 ## v1.4.10 (2026-02-12)
 
 ### Bug Fixes
