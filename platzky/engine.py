@@ -3,13 +3,12 @@
 import logging
 import os
 import threading
+from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from platzky.plugin.plugin import PluginBase
-
+import deprecation
 from flask import Blueprint, Flask, Response, jsonify, make_response, request, session
 from flask_babel import Babel
 
@@ -18,6 +17,7 @@ from platzky.config import Config
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
+from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
 
 logger = logging.getLogger(__name__)
@@ -42,14 +42,17 @@ class Engine(Flask):
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
-        self.notifiers: list[Notifier] = []
-        self.notifiers_with_attachments: list[NotifierWithAttachments] = []
-        self.login_methods = []
+        self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
+
+        # Deprecated — kept for backward compatibility until v2.0
+        self._notifiers: list[Notifier] = []
+        self._notifiers_with_attachments: list[NotifierWithAttachments] = []
+
+        self.login_methods: list[Callable[[], str]] = []
         self.dynamic_body = ""
         self.dynamic_head = ""
         self.health_checks: list[tuple[str, Callable[[], None]]] = []
         self.telemetry_instrumented: bool = False
-        self.plugins: list[PluginBase[Any]] = []
         directory = os.path.dirname(os.path.realpath(__file__))
         locale_dir = os.path.join(directory, "locale")
         config.translation_directories.append(locale_dir)
@@ -62,43 +65,61 @@ class Engine(Flask):
         self._register_default_health_endpoints()
 
         self.cms_modules: list[CmsModule] = []
-        # TODO add plugins as CMS Module - all plugins should be visible from
-        # admin page at least as configuration
 
-    def notify(self, message: str, attachments: list[AttachmentProtocol] | None = None) -> None:
+    def get_plugins(self, plugin_type: type) -> list[Any]:
+        """Return all registered plugins of the given capability type."""
+        return self.plugins.get(plugin_type, [])
+
+    def notify(self, message: str, topic: NotificationTopic = "*", attachments: list[AttachmentProtocol] | None = None) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
+            topic: Notification topic for routing (default ``"*"`` = all notifiers).
             attachments: Optional list of Attachment objects created via engine.Attachment().
         """
-        for notifier in self.notifiers:
+        # Legacy path
+        for notifier in self._notifiers:
             notifier(message)
-        for notifier in self.notifiers_with_attachments:
+        for notifier in self._notifiers_with_attachments:
             notifier(message, attachments=attachments)
 
+        # New capability-based path
+        from platzky.plugin.plugin import NotifierBase
+        for plugin in self.get_plugins(NotifierBase):
+            if plugin.accepts(topic):
+                plugin.notify(message, topic, attachments)
+
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details="Use NotifierBase subclass instead.",
+    )
     def add_notifier(self, notifier: Notifier) -> None:
         """Register a simple notifier (message only).
 
-        Args:
-            notifier: A callable that accepts a message string.
+        Deprecated: implement NotifierBase instead.
         """
-        self.notifiers.append(notifier)
+        self._notifiers.append(notifier)
 
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details="Use NotifierBase subclass instead.",
+    )
     def add_notifier_with_attachments(self, notifier: NotifierWithAttachments) -> None:
         """Register a notifier that supports attachments.
 
-        Args:
-            notifier: A callable that accepts message and optional attachments.
+        Deprecated: implement NotifierBase instead.
         """
-        self.notifiers_with_attachments.append(notifier)
+        self._notifiers_with_attachments.append(notifier)
 
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
 
-    # TODO login_method should be interface
     def add_login_method(self, login_method: Callable[[], str]) -> None:
+        """Register a login method callable."""
         self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str) -> None:
@@ -133,7 +154,7 @@ class Engine(Flask):
         return flag in self.config["FEATURE_FLAGS"]
 
     def add_health_check(self, name: str, check_function: Callable[[], None]) -> None:
-        """Register a health check function"""
+        """Register a health check function."""
         if not callable(check_function):
             raise TypeError(f"check_function must be callable, got {type(check_function)}")
         self.health_checks.append((name, check_function))

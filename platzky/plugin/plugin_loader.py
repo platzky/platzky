@@ -9,12 +9,22 @@ from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
 
-from platzky.plugin.plugin import PluginBase, PluginError
+from platzky.plugin.plugin import (
+    CmsModuleBase,
+    ContentFilterBase,
+    LoginBase,
+    NotifierBase,
+    PluginBase,
+    PluginError,
+)
 
 if TYPE_CHECKING:
     from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
+
+# Ordered list of capability bases used for auto-registration
+_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, LoginBase, CmsModuleBase, ContentFilterBase)
 
 
 def find_plugin(plugin_name: str) -> ModuleType:
@@ -47,7 +57,6 @@ def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase[Any]
     Returns:
         The plugin class if found, None otherwise
     """
-    # Look for classes in the module that inherit from PluginBase
     for _, obj in inspect.getmembers(plugin_module):
         if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
             return obj
@@ -116,7 +125,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bo
         logger.warning("Rejected locale path with .. components: %s", locale_dir)
         return False
 
-    # Get canonical paths (resolve symlinks)
     locale_path = os.path.realpath(locale_dir)
     module_path = os.path.realpath(os.path.dirname(module.__file__))
 
@@ -141,7 +149,6 @@ def _register_plugin_locale(
     if locale_dir is None:
         return
 
-    # Validate that the locale directory is safe to use
     if not _is_safe_locale_dir(locale_dir, plugin_instance):
         logger.warning(
             "Skipping locale directory for plugin %s: path validation failed: %s",
@@ -154,6 +161,38 @@ def _register_plugin_locale(
     if babel_config and locale_dir not in babel_config.translation_directories:
         babel_config.translation_directories.append(locale_dir)
         logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
+
+
+def _register_plugin_capabilities(
+    app: Engine, instance: PluginBase[Any], plugin_name: str
+) -> None:
+    """Register a plugin instance under all matching capability keys.
+
+    Each recognised capability base class becomes a key in app.plugins so the
+    engine can look up e.g. all NotifierBase plugins without knowing concrete
+    types.  Plugins that don't match any capability are stored under PluginBase
+    so they are still discoverable.
+
+    Args:
+        app: The Platzky Engine instance
+        instance: The instantiated plugin
+        plugin_name: Name of the plugin for logging
+    """
+    registered = False
+    for base in _CAPABILITY_BASES:
+        if isinstance(instance, base):
+            app.plugins[base].append(instance)
+            registered = True
+            logger.debug(
+                "Registered plugin '%s' under capability %s", plugin_name, base.__name__
+            )
+
+    # Always store under the concrete class for direct lookup
+    app.plugins[type(instance)].append(instance)
+
+    # Fall back to generic PluginBase bucket for uncategorised plugins
+    if not registered:
+        app.plugins[PluginBase].append(instance)
 
 
 def plugify(app: Engine) -> Engine:
@@ -181,18 +220,18 @@ def plugify(app: Engine) -> Engine:
         try:
             plugin_module = find_plugin(plugin_name)
 
-            # Check if this is a class-based plugin
             plugin_class = _is_class_plugin(plugin_module)
 
             if plugin_class:
-                # Handle new class-based plugins
                 plugin_instance = plugin_class(plugin_config)
                 _register_plugin_locale(app, plugin_instance, plugin_name)
-                app = plugin_instance.process(app)
-                app.plugins.append(plugin_instance)
+                _register_plugin_capabilities(app, plugin_instance, plugin_name)
+                # Call process() only when the subclass overrides it (backward compat).
+                # New capability plugins inherit the no-op base and are skipped here.
+                if type(plugin_instance).process is not PluginBase.process:
+                    app = plugin_instance.process(app)
                 logger.info("Processed class-based plugin: %s", plugin_name)
             elif hasattr(plugin_module, "process"):
-                # Handle legacy entrypoint plugins with deprecation warning
                 app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
             else:
                 raise PluginError(
@@ -201,7 +240,6 @@ def plugify(app: Engine) -> Engine:
                 )
 
         except PluginError:
-            # Re-raise PluginError directly to avoid redundant wrapping
             raise
         except Exception as e:
             logger.exception("Error processing plugin %s", plugin_name)

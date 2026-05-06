@@ -4,10 +4,13 @@ import inspect
 import logging
 import os
 import types
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, Generic, Optional, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+import deprecation
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from platzky.notification_topics import NotificationTopic
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +43,13 @@ class PluginBase(Generic[T], ABC):
     """Abstract base class for plugins.
 
     Plugin developers must extend this class to implement their plugins.
+    Implement capability-specific subclasses (NotifierBase, LoginBase, etc.)
+    rather than overriding process().
     """
 
     @staticmethod
     def get_locale_dir_from_module(plugin_module: types.ModuleType) -> Optional[str]:
         """Get plugin locale directory from a module.
-
-        Encapsulates the knowledge of how plugins organize their locale directories.
 
         Args:
             plugin_module: The plugin module
@@ -57,7 +60,6 @@ class PluginBase(Generic[T], ABC):
         if not hasattr(plugin_module, "__file__") or plugin_module.__file__ is None:
             return None
 
-        # Use realpath to resolve symlinks and get canonical path
         plugin_dir = os.path.dirname(os.path.realpath(plugin_module.__file__))
         locale_dir = os.path.join(plugin_dir, "locale")
 
@@ -86,17 +88,90 @@ class PluginBase(Generic[T], ABC):
 
         return self.get_locale_dir_from_module(module)
 
-    @abstractmethod
-    def process(self, app: Engine) -> Engine:
-        """Process the plugin with the given app.
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details=(
+            "Overriding process() is deprecated. Implement a capability subclass instead: "
+            "NotifierBase, LoginBase, CmsModuleBase, or ContentFilterBase."
+        ),
+    )
+    def process(self, app: Any) -> Any:
+        """Apply this plugin to the app.
+
+        Deprecated: implement a typed capability subclass instead.
+        """
+        return app
+
+
+class NotifierBaseConfig(PluginBaseConfig):
+    """Configuration for notifier plugins with optional topic filtering."""
+
+    accepted_topics: set[NotificationTopic] = {"*"}
+
+    @field_validator("accepted_topics", mode="before")
+    @classmethod
+    def coerce_to_set(cls, v: Any) -> set[str]:
+        if isinstance(v, (list, tuple)):
+            return set(v)
+        return v
+
+
+N = TypeVar("N", bound=NotifierBaseConfig)
+
+
+class NotifierBase(PluginBase[N], ABC):
+    """Base class for notifier plugins.
+
+    Subclasses implement notify() and are automatically registered with the engine.
+    Optional topic filtering is configured via accepted_topics in the plugin config.
+    """
+
+    def accepts(self, topic: str) -> bool:
+        """Return True if this notifier handles the given topic."""
+        topics: set[str] = getattr(self.config, "accepted_topics", {"*"})
+        return "*" in topics or topic in topics
+
+    def notify(self, message: str, topic: NotificationTopic, attachments: Any = None) -> None:
+        """Send a notification.
 
         Args:
-            app: The Flask application instance
-
-        Returns:
-            Platzky Engine with processed plugins
-
-        Raises:
-            PluginError: If plugin processing fails
+            message: The notification message.
+            topic: The notification topic.
+            attachments: Optional list of attachments.
         """
-        pass
+        raise NotImplementedError
+
+
+class LoginBase(PluginBase[T], ABC):
+    """Base class for login-method plugins.
+
+    Subclasses implement get_login_html() and are automatically registered with the engine.
+    """
+
+    def get_login_html(self) -> str:
+        """Return the HTML snippet for this login method's button/form."""
+        raise NotImplementedError
+
+
+class CmsModuleBase(PluginBase[T], ABC):
+    """Base class for CMS module plugins.
+
+    Subclasses implement get_cms_module() and are automatically registered with the engine.
+    """
+
+    def get_cms_module(self) -> Any:
+        """Return the CmsModule descriptor for this plugin."""
+        raise NotImplementedError
+
+
+class ContentFilterBase(PluginBase[T], ABC):
+    """Base class for content-filter plugins (decorator pattern).
+
+    Subclasses override filter_content() to transform post/page content.
+    Filters are applied in registration order.
+    """
+
+    def filter_content(self, content: str) -> str:
+        """Transform content and return the result."""
+        return content

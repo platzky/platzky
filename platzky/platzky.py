@@ -17,6 +17,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.plugin.plugin import CmsModuleBase, LoginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
@@ -224,6 +225,14 @@ def create_app_from_config(config: Config) -> Engine:
                 f"Telemetry configuration error: {e}. "
                 "Check your telemetry settings in the configuration file."
             ) from e
+
+    # Collect login methods from capability-based LoginBase plugins
+    for plugin in engine.get_plugins(LoginBase):
+        engine.login_methods.append(plugin.get_login_html)
+
+    # Collect CMS modules from capability-based CmsModuleBase plugins
+    for plugin in engine.get_plugins(CmsModuleBase):
+        engine.cms_modules.append(plugin.get_cms_module())
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
