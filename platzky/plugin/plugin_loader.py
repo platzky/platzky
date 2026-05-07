@@ -163,9 +163,7 @@ def _register_plugin_locale(
         logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
 
 
-def _register_plugin_capabilities(
-    app: Engine, instance: PluginBase[Any], plugin_name: str
-) -> None:
+def _register_plugin_capabilities(app: Engine, instance: PluginBase[Any], plugin_name: str) -> None:
     """Register a plugin instance under all matching capability keys.
 
     Each recognised capability base class becomes a key in app.plugins so the
@@ -183,9 +181,7 @@ def _register_plugin_capabilities(
         if isinstance(instance, base):
             app.plugins[base].append(instance)
             registered = True
-            logger.debug(
-                "Registered plugin '%s' under capability %s", plugin_name, base.__name__
-            )
+            logger.debug("Registered plugin '%s' under capability %s", plugin_name, base.__name__)
 
     # Always store under the concrete class for direct lookup
     app.plugins[type(instance)].append(instance)

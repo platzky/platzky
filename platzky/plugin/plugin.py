@@ -5,12 +5,17 @@ import logging
 import os
 import types
 from abc import ABC
-from typing import Any, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 import deprecation
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from platzky.attachment import AttachmentProtocol
+from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
+
+if TYPE_CHECKING:
+    from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +72,7 @@ class PluginBase(Generic[T], ABC):
 
     @classmethod
     def get_config_model(cls) -> type[PluginBaseConfig]:
+        """Return the Pydantic config model class for this plugin."""
         return PluginBaseConfig
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -96,7 +102,7 @@ class PluginBase(Generic[T], ABC):
             "NotifierBase, LoginBase, CmsModuleBase, or ContentFilterBase."
         ),
     )
-    def process(self, app: Any) -> Any:
+    def process(self, app: Engine) -> Engine:
         """Apply this plugin to the app.
 
         Deprecated: implement a typed capability subclass instead.
@@ -111,10 +117,11 @@ class NotifierBaseConfig(PluginBaseConfig):
 
     @field_validator("accepted_topics", mode="before")
     @classmethod
-    def coerce_to_set(cls, v: Any) -> set[str]:
+    def coerce_to_set(cls, v: object) -> set[str]:
+        """Coerce list/tuple inputs to a set."""
         if isinstance(v, (list, tuple)):
             return set(v)
-        return v
+        return v  # type: ignore[return-value]
 
 
 N = TypeVar("N", bound=NotifierBaseConfig)
@@ -132,7 +139,12 @@ class NotifierBase(PluginBase[N], ABC):
         topics: set[str] = getattr(self.config, "accepted_topics", {"*"})
         return "*" in topics or topic in topics
 
-    def notify(self, message: str, topic: NotificationTopic, attachments: Any = None) -> None:
+    def notify(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        attachments: list[AttachmentProtocol] | None = None,
+    ) -> None:
         """Send a notification.
 
         Args:
@@ -160,7 +172,7 @@ class CmsModuleBase(PluginBase[T], ABC):
     Subclasses implement get_cms_module() and are automatically registered with the engine.
     """
 
-    def get_cms_module(self) -> Any:
+    def get_cms_module(self) -> CmsModule:
         """Return the CmsModule descriptor for this plugin."""
         raise NotImplementedError
 

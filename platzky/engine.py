@@ -70,7 +70,12 @@ class Engine(Flask):
         """Return all registered plugins of the given capability type."""
         return self.plugins.get(plugin_type, [])
 
-    def notify(self, message: str, topic: NotificationTopic = "*", attachments: list[AttachmentProtocol] | None = None) -> None:
+    def notify(
+        self,
+        message: str,
+        topic: NotificationTopic = "*",
+        attachments: list[AttachmentProtocol] | None = None,
+    ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
@@ -86,6 +91,7 @@ class Engine(Flask):
 
         # New capability-based path
         from platzky.plugin.plugin import NotifierBase
+
         for plugin in self.get_plugins(NotifierBase):
             if plugin.accepts(topic):
                 plugin.notify(message, topic, attachments)
