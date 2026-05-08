@@ -43,6 +43,7 @@ class Engine(Flask):
         self.db = db
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
+        self.loaded_plugins: list[Any] = []
 
         # Deprecated — kept for backward compatibility until v2.0
         self._notifiers: list[Notifier] = []
@@ -69,6 +70,21 @@ class Engine(Flask):
     def get_plugins(self, plugin_type: type) -> list[Any]:
         """Return all registered plugins of the given capability type."""
         return self.plugins.get(plugin_type, [])
+
+    def all_plugins(self) -> list[Any]:
+        """Return a flat list of all plugins including sub-plugins, depth-first."""
+        from platzky.plugin.plugin import PluginBase
+
+        result: list[Any] = []
+
+        def _walk(plugin: PluginBase[Any]) -> None:
+            result.append(plugin)
+            for sub in plugin.get_sub_plugins():
+                _walk(sub)
+
+        for plugin in self.loaded_plugins:
+            _walk(plugin)
+        return result
 
     def notify(
         self,

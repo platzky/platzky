@@ -304,6 +304,80 @@ class TestRegisterPluginCapabilities:
         assert plugin in app.get_plugins(NotifierBase)
         assert plugin in app.get_plugins(LoginBase)
 
+    def test_sub_plugins_not_registered_in_capability_buckets(self, app: Engine) -> None:
+        sub = SimpleNotifier({})
+
+        class ParentPlugin(PluginBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_sub_plugins(self) -> list[PluginBase[Any]]:
+                return [sub]
+
+        parent = ParentPlugin({})
+        _register_plugin_capabilities(app, parent, "parent")
+
+        # sub-plugin is NOT auto-registered — parent owns it
+        assert sub not in app.get_plugins(NotifierBase)
+
+
+# ---------------------------------------------------------------------------
+# Engine.all_plugins()
+# ---------------------------------------------------------------------------
+
+
+class TestAllPlugins:
+    def test_all_plugins_empty_with_no_loaded_plugins(self, app: Engine) -> None:
+        assert app.all_plugins() == []
+
+    def test_all_plugins_includes_top_level(self, app: Engine) -> None:
+        notifier = SimpleNotifier({})
+        app.loaded_plugins.append(notifier)
+        assert app.all_plugins() == [notifier]
+
+    def test_all_plugins_includes_sub_plugins(self, app: Engine) -> None:
+        sub = SimpleNotifier({})
+
+        class ParentPlugin(PluginBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_sub_plugins(self) -> list[PluginBase[Any]]:
+                return [sub]
+
+        parent = ParentPlugin({})
+        app.loaded_plugins.append(parent)
+
+        assert app.all_plugins() == [parent, sub]
+
+    def test_all_plugins_depth_first_nested(self, app: Engine) -> None:
+        leaf = SimpleNotifier({})
+
+        class MiddlePlugin(PluginBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_sub_plugins(self) -> list[PluginBase[Any]]:
+                return [leaf]
+
+        middle = MiddlePlugin({})
+
+        class RootPlugin(PluginBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_sub_plugins(self) -> list[PluginBase[Any]]:
+                return [middle]
+
+        root = RootPlugin({})
+        app.loaded_plugins.append(root)
+
+        assert app.all_plugins() == [root, middle, leaf]
+
 
 # ---------------------------------------------------------------------------
 # Backward compatibility: process() still called when overridden

@@ -82,6 +82,15 @@ class PluginBase(Generic[T], ABC):
         except Exception as e:
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
 
+    def get_sub_plugins(self) -> list[PluginBase[Any]]:
+        """Return direct sub-plugins owned by this plugin.
+
+        Override to expose sub-plugins for listing and introspection.
+        Sub-plugins are the plugin's own concern — the engine does not
+        register them in capability buckets automatically.
+        """
+        return []
+
     def get_locale_dir(self) -> Optional[str]:
         """Get this plugin's locale directory.
 
