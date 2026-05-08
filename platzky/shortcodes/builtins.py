@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from platzky.shortcode import Shortcode, ShortcodeAttr
+from platzky.shortcodes import Shortcode, ShortcodeAttr
 
 _ALLOWED_SCHEMES = {"http", "https", ""}
 

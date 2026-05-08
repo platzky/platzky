@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from platzky.shortcode import apply_shortcodes
+from platzky.shortcodes import apply_shortcodes
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 
 

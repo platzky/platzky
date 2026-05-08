@@ -19,7 +19,7 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
-from platzky.shortcode import Shortcode
+from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
 

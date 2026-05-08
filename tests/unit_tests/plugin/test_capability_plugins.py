@@ -24,7 +24,7 @@ from platzky.plugin.plugin import (
     PluginBase,
     PluginBaseConfig,
 )
-from platzky.shortcode import Shortcode, apply_shortcodes
+from platzky.shortcodes import Shortcode, apply_shortcodes
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers

@@ -20,7 +20,7 @@ from platzky.feature_flags import FakeLogin
 from platzky.plugin.plugin import CmsModuleBase, ContentFilterBase, LoginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
-from platzky.shortcode import apply_shortcodes
+from platzky.shortcodes import apply_shortcodes
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 

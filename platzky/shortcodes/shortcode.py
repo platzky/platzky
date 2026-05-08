@@ -55,6 +55,7 @@ def apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
     )
 
     def _replace(m: re.Match[str]) -> str:
+        """Dispatch a matched shortcode tag to its handler."""
         attrs = dict(_ATTR_RE.findall(m.group(2) or ""))
         inner = m.group(3) or ""
         return shortcodes[m.group(1)].handler(attrs, inner)

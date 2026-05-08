@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from platzky.attachment import AttachmentProtocol
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
-from platzky.shortcode import Shortcode
+from platzky.shortcodes import Shortcode
 
 if TYPE_CHECKING:
     from platzky.engine import Engine

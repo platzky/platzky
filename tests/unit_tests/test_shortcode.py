@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from platzky.shortcode import Shortcode, apply_shortcodes
+from platzky.shortcodes import Shortcode, apply_shortcodes
 
 
 def _sc(name: str) -> Shortcode:
