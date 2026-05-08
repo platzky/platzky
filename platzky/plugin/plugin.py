@@ -8,11 +8,13 @@ from abc import ABC
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 import deprecation
+import jinja2.ext
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from platzky.attachment import AttachmentProtocol
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
+from platzky.shortcode import Shortcode
 
 if TYPE_CHECKING:
     from platzky.engine import Engine
@@ -187,12 +189,28 @@ class CmsModuleBase(PluginBase[T], ABC):
 
 
 class ContentFilterBase(PluginBase[T], ABC):
-    """Base class for content-filter plugins (decorator pattern).
+    """Base class for content-filter plugins.
 
-    Subclasses override filter_content() to transform post/page content.
-    Filters are applied in registration order.
+    Subclasses register shortcode tag handlers via get_content_tags() and/or
+    extend the Jinja2 template environment with custom tags via get_jinja_extensions().
+
+    Shortcode syntax (WordPress-style):
+        ``[tagname attr="val"]content[/tagname]``  — block tag
+        ``[tagname attr="val"]``                    — void tag
     """
 
-    def filter_content(self, content: str) -> str:
-        """Transform content and return the result."""
-        return content
+    def get_content_tags(self) -> dict[str, Shortcode]:
+        """Return ``{tag_name: Shortcode}`` for shortcode tags in post/page content.
+
+        Each ``Shortcode`` descriptor carries the handler plus documentation metadata
+        (description, attributes, example) used by the admin help page.
+        """
+        return {}
+
+    def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
+        """Return Jinja2 extension classes to register with the template engine.
+
+        Override to expose custom Jinja2 tags available in theme templates, e.g.:
+            ``{% my_tag %}...{% endmy_tag %}``
+        """
+        return []

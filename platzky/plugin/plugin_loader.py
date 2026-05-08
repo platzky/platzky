@@ -108,7 +108,6 @@ def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase[Any]
 @deprecation.deprecated(
     deprecated_in="1.2.0",
     removed_in="2.0.0",
-    current_version="1.2.0",
     details=(
         "Legacy plugin style using the entrypoint process() function is deprecated. "
         "Migrate to PluginBase to support plugin translations and other features. "
@@ -225,6 +224,10 @@ def _register_plugin_capabilities(app: Engine, instance: PluginBase[Any], plugin
             registered = True
             logger.debug("Registered plugin '%s' under capability %s", plugin_name, base.__name__)
 
+    # Also store under the concrete type so callers can look up plugins by their
+    # exact class (e.g. engine.get_plugins(SimpleNotifier)).  This double-registration
+    # is intentional: the capability-base key supports duck-typed dispatch, while
+    # the concrete-type key supports precise lookups in tests and introspection.
     app.plugins[type(instance)].append(instance)
 
     if not registered:
@@ -242,6 +245,10 @@ def _load_class_plugin(
     _register_plugin_locale(app, plugin_instance, plugin_name)
     _register_plugin_capabilities(app, plugin_instance, plugin_name)
     app.loaded_plugins.append(plugin_instance)
+    # MRO-based identity check: every class inherits process() from PluginBase so
+    # hasattr() would always return True.  Comparing unbound method objects via `is`
+    # detects a genuine override without invoking the deprecation warning that calling
+    # the base no-op implementation would raise.
     if type(plugin_instance).process is not PluginBase.process:
         app = plugin_instance.process(app)
     logger.info("Processed class-based plugin: %s", plugin_name)

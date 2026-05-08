@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest import mock
 
+import jinja2.ext
 import pytest
 
 from platzky.attachment import AttachmentProtocol
@@ -13,7 +14,7 @@ from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
-from platzky.platzky import create_engine
+from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.plugin import (
     CmsModuleBase,
     ContentFilterBase,
@@ -23,12 +24,10 @@ from platzky.plugin.plugin import (
     PluginBase,
     PluginBaseConfig,
 )
-from platzky.plugin.plugin_loader import (
-    _register_plugin_capabilities,  # type: ignore[reportPrivateUsage]
-)
+from platzky.shortcode import Shortcode, apply_shortcodes
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Fixtures and helpers
 # ---------------------------------------------------------------------------
 
 
@@ -54,6 +53,17 @@ def _make_db(config: Config) -> DB:
 def app(base_config_data: dict[str, Any]) -> Engine:
     config = Config.model_validate(base_config_data)
     return create_engine(config, _make_db(config))
+
+
+def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: type) -> Engine:
+    """Load a single plugin via a mocked entry point and return the fully configured app."""
+    base_config_data["DB"]["DATA"]["plugins"] = [{"name": name, "config": {}}]
+    config = Config.model_validate(base_config_data)
+    ep = mock.MagicMock()
+    ep.name = name
+    ep.load.return_value = plugin_class
+    with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+        return create_app_from_config(config)
 
 
 # ---------------------------------------------------------------------------
@@ -171,15 +181,17 @@ class TestLoginBase:
         plugin = GoogleLogin({})
         assert plugin.get_login_html() == "<a>Login with Google</a>"
 
-    def test_login_base_registered_under_capability_key(self, app: Engine) -> None:
-        plugin = GoogleLogin({})
-        _register_plugin_capabilities(app, plugin, "google")
-        assert plugin in app.get_plugins(LoginBase)
+    def test_login_base_registered_under_capability_key(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        app = _app_with_plugin(base_config_data, "google", GoogleLogin)
+        assert any(isinstance(p, GoogleLogin) for p in app.get_plugins(LoginBase))
 
-    def test_login_base_not_registered_under_notifier(self, app: Engine) -> None:
-        plugin = GoogleLogin({})
-        _register_plugin_capabilities(app, plugin, "google")
-        assert plugin not in app.get_plugins(NotifierBase)
+    def test_login_base_not_registered_under_notifier(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        app = _app_with_plugin(base_config_data, "google", GoogleLogin)
+        assert not any(isinstance(p, GoogleLogin) for p in app.get_plugins(NotifierBase))
 
 
 # ---------------------------------------------------------------------------
@@ -204,10 +216,11 @@ class TestCmsModuleBase:
         module = plugin.get_cms_module()
         assert module.name == "Gallery"
 
-    def test_cms_module_registered_under_capability_key(self, app: Engine) -> None:
-        plugin = GalleryCmsModule({})
-        _register_plugin_capabilities(app, plugin, "gallery")
-        assert plugin in app.get_plugins(CmsModuleBase)
+    def test_cms_module_registered_under_capability_key(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        app = _app_with_plugin(base_config_data, "gallery", GalleryCmsModule)
+        assert any(isinstance(p, GalleryCmsModule) for p in app.get_plugins(CmsModuleBase))
 
 
 # ---------------------------------------------------------------------------
@@ -215,74 +228,104 @@ class TestCmsModuleBase:
 # ---------------------------------------------------------------------------
 
 
-class UpperCaseFilter(ContentFilterBase[PluginBaseConfig]):
+class ShoutFilter(ContentFilterBase[PluginBaseConfig]):
+    """Registers a [shout] shortcode that upper-cases its content."""
+
     @classmethod
     def get_config_model(cls) -> type[PluginBaseConfig]:
         return PluginBaseConfig
 
-    def filter_content(self, content: str) -> str:
-        return content.upper()
-
-
-class PrefixFilter(ContentFilterBase[PluginBaseConfig]):
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
-
-    def filter_content(self, content: str) -> str:
-        return f"[PREFIX] {content}"
+    def get_content_tags(self) -> dict[str, Shortcode]:
+        return {
+            "shout": Shortcode(
+                name="shout",
+                handler=lambda _attrs, content: content.upper(),
+                description="Upper-case content.",
+            )
+        }
 
 
 class TestContentFilterBase:
-    def test_default_passthrough(self) -> None:
+    def test_default_returns_empty_dict(self) -> None:
         class NoOpFilter(ContentFilterBase[PluginBaseConfig]):
             @classmethod
             def get_config_model(cls) -> type[PluginBaseConfig]:
                 return PluginBaseConfig
 
         f = NoOpFilter({})
-        assert f.filter_content("hello") == "hello"
+        assert f.get_content_tags() == {}
 
-    def test_override_transforms_content(self) -> None:
-        f = UpperCaseFilter({})
-        assert f.filter_content("hello") == "HELLO"
+    def test_override_registers_shortcode(self) -> None:
+        f = ShoutFilter({})
+        tags = f.get_content_tags()
+        assert "shout" in tags
+        assert tags["shout"].handler({}, "hello") == "HELLO"
 
-    def test_filters_registered_under_capability_key(self, app: Engine) -> None:
-        f = UpperCaseFilter({})
-        _register_plugin_capabilities(app, f, "upper")
-        assert f in app.get_plugins(ContentFilterBase)
+    def test_filters_registered_under_capability_key(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        app = _app_with_plugin(base_config_data, "shout", ShoutFilter)
+        assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterBase))
 
-    def test_filters_chainable(self) -> None:
-        filters = [PrefixFilter({}), UpperCaseFilter({})]
-        content = "hello"
-        for f in filters:
-            content = f.filter_content(content)
-        assert content == "[PREFIX] HELLO"
+    def test_shortcodes_from_multiple_plugins_chainable(self) -> None:
+        class AFilter(ContentFilterBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_content_tags(self) -> dict[str, Shortcode]:
+                return {
+                    "atag": Shortcode(
+                        name="atag",
+                        handler=lambda _attrs, content: f"A({content})",
+                        description="wrap in A",
+                    )
+                }
+
+        class BFilter(ContentFilterBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
+
+            def get_content_tags(self) -> dict[str, Shortcode]:
+                return {
+                    "btag": Shortcode(
+                        name="btag",
+                        handler=lambda _attrs, content: f"B({content})",
+                        description="wrap in B",
+                    )
+                }
+
+        combined = {**AFilter({}).get_content_tags(), **BFilter({}).get_content_tags()}
+        result = apply_shortcodes("[atag]x[/atag] [btag]y[/btag]", combined)
+        assert result == "A(x) B(y)"
 
 
 # ---------------------------------------------------------------------------
-# _register_plugin_capabilities
+# Plugin capability registration
 # ---------------------------------------------------------------------------
 
 
 class TestRegisterPluginCapabilities:
-    def test_uncategorised_plugin_stored_under_pluginbase(self, app: Engine) -> None:
+    def test_uncategorised_plugin_stored_under_pluginbase(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
         class GenericPlugin(PluginBase[PluginBaseConfig]):
             @classmethod
             def get_config_model(cls) -> type[PluginBaseConfig]:
                 return PluginBaseConfig
 
-        plugin = GenericPlugin({})
-        _register_plugin_capabilities(app, plugin, "generic")
-        assert plugin in app.get_plugins(PluginBase)
-        assert plugin not in app.get_plugins(NotifierBase)
+        app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
+        assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
+        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierBase))
 
-    def test_plugin_stored_under_concrete_type(self, app: Engine) -> None:
-        notifier = SimpleNotifier({})
-        _register_plugin_capabilities(app, notifier, "simple")
-        assert notifier in app.get_plugins(SimpleNotifier)
+    def test_plugin_stored_under_concrete_type(self, base_config_data: dict[str, Any]) -> None:
+        app = _app_with_plugin(base_config_data, "simple", SimpleNotifier)
+        assert any(isinstance(p, SimpleNotifier) for p in app.get_plugins(SimpleNotifier))
 
-    def test_multi_capability_plugin_registered_under_all_bases(self, app: Engine) -> None:
+    def test_multi_capability_plugin_registered_under_all_bases(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
         class MultiPlugin(NotifierBase[NotifierBaseConfig], LoginBase[NotifierBaseConfig]):
             @classmethod
             def get_config_model(cls) -> type[NotifierBaseConfig]:
@@ -299,27 +342,24 @@ class TestRegisterPluginCapabilities:
             def get_login_html(self) -> str:
                 return ""
 
-        plugin = MultiPlugin({})
-        _register_plugin_capabilities(app, plugin, "multi")
-        assert plugin in app.get_plugins(NotifierBase)
-        assert plugin in app.get_plugins(LoginBase)
+        app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
+        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierBase))
+        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(LoginBase))
 
-    def test_sub_plugins_not_registered_in_capability_buckets(self, app: Engine) -> None:
-        sub = SimpleNotifier({})
-
+    def test_sub_plugins_not_registered_in_capability_buckets(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
         class ParentPlugin(PluginBase[PluginBaseConfig]):
             @classmethod
             def get_config_model(cls) -> type[PluginBaseConfig]:
                 return PluginBaseConfig
 
             def get_sub_plugins(self) -> list[PluginBase[Any]]:
-                return [sub]
+                return [SimpleNotifier({})]
 
-        parent = ParentPlugin({})
-        _register_plugin_capabilities(app, parent, "parent")
-
-        # sub-plugin is NOT auto-registered — parent owns it
-        assert sub not in app.get_plugins(NotifierBase)
+        app = _app_with_plugin(base_config_data, "parent", ParentPlugin)
+        # The SimpleNotifier sub-plugin must NOT be auto-registered in capability buckets
+        assert not any(isinstance(p, SimpleNotifier) for p in app.get_plugins(NotifierBase))
 
 
 # ---------------------------------------------------------------------------
@@ -386,9 +426,6 @@ class TestAllPlugins:
 
 class TestBackwardCompatProcess:
     def test_legacy_process_called_on_class_plugin(self, base_config_data: dict[str, Any]) -> None:
-        from platzky.engine import Engine as EngineType
-        from platzky.platzky import create_app_from_config
-
         class LegacyPlugin(PluginBase[PluginBaseConfig]):
             processed = False
 
@@ -396,7 +433,7 @@ class TestBackwardCompatProcess:
             def get_config_model(cls) -> type[PluginBaseConfig]:
                 return PluginBaseConfig
 
-            def process(self, app: EngineType) -> EngineType:
+            def process(self, app: Engine) -> Engine:
                 LegacyPlugin.processed = True
                 return app
 
@@ -414,8 +451,6 @@ class TestBackwardCompatProcess:
     def test_new_capability_plugin_process_not_called(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        from platzky.platzky import create_app_from_config
-
         class NewPlugin(NotifierBase[NotifierBaseConfig]):
             @classmethod
             def get_config_model(cls) -> type[NotifierBaseConfig]:
@@ -440,3 +475,61 @@ class TestBackwardCompatProcess:
             create_app_from_config(config)
 
         mock_process.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# ContentFilterBase wiring in create_app_from_config
+# ---------------------------------------------------------------------------
+
+
+class ShoutTagPlugin(ContentFilterBase[PluginBaseConfig]):
+    """Registers a [shout] shortcode via get_content_tags()."""
+
+    @classmethod
+    def get_config_model(cls) -> type[PluginBaseConfig]:
+        return PluginBaseConfig
+
+    def get_content_tags(self) -> dict[str, Shortcode]:
+        return {
+            "shout": Shortcode(
+                name="shout",
+                handler=lambda _attrs, content: content.upper(),
+                description="Upper-case content.",
+            )
+        }
+
+
+class _DummyJinjaExtension(jinja2.ext.Extension):
+    tags = {"dummy_tag"}  # noqa: RUF012
+
+
+class JinjaExtPlugin(ContentFilterBase[PluginBaseConfig]):
+    """Test filter that exposes a Jinja2 extension."""
+
+    @classmethod
+    def get_config_model(cls) -> type[PluginBaseConfig]:
+        return PluginBaseConfig
+
+    def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
+        return [_DummyJinjaExtension]
+
+
+class TestContentFilterWiring:
+    def test_shortcode_registered_in_engine(self, base_config_data: dict[str, Any]) -> None:
+        """Plugin shortcodes must appear in engine.shortcodes after app creation."""
+        app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
+        assert "shout" in app.shortcodes
+
+    def test_shortcode_dispatched_via_content_filter(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        """Plugin shortcode must transform content passed through the blog blueprint."""
+        app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
+        assert any(isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentFilterBase))
+        result = apply_shortcodes("[shout]hello[/shout]", app.shortcodes)
+        assert result == "HELLO"
+
+    def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
+        """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
+        app = _app_with_plugin(base_config_data, "jinjaext", JinjaExtPlugin)
+        assert any("_DummyJinjaExtension" in k for k in app.jinja_env.extensions)

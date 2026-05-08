@@ -19,6 +19,7 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
+from platzky.shortcode import Shortcode
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class Engine(Flask):
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
+        self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
         self._notifiers: list[Notifier] = []

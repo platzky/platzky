@@ -17,9 +17,11 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.plugin.plugin import CmsModuleBase, LoginBase
+from platzky.plugin.plugin import CmsModuleBase, ContentFilterBase, LoginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
+from platzky.shortcode import apply_shortcodes
+from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
 _MISSING_OTEL_MSG = (
@@ -234,6 +236,21 @@ def create_app_from_config(config: Config) -> Engine:
     for plugin in engine.get_plugins(CmsModuleBase):
         engine.cms_modules.append(plugin.get_cms_module())
 
+    # Register built-in shortcodes (image, link) then merge in plugin-provided ones.
+    # Plugin shortcodes registered later win on name collision (intentional override).
+    engine.shortcodes.update(get_builtin_shortcodes())
+    for _plugin in engine.get_plugins(ContentFilterBase):
+        engine.shortcodes.update(_plugin.get_content_tags())
+
+    # Register Jinja2 extensions from ContentFilterBase plugins so custom template
+    # tags are available in theme templates.
+    for _plugin in engine.get_plugins(ContentFilterBase):
+        for _ext in _plugin.get_jinja_extensions():
+            engine.jinja_env.add_extension(_ext)
+
+    def _apply_shortcodes(text: str) -> str:
+        return apply_shortcodes(text, engine.shortcodes)
+
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
     )
@@ -251,6 +268,7 @@ def create_app_from_config(config: Config) -> Engine:
         db=engine.db,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
+        content_filter=_apply_shortcodes,
     )
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale

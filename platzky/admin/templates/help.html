@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block description %}Shortcode reference for blog content authors.{% endblock %}
+
+{% block content %}
+<div class="admin-contents mx-auto w-75">
+  <h1>{% block title %}Shortcode Reference{% endblock %}</h1>
+  <p>Use these shortcodes in blog posts and pages to embed rich content.</p>
+
+  {% for shortcode in shortcodes %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <code>[{{ shortcode.name }}]</code>
+    </div>
+    <div class="card-body">
+      <p>{{ shortcode.description }}</p>
+
+      {% if shortcode.example %}
+      <h6>Example</h6>
+      <pre><code>{{ shortcode.example }}</code></pre>
+      {% endif %}
+
+      {% if shortcode.attributes %}
+      <h6>Attributes</h6>
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for attr in shortcode.attributes %}
+          <tr>
+            <td><code>{{ attr.name }}</code></td>
+            <td>{{ "yes" if attr.required else "no" }}</td>
+            <td>{{ attr.default if attr.default is not none else "—" }}</td>
+            <td>{{ attr.description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not shortcodes %}
+  <p class="text-muted">No shortcodes are currently registered.</p>
+  {% endif %}
+</div>
+{% endblock %}

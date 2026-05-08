@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from os.path import dirname
 
-from flask import Blueprint, render_template, session
+from flask import Blueprint, current_app, render_template, session
 
 from platzky.models import CmsModule
 
@@ -54,5 +54,15 @@ def create_admin_blueprint(
             return render_template("login.html", login_methods=login_methods)
 
         return render_template("admin.html", user=user, cms_modules=cms_modules)
+
+    @admin.route("/help", methods=["GET"])
+    def admin_help() -> str:
+        """Display the admin help page listing all available shortcodes.
+
+        Returns:
+            Rendered help page with shortcode documentation
+        """
+        shortcodes = list(current_app.shortcodes.values())  # type: ignore[attr-defined]
+        return render_template("help.html", shortcodes=shortcodes)
 
     return admin
