@@ -442,9 +442,11 @@ class GraphQL(DB):
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
     def get_primary_color(self) -> str:
+        """Return the primary brand colour."""
         return "white"  # Default color as string
 
     def get_secondary_color(self) -> str:
+        """Return the secondary brand colour."""
         return "navy"  # Default color as string
 
     def get_plugins_data(self) -> list[dict[str, Any]]:

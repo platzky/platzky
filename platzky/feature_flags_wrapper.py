@@ -26,6 +26,7 @@ _DEPRECATION_WARNING = deprecation.DeprecatedWarning(
 
 
 def _warn_dict_access() -> None:
+    """Emit a deprecation warning for dict-style flag access."""
     warnings.warn(_DEPRECATION_WARNING, stacklevel=3)
 
 
@@ -56,6 +57,7 @@ class FeatureFlagSet(dict[str, bool]):
         return super().get(key, default)
 
     def _raise_immutable(self, *_args: object, **_kwargs: object) -> None:
+        """Prevent mutation — FeatureFlagSet is read-only."""
         raise TypeError("FeatureFlagSet is immutable")
 
     __setitem__ = _raise_immutable

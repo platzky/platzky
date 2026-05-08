@@ -10,6 +10,7 @@ _ALLOWED_SCHEMES = {"http", "https", ""}
 
 
 def _image_handler(attrs: dict[str, str], _content: str) -> str:
+    """Render an ``<img>`` tag from shortcode attributes."""
     url = attrs.get("url", "")
     alt = attrs.get("alt", "")
     width = attrs.get("width", "")
@@ -23,6 +24,7 @@ def _image_handler(attrs: dict[str, str], _content: str) -> str:
 
 
 def _link_handler(attrs: dict[str, str], content: str) -> str:
+    """Render an ``<a>`` tag from shortcode attributes, validating the URL scheme."""
     url = attrs.get("url", "")
     target = attrs.get("target", "")
     if urlparse(url).scheme not in _ALLOWED_SCHEMES:

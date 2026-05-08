@@ -1,3 +1,5 @@
+"""Pydantic models for blog posts, pages, comments, and CMS modules."""
+
 import datetime
 import warnings
 from typing import Annotated

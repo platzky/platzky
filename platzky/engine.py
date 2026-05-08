@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 class Engine(Flask):
+    """Flask subclass composing database, plugins, notifications, and health checks."""
+
     def __init__(
         self,
         config: Config,
@@ -80,6 +82,7 @@ class Engine(Flask):
         result: list[Any] = []
 
         def _walk(plugin: PluginBase[Any]) -> None:
+            """Recursively collect a plugin and its sub-plugins."""
             result.append(plugin)
             for sub in plugin.get_sub_plugins():
                 _walk(sub)
@@ -147,12 +150,15 @@ class Engine(Flask):
         self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str) -> None:
+        """Append HTML to the dynamic body section rendered in templates."""
         self.dynamic_body += body
 
     def add_dynamic_head(self, head: str) -> None:
+        """Append HTML to the dynamic head section rendered in templates."""
         self.dynamic_head += head
 
     def get_locale(self) -> str:
+        """Return the current locale based on session or browser preferences."""
         languages = self.config.get("LANGUAGES", {}).keys()
 
         session_lang = session.get("language")
@@ -202,6 +208,7 @@ class Engine(Flask):
             future: Future[None] = Future()
 
             def run() -> None:
+                """Execute the health check and resolve the future."""
                 try:
                     check_func()
                     future.set_result(None)

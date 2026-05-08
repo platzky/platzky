@@ -1,3 +1,5 @@
+"""WWW subdomain redirection helpers."""
+
 import urllib.parse
 
 from flask import redirect, request

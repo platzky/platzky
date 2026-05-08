@@ -1,3 +1,5 @@
+"""OpenTelemetry instrumentation setup for the Platzky engine."""
+
 import atexit
 import socket
 import uuid

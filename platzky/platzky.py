@@ -1,3 +1,5 @@
+"""Application factory — assembles config, database, engine, plugins, and blueprints."""
+
 import typing as t
 import urllib.parse
 
@@ -249,6 +251,7 @@ def create_app_from_config(config: Config) -> Engine:
             engine.jinja_env.add_extension(_ext)
 
     def _apply_shortcodes(text: str) -> str:
+        """Replace shortcode tags in *text* using all registered shortcodes."""
         return apply_shortcodes(text, engine.shortcodes)
 
     admin_blueprint = admin.create_admin_blueprint(
