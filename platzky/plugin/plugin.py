@@ -137,6 +137,7 @@ class NotifierBase(PluginBase, ABC):
             topic: The notification topic.
             attachments: Optional list of attachments.
         """
+        raise NotImplementedError
 
 
 class LoginBase(PluginBase, ABC):
