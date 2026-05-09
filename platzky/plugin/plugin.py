@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, cast
 
 import deprecation
 import jinja2.ext
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from platzky.attachment import AttachmentProtocol
 from platzky.models import CmsModule
@@ -141,14 +141,6 @@ class NotifierBaseConfig(PluginBaseConfig):
     """
 
     accepted_topics: set[NotificationTopic]
-
-    @field_validator("accepted_topics", mode="before")
-    @classmethod
-    def coerce_to_set(cls, v: object) -> set[str]:
-        """Coerce list/tuple inputs to a set."""
-        if isinstance(v, (list, tuple)):
-            return set(v)
-        return v  # type: ignore[return-value]
 
 
 N = TypeVar("N", bound=NotifierBaseConfig)
