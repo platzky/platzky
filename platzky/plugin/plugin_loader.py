@@ -244,8 +244,6 @@ def _load_class_plugin(
 ) -> Engine:
     """Instantiate and register a class-based plugin."""
     plugin_instance = plugin_class(plugin_config)
-    _register_plugin_locale(app, plugin_instance, plugin_name)
-    _register_plugin_capabilities(app, plugin_instance, plugin_name)
     app.loaded_plugins.append(plugin_instance)
     # MRO-based identity check: every class inherits process() from PluginBase so
     # hasattr() would always return True.  Comparing unbound method objects via `is`
@@ -253,6 +251,9 @@ def _load_class_plugin(
     # the base no-op implementation would raise.
     if type(plugin_instance).process is not PluginBase.process:
         app = plugin_instance.process(app)
+    # Register locale and capabilities on the (possibly replaced) app returned by process().
+    _register_plugin_locale(app, plugin_instance, plugin_name)
+    _register_plugin_capabilities(app, plugin_instance, plugin_name)
     logger.info("Processed class-based plugin: %s", plugin_name)
     return app
 

@@ -150,7 +150,7 @@ class NotifierBase(PluginBase[N], ABC):
     def accepts(self, topic: str) -> bool:
         """Return True if this notifier handles the given topic."""
         topics: set[str] = getattr(self.config, "accepted_topics", {"*"})
-        return "*" in topics or topic in topics
+        return topic == "*" or "*" in topics or topic in topics
 
     @abstractmethod
     def notify(

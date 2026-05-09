@@ -161,6 +161,16 @@ class TestNotifierBase:
         assert isinstance(config.accepted_topics, set)
         assert config.accepted_topics == {"security", "content"}
 
+    def test_broadcast_topic_reaches_filtered_notifiers(self, app: Engine) -> None:
+        """app.notify() default topic '*' must reach notifiers filtered to specific topics."""
+        security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
+        app.plugins[NotifierBase].append(security_only)
+
+        app.notify("broadcast message")  # default topic is "*"
+
+        assert len(security_only.received) == 1
+        assert security_only.received[0][0] == "broadcast message"
+
 
 # ---------------------------------------------------------------------------
 # LoginBase
