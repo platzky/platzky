@@ -24,7 +24,7 @@ def create_blog_blueprint(
     db: DB,
     blog_prefix: str,
     locale_func: Callable[[], str],
-    content_filter: Callable[[str], str] | None = None,
+    content_filter: Callable[[str], str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -144,15 +144,10 @@ def create_blog_blueprint(
             Rendered HTML template of the blog post
         """
         post = _get_content_or_404(db.get_post, post_slug)
-        content = (
-            content_filter(post.contentInMarkdown)
-            if content_filter is not None
-            else post.contentInMarkdown
-        )
         return render_template(
             "post.html",
             post=post,
-            content=content,
+            content=content_filter(post.contentInMarkdown),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -169,13 +164,13 @@ def create_blog_blueprint(
             Rendered HTML template of the page
         """
         page = _get_content_or_404(db.get_page, page_slug)
-        content = (
-            content_filter(page.contentInMarkdown)
-            if content_filter is not None
-            else page.contentInMarkdown
-        )
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
-        return render_template("page.html", page=page, content=content, cover_image=cover_image_url)
+        return render_template(
+            "page.html",
+            page=page,
+            content=content_filter(page.contentInMarkdown),
+            cover_image=cover_image_url,
+        )
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:
