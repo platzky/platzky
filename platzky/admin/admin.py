@@ -19,6 +19,7 @@ def create_admin_blueprint(
     Args:
         login_methods: Available login methods
         cms_modules: List of CMS modules to register routes for
+        shortcodes: Registered shortcode descriptors for the help page
 
     Returns:
         Configured Flask Blueprint for admin panel
@@ -29,6 +30,12 @@ def create_admin_blueprint(
         url_prefix="/admin",
         template_folder=f"{dirname(__file__)}/templates",
     )
+
+    @admin.before_request
+    def require_login() -> str | None:
+        if not session.get("user"):
+            return render_template("login.html", login_methods=login_methods)
+        return None
 
     for module in cms_modules:
 
@@ -46,27 +53,12 @@ def create_admin_blueprint(
 
     @admin.route("/", methods=["GET"])
     def admin_panel_home() -> str:
-        """Display admin panel home or login page.
-
-        Returns:
-            Rendered login page if not authenticated, admin panel if authenticated
-        """
-        user = session.get("user")
-
-        if not user:
-            return render_template("login.html", login_methods=login_methods)
-
-        return render_template("admin.html", user=user, cms_modules=cms_modules)
+        """Display the admin panel home page."""
+        return render_template("admin.html", user=session.get("user"), cms_modules=cms_modules)
 
     @admin.route("/help", methods=["GET"])
     def admin_help() -> str:
-        """Display the admin help page for content authors.
-
-        Returns:
-            Rendered login page if not authenticated, help page if authenticated
-        """
-        if not session.get("user"):
-            return render_template("login.html", login_methods=login_methods)
+        """Display the admin help page for content authors."""
         return render_template("help.html", shortcodes=list(shortcodes.items()))
 
     return admin
