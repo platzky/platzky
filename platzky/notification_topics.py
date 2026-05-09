@@ -2,4 +2,4 @@
 
 from typing import Literal
 
-NotificationTopic = Literal["security", "content", "general", "*"]
+NotificationTopic = Literal["security", "content", "general"]

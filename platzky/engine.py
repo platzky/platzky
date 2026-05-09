@@ -83,33 +83,21 @@ class Engine(Flask):
         """Return all registered plugins of the given capability type."""
         return self.plugins.get(plugin_type, [])
 
-    def all_plugins(self) -> list[Any]:
-        """Return a flat list of all plugins including sub-plugins, depth-first."""
-        from platzky.plugin.plugin import PluginBase
-
-        result: list[Any] = []
-
-        def _walk(plugin: PluginBase[Any]) -> None:
-            """Recursively collect a plugin and its sub-plugins."""
-            result.append(plugin)
-            for sub in plugin.get_sub_plugins():
-                _walk(sub)
-
-        for plugin in self.loaded_plugins:
-            _walk(plugin)
-        return result
+    def get_plugin_infos(self) -> list[Any]:
+        """Return PluginInfo metadata for all loaded plugins."""
+        return [plugin.get_info() for plugin in self.loaded_plugins]
 
     def notify(
         self,
         message: str,
-        topic: NotificationTopic = "*",
+        topic: NotificationTopic = "general",
         attachments: list[AttachmentProtocol] | None = None,
     ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
-            topic: Notification topic for routing (default ``"*"`` = all notifiers).
+            topic: Notification topic for routing (default ``"general"``).
             attachments: Optional list of Attachment objects created via engine.Attachment().
         """
         # Legacy path

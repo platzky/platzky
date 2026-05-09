@@ -7,7 +7,8 @@ import logging
 import os
 import types
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, cast
 
 import deprecation
 import jinja2.ext
@@ -22,6 +23,15 @@ if TYPE_CHECKING:
     from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginInfo:
+    """Metadata snapshot describing a plugin and its optional sub-plugins."""
+
+    name: str
+    description: str
+    sub_plugins: list[PluginInfo] = field(default_factory=list)
 
 
 class PluginError(Exception):
@@ -86,14 +96,15 @@ class PluginBase(Generic[T], ABC):
         except Exception as e:
             raise ConfigPluginError(f"Invalid configuration: {e}") from e
 
-    def get_sub_plugins(self) -> list[PluginBase[Any]]:
-        """Return direct sub-plugins owned by this plugin.
+    def get_info(self) -> PluginInfo:
+        """Return a metadata snapshot describing this plugin.
 
-        Override to expose sub-plugins for listing and introspection.
-        Sub-plugins are the plugin's own concern — the engine does not
-        register them in capability buckets automatically.
+        Override to include sub-plugins or provide user-facing name/description.
         """
-        return []
+        return PluginInfo(
+            name=type(self).__name__,
+            description=type(self).__doc__ or "",
+        )
 
     def get_locale_dir(self) -> Optional[str]:
         """Get this plugin's locale directory.
@@ -124,9 +135,13 @@ class PluginBase(Generic[T], ABC):
 
 
 class NotifierBaseConfig(PluginBaseConfig):
-    """Configuration for notifier plugins with optional topic filtering."""
+    """Configuration for notifier plugins.
 
-    accepted_topics: set[NotificationTopic] = {"*"}
+    Subclasses must declare ``accepted_topics`` with a default appropriate for the plugin.
+    Users may override it in their YAML config to restrict which topics are delivered.
+    """
+
+    accepted_topics: set[NotificationTopic]
 
     @field_validator("accepted_topics", mode="before")
     @classmethod
@@ -144,13 +159,13 @@ class NotifierBase(PluginBase[N], ABC):
     """Base class for notifier plugins.
 
     Subclasses implement notify() and are automatically registered with the engine.
-    Optional topic filtering is configured via accepted_topics in the plugin config.
+    Topic filtering is declared in the plugin config via accepted_topics and may be
+    narrowed by the user in their YAML config.
     """
 
     def accepts(self, topic: str) -> bool:
         """Return True if this notifier handles the given topic."""
-        topics: set[str] = getattr(self.config, "accepted_topics", {"*"})
-        return topic == "*" or "*" in topics or topic in topics
+        return topic in cast(NotifierBaseConfig, self.config).accepted_topics
 
     @abstractmethod
     def notify(

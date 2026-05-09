@@ -23,6 +23,7 @@ from platzky.plugin.plugin import (
     NotifierBaseConfig,
     PluginBase,
     PluginBaseConfig,
+    PluginInfo,
 )
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
@@ -71,10 +72,14 @@ def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: 
 # ---------------------------------------------------------------------------
 
 
-class SimpleNotifier(NotifierBase[NotifierBaseConfig]):
+class SimpleNotifierConfig(NotifierBaseConfig):
+    accepted_topics: set[NotificationTopic] = {"general", "content", "security"}  # noqa: RUF012
+
+
+class SimpleNotifier(NotifierBase[SimpleNotifierConfig]):
     @classmethod
-    def get_config_model(cls) -> type[NotifierBaseConfig]:
-        return NotifierBaseConfig
+    def get_config_model(cls) -> type[SimpleNotifierConfig]:
+        return SimpleNotifierConfig
 
     def notify(
         self,
@@ -108,7 +113,7 @@ class TopicFilteredNotifier(NotifierBase[NotifierBaseConfig]):
 
 
 class TestNotifierBase:
-    def test_notifier_receives_wildcard_notifications(self, app: Engine) -> None:
+    def test_notifier_receives_matching_topic(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.plugins[NotifierBase].append(notifier)
 
@@ -116,23 +121,25 @@ class TestNotifierBase:
 
         assert notifier.received == [("hello", "general", None)]
 
-    def test_notifier_accepts_all_topics_by_default(self) -> None:
+    def test_notifier_accepts_configured_topics(self) -> None:
         notifier = SimpleNotifier({})
         assert notifier.accepts("security")
         assert notifier.accepts("content")
         assert notifier.accepts("general")
-        assert notifier.accepts("*")
 
-    def test_notifier_with_specific_topic_filter(self) -> None:
+    def test_notifier_rejects_unconfigured_topics(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
         assert notifier.accepts("security")
         assert not notifier.accepts("content")
         assert not notifier.accepts("general")
 
-    def test_notifier_wildcard_topic_filter(self) -> None:
-        notifier = SimpleNotifier({"accepted_topics": ["*"]})
-        assert notifier.accepts("security")
-        assert notifier.accepts("anything")
+    def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
+        security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
+        app.plugins[NotifierBase].append(security_only)
+
+        app.notify("new topic message", topic="general")
+
+        assert len(security_only.received) == 0
 
     def test_notify_routes_by_topic(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
@@ -156,20 +163,10 @@ class TestNotifierBase:
         assert notifier.received[0][2] == [fake_attachment]
 
     def test_accepted_topics_list_coerced_to_set(self) -> None:
-        notifier = SimpleNotifier({"accepted_topics": ["security", "content"]})
+        notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
         config = cast(NotifierBaseConfig, notifier.config)
         assert isinstance(config.accepted_topics, set)
         assert config.accepted_topics == {"security", "content"}
-
-    def test_broadcast_topic_reaches_filtered_notifiers(self, app: Engine) -> None:
-        """app.notify() default topic '*' must reach notifiers filtered to specific topics."""
-        security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
-        app.plugins[NotifierBase].append(security_only)
-
-        app.notify("broadcast message")  # default topic is "*"
-
-        assert len(security_only.received) == 1
-        assert security_only.received[0][0] == "broadcast message"
 
 
 # ---------------------------------------------------------------------------
@@ -336,10 +333,13 @@ class TestRegisterPluginCapabilities:
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class MultiPlugin(NotifierBase[NotifierBaseConfig], LoginBase[NotifierBaseConfig]):
+        class MultiPluginConfig(NotifierBaseConfig):
+            accepted_topics: set[NotificationTopic] = {"general"}  # noqa: RUF012
+
+        class MultiPlugin(NotifierBase[MultiPluginConfig], LoginBase[MultiPluginConfig]):
             @classmethod
-            def get_config_model(cls) -> type[NotifierBaseConfig]:
-                return NotifierBaseConfig
+            def get_config_model(cls) -> type[MultiPluginConfig]:
+                return MultiPluginConfig
 
             def notify(
                 self,
@@ -356,77 +356,61 @@ class TestRegisterPluginCapabilities:
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierBase))
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(LoginBase))
 
-    def test_sub_plugins_not_registered_in_capability_buckets(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        class ParentPlugin(PluginBase[PluginBaseConfig]):
+
+# ---------------------------------------------------------------------------
+# PluginBase.get_info() and Engine.get_plugin_infos()
+# ---------------------------------------------------------------------------
+
+
+class TestGetInfo:
+    def test_default_info_uses_class_name_and_docstring(self) -> None:
+        class MyPlugin(PluginBase[PluginBaseConfig]):
+            """A plugin for testing."""
+
             @classmethod
             def get_config_model(cls) -> type[PluginBaseConfig]:
                 return PluginBaseConfig
 
-            def get_sub_plugins(self) -> list[PluginBase[Any]]:
-                return [SimpleNotifier({})]
+        info = MyPlugin({}).get_info()
+        assert info.name == "MyPlugin"
+        assert info.description == "A plugin for testing."
+        assert info.sub_plugins == []
 
-        app = _app_with_plugin(base_config_data, "parent", ParentPlugin)
-        # The SimpleNotifier sub-plugin must NOT be auto-registered in capability buckets
-        assert not any(isinstance(p, SimpleNotifier) for p in app.get_plugins(NotifierBase))
+    def test_default_info_empty_description_when_no_docstring(self) -> None:
+        class NoDocPlugin(PluginBase[PluginBaseConfig]):
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
 
+        assert NoDocPlugin({}).get_info().description == ""
 
-# ---------------------------------------------------------------------------
-# Engine.all_plugins()
-# ---------------------------------------------------------------------------
+    def test_plugin_can_override_get_info_with_sub_plugins(self) -> None:
+        sub_info = PluginInfo(name="Sub", description="sub plugin")
 
+        class ParentPlugin(PluginBase[PluginBaseConfig]):
+            """Parent."""
 
-class TestAllPlugins:
-    def test_all_plugins_empty_with_no_loaded_plugins(self, app: Engine) -> None:
-        assert app.all_plugins() == []
+            @classmethod
+            def get_config_model(cls) -> type[PluginBaseConfig]:
+                return PluginBaseConfig
 
-    def test_all_plugins_includes_top_level(self, app: Engine) -> None:
+            def get_info(self) -> PluginInfo:
+                info = super().get_info()
+                info.sub_plugins.append(sub_info)
+                return info
+
+        info = ParentPlugin({}).get_info()
+        assert info.sub_plugins == [sub_info]
+
+    def test_get_plugin_infos_empty_with_no_loaded_plugins(self, app: Engine) -> None:
+        assert app.get_plugin_infos() == []
+
+    def test_get_plugin_infos_returns_info_for_each_loaded_plugin(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.loaded_plugins.append(notifier)
-        assert app.all_plugins() == [notifier]
-
-    def test_all_plugins_includes_sub_plugins(self, app: Engine) -> None:
-        sub = SimpleNotifier({})
-
-        class ParentPlugin(PluginBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
-
-            def get_sub_plugins(self) -> list[PluginBase[Any]]:
-                return [sub]
-
-        parent = ParentPlugin({})
-        app.loaded_plugins.append(parent)
-
-        assert app.all_plugins() == [parent, sub]
-
-    def test_all_plugins_depth_first_nested(self, app: Engine) -> None:
-        leaf = SimpleNotifier({})
-
-        class MiddlePlugin(PluginBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
-
-            def get_sub_plugins(self) -> list[PluginBase[Any]]:
-                return [leaf]
-
-        middle = MiddlePlugin({})
-
-        class RootPlugin(PluginBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
-
-            def get_sub_plugins(self) -> list[PluginBase[Any]]:
-                return [middle]
-
-        root = RootPlugin({})
-        app.loaded_plugins.append(root)
-
-        assert app.all_plugins() == [root, middle, leaf]
+        infos = app.get_plugin_infos()
+        assert len(infos) == 1
+        assert infos[0].name == "SimpleNotifier"
 
 
 # ---------------------------------------------------------------------------
@@ -461,10 +445,13 @@ class TestBackwardCompatProcess:
     def test_new_capability_plugin_process_not_called(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class NewPlugin(NotifierBase[NotifierBaseConfig]):
+        class NewPluginConfig(NotifierBaseConfig):
+            accepted_topics: set[NotificationTopic] = {"general"}  # noqa: RUF012
+
+        class NewPlugin(NotifierBase[NewPluginConfig]):
             @classmethod
-            def get_config_model(cls) -> type[NotifierBaseConfig]:
-                return NotifierBaseConfig
+            def get_config_model(cls) -> type[NewPluginConfig]:
+                return NewPluginConfig
 
             def notify(
                 self,
