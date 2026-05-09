@@ -14,7 +14,7 @@
         "tags": [
           "tag/1"
         ],
-        "contentInMarkdown": "Once upon a time...",
+        "contentInMarkdown": "Once upon a time...[image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\"]",
         "date": "1954-01-29",
         "coverImage": {
           "alternateText": "The Fellowship of the Ring cover",
@@ -37,7 +37,7 @@
         "tags": [
           "tag/1"
         ],
-        "contentInMarkdown": "Once upon a time...",
+        "contentInMarkdown": "Once upon a time...[image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\"]",
         "date": "1954-01-29",
         "coverImage": {
           "alternateText": "The Fellowship of the Ring cover",
