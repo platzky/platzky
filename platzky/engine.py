@@ -27,6 +27,7 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
+from platzky.plugin.plugin import NotifierBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -107,8 +108,6 @@ class Engine(Flask):
             notifier(message, attachments=attachments)
 
         # New capability-based path
-        from platzky.plugin.plugin import NotifierBase
-
         for plugin in self.get_plugins(NotifierBase):
             if plugin.is_handling(topic):
                 plugin.notify(message, topic, attachments)

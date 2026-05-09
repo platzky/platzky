@@ -8,7 +8,7 @@ import os
 import types
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import deprecation
 import jinja2.ext
@@ -17,9 +17,6 @@ from platzky.attachment import AttachmentProtocol
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.shortcodes import Shortcode
-
-if TYPE_CHECKING:
-    from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +101,7 @@ class PluginBase(ABC):
             "NotifierBase, LoginBase, CmsModuleBase, or ContentFilterBase."
         ),
     )
-    def process(self, app: Engine) -> Engine:
+    def process(self, app: Any) -> Any:  # noqa: ANN401
         """Apply this plugin to the app.
 
         Deprecated: implement a typed capability subclass instead.

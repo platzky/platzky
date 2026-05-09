@@ -66,6 +66,8 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
             """Dispatch a matched shortcode tag to its registered handler."""
             attrs = dict(_ATTR_RE.findall(m.group(2) or ""))
             inner = m.group(3) or ""
+            if inner:
+                inner = _apply(inner)
             return shortcodes[m.group(1)].handler(attrs, inner)
 
         return pattern.sub(_replace, content)

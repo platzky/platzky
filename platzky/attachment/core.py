@@ -52,7 +52,7 @@ class AttachmentProtocol(Protocol):
         max_size_override: int | None = None,
     ) -> AttachmentProtocol:
         """Create an attachment from raw bytes with explicit MIME type."""
-        ...
+        raise NotImplementedError
 
     @classmethod
     def from_file(
@@ -63,7 +63,7 @@ class AttachmentProtocol(Protocol):
         max_size_override: int | None = None,
     ) -> AttachmentProtocol:
         """Create an attachment by reading a file from disk."""
-        ...
+        raise NotImplementedError
 
 
 def _sanitize_filename(filename: str) -> str:
