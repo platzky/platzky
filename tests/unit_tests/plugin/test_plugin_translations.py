@@ -101,7 +101,7 @@ class TestPlugin(PluginBase):
 
                 class MaliciousPlugin(PluginBase):
                     def __init__(self, config: dict[str, Any]) -> None:
-                        pass
+                        super().__init__(config)
 
                     def get_locale_dir(self) -> str | None:
                         return str(external_dir)

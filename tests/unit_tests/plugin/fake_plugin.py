@@ -11,6 +11,7 @@ class FakePlugin(PluginBase):
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__(config)
         self._test_value: str = config.get("test_value", "default")
         self.process_called = False
 

@@ -71,7 +71,8 @@ class PluginBase(ABC):
         return locale_dir if os.path.isdir(locale_dir) else None
 
     @abstractmethod
-    def __init__(self, config: dict[str, Any]) -> None: ...
+    def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__()
 
     def get_info(self) -> PluginInfo:
         """Return a metadata snapshot describing this plugin.

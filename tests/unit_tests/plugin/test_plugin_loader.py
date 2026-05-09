@@ -74,7 +74,7 @@ class TestPluginErrors:
 
         class ErrorPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.dynamic_body += "This will fail"
@@ -119,6 +119,7 @@ class TestPluginConfigValidation:
     def test_plugin_can_raise_config_plugin_error(self):
         class StrictPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 if "required_field" not in config:
                     raise ConfigPluginError("Invalid configuration: required_field missing")
 
@@ -136,7 +137,7 @@ class TestPluginLoading:
 
         class MockPluginBase(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("Plugin added content")
@@ -162,7 +163,7 @@ class TestPluginLoading:
 
         class FirstPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("First plugin content")
@@ -170,7 +171,7 @@ class TestPluginLoading:
 
         class SecondPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_head("Second plugin content")
@@ -271,7 +272,8 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class SafePlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -315,7 +317,8 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class MaliciousPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -360,7 +363,8 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class PathTraversalPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -412,7 +416,8 @@ class TestLocaleDirectorySecurity:
             pytest.skip("Unable to create symlinks on this system")
 
         class SymlinkPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -453,7 +458,8 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class NonExistentDirPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -492,7 +498,8 @@ class TestLocaleDirectorySecurity:
         plugin_file = temp_plugin_structure["plugin_file"]
 
         class NoLocalePlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -527,7 +534,7 @@ class TestLocaleDirectorySecurity:
 
         class NoFilePlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 return app
@@ -621,7 +628,7 @@ class TestDiscoverPlugins:
     ) -> None:
         class EntryPointPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]
         config = Config.model_validate(base_config_data)
@@ -635,7 +642,7 @@ class TestDiscoverPlugins:
     def test_plugify_falls_back_when_no_entry_point(self, base_config_data: dict[str, Any]) -> None:
         class FallbackPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
-                pass
+                super().__init__(config)
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "fallback", "config": {}}]
         config = Config.model_validate(base_config_data)
