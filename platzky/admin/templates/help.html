@@ -7,10 +7,10 @@
   <h1>{% block title %}Shortcode Reference{% endblock %}</h1>
   <p>Use these shortcodes in blog posts and pages to embed rich content.</p>
 
-  {% for shortcode in shortcodes %}
+  {% for name, shortcode in shortcodes %}
   <div class="card mb-4">
     <div class="card-header">
-      <code>[{{ shortcode.name }}]</code>
+      <code>{% if shortcode.has_content %}[{{ name }}]…[/{{ name }}]{% else %}[{{ name }}]{% endif %}</code>
     </div>
     <div class="card-body">
       <p>{{ shortcode.description }}</p>

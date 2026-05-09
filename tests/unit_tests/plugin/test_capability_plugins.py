@@ -337,7 +337,7 @@ class TestRegisterPluginCapabilities:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
-                pass
+                pass  # intentionally empty — test only checks plugin registration
 
             def get_login_html(self) -> str:
                 return ""
@@ -462,7 +462,7 @@ class TestBackwardCompatProcess:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
-                pass
+                pass  # intentionally empty — test only checks process() is not called
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "new", "config": {}}]
         config = Config.model_validate(base_config_data)

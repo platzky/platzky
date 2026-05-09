@@ -60,9 +60,11 @@ def create_admin_blueprint(
         """Display the admin help page listing all available shortcodes.
 
         Returns:
-            Rendered help page with shortcode documentation
+            Rendered login page if not authenticated, help page if authenticated
         """
-        shortcodes = list(current_app.shortcodes.values())  # type: ignore[attr-defined]
+        if not session.get("user"):
+            return render_template("login.html", login_methods=login_methods)
+        shortcodes = list(current_app.shortcodes.items())  # type: ignore[attr-defined]
         return render_template("help.html", shortcodes=shortcodes)
 
     return admin

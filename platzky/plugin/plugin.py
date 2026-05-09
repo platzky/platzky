@@ -6,7 +6,7 @@ import inspect
 import logging
 import os
 import types
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 import deprecation
@@ -152,6 +152,7 @@ class NotifierBase(PluginBase[N], ABC):
         topics: set[str] = getattr(self.config, "accepted_topics", {"*"})
         return "*" in topics or topic in topics
 
+    @abstractmethod
     def notify(
         self,
         message: str,
@@ -165,7 +166,6 @@ class NotifierBase(PluginBase[N], ABC):
             topic: The notification topic.
             attachments: Optional list of attachments.
         """
-        raise NotImplementedError
 
 
 class LoginBase(PluginBase[T], ABC):
@@ -174,9 +174,9 @@ class LoginBase(PluginBase[T], ABC):
     Subclasses implement get_login_html() and are automatically registered with the engine.
     """
 
+    @abstractmethod
     def get_login_html(self) -> str:
         """Return the HTML snippet for this login method's button/form."""
-        raise NotImplementedError
 
 
 class CmsModuleBase(PluginBase[T], ABC):
@@ -185,9 +185,9 @@ class CmsModuleBase(PluginBase[T], ABC):
     Subclasses implement get_cms_module() and are automatically registered with the engine.
     """
 
+    @abstractmethod
     def get_cms_module(self) -> CmsModule:
         """Return the CmsModule descriptor for this plugin."""
-        raise NotImplementedError
 
 
 class ContentFilterBase(PluginBase[T], ABC):

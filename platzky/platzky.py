@@ -22,7 +22,7 @@ from platzky.feature_flags import FakeLogin
 from platzky.plugin.plugin import CmsModuleBase, ContentFilterBase, LoginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
-from platzky.shortcodes import apply_shortcodes
+from platzky.shortcodes import make_shortcode_applier
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
@@ -243,16 +243,11 @@ def create_app_from_config(config: Config) -> Engine:
     engine.shortcodes.update(get_builtin_shortcodes())
     for _plugin in engine.get_plugins(ContentFilterBase):
         engine.shortcodes.update(_plugin.get_content_tags())
-
-    # Register Jinja2 extensions from ContentFilterBase plugins so custom template
-    # tags are available in theme templates.
-    for _plugin in engine.get_plugins(ContentFilterBase):
         for _ext in _plugin.get_jinja_extensions():
             engine.jinja_env.add_extension(_ext)
 
-    def _apply_shortcodes(text: str) -> str:
-        """Replace shortcode tags in *text* using all registered shortcodes."""
-        return apply_shortcodes(text, engine.shortcodes)
+    # Compile the pattern once — shortcodes are frozen after this point.
+    _apply_shortcodes = make_shortcode_applier(engine.shortcodes)
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods, cms_modules=engine.cms_modules
