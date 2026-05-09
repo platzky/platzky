@@ -10,7 +10,7 @@
   {% for name, shortcode in shortcodes %}
   <div class="card mb-4">
     <div class="card-header">
-      <code>{% if shortcode.has_content %}[{{ name }}]…[/{{ name }}]{% else %}[{{ name }}]{% endif %}</code>
+      <code>[{{ name }}]</code>
     </div>
     <div class="card-body">
       <p>{{ shortcode.description }}</p>

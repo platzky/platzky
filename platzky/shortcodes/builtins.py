@@ -48,7 +48,6 @@ def get_builtin_shortcodes() -> dict[str, Shortcode]:
                 ShortcodeAttr("width", "Width in pixels", required=False),
                 ShortcodeAttr("height", "Height in pixels", required=False),
             ],
-            has_content=False,
             example='[image url="https://example.com/photo.jpg" alt="A photo"]',
         ),
         "link": Shortcode(
@@ -63,7 +62,6 @@ def get_builtin_shortcodes() -> dict[str, Shortcode]:
                 ),
                 ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
             ],
-            has_content=True,
             example='[link url="https://example.com"]Click here[/link]',
         ),
     }

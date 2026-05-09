@@ -41,7 +41,6 @@ class Shortcode:
     handler: Callable[[dict[str, str], str], str]
     description: str
     attributes: list[ShortcodeAttr] = field(default_factory=list)
-    has_content: bool = False
     example: str = ""
 
 
