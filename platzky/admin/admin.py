@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from os.path import dirname
 
-from flask import Blueprint, render_template, session
+from flask import Blueprint, render_template, request, session
 
 from platzky.models import CmsModule
 from platzky.shortcodes import Shortcode
@@ -12,7 +12,7 @@ from platzky.shortcodes import Shortcode
 def create_admin_blueprint(
     login_methods: list[Callable[[], str]],
     cms_modules: list[CmsModule],
-    shortcodes: dict[str, Shortcode],
+    shortcodes: list[Shortcode],
 ) -> Blueprint:
     """Create admin blueprint with dynamic module routes.
 
@@ -34,6 +34,7 @@ def create_admin_blueprint(
     @admin.before_request
     def require_login() -> str | None:
         if not session.get("user"):
+            session["next"] = request.url
             return render_template("login.html", login_methods=login_methods)
         return None
 
@@ -59,6 +60,6 @@ def create_admin_blueprint(
     @admin.route("/help", methods=["GET"])
     def admin_help() -> str:
         """Display the admin help page for content authors."""
-        return render_template("help.html", shortcodes=list(shortcodes.items()))
+        return render_template("help.html", shortcodes=shortcodes)
 
     return admin

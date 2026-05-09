@@ -19,7 +19,7 @@ CMS_MODULE = CmsModule(
 @pytest.fixture
 def admin_blueprint():
     app = Flask(__name__)
-    blueprint = create_admin_blueprint(mock_login_methods, [CMS_MODULE], shortcodes={})
+    blueprint = create_admin_blueprint(mock_login_methods, [CMS_MODULE], shortcodes=[])
     app.register_blueprint(blueprint)
     app.secret_key = "test_secret_key"
     return app

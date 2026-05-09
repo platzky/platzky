@@ -252,7 +252,7 @@ def create_app_from_config(config: Config) -> Engine:
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods,
         cms_modules=engine.cms_modules,
-        shortcodes=engine.shortcodes,
+        shortcodes=list(engine.shortcodes.values()),
     )
 
     # Two-layer defense: is_enabled() gates the feature flag, and

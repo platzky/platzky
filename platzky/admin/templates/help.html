@@ -10,16 +10,16 @@
   <p>Use these shortcodes in blog posts and pages to embed rich content.</p>
 
   <div class="accordion mb-4" id="shortcodes-accordion">
-  {% for name, shortcode in shortcodes %}
+  {% for shortcode in shortcodes %}
   <div class="accordion-item">
     <h2 class="accordion-header">
       <button class="accordion-button collapsed" type="button"
-              data-bs-toggle="collapse" data-bs-target="#sc-{{ name }}"
-              aria-expanded="false" aria-controls="sc-{{ name }}">
-        <code>[{{ name }}]</code>&nbsp;<span class="text-muted ms-2 small">{{ shortcode.description }}</span>
+              data-bs-toggle="collapse" data-bs-target="#sc-{{ shortcode.name }}"
+              aria-expanded="false" aria-controls="sc-{{ shortcode.name }}">
+        <code>[{{ shortcode.name }}]</code>&nbsp;<span class="text-muted ms-2 small">{{ shortcode.description }}</span>
       </button>
     </h2>
-    <div id="sc-{{ name }}" class="accordion-collapse collapse"
+    <div id="sc-{{ shortcode.name }}" class="accordion-collapse collapse"
          data-bs-parent="#shortcodes-accordion">
       <div class="accordion-body">
         {% if shortcode.example %}
