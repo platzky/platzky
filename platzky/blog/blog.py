@@ -32,6 +32,7 @@ def create_blog_blueprint(
         db: Database instance for accessing blog content
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
+        content_filter: Function applied to post/page content before rendering
 
     Returns:
         Configured Flask Blueprint for blog functionality
