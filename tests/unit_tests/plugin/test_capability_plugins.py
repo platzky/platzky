@@ -23,7 +23,6 @@ from platzky.plugin.plugin import (
     NotifierBaseConfig,
     PluginBase,
     PluginBaseConfig,
-    PluginInfo,
 )
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
@@ -374,7 +373,6 @@ class TestGetInfo:
         info = MyPlugin({}).get_info()
         assert info.name == "MyPlugin"
         assert info.description == "A plugin for testing."
-        assert info.sub_plugins == []
 
     def test_default_info_empty_description_when_no_docstring(self) -> None:
         class NoDocPlugin(PluginBase[PluginBaseConfig]):
@@ -383,24 +381,6 @@ class TestGetInfo:
                 return PluginBaseConfig
 
         assert NoDocPlugin({}).get_info().description == ""
-
-    def test_plugin_can_override_get_info_with_sub_plugins(self) -> None:
-        sub_info = PluginInfo(name="Sub", description="sub plugin")
-
-        class ParentPlugin(PluginBase[PluginBaseConfig]):
-            """Parent."""
-
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
-
-            def get_info(self) -> PluginInfo:
-                info = super().get_info()
-                info.sub_plugins.append(sub_info)
-                return info
-
-        info = ParentPlugin({}).get_info()
-        assert info.sub_plugins == [sub_info]
 
     def test_get_plugin_infos_empty_with_no_loaded_plugins(self, app: Engine) -> None:
         assert app.get_plugin_infos() == []

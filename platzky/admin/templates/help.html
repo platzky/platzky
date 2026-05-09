@@ -57,21 +57,11 @@
   </div>
 
   <h2>Loaded plugins</h2>
-  {% macro render_plugin(info, depth) %}
-  <li class="mb-1" style="margin-left: {{ depth * 1 }}rem">
-    <strong>{{ info.name }}</strong>
-    {% if info.description %}<span class="text-muted ms-2 small">{{ info.description }}</span>{% endif %}
-    {% if info.sub_plugins %}
-    <ul class="list-unstyled mt-1">
-      {% for sub in info.sub_plugins %}{{ render_plugin(sub, depth + 1) }}{% endfor %}
-    </ul>
-    {% endif %}
-  </li>
-  {% endmacro %}
-
   {% if plugin_infos %}
   <ul class="list-unstyled">
-    {% for info in plugin_infos %}{{ render_plugin(info, 0) }}{% endfor %}
+    {% for info in plugin_infos %}
+    <li class="mb-1"><strong>{{ info.name }}</strong>{% if info.description %}<span class="text-muted ms-2 small">{{ info.description }}</span>{% endif %}</li>
+    {% endfor %}
   </ul>
   {% else %}
   <p class="text-muted">No plugins loaded.</p>

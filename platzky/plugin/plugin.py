@@ -7,7 +7,7 @@ import logging
 import os
 import types
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, cast
 
 import deprecation
@@ -27,11 +27,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PluginInfo:
-    """Metadata snapshot describing a plugin and its optional sub-plugins."""
+    """Metadata snapshot describing a plugin."""
 
     name: str
     description: str
-    sub_plugins: list[PluginInfo] = field(default_factory=list)
 
 
 class PluginError(Exception):
