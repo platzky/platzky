@@ -3,8 +3,9 @@
 from collections.abc import Callable
 from os.path import dirname
 
-from flask import Blueprint, current_app, render_template, session
+from flask import Blueprint, render_template, session
 
+from platzky.engine import current_app
 from platzky.models import CmsModule
 
 
@@ -57,14 +58,14 @@ def create_admin_blueprint(
 
     @admin.route("/help", methods=["GET"])
     def admin_help() -> str:
-        """Display the admin help page listing all available shortcodes.
+        """Display the admin help page for content authors.
 
         Returns:
             Rendered login page if not authenticated, help page if authenticated
         """
         if not session.get("user"):
             return render_template("login.html", login_methods=login_methods)
-        shortcodes = list(current_app.shortcodes.items())  # type: ignore[attr-defined]
+        shortcodes = list(current_app.shortcodes.items())
         return render_template("help.html", shortcodes=shortcodes)
 
     return admin
