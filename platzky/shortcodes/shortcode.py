@@ -15,7 +15,12 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
+_MAX_ATTR_NAME_LEN = 100
+_MAX_ATTR_VALUE_LEN = 2048
+
+# Bounding the quantifiers makes the maximum engine work a fixed constant
+# regardless of input, preventing backtracking-based DoS.
+_ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
 
 
 @dataclass
