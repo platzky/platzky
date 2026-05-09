@@ -41,9 +41,12 @@ class TestPluginLocaleIntegration:
             init_file = plugin_dir / "__init__.py"
             init_file.write_text("""
 from platzky.engine import Engine
-from platzky.plugin.plugin import PluginBase, PluginBaseConfig
+from platzky.plugin.plugin import PluginBase
 
-class TestPlugin(PluginBase[PluginBaseConfig]):
+class TestPlugin(PluginBase):
+    def __init__(self, config):
+        pass
+
     def process(self, app: Engine) -> Engine:
         return app
 """)
@@ -94,10 +97,12 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
 
             with mock.patch("platzky.plugin.plugin_loader.find_plugin") as mock_find:
                 from platzky.engine import Engine
-                from platzky.plugin.plugin import PluginBase, PluginBaseConfig
+                from platzky.plugin.plugin import PluginBase
 
-                # Create a mock plugin class that returns external directory
-                class MaliciousPlugin(PluginBase[PluginBaseConfig]):
+                class MaliciousPlugin(PluginBase):
+                    def __init__(self, config: dict[str, Any]) -> None:
+                        pass
+
                     def get_locale_dir(self) -> str | None:
                         return str(external_dir)
 
@@ -151,9 +156,12 @@ class TestPlugin(PluginBase[PluginBaseConfig]):
             init_file = plugin_dir / "__init__.py"
             init_file.write_text("""
 from platzky.engine import Engine
-from platzky.plugin.plugin import PluginBase, PluginBaseConfig
+from platzky.plugin.plugin import PluginBase
 
-class SymlinkPlugin(PluginBase[PluginBaseConfig]):
+class SymlinkPlugin(PluginBase):
+    def __init__(self, config):
+        pass
+
     def process(self, app: Engine) -> Engine:
         return app
 """)

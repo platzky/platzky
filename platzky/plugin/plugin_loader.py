@@ -31,7 +31,7 @@ _CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, LoginBase, CmsModuleBase, C
 _ENTRY_POINT_GROUP = "platzky.plugins"
 
 
-def discover_plugins() -> dict[str, type[PluginBase[Any]]]:
+def discover_plugins() -> dict[str, type[PluginBase]]:
     """Return all installed platzky plugins declared via entry points.
 
     Plugin packages advertise themselves by declaring a ``platzky.plugins``
@@ -46,7 +46,7 @@ def discover_plugins() -> dict[str, type[PluginBase[Any]]]:
     Returns:
         Mapping of plugin name to plugin class for every installed plugin.
     """
-    discovered: dict[str, type[PluginBase[Any]]] = {}
+    discovered: dict[str, type[PluginBase]] = {}
     for ep in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
         try:
             plugin_class = ep.load()
@@ -99,7 +99,7 @@ def find_plugin(plugin_name: str) -> ModuleType:
         ) from e
 
 
-def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase[Any]]]:
+def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase]]:
     """Check if the plugin module contains a PluginBase implementation."""
     for _, obj in inspect.getmembers(plugin_module):
         if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
@@ -143,7 +143,7 @@ def _process_legacy_plugin(
     return app
 
 
-def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bool:
+def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase) -> bool:
     """Validate that a locale directory is safe to use.
 
     Prevents malicious plugins from exposing arbitrary filesystem paths
@@ -178,9 +178,7 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase[Any]) -> bo
     return True
 
 
-def _register_plugin_locale(
-    app: Engine, plugin_instance: PluginBase[Any], plugin_name: str
-) -> None:
+def _register_plugin_locale(app: Engine, plugin_instance: PluginBase, plugin_name: str) -> None:
     """Register plugin's locale directory with Babel if it exists.
 
     Args:
@@ -206,7 +204,7 @@ def _register_plugin_locale(
         logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
 
 
-def _register_plugin_capabilities(app: Engine, instance: PluginBase[Any], plugin_name: str) -> None:
+def _register_plugin_capabilities(app: Engine, instance: PluginBase, plugin_name: str) -> None:
     """Register a plugin instance under all matching capability keys.
 
     Each recognised capability base class becomes a key in app.plugins so the
@@ -238,7 +236,7 @@ def _register_plugin_capabilities(app: Engine, instance: PluginBase[Any], plugin
 
 def _load_class_plugin(
     app: Engine,
-    plugin_class: type[PluginBase[Any]],
+    plugin_class: type[PluginBase],
     plugin_config: dict[str, Any],
     plugin_name: str,
 ) -> Engine:

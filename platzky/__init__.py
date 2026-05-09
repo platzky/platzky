@@ -10,11 +10,10 @@ from platzky.notification_topics import NotificationTopic as NotificationTopic
 from platzky.platzky import create_app_from_config as create_app_from_config
 from platzky.platzky import create_engine as create_engine
 from platzky.plugin.plugin import CmsModuleBase as CmsModuleBase
+from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
 from platzky.plugin.plugin import ContentFilterBase as ContentFilterBase
 from platzky.plugin.plugin import LoginBase as LoginBase
 from platzky.plugin.plugin import NotifierBase as NotifierBase
-from platzky.plugin.plugin import NotifierBaseConfig as NotifierBaseConfig
 from platzky.plugin.plugin import PluginBase as PluginBase
-from platzky.plugin.plugin import PluginBaseConfig as PluginBaseConfig
 from platzky.plugin.plugin import PluginError as PluginError
 from platzky.plugin.plugin_loader import discover_plugins as discover_plugins

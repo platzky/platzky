@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from unittest import mock
 
 import jinja2.ext
@@ -20,9 +20,7 @@ from platzky.plugin.plugin import (
     ContentFilterBase,
     LoginBase,
     NotifierBase,
-    NotifierBaseConfig,
     PluginBase,
-    PluginBaseConfig,
 )
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
@@ -70,15 +68,15 @@ def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: 
 # NotifierBase
 # ---------------------------------------------------------------------------
 
-
-class SimpleNotifierConfig(NotifierBaseConfig):
-    accepted_topics: set[NotificationTopic] = {"general", "content", "security"}  # noqa: RUF012
+_ALL_TOPICS: set[NotificationTopic] = {"general", "content", "security"}
 
 
-class SimpleNotifier(NotifierBase[SimpleNotifierConfig]):
-    @classmethod
-    def get_config_model(cls) -> type[SimpleNotifierConfig]:
-        return SimpleNotifierConfig
+class SimpleNotifier(NotifierBase):
+    """Notifier that accepts all topics and records received messages."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
+        self.received: list[tuple[str, str, list[AttachmentProtocol] | None]] = []
 
     def notify(
         self,
@@ -88,15 +86,13 @@ class SimpleNotifier(NotifierBase[SimpleNotifierConfig]):
     ) -> None:
         self.received.append((message, topic, attachments))
 
+
+class TopicFilteredNotifier(NotifierBase):
+    """Notifier whose accepted_topics are configured via the config dict."""
+
     def __init__(self, config: dict[str, Any]) -> None:
-        super().__init__(config)
-        self.received: list[tuple[str, str, list[AttachmentProtocol] | None]] = []
-
-
-class TopicFilteredNotifier(NotifierBase[NotifierBaseConfig]):
-    @classmethod
-    def get_config_model(cls) -> type[NotifierBaseConfig]:
-        return NotifierBaseConfig
+        self.accepted_topics = set(config.get("accepted_topics", set()))
+        self.received: list[tuple[str, str]] = []
 
     def notify(
         self,
@@ -105,10 +101,6 @@ class TopicFilteredNotifier(NotifierBase[NotifierBaseConfig]):
         attachments: list[AttachmentProtocol] | None = None,  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic))
-
-    def __init__(self, config: dict[str, Any]) -> None:
-        super().__init__(config)
-        self.received: list[tuple[str, str]] = []
 
 
 class TestNotifierBase:
@@ -120,17 +112,17 @@ class TestNotifierBase:
 
         assert notifier.received == [("hello", "general", None)]
 
-    def test_notifier_accepts_configured_topics(self) -> None:
+    def test_notifier_is_handling_configured_topics(self) -> None:
         notifier = SimpleNotifier({})
-        assert notifier.accepts("security")
-        assert notifier.accepts("content")
-        assert notifier.accepts("general")
+        assert notifier.is_handling("security")
+        assert notifier.is_handling("content")
+        assert notifier.is_handling("general")
 
     def test_notifier_rejects_unconfigured_topics(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
-        assert notifier.accepts("security")
-        assert not notifier.accepts("content")
-        assert not notifier.accepts("general")
+        assert notifier.is_handling("security")
+        assert not notifier.is_handling("content")
+        assert not notifier.is_handling("general")
 
     def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
@@ -161,11 +153,10 @@ class TestNotifierBase:
 
         assert notifier.received[0][2] == [fake_attachment]
 
-    def test_accepted_topics_list_coerced_to_set(self) -> None:
+    def test_accepted_topics_from_config_list(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
-        config = cast(NotifierBaseConfig, notifier.config)
-        assert isinstance(config.accepted_topics, set)
-        assert config.accepted_topics == {"security", "content"}
+        assert isinstance(notifier.accepted_topics, set)
+        assert notifier.accepted_topics == {"security", "content"}
 
 
 # ---------------------------------------------------------------------------
@@ -173,10 +164,11 @@ class TestNotifierBase:
 # ---------------------------------------------------------------------------
 
 
-class GoogleLogin(LoginBase[PluginBaseConfig]):
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+class GoogleLogin(LoginBase):
+    """Login via Google."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        pass
 
     def get_login_html(self) -> str:
         return "<a>Login with Google</a>"
@@ -205,10 +197,11 @@ class TestLoginBase:
 # ---------------------------------------------------------------------------
 
 
-class GalleryCmsModule(CmsModuleBase[PluginBaseConfig]):
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+class GalleryCmsModule(CmsModuleBase):
+    """Gallery CMS module."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        pass
 
     def get_cms_module(self) -> CmsModule:
         return CmsModule(
@@ -234,12 +227,11 @@ class TestCmsModuleBase:
 # ---------------------------------------------------------------------------
 
 
-class ShoutFilter(ContentFilterBase[PluginBaseConfig]):
+class ShoutFilter(ContentFilterBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+    def __init__(self, config: dict[str, Any]) -> None:
+        pass
 
     def get_content_tags(self) -> dict[str, Shortcode]:
         return {
@@ -253,10 +245,9 @@ class ShoutFilter(ContentFilterBase[PluginBaseConfig]):
 
 class TestContentFilterBase:
     def test_default_returns_empty_dict(self) -> None:
-        class NoOpFilter(ContentFilterBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+        class NoOpFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
         f = NoOpFilter({})
         assert f.get_content_tags() == {}
@@ -274,10 +265,9 @@ class TestContentFilterBase:
         assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterBase))
 
     def test_shortcodes_from_multiple_plugins_chainable(self) -> None:
-        class AFilter(ContentFilterBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+        class AFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
             def get_content_tags(self) -> dict[str, Shortcode]:
                 return {
@@ -288,10 +278,9 @@ class TestContentFilterBase:
                     )
                 }
 
-        class BFilter(ContentFilterBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+        class BFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
             def get_content_tags(self) -> dict[str, Shortcode]:
                 return {
@@ -316,10 +305,9 @@ class TestRegisterPluginCapabilities:
     def test_uncategorised_plugin_stored_under_pluginbase(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class GenericPlugin(PluginBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+        class GenericPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
         app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
         assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
@@ -332,13 +320,9 @@ class TestRegisterPluginCapabilities:
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class MultiPluginConfig(NotifierBaseConfig):
-            accepted_topics: set[NotificationTopic] = {"general"}  # noqa: RUF012
-
-        class MultiPlugin(NotifierBase[MultiPluginConfig], LoginBase[MultiPluginConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[MultiPluginConfig]:
-                return MultiPluginConfig
+        class MultiPlugin(NotifierBase, LoginBase):
+            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+                self.accepted_topics: set[NotificationTopic] = {"general"}
 
             def notify(
                 self,
@@ -346,7 +330,7 @@ class TestRegisterPluginCapabilities:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
-                pass  # intentionally empty — test only checks plugin registration
+                pass
 
             def get_login_html(self) -> str:
                 return ""
@@ -363,22 +347,20 @@ class TestRegisterPluginCapabilities:
 
 class TestGetInfo:
     def test_default_info_uses_class_name_and_docstring(self) -> None:
-        class MyPlugin(PluginBase[PluginBaseConfig]):
+        class MyPlugin(PluginBase):
             """A plugin for testing."""
 
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
         info = MyPlugin({}).get_info()
         assert info.name == "MyPlugin"
         assert info.description == "A plugin for testing."
 
     def test_default_info_empty_description_when_no_docstring(self) -> None:
-        class NoDocPlugin(PluginBase[PluginBaseConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+        class NoDocPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
         assert NoDocPlugin({}).get_info().description == ""
 
@@ -400,12 +382,11 @@ class TestGetInfo:
 
 class TestBackwardCompatProcess:
     def test_legacy_process_called_on_class_plugin(self, base_config_data: dict[str, Any]) -> None:
-        class LegacyPlugin(PluginBase[PluginBaseConfig]):
+        class LegacyPlugin(PluginBase):
             processed = False
 
-            @classmethod
-            def get_config_model(cls) -> type[PluginBaseConfig]:
-                return PluginBaseConfig
+            def __init__(self, config: dict[str, Any]) -> None:
+                pass
 
             def process(self, app: Engine) -> Engine:
                 LegacyPlugin.processed = True
@@ -425,13 +406,9 @@ class TestBackwardCompatProcess:
     def test_new_capability_plugin_process_not_called(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class NewPluginConfig(NotifierBaseConfig):
-            accepted_topics: set[NotificationTopic] = {"general"}  # noqa: RUF012
-
-        class NewPlugin(NotifierBase[NewPluginConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[NewPluginConfig]:
-                return NewPluginConfig
+        class NewPlugin(NotifierBase):
+            def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
+                self.accepted_topics: set[NotificationTopic] = {"general"}
 
             def notify(
                 self,
@@ -439,7 +416,7 @@ class TestBackwardCompatProcess:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
-                pass  # intentionally empty — test only checks process() is not called
+                pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "new", "config": {}}]
         config = Config.model_validate(base_config_data)
@@ -459,12 +436,11 @@ class TestBackwardCompatProcess:
 # ---------------------------------------------------------------------------
 
 
-class ShoutTagPlugin(ContentFilterBase[PluginBaseConfig]):
+class ShoutTagPlugin(ContentFilterBase):
     """Registers a [shout] shortcode via get_content_tags()."""
 
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+    def __init__(self, config: dict[str, Any]) -> None:
+        pass
 
     def get_content_tags(self) -> dict[str, Shortcode]:
         return {
@@ -480,12 +456,11 @@ class _DummyJinjaExtension(jinja2.ext.Extension):
     tags = {"dummy_tag"}  # noqa: RUF012
 
 
-class JinjaExtPlugin(ContentFilterBase[PluginBaseConfig]):
+class JinjaExtPlugin(ContentFilterBase):
     """Test filter that exposes a Jinja2 extension."""
 
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+    def __init__(self, config: dict[str, Any]) -> None:
+        pass
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         return [_DummyJinjaExtension]

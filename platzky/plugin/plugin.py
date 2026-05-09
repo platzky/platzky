@@ -8,11 +8,10 @@ import os
 import types
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Optional
 
 import deprecation
 import jinja2.ext
-from pydantic import BaseModel, ConfigDict
 
 from platzky.attachment import AttachmentProtocol
 from platzky.models import CmsModule
@@ -45,19 +44,7 @@ class ConfigPluginError(PluginError):
     pass
 
 
-class PluginBaseConfig(BaseModel):
-    """Base Pydantic model for plugin configurations.
-
-    Plugin developers should extend this class to define their own configuration schema.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-
-T = TypeVar("T", bound=PluginBaseConfig)
-
-
-class PluginBase(Generic[T], ABC):
+class PluginBase(ABC):
     """Abstract base class for plugins.
 
     Plugin developers must extend this class to implement their plugins.
@@ -83,22 +70,13 @@ class PluginBase(Generic[T], ABC):
 
         return locale_dir if os.path.isdir(locale_dir) else None
 
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        """Return the Pydantic config model class for this plugin."""
-        return PluginBaseConfig
-
-    def __init__(self, config: dict[str, Any]) -> None:
-        try:
-            config_class = self.get_config_model()
-            self.config = config_class.model_validate(config)
-        except Exception as e:
-            raise ConfigPluginError(f"Invalid configuration: {e}") from e
+    @abstractmethod
+    def __init__(self, config: dict[str, Any]) -> None: ...
 
     def get_info(self) -> PluginInfo:
         """Return a metadata snapshot describing this plugin.
 
-        Override to include sub-plugins or provide user-facing name/description.
+        Override to provide a user-facing name or description.
         """
         return PluginInfo(
             name=type(self).__name__,
@@ -133,30 +111,19 @@ class PluginBase(Generic[T], ABC):
         return app
 
 
-class NotifierBaseConfig(PluginBaseConfig):
-    """Configuration for notifier plugins.
+class NotifierBase(PluginBase, ABC):
+    """Base class for notifier plugins.
 
-    Subclasses must declare ``accepted_topics`` with a default appropriate for the plugin.
-    Users may override it in their YAML config to restrict which topics are delivered.
+    Subclasses implement notify() and set self.accepted_topics in __init__.
+    Topic filtering is the plugin's own responsibility — set accepted_topics
+    from config to allow user overrides.
     """
 
     accepted_topics: set[NotificationTopic]
 
-
-N = TypeVar("N", bound=NotifierBaseConfig)
-
-
-class NotifierBase(PluginBase[N], ABC):
-    """Base class for notifier plugins.
-
-    Subclasses implement notify() and are automatically registered with the engine.
-    Topic filtering is declared in the plugin config via accepted_topics and may be
-    narrowed by the user in their YAML config.
-    """
-
-    def accepts(self, topic: str) -> bool:
+    def is_handling(self, topic: str) -> bool:
         """Return True if this notifier handles the given topic."""
-        return topic in cast(NotifierBaseConfig, self.config).accepted_topics
+        return topic in self.accepted_topics
 
     @abstractmethod
     def notify(
@@ -174,7 +141,7 @@ class NotifierBase(PluginBase[N], ABC):
         """
 
 
-class LoginBase(PluginBase[T], ABC):
+class LoginBase(PluginBase, ABC):
     """Base class for login-method plugins.
 
     Subclasses implement get_login_html() and are automatically registered with the engine.
@@ -185,7 +152,7 @@ class LoginBase(PluginBase[T], ABC):
         """Return the HTML snippet for this login method's button/form."""
 
 
-class CmsModuleBase(PluginBase[T], ABC):
+class CmsModuleBase(PluginBase, ABC):
     """Base class for CMS module plugins.
 
     Subclasses implement get_cms_module() and are automatically registered with the engine.
@@ -196,7 +163,7 @@ class CmsModuleBase(PluginBase[T], ABC):
         """Return the CmsModule descriptor for this plugin."""
 
 
-class ContentFilterBase(PluginBase[T], ABC):
+class ContentFilterBase(PluginBase, ABC):
     """Base class for content-filter plugins.
 
     Subclasses register shortcode tag handlers via get_content_tags() and/or

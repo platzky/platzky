@@ -110,7 +110,7 @@ class Engine(Flask):
         from platzky.plugin.plugin import NotifierBase
 
         for plugin in self.get_plugins(NotifierBase):
-            if plugin.accepts(topic):
+            if plugin.is_handling(topic):
                 plugin.notify(message, topic, attachments)
 
     @deprecation.deprecated(
