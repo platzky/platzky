@@ -5,12 +5,14 @@ from os.path import dirname
 
 from flask import Blueprint, render_template, session
 
-from platzky.engine import current_app
 from platzky.models import CmsModule
+from platzky.shortcodes import Shortcode
 
 
 def create_admin_blueprint(
-    login_methods: list[Callable[[], str]], cms_modules: list[CmsModule]
+    login_methods: list[Callable[[], str]],
+    cms_modules: list[CmsModule],
+    shortcodes: dict[str, Shortcode],
 ) -> Blueprint:
     """Create admin blueprint with dynamic module routes.
 
@@ -65,7 +67,6 @@ def create_admin_blueprint(
         """
         if not session.get("user"):
             return render_template("login.html", login_methods=login_methods)
-        shortcodes = list(current_app.shortcodes.items())
-        return render_template("help.html", shortcodes=shortcodes)
+        return render_template("help.html", shortcodes=list(shortcodes.items()))
 
     return admin

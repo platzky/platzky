@@ -22,7 +22,7 @@ def admin_blueprint():
             }
         )
     ]
-    blueprint = create_admin_blueprint(mock_login_methods, cms_modules)
+    blueprint = create_admin_blueprint(mock_login_methods, cms_modules, shortcodes={})
     app.register_blueprint(blueprint)
     app.secret_key = "test_secret_key"
     return app

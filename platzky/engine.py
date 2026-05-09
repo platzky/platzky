@@ -6,7 +6,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import Any, cast
+from typing import Any
 
 import deprecation
 from flask import (
@@ -17,9 +17,6 @@ from flask import (
     make_response,
     request,
     session,
-)
-from flask import (
-    current_app as _current_app,
 )
 from flask_babel import Babel
 
@@ -266,6 +263,3 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
-
-
-current_app: "Engine" = cast("Engine", _current_app)
