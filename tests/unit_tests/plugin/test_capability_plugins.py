@@ -333,6 +333,7 @@ class TestRegisterPluginCapabilities:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
+                # No-op: this test plugin only verifies capability registration, not notification delivery.
                 pass
 
             def get_login_html(self) -> str:
