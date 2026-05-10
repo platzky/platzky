@@ -23,8 +23,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, ContentFilterBase)
-
 _ENTRY_POINT_GROUP = "platzky.plugins"
 
 
@@ -207,36 +205,6 @@ def _register_plugin_locale(app: Engine, plugin_instance: PluginBase, plugin_nam
         logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
 
 
-def _register_plugin_capabilities(app: Engine, instance: PluginBase, plugin_name: str) -> None:
-    """Register a plugin instance under all matching capability keys.
-
-    Each recognised capability base class becomes a key in app.plugins so the
-    engine can look up e.g. all NotifierBase plugins without knowing concrete
-    types.  Plugins that don't match any capability are stored under PluginBase
-    so they are still discoverable.
-
-    Args:
-        app: The Platzky Engine instance
-        instance: The instantiated plugin
-        plugin_name: Name of the plugin for logging
-    """
-    registered = False
-    for base in _CAPABILITY_BASES:
-        if isinstance(instance, base):
-            app.plugins[base].append(instance)
-            registered = True
-            logger.debug("Registered plugin '%s' under capability %s", plugin_name, base.__name__)
-
-    # Also store under the concrete type so callers can look up plugins by their
-    # exact class (e.g. engine.get_plugins(SimpleNotifier)).  This double-registration
-    # is intentional: the capability-base key supports duck-typed dispatch, while
-    # the concrete-type key supports precise lookups in tests and introspection.
-    app.plugins[type(instance)].append(instance)
-
-    if not registered:
-        app.plugins[PluginBase].append(instance)
-
-
 def _load_class_plugin(
     app: Engine,
     plugin_class: type[PluginBase],
@@ -256,7 +224,7 @@ def _load_class_plugin(
         app = plugin_instance.process(app)
     # Register locale and capabilities on the (possibly replaced) app returned by process().
     _register_plugin_locale(app, plugin_instance, plugin_name)
-    _register_plugin_capabilities(app, plugin_instance, plugin_name)
+    app.register_plugin_capabilities(plugin_instance, plugin_name)
     if isinstance(plugin_instance, NotifierBase):
         app.set_notifier_allowlist(plugin_instance, allowed_topics)
     if isinstance(plugin_instance, ContentFilterBase):

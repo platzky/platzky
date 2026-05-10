@@ -6,7 +6,10 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from platzky.plugin.plugin import PluginBase
 
 import deprecation
 from flask import (
@@ -33,6 +36,8 @@ from platzky.plugin.notifier import NotifierBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
+
+_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, ContentFilterBase)
 
 
 class Engine(Flask):
@@ -168,6 +173,29 @@ class Engine(Flask):
         Called by the plugin loader; not intended to be called from plugin code.
         """
         self._content_filter_allowlist[plugin] = allowed_types
+
+    def register_plugin_capabilities(self, instance: "PluginBase", plugin_name: str) -> None:
+        """Register a plugin instance under all matching capability keys.
+
+        Each recognised capability base class becomes a key in ``self.plugins`` so the
+        engine can look up e.g. all NotifierBase plugins without knowing concrete types.
+        Plugins that don't match any capability are stored under PluginBase.
+        """
+        from platzky.plugin.plugin import PluginBase
+
+        registered = False
+        for base in _PLUGIN_CAPABILITY_BASES:
+            if isinstance(instance, base):
+                self.plugins[base].append(instance)
+                registered = True
+                logger.debug(
+                    "Registered plugin '%s' under capability %s", plugin_name, base.__name__
+                )
+
+        self.plugins[type(instance)].append(instance)
+
+        if not registered:
+            self.plugins[PluginBase].append(instance)
 
     def set_notifier_allowlist(
         self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic] | None
