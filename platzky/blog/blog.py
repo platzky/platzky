@@ -166,7 +166,7 @@ def create_blog_blueprint(
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",
-            page=page,
+            title=page.title,
             content=content_filter(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )
