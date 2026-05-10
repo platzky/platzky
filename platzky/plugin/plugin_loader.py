@@ -265,6 +265,35 @@ def _load_class_plugin(
     return app
 
 
+def _load_legacy_plugin(
+    app: Engine,
+    plugin_name: str,
+    plugin_config: dict[str, Any],
+    allowed_topics: frozenset[NotificationTopic] | None,
+    allowed_content_types: frozenset[ContentType] | None,
+) -> Engine:
+    """Load a plugin using the deprecated module-name fallback convention."""
+    logger.warning(
+        "Plugin '%s' has no 'platzky.plugins' entry point. "
+        "Falling back to module-name convention — this is deprecated and will be "
+        "removed in 2.0.0. Add an entry point to your plugin package.",
+        plugin_name,
+    )
+    plugin_module = find_plugin(plugin_name)
+    plugin_class = _is_class_plugin(plugin_module)
+
+    if plugin_class:
+        return _load_class_plugin(
+            app, plugin_class, plugin_config, plugin_name, allowed_topics, allowed_content_types
+        )
+    if hasattr(plugin_module, "process"):
+        return _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
+    raise PluginError(
+        f"Plugin {plugin_name} doesn't implement either the PluginBase interface "
+        f"or provide a process() function"
+    )
+
+
 def plugify(app: Engine) -> Engine:
     """Load and initialise plugins configured in the database.
 
@@ -308,32 +337,9 @@ def plugify(app: Engine) -> Engine:
                     allowed_content_types,
                 )
             else:
-                # Fallback: deprecated module-scanning approach
-                logger.warning(
-                    "Plugin '%s' has no 'platzky.plugins' entry point. "
-                    "Falling back to module-name convention — this is deprecated and will be "
-                    "removed in 2.0.0. Add an entry point to your plugin package.",
-                    plugin_name,
+                app = _load_legacy_plugin(
+                    app, plugin_name, plugin_config, allowed_topics, allowed_content_types
                 )
-                plugin_module = find_plugin(plugin_name)
-                plugin_class = _is_class_plugin(plugin_module)
-
-                if plugin_class:
-                    app = _load_class_plugin(
-                        app,
-                        plugin_class,
-                        plugin_config,
-                        plugin_name,
-                        allowed_topics,
-                        allowed_content_types,
-                    )
-                elif hasattr(plugin_module, "process"):
-                    app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
-                else:
-                    raise PluginError(
-                        f"Plugin {plugin_name} doesn't implement either the PluginBase interface "
-                        f"or provide a process() function"
-                    )
 
         except PluginError:
             raise
