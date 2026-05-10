@@ -3,7 +3,6 @@
 import logging
 from collections.abc import Callable
 from os.path import dirname
-from typing import TypeVar
 
 from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
@@ -12,11 +11,9 @@ from werkzeug.wrappers import Response
 
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
-from platzky.models import Page, Post
+from platzky.models import Post
 
 from . import comment_form
-
-_ContentItem = TypeVar("_ContentItem", Post, Page)
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +111,9 @@ def create_blog_blueprint(
         return get_post(post_slug=post_slug)
 
     def _get_content_or_404(
-        getter_func: Callable[[str], _ContentItem],
+        getter_func: Callable[[str], Post],
         slug: str,
-    ) -> _ContentItem:
+    ) -> Post:
         """Helper to fetch content from database or abort with 404.
 
         Args:
