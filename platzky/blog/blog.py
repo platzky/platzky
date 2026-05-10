@@ -10,12 +10,13 @@ from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
+from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.models import Page, Post
 
 from . import comment_form
 
-ContentType = TypeVar("ContentType", Post, Page)
+_ContentItem = TypeVar("_ContentItem", Post, Page)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ def create_blog_blueprint(
     db: DB,
     blog_prefix: str,
     locale_func: Callable[[], str],
-    content_filter: Callable[[str], str],
+    content_filter: Callable[[str, FilterContentType], str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -113,9 +114,9 @@ def create_blog_blueprint(
         return get_post(post_slug=post_slug)
 
     def _get_content_or_404(
-        getter_func: Callable[[str], ContentType],
+        getter_func: Callable[[str], _ContentItem],
         slug: str,
-    ) -> ContentType:
+    ) -> _ContentItem:
         """Helper to fetch content from database or abort with 404.
 
         Args:
@@ -148,7 +149,7 @@ def create_blog_blueprint(
         return render_template(
             "post.html",
             post=post,
-            content=content_filter(post.contentInMarkdown),
+            content=content_filter(post.contentInMarkdown, "post"),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -169,7 +170,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             page=page,
-            content=content_filter(page.contentInMarkdown),
+            content=content_filter(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )
 

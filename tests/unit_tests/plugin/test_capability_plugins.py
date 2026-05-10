@@ -10,18 +10,14 @@ import pytest
 
 from platzky.attachment import AttachmentProtocol
 from platzky.config import Config
+from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
 from platzky.engine import Engine
-from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
-from platzky.plugin.plugin import (
-    CmsModuleBase,
-    ContentFilterBase,
-    LoginBase,
-    NotifierBase,
-    PluginBase,
-)
+from platzky.plugin.content_filter import ContentFilterBase
+from platzky.plugin.notifier import NotifierBase
+from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
 # ---------------------------------------------------------------------------
@@ -182,69 +178,6 @@ class TestNotifierBase:
 
 
 # ---------------------------------------------------------------------------
-# LoginBase
-# ---------------------------------------------------------------------------
-
-
-class GoogleLogin(LoginBase):
-    """Login via Google."""
-
-    def __init__(self, config: dict[str, Any]) -> None:
-        super().__init__(config)
-
-    def get_login_html(self) -> str:
-        return "<a>Login with Google</a>"
-
-
-class TestLoginBase:
-    def test_get_login_html_returns_string(self) -> None:
-        plugin = GoogleLogin({})
-        assert plugin.get_login_html() == "<a>Login with Google</a>"
-
-    def test_login_base_registered_under_capability_key(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        app = _app_with_plugin(base_config_data, "google", GoogleLogin)
-        assert any(isinstance(p, GoogleLogin) for p in app.get_plugins(LoginBase))
-
-    def test_login_base_not_registered_under_notifier(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        app = _app_with_plugin(base_config_data, "google", GoogleLogin)
-        assert not any(isinstance(p, GoogleLogin) for p in app.get_plugins(NotifierBase))
-
-
-# ---------------------------------------------------------------------------
-# CmsModuleBase
-# ---------------------------------------------------------------------------
-
-
-class GalleryCmsModule(CmsModuleBase):
-    """Gallery CMS module."""
-
-    def __init__(self, config: dict[str, Any]) -> None:
-        super().__init__(config)
-
-    def get_cms_module(self) -> CmsModule:
-        return CmsModule(
-            name="Gallery", description="Photo gallery", template="gallery.html", slug="gallery"
-        )
-
-
-class TestCmsModuleBase:
-    def test_get_cms_module_returns_module(self) -> None:
-        plugin = GalleryCmsModule({})
-        module = plugin.get_cms_module()
-        assert module.name == "Gallery"
-
-    def test_cms_module_registered_under_capability_key(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        app = _app_with_plugin(base_config_data, "gallery", GalleryCmsModule)
-        assert any(isinstance(p, GalleryCmsModule) for p in app.get_plugins(CmsModuleBase))
-
-
-# ---------------------------------------------------------------------------
 # ContentFilterBase
 # ---------------------------------------------------------------------------
 
@@ -254,6 +187,7 @@ class ShoutFilter(ContentFilterBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
+        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_content_tags(self) -> dict[str, Shortcode]:
         return {
@@ -270,6 +204,7 @@ class TestContentFilterBase:
         class NoOpFilter(ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
         f = NoOpFilter({})
         assert f.get_content_tags() == {}
@@ -290,6 +225,7 @@ class TestContentFilterBase:
         class AFilter(ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
             def get_content_tags(self) -> dict[str, Shortcode]:
                 return {
@@ -303,6 +239,7 @@ class TestContentFilterBase:
         class BFilter(ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
             def get_content_tags(self) -> dict[str, Shortcode]:
                 return {
@@ -342,10 +279,11 @@ class TestRegisterPluginCapabilities:
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class MultiPlugin(NotifierBase, LoginBase):
+        class MultiPlugin(NotifierBase, ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: set[NotificationTopic] = {"general"}
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
             def notify(
                 self,
@@ -356,12 +294,9 @@ class TestRegisterPluginCapabilities:
                 # No-op: only verifies capability registration, not notification delivery.
                 pass
 
-            def get_login_html(self) -> str:
-                return ""
-
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierBase))
-        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(LoginBase))
+        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(ContentFilterBase))
 
 
 # ---------------------------------------------------------------------------
@@ -467,6 +402,7 @@ class ShoutTagPlugin(ContentFilterBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
+        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_content_tags(self) -> dict[str, Shortcode]:
         return {
@@ -487,6 +423,7 @@ class JinjaExtPlugin(ContentFilterBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
+        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         return [_DummyJinjaExtension]
@@ -498,14 +435,67 @@ class TestContentFilterWiring:
         app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
         assert "shout" in app.shortcodes
 
-    def test_shortcode_dispatched_via_content_filter(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        """Plugin shortcode must transform content passed through the blog blueprint."""
+    def test_filter_content_applies_shortcode(self, base_config_data: dict[str, Any]) -> None:
+        """filter_content() must transform content via the plugin's shortcode handler."""
         app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
         assert any(isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentFilterBase))
-        result = apply_shortcodes("[shout]hello[/shout]", app.shortcodes)
+        result = app.apply_content_filters("[shout]hello[/shout]", "post")
         assert result == "HELLO"
+
+    def test_filter_only_applied_to_declared_content_type(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        """Plugins only receive content types listed in accepted_content_types."""
+
+        class PostOnlyFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: set[ContentType] = {"post"}
+
+            def filter_content(self, content: str) -> str:
+                return content + "[filtered]"
+
+        app = _app_with_plugin(base_config_data, "postonly", PostOnlyFilter)
+        assert app.apply_content_filters("text", "post") == "text[filtered]"
+        assert app.apply_content_filters("text", "page") == "text"
+        assert app.apply_content_filters("text", "comment") == "text"
+
+    def test_engine_allowlist_blocks_content_type_plugin_wants(self, app: Engine) -> None:
+        """Engine allowlist overrides plugin's declared accepted_content_types."""
+
+        class AllTypesFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+
+            def filter_content(self, content: str) -> str:
+                return content + "[filtered]"
+
+        f = AllTypesFilter({})
+        app.plugins[ContentFilterBase].append(f)
+        app.set_content_filter_allowlist(f, frozenset({"post"}))
+
+        assert app.apply_content_filters("x", "post") == "x[filtered]"
+        assert app.apply_content_filters("x", "page") == "x"
+        assert app.apply_content_filters("x", "comment") == "x"
+
+    def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
+        """None allowlist allows all content types the plugin declares."""
+
+        class AllTypesFilter(ContentFilterBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+
+            def filter_content(self, content: str) -> str:
+                return content + "[filtered]"
+
+        f = AllTypesFilter({})
+        app.plugins[ContentFilterBase].append(f)
+        app.set_content_filter_allowlist(f, None)
+
+        assert app.apply_content_filters("x", "post") == "x[filtered]"
+        assert app.apply_content_filters("x", "comment") == "x[filtered]"
 
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""

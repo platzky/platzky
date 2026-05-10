@@ -22,12 +22,14 @@ from flask_babel import Babel
 
 from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
+from platzky.content_types import ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
-from platzky.plugin.plugin import NotifierBase
+from platzky.plugin.content_filter import ContentFilterBase
+from platzky.plugin.notifier import NotifierBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ class Engine(Flask):
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
         self._notifier_topic_allowlist: dict[NotifierBase, frozenset[NotificationTopic] | None] = {}
+        self._content_filter_allowlist: dict[ContentFilterBase, frozenset[ContentType] | None] = {}
         self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
@@ -140,6 +143,31 @@ class Engine(Flask):
         Deprecated: implement NotifierBase instead.
         """
         self._notifiers_with_attachments.append(notifier)
+
+    def apply_content_filters(self, content: str, content_type: ContentType) -> str:
+        """Apply all registered content-filter plugins for the given content type.
+
+        Checks plugin's declared ``accepted_content_types`` first, then the
+        engine-enforced allowlist set via ``set_content_filter_allowlist``.
+        """
+        for plugin in self.get_plugins(ContentFilterBase):
+            if content_type not in plugin.accepted_content_types:
+                continue
+            allowed = self._content_filter_allowlist.get(plugin)
+            if allowed is not None and content_type not in allowed:
+                continue
+            content = plugin.filter_content(content)
+        return content
+
+    def set_content_filter_allowlist(
+        self, plugin: ContentFilterBase, allowed_types: frozenset[ContentType] | None
+    ) -> None:
+        """Register engine-enforced content-type allowlist for a content-filter plugin.
+
+        None means unrestricted — all types the plugin declares are allowed.
+        Called by the plugin loader; not intended to be called from plugin code.
+        """
+        self._content_filter_allowlist[plugin] = allowed_types
 
     def set_notifier_allowlist(
         self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic] | None

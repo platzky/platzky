@@ -11,12 +11,6 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import deprecation
-import jinja2.ext
-
-from platzky.attachment import AttachmentProtocol
-from platzky.models import CmsModule
-from platzky.notification_topics import NotificationTopic
-from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +39,7 @@ class PluginBase(ABC):
     """Abstract base class for plugins.
 
     Plugin developers must extend this class to implement their plugins.
-    Implement capability-specific subclasses (NotifierBase, LoginBase, etc.)
+    Implement capability-specific subclasses (NotifierBase, ContentFilterBase, etc.)
     rather than overriding process().
     """
 
@@ -98,7 +92,7 @@ class PluginBase(ABC):
         removed_in="2.0.0",
         details=(
             "Overriding process() is deprecated. Implement a capability subclass instead: "
-            "NotifierBase, LoginBase, CmsModuleBase, or ContentFilterBase."
+            "NotifierBase or ContentFilterBase."
         ),
     )
     def process(self, app: Any) -> Any:  # noqa: ANN401
@@ -107,80 +101,3 @@ class PluginBase(ABC):
         Deprecated: implement a typed capability subclass instead.
         """
         return app
-
-
-class NotifierBase(PluginBase, ABC):
-    """Base class for notifier plugins.
-
-    Subclasses declare which topics they want to receive via ``accepted_topics``.
-    The engine enforces final routing — plugins cannot bypass user-configured
-    topic restrictions.
-    """
-
-    accepted_topics: set[NotificationTopic]
-
-    @abstractmethod
-    def notify(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] | None = None,
-    ) -> None:
-        """Send a notification.
-
-        Args:
-            message: The notification message.
-            topic: The notification topic.
-            attachments: Optional list of attachments.
-        """
-        raise NotImplementedError
-
-
-class LoginBase(PluginBase, ABC):
-    """Base class for login-method plugins.
-
-    Subclasses implement get_login_html() and are automatically registered with the engine.
-    """
-
-    @abstractmethod
-    def get_login_html(self) -> str:
-        """Return the HTML snippet for this login method's button/form."""
-
-
-class CmsModuleBase(PluginBase, ABC):
-    """Base class for CMS module plugins.
-
-    Subclasses implement get_cms_module() and are automatically registered with the engine.
-    """
-
-    @abstractmethod
-    def get_cms_module(self) -> CmsModule:
-        """Return the CmsModule descriptor for this plugin."""
-
-
-class ContentFilterBase(PluginBase, ABC):
-    """Base class for content-filter plugins.
-
-    Subclasses register shortcode tag handlers via get_content_tags() and/or
-    extend the Jinja2 template environment with custom tags via get_jinja_extensions().
-
-    Shortcode syntax (WordPress-style):
-        ``[tagname attr="val"]content[/tagname]``  — block tag
-        ``[tagname attr="val"]``                    — void tag
-    """
-
-    def get_content_tags(self) -> dict[str, Shortcode]:
-        """Return ``{tag_name: Shortcode}`` for shortcode tags in post/page content.
-
-        Each ``Shortcode`` descriptor carries the handler plus documentation metadata
-        (description, attributes, example) used by the admin help page.
-        """
-        return {}
-
-    def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
-        """Return Jinja2 extension classes to register with the template engine.
-
-        Override to expose custom Jinja2 tags available in theme templates, e.g.:
-            ``{% my_tag %}...{% endmy_tag %}``
-        """
-        return []

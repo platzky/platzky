@@ -2,6 +2,7 @@
 
 import typing as t
 import urllib.parse
+from typing import Any
 
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
@@ -15,14 +16,15 @@ from platzky.config import (
     Config,
     languages_dict,
 )
+from platzky.content_types import ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.plugin.plugin import CmsModuleBase, ContentFilterBase, LoginBase
+from platzky.plugin.content_filter import ContentFilterBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
-from platzky.shortcodes import make_shortcode_applier
+from platzky.shortcodes import Shortcode
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
@@ -230,24 +232,30 @@ def create_app_from_config(config: Config) -> Engine:
                 "Check your telemetry settings in the configuration file."
             ) from e
 
-    # Collect login methods from capability-based LoginBase plugins
-    for plugin in engine.get_plugins(LoginBase):
-        engine.login_methods.append(plugin.get_login_html)
+    # Register built-in shortcodes (image, link) as the first ContentFilterBase,
+    # so they run before any plugin filter and appear on the admin help page.
+    class _BuiltinShortcodeFilter(ContentFilterBase):
+        """Built-in image and link shortcodes, always registered for posts and pages."""
 
-    # Collect CMS modules from capability-based CmsModuleBase plugins
-    for plugin in engine.get_plugins(CmsModuleBase):
-        engine.cms_modules.append(plugin.get_cms_module())
+        def __init__(self, config: dict[str, Any]) -> None:
+            super().__init__(config)
+            self.accepted_content_types: set[ContentType] = {"post", "page"}
 
-    # Register built-in shortcodes (image, link) then merge in plugin-provided ones.
-    # Plugin shortcodes registered later win on name collision (intentional override).
-    engine.shortcodes.update(get_builtin_shortcodes())
+        def get_content_tags(self) -> dict[str, Shortcode]:
+            """Return built-in image and link shortcodes."""
+            return get_builtin_shortcodes()
+
+    _builtin_filter = _BuiltinShortcodeFilter({})
+    engine.plugins[ContentFilterBase].insert(0, _builtin_filter)
+    engine.shortcodes.update(_builtin_filter.get_content_tags())
+
+    # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.
     for _plugin in engine.get_plugins(ContentFilterBase):
+        if _plugin is _builtin_filter:
+            continue
         engine.shortcodes.update(_plugin.get_content_tags())
         for _ext in _plugin.get_jinja_extensions():
             engine.jinja_env.add_extension(_ext)
-
-    # Compile the pattern once — shortcodes are frozen after this point.
-    _apply_shortcodes = make_shortcode_applier(engine.shortcodes)
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods,
@@ -269,7 +277,7 @@ def create_app_from_config(config: Config) -> Engine:
         db=engine.db,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
-        content_filter=_apply_shortcodes,
+        content_filter=engine.apply_content_filters,
     )
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale

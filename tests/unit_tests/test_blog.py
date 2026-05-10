@@ -68,7 +68,7 @@ def test_app():
     )
     app = create_engine(config, db_mock)
     blog_blueprint = blog.create_blog_blueprint(
-        db_mock, config.blog_prefix, app.get_locale, content_filter=lambda x: x
+        db_mock, config.blog_prefix, app.get_locale, content_filter=lambda x, _ct: x
     )
 
     app.register_blueprint(blog_blueprint)

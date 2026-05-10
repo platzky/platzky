@@ -1,3 +1,5 @@
+from platzky.content_types import ALL_CONTENT_TYPES as ALL_CONTENT_TYPES
+from platzky.content_types import ContentType as ContentType
 from platzky.engine import Engine as Engine
 from platzky.feature_flags import BUILTIN_FLAGS as BUILTIN_FLAGS
 from platzky.feature_flags import FakeLogin as FakeLogin
@@ -9,11 +11,9 @@ from platzky.feature_flags_wrapper import FeatureFlagSet as FeatureFlagSet
 from platzky.notification_topics import NotificationTopic as NotificationTopic
 from platzky.platzky import create_app_from_config as create_app_from_config
 from platzky.platzky import create_engine as create_engine
-from platzky.plugin.plugin import CmsModuleBase as CmsModuleBase
+from platzky.plugin.content_filter import ContentFilterBase as ContentFilterBase
+from platzky.plugin.notifier import NotifierBase as NotifierBase
 from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
-from platzky.plugin.plugin import ContentFilterBase as ContentFilterBase
-from platzky.plugin.plugin import LoginBase as LoginBase
-from platzky.plugin.plugin import NotifierBase as NotifierBase
 from platzky.plugin.plugin import PluginBase as PluginBase
 from platzky.plugin.plugin import PluginError as PluginError
 from platzky.plugin.plugin_loader import discover_plugins as discover_plugins

@@ -12,22 +12,18 @@ from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
 
+from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
-from platzky.plugin.plugin import (
-    CmsModuleBase,
-    ContentFilterBase,
-    LoginBase,
-    NotifierBase,
-    PluginBase,
-    PluginError,
-)
+from platzky.plugin.content_filter import ContentFilterBase
+from platzky.plugin.notifier import NotifierBase
+from platzky.plugin.plugin import PluginBase, PluginError
 
 if TYPE_CHECKING:
     from platzky.engine import Engine
 
 logger = logging.getLogger(__name__)
 
-_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, LoginBase, CmsModuleBase, ContentFilterBase)
+_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, ContentFilterBase)
 
 _ENTRY_POINT_GROUP = "platzky.plugins"
 
@@ -247,6 +243,7 @@ def _load_class_plugin(
     plugin_config: dict[str, Any],
     plugin_name: str,
     allowed_topics: frozenset[NotificationTopic] | None = None,
+    allowed_content_types: frozenset[ContentType] | None = None,
 ) -> Engine:
     """Instantiate and register a class-based plugin."""
     plugin_instance = plugin_class(plugin_config)
@@ -262,6 +259,8 @@ def _load_class_plugin(
     _register_plugin_capabilities(app, plugin_instance, plugin_name)
     if isinstance(plugin_instance, NotifierBase):
         app.set_notifier_allowlist(plugin_instance, allowed_topics)
+    if isinstance(plugin_instance, ContentFilterBase):
+        app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
     logger.info("Processed class-based plugin: %s", plugin_name)
     return app
 
@@ -293,11 +292,20 @@ def plugify(app: Engine) -> Engine:
         allowed_topics: frozenset[NotificationTopic] | None = (
             frozenset(raw_allowed) if raw_allowed is not None else None
         )
+        raw_allowed_ct = plugin_data.get("allowed_content_types")
+        allowed_content_types: frozenset[ContentType] | None = (
+            frozenset(raw_allowed_ct) if raw_allowed_ct is not None else None
+        )
 
         try:
             if plugin_name in discovered:
                 app = _load_class_plugin(
-                    app, discovered[plugin_name], plugin_config, plugin_name, allowed_topics
+                    app,
+                    discovered[plugin_name],
+                    plugin_config,
+                    plugin_name,
+                    allowed_topics,
+                    allowed_content_types,
                 )
             else:
                 # Fallback: deprecated module-scanning approach
@@ -312,7 +320,12 @@ def plugify(app: Engine) -> Engine:
 
                 if plugin_class:
                     app = _load_class_plugin(
-                        app, plugin_class, plugin_config, plugin_name, allowed_topics
+                        app,
+                        plugin_class,
+                        plugin_config,
+                        plugin_name,
+                        allowed_topics,
+                        allowed_content_types,
                     )
                 elif hasattr(plugin_module, "process"):
                     app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
