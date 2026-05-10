@@ -112,16 +112,12 @@ class PluginBase(ABC):
 class NotifierBase(PluginBase, ABC):
     """Base class for notifier plugins.
 
-    Subclasses implement notify() and set self.accepted_topics in __init__.
-    Topic filtering is the plugin's own responsibility — set accepted_topics
-    from config to allow user overrides.
+    Subclasses declare which topics they want to receive via ``accepted_topics``.
+    The engine enforces final routing — plugins cannot bypass user-configured
+    topic restrictions.
     """
 
     accepted_topics: set[NotificationTopic]
-
-    def is_handling(self, topic: str) -> bool:
-        """Return True if this notifier handles the given topic."""
-        return topic in self.accepted_topics
 
     @abstractmethod
     def notify(

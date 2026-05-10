@@ -56,6 +56,7 @@ class Engine(Flask):
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
+        self._notifier_topic_allowlist: dict[NotifierBase, frozenset[NotificationTopic] | None] = {}
         self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
@@ -109,8 +110,12 @@ class Engine(Flask):
 
         # New capability-based path
         for plugin in self.get_plugins(NotifierBase):
-            if plugin.is_handling(topic):
-                plugin.notify(message, topic, attachments)
+            if topic not in plugin.accepted_topics:
+                continue
+            allowed = self._notifier_topic_allowlist.get(plugin)
+            if allowed is not None and topic not in allowed:
+                continue
+            plugin.notify(message, topic, attachments)
 
     @deprecation.deprecated(
         deprecated_in="1.5.0",
@@ -135,6 +140,16 @@ class Engine(Flask):
         Deprecated: implement NotifierBase instead.
         """
         self._notifiers_with_attachments.append(notifier)
+
+    def set_notifier_allowlist(
+        self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic] | None
+    ) -> None:
+        """Register engine-enforced topic allowlist for a notifier.
+
+        None means unrestricted — all topics the plugin declares are allowed.
+        Called by the plugin loader; not accessible to plugin code.
+        """
+        self._notifier_topic_allowlist[plugin] = allowed_topics
 
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""

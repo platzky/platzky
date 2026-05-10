@@ -114,17 +114,37 @@ class TestNotifierBase:
 
         assert notifier.received == [("hello", "general", None)]
 
-    def test_notifier_is_handling_configured_topics(self) -> None:
-        notifier = SimpleNotifier({})
-        assert notifier.is_handling("security")
-        assert notifier.is_handling("content")
-        assert notifier.is_handling("general")
-
-    def test_notifier_rejects_unconfigured_topics(self) -> None:
+    def test_notifier_only_receives_declared_topics(self, app: Engine) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
-        assert notifier.is_handling("security")
-        assert not notifier.is_handling("content")
-        assert not notifier.is_handling("general")
+        app.plugins[NotifierBase].append(notifier)
+
+        app.notify("breach", topic="security")
+        app.notify("new post", topic="content")
+        app.notify("hi", topic="general")
+
+        assert len(notifier.received) == 1
+        assert notifier.received[0][1] == "security"
+
+    def test_engine_allowlist_blocks_topic_plugin_wants(self, app: Engine) -> None:
+        notifier = SimpleNotifier({})
+        app.plugins[NotifierBase].append(notifier)
+        app.set_notifier_allowlist(notifier, frozenset({"general"}))
+
+        app.notify("breach", topic="security")
+        app.notify("hi", topic="general")
+
+        assert len(notifier.received) == 1
+        assert notifier.received[0][1] == "general"
+
+    def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
+        notifier = SimpleNotifier({})
+        app.plugins[NotifierBase].append(notifier)
+        app.set_notifier_allowlist(notifier, None)
+
+        app.notify("breach", topic="security")
+        app.notify("hi", topic="general")
+
+        assert len(notifier.received) == 2
 
     def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})

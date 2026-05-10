@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
 
+from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import (
     CmsModuleBase,
     ContentFilterBase,
@@ -245,6 +246,7 @@ def _load_class_plugin(
     plugin_class: type[PluginBase],
     plugin_config: dict[str, Any],
     plugin_name: str,
+    allowed_topics: frozenset[NotificationTopic] | None = None,
 ) -> Engine:
     """Instantiate and register a class-based plugin."""
     plugin_instance = plugin_class(plugin_config)
@@ -258,6 +260,8 @@ def _load_class_plugin(
     # Register locale and capabilities on the (possibly replaced) app returned by process().
     _register_plugin_locale(app, plugin_instance, plugin_name)
     _register_plugin_capabilities(app, plugin_instance, plugin_name)
+    if isinstance(plugin_instance, NotifierBase):
+        app.set_notifier_allowlist(plugin_instance, allowed_topics)
     logger.info("Processed class-based plugin: %s", plugin_name)
     return app
 
@@ -285,10 +289,16 @@ def plugify(app: Engine) -> Engine:
     for plugin_data in plugins_data:
         plugin_config = plugin_data["config"]
         plugin_name = plugin_data["name"]
+        raw_allowed = plugin_data.get("allowed_topics")
+        allowed_topics: frozenset[NotificationTopic] | None = (
+            frozenset(raw_allowed) if raw_allowed is not None else None
+        )
 
         try:
             if plugin_name in discovered:
-                app = _load_class_plugin(app, discovered[plugin_name], plugin_config, plugin_name)
+                app = _load_class_plugin(
+                    app, discovered[plugin_name], plugin_config, plugin_name, allowed_topics
+                )
             else:
                 # Fallback: deprecated module-scanning approach
                 logger.warning(
@@ -301,7 +311,9 @@ def plugify(app: Engine) -> Engine:
                 plugin_class = _is_class_plugin(plugin_module)
 
                 if plugin_class:
-                    app = _load_class_plugin(app, plugin_class, plugin_config, plugin_name)
+                    app = _load_class_plugin(
+                        app, plugin_class, plugin_config, plugin_name, allowed_topics
+                    )
                 elif hasattr(plugin_module, "process"):
                     app = _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
                 else:
