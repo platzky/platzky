@@ -333,7 +333,7 @@ class TestRegisterPluginCapabilities:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
-                # No-op: this test plugin only verifies capability registration, not notification delivery.
+                # No-op: only verifies capability registration, not notification delivery.
                 pass
 
             def get_login_html(self) -> str:
@@ -421,6 +421,7 @@ class TestBackwardCompatProcess:
                 topic: NotificationTopic,
                 attachments: list[AttachmentProtocol] | None = None,
             ) -> None:
+                # No-op: only verifies that process() is not called, not notification delivery.
                 pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "new", "config": {}}]
