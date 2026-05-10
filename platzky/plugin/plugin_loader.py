@@ -6,7 +6,6 @@ import importlib
 import importlib.metadata
 import inspect
 import logging
-import os
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Optional, Type
 
@@ -14,8 +13,6 @@ import deprecation
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
-from platzky.plugin.content_filter import ContentFilterBase
-from platzky.plugin.notifier import NotifierBase
 from platzky.plugin.plugin import PluginBase, PluginError
 
 if TYPE_CHECKING:
@@ -144,95 +141,6 @@ def _process_legacy_plugin(
     return app
 
 
-def _is_safe_locale_dir(locale_dir: str, plugin_instance: PluginBase) -> bool:
-    """Validate that a locale directory is safe to use.
-
-    Prevents malicious plugins from exposing arbitrary filesystem paths
-    by ensuring the locale directory is within the plugin's module directory.
-
-    Args:
-        locale_dir: Path to the locale directory
-        plugin_instance: The plugin instance
-
-    Returns:
-        True if the locale directory is safe to use, False otherwise
-    """
-    if not os.path.isdir(locale_dir):
-        return False
-
-    module = inspect.getmodule(plugin_instance.__class__)
-    if module is None or not hasattr(module, "__file__") or module.__file__ is None:
-        return False
-
-    normalized_path = os.path.normpath(locale_dir)
-    if ".." in normalized_path.split(os.sep):
-        logger.warning("Rejected locale path with .. components: %s", locale_dir)
-        return False
-
-    locale_path = os.path.realpath(locale_dir)
-    module_path = os.path.realpath(os.path.dirname(module.__file__))
-
-    if not locale_path.startswith(module_path + os.sep):
-        if locale_path != module_path:
-            return False
-
-    return True
-
-
-def _register_plugin_locale(app: Engine, plugin_instance: PluginBase, plugin_name: str) -> None:
-    """Register plugin's locale directory with Babel if it exists.
-
-    Args:
-        app: The Platzky Engine instance
-        plugin_instance: The plugin instance
-        plugin_name: Name of the plugin for logging
-    """
-    locale_dir = plugin_instance.get_locale_dir()
-    if locale_dir is None:
-        return
-
-    if not _is_safe_locale_dir(locale_dir, plugin_instance):
-        logger.warning(
-            "Skipping locale directory for plugin %s: path validation failed: %s",
-            plugin_name,
-            locale_dir,
-        )
-        return
-
-    babel_config = app.extensions.get("babel")
-    if babel_config and locale_dir not in babel_config.translation_directories:
-        babel_config.translation_directories.append(locale_dir)
-        logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
-
-
-def _load_class_plugin(
-    app: Engine,
-    plugin_class: type[PluginBase],
-    plugin_config: dict[str, Any],
-    plugin_name: str,
-    allowed_topics: frozenset[NotificationTopic] | None = None,
-    allowed_content_types: frozenset[ContentType] | None = None,
-) -> Engine:
-    """Instantiate and register a class-based plugin."""
-    plugin_instance = plugin_class(plugin_config)
-    app.loaded_plugins.append(plugin_instance)
-    # MRO-based identity check: every class inherits process() from PluginBase so
-    # hasattr() would always return True.  Comparing unbound method objects via `is`
-    # detects a genuine override without invoking the deprecation warning that calling
-    # the base no-op implementation would raise.
-    if type(plugin_instance).process is not PluginBase.process:
-        app = plugin_instance.process(app)
-    # Register locale and capabilities on the (possibly replaced) app returned by process().
-    _register_plugin_locale(app, plugin_instance, plugin_name)
-    app.register_plugin_capabilities(plugin_instance, plugin_name)
-    if isinstance(plugin_instance, NotifierBase):
-        app.set_notifier_allowlist(plugin_instance, allowed_topics)
-    if isinstance(plugin_instance, ContentFilterBase):
-        app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
-    logger.info("Processed class-based plugin: %s", plugin_name)
-    return app
-
-
 def _load_legacy_plugin(
     app: Engine,
     plugin_name: str,
@@ -251,8 +159,8 @@ def _load_legacy_plugin(
     plugin_class = _is_class_plugin(plugin_module)
 
     if plugin_class:
-        return _load_class_plugin(
-            app, plugin_class, plugin_config, plugin_name, allowed_topics, allowed_content_types
+        return app.load_plugin(
+            plugin_class, plugin_config, plugin_name, allowed_topics, allowed_content_types
         )
     if hasattr(plugin_module, "process"):
         return _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
@@ -296,8 +204,7 @@ def plugify(app: Engine) -> Engine:
 
         try:
             if plugin_name in discovered:
-                app = _load_class_plugin(
-                    app,
+                app = app.load_plugin(
                     discovered[plugin_name],
                     plugin_config,
                     plugin_name,

@@ -37,6 +37,37 @@ from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
 
+
+def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
+    """Validate that a locale directory is safe to use.
+
+    Prevents malicious plugins from exposing arbitrary filesystem paths
+    by ensuring the locale directory is within the plugin's module directory.
+    """
+    import inspect
+
+    if not os.path.isdir(locale_dir):
+        return False
+
+    module = inspect.getmodule(plugin_instance.__class__)
+    if module is None or not hasattr(module, "__file__") or module.__file__ is None:
+        return False
+
+    normalized_path = os.path.normpath(locale_dir)
+    if ".." in normalized_path.split(os.sep):
+        logger.warning("Rejected locale path with .. components: %s", locale_dir)
+        return False
+
+    locale_path = os.path.realpath(locale_dir)
+    module_path = os.path.realpath(os.path.dirname(module.__file__))
+
+    if not locale_path.startswith(module_path + os.sep):
+        if locale_path != module_path:
+            return False
+
+    return True
+
+
 _PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, ContentFilterBase)
 
 
@@ -196,6 +227,56 @@ class Engine(Flask):
 
         if not registered:
             self.plugins[PluginBase].append(instance)
+
+    def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
+        """Register plugin's locale directory with Babel if it exists."""
+        locale_dir = plugin_instance.get_locale_dir()
+        if locale_dir is None:
+            return
+
+        if not _is_safe_locale_dir(locale_dir, plugin_instance):
+            logger.warning(
+                "Skipping locale directory for plugin %s: path validation failed: %s",
+                plugin_name,
+                locale_dir,
+            )
+            return
+
+        babel_config = self.extensions.get("babel")
+        if babel_config and locale_dir not in babel_config.translation_directories:
+            babel_config.translation_directories.append(locale_dir)
+            logger.info("Registered locale directory for plugin %s: %s", plugin_name, locale_dir)
+
+    def load_plugin(
+        self,
+        plugin_class: "type[PluginBase]",
+        plugin_config: dict[str, Any],
+        plugin_name: str,
+        allowed_topics: frozenset[NotificationTopic] | None = None,
+        allowed_content_types: frozenset[ContentType] | None = None,
+    ) -> "Engine":
+        """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine."""
+        from platzky.plugin.plugin import PluginBase
+
+        plugin_instance = plugin_class(plugin_config)
+        self.loaded_plugins.append(plugin_instance)
+        # MRO-based identity check: every class inherits process() from PluginBase so
+        # hasattr() would always return True.  Comparing unbound method objects via `is`
+        # detects a genuine override without invoking the deprecation warning that calling
+        # the base no-op implementation would raise.
+        app = (
+            plugin_instance.process(self)
+            if type(plugin_instance).process is not PluginBase.process
+            else self
+        )
+        app.register_plugin_locale(plugin_instance, plugin_name)
+        app.register_plugin_capabilities(plugin_instance, plugin_name)
+        if isinstance(plugin_instance, NotifierBase):
+            app.set_notifier_allowlist(plugin_instance, allowed_topics)
+        if isinstance(plugin_instance, ContentFilterBase):
+            app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
+        logger.info("Processed class-based plugin: %s", plugin_name)
+        return app
 
     def set_notifier_allowlist(
         self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic] | None
