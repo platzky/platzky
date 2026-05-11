@@ -94,8 +94,8 @@ class Engine(Flask):
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
-        self._notifier_topic_allowlist: dict[NotifierBase, frozenset[NotificationTopic] | None] = {}
-        self._content_filter_allowlist: dict[ContentFilterBase, frozenset[ContentType] | None] = {}
+        self._notifier_topic_allowlist: dict[NotifierBase, frozenset[NotificationTopic]] = {}
+        self._content_filter_allowlist: dict[ContentFilterBase, frozenset[ContentType]] = {}
         self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
@@ -151,8 +151,8 @@ class Engine(Flask):
         for plugin in self.get_plugins(NotifierBase):
             if topic not in plugin.accepted_topics:
                 continue
-            allowed = self._notifier_topic_allowlist.get(plugin)
-            if allowed is not None and topic not in allowed:
+            allowed = self._notifier_topic_allowlist.get(plugin, frozenset())
+            if allowed and topic not in allowed:
                 continue
             plugin.notify(message, topic, attachments)
 
@@ -189,18 +189,18 @@ class Engine(Flask):
         for plugin in self.get_plugins(ContentFilterBase):
             if content_type not in plugin.accepted_content_types:
                 continue
-            allowed = self._content_filter_allowlist.get(plugin)
-            if allowed is not None and content_type not in allowed:
+            allowed = self._content_filter_allowlist.get(plugin, frozenset())
+            if allowed and content_type not in allowed:
                 continue
             content = plugin.filter_content(content)
         return content
 
     def set_content_filter_allowlist(
-        self, plugin: ContentFilterBase, allowed_types: frozenset[ContentType] | None
+        self, plugin: ContentFilterBase, allowed_types: frozenset[ContentType]
     ) -> None:
         """Register engine-enforced content-type allowlist for a content-filter plugin.
 
-        None means unrestricted — all types the plugin declares are allowed.
+        Empty frozenset means unrestricted — all types the plugin declares are allowed.
         Called by the plugin loader; not intended to be called from plugin code.
         """
         self._content_filter_allowlist[plugin] = allowed_types
@@ -252,8 +252,8 @@ class Engine(Flask):
         plugin_class: "type[PluginBase]",
         plugin_config: dict[str, Any],
         plugin_name: str,
-        allowed_topics: frozenset[NotificationTopic] | None = None,
-        allowed_content_types: frozenset[ContentType] | None = None,
+        allowed_topics: frozenset[NotificationTopic] = frozenset(),
+        allowed_content_types: frozenset[ContentType] = frozenset(),
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine."""
         from platzky.plugin.plugin import PluginBase
@@ -279,11 +279,11 @@ class Engine(Flask):
         return app
 
     def set_notifier_allowlist(
-        self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic] | None
+        self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic]
     ) -> None:
         """Register engine-enforced topic allowlist for a notifier.
 
-        None means unrestricted — all topics the plugin declares are allowed.
+        Empty frozenset means unrestricted — all topics the plugin declares are allowed.
         Called by the plugin loader; not accessible to plugin code.
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics

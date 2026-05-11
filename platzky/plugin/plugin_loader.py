@@ -10,9 +10,12 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
+from platzky.plugin.content_filter import ContentFilterBase
+from platzky.plugin.notifier import NotifierBase
 from platzky.plugin.plugin import PluginBase, PluginError
 
 if TYPE_CHECKING:
@@ -21,6 +24,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "platzky.plugins"
+
+
+class PluginConfigBase(BaseModel):
+    """Validated name and config from DB. Extra fields are preserved for subclass re-validation."""
+
+    model_config = ConfigDict(extra="allow")
+    name: str
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class NotifyPluginConfig(PluginConfigBase):
+    """Plugin config for NotifierBase plugins — carries the topic allowlist."""
+
+    allowed_topics: frozenset[NotificationTopic] = frozenset()
+
+
+class ContentFilterPluginConfig(PluginConfigBase):
+    """Plugin config for ContentFilterBase plugins — carries the content-type allowlist."""
+
+    allowed_content_types: frozenset[ContentType] = frozenset()
+
+
+def _extract_allowlists(
+    pc: PluginConfigBase, plugin_class: type
+) -> tuple[frozenset[NotificationTopic], frozenset[ContentType]]:
+    raw = pc.model_dump()
+    allowed_topics = (
+        NotifyPluginConfig.model_validate(raw).allowed_topics
+        if issubclass(plugin_class, NotifierBase)
+        else frozenset()
+    )
+    allowed_content_types = (
+        ContentFilterPluginConfig.model_validate(raw).allowed_content_types
+        if issubclass(plugin_class, ContentFilterBase)
+        else frozenset()
+    )
+    return allowed_topics, allowed_content_types
 
 
 def discover_plugins() -> dict[str, type[PluginBase]]:
@@ -141,31 +181,26 @@ def _process_legacy_plugin(
     return app
 
 
-def _load_legacy_plugin(
-    app: Engine,
-    plugin_name: str,
-    plugin_config: dict[str, Any],
-    allowed_topics: frozenset[NotificationTopic] | None,
-    allowed_content_types: frozenset[ContentType] | None,
-) -> Engine:
+def _load_legacy_plugin(app: Engine, pc: PluginConfigBase) -> Engine:
     """Load a plugin using the deprecated module-name fallback convention."""
     logger.warning(
         "Plugin '%s' has no 'platzky.plugins' entry point. "
         "Falling back to module-name convention — this is deprecated and will be "
         "removed in 2.0.0. Add an entry point to your plugin package.",
-        plugin_name,
+        pc.name,
     )
-    plugin_module = find_plugin(plugin_name)
+    plugin_module = find_plugin(pc.name)
     plugin_class = _is_class_plugin(plugin_module)
 
     if plugin_class:
+        allowed_topics, allowed_content_types = _extract_allowlists(pc, plugin_class)
         return app.load_plugin(
-            plugin_class, plugin_config, plugin_name, allowed_topics, allowed_content_types
+            plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
         )
     if hasattr(plugin_module, "process"):
-        return _process_legacy_plugin(plugin_module, app, plugin_config, plugin_name)
+        return _process_legacy_plugin(plugin_module, app, pc.config, pc.name)
     raise PluginError(
-        f"Plugin {plugin_name} doesn't implement either the PluginBase interface "
+        f"Plugin {pc.name} doesn't implement either the PluginBase interface "
         f"or provide a process() function"
     )
 
@@ -187,39 +222,27 @@ def plugify(app: Engine) -> Engine:
     Raises:
         PluginError: if a configured plugin cannot be loaded or initialised
     """
-    plugins_data = app.db.get_plugins_data()
+    try:
+        plugins_data = app.db.get_plugins_data()
+    except ValidationError as e:
+        raise PluginError(f"Invalid plugin configuration in database: {e}") from e
     discovered = discover_plugins()
 
-    for plugin_data in plugins_data:
-        plugin_config = plugin_data["config"]
-        plugin_name = plugin_data["name"]
-        raw_allowed = plugin_data.get("allowed_topics")
-        allowed_topics: frozenset[NotificationTopic] | None = (
-            frozenset(raw_allowed) if raw_allowed is not None else None
-        )
-        raw_allowed_ct = plugin_data.get("allowed_content_types")
-        allowed_content_types: frozenset[ContentType] | None = (
-            frozenset(raw_allowed_ct) if raw_allowed_ct is not None else None
-        )
-
+    for pc in plugins_data:
         try:
-            if plugin_name in discovered:
+            if pc.name in discovered:
+                plugin_class = discovered[pc.name]
+                allowed_topics, allowed_content_types = _extract_allowlists(pc, plugin_class)
                 app = app.load_plugin(
-                    discovered[plugin_name],
-                    plugin_config,
-                    plugin_name,
-                    allowed_topics,
-                    allowed_content_types,
+                    plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
                 )
             else:
-                app = _load_legacy_plugin(
-                    app, plugin_name, plugin_config, allowed_topics, allowed_content_types
-                )
+                app = _load_legacy_plugin(app, pc)
 
         except PluginError:
             raise
         except Exception as e:
-            logger.exception("Error processing plugin %s", plugin_name)
-            raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
+            logger.exception("Error processing plugin %s", pc.name)
+            raise PluginError(f"Error processing plugin {pc.name}: {e}") from e
 
     return app

@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from platzky.models import MenuItem, Page, Post
+from platzky.plugin.plugin_loader import PluginConfigBase
 
 
 class DB(ABC):
@@ -136,7 +137,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_plugins_data(self) -> list[dict[str, Any]]:
+    def get_plugins_data(self) -> list[PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         pass
 

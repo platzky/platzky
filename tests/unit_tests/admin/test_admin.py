@@ -24,7 +24,7 @@ def admin_blueprint():
         mock_login_methods, [CMS_MODULE], shortcodes=[], plugin_infos=[]
     )
     app.register_blueprint(blueprint)
-    app.secret_key = "test_secret_key"  # NOSONAR
+    app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
     return app
 
 

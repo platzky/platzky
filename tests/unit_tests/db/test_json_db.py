@@ -304,7 +304,7 @@ class TestJsonDbPlugins:
         db = Json({"plugins": [{"name": "plugin1", "config": {}}]})
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert plugins[0]["name"] == "plugin1"
+        assert plugins[0].name == "plugin1"
 
     def test_get_plugins_data_empty(self):
         db = Json({})
