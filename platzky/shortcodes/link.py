@@ -1,7 +1,5 @@
 """Built-in link shortcode."""
 
-from __future__ import annotations
-
 from markupsafe import escape
 
 from platzky.shortcodes import Shortcode, ShortcodeAttr

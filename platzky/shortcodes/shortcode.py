@@ -9,8 +9,6 @@ Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 (the lazy regex finds the nearest closing tag).
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field

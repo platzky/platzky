@@ -1,7 +1,5 @@
 """Built-in shortcode handlers for images and links."""
 
-from __future__ import annotations
-
 from platzky.shortcodes import Shortcode
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import link_shortcode
