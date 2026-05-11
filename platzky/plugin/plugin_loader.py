@@ -56,7 +56,7 @@ def discover_plugins() -> dict[str, type[PluginBase]]:
         if entry_point.name in discovered:
             raise ValueError(
                 f"Duplicate plugin entry-point name '{entry_point.name}': "
-                f"already registered as {discovered[ep.name]}, "
+                f"already registered as {discovered[entry_point.name]}, "
                 f"conflicting class {plugin_class}"
             )
         discovered[entry_point.name] = plugin_class
