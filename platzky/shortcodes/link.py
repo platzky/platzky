@@ -24,7 +24,7 @@ class LinkShortcode(Shortcode):
     )
     example = '[link url="https://example.com"]Click here[/link]'
 
-    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render an anchor tag, returning raw content if the URL is not allowed.
 
         Args:

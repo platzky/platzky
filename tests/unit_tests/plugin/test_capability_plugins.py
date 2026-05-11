@@ -216,7 +216,7 @@ class _ShoutShortcode(Shortcode):
     name = "shout"
     description = "Upper-case content."
 
-    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Return content in upper case."""
         return content.upper()
 
@@ -247,7 +247,7 @@ class TestContentTransformerPluginBase:
         f = ShoutFilter({})
         tags = f.get_content_tags()
         assert "shout" in tags
-        assert tags["shout"].handle(ShortcodeAttrs([]), "hello") == "HELLO"
+        assert tags["shout"].render(ShortcodeAttrs([]), "hello") == "HELLO"
 
     def test_filters_registered_under_capability_key(
         self, base_config_data: dict[str, Any]
@@ -262,7 +262,7 @@ class TestContentTransformerPluginBase:
             name = "atag"
             description = "wrap in A"
 
-            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 """Wrap content in A()."""
                 return f"A({content})"
 
@@ -270,7 +270,7 @@ class TestContentTransformerPluginBase:
             name = "btag"
             description = "wrap in B"
 
-            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 """Wrap content in B()."""
                 return f"B({content})"
 

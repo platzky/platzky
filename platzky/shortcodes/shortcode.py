@@ -33,14 +33,13 @@ class ShortcodeAttr:
     name: str
     description: str
     required: bool = False
-    default: str | None = None
 
 
 class ShortcodeAttrs:
     """Attribute schema and parsed values for a shortcode tag.
 
     Used as a class variable to declare the schema (iterable for the help page)
-    and as the ``attrs`` argument to ``Shortcode.handle`` populated with parsed values.
+    and as the ``attrs`` argument to ``Shortcode.render`` populated with parsed values.
     """
 
     def __init__(self, attrs: list[ShortcodeAttr], values: dict[str, str] | None = None) -> None:
@@ -78,7 +77,7 @@ class ShortcodeAttrs:
         if name in self._values:
             return self._values[name]
         if name in self._schema:
-            return self._schema[name].default or ""
+            return ""
         raise AttributeError(f"No shortcode attribute {name!r}")
 
     def __eq__(self, other: object) -> bool:
@@ -102,7 +101,7 @@ class ShortcodeAttrs:
 
 
 class Shortcode(ABC):
-    """Base class for a registered shortcode tag. Subclass and implement ``handle``."""
+    """Base class for a registered shortcode tag. Subclass and implement ``render``."""
 
     name: str
     description: str
@@ -120,7 +119,7 @@ class Shortcode(ABC):
             )
 
     @abstractmethod
-    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render the shortcode tag and return the replacement HTML.
 
         Args:
@@ -163,7 +162,7 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
-            return sc.handle(attrs, inner)
+            return sc.render(attrs, inner)
 
         return pattern.sub(_replace, content)
 

@@ -10,7 +10,7 @@ def _sc(tag: str) -> Shortcode:
         name = tag
         description = "test"
 
-        def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
             return f"[RENDERED:{tag}:{content}]"
 
     return _SC()
@@ -41,7 +41,7 @@ class TestApplyShortcodes:
             name = "img"
             description = "test"
 
-            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
                 calls.append((attrs, content))
                 return "<img>"
 
@@ -55,7 +55,7 @@ class TestApplyShortcodes:
             name = "foo"
             description = "test"
 
-            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 received.append(attrs)
                 return ""
 

@@ -15,14 +15,14 @@ class ImageShortcode(Shortcode):
     attributes = ShortcodeAttrs(
         [
             ShortcodeAttr("url", "Image URL (http/https or relative)", required=True),
-            ShortcodeAttr("alt", "Alt text", required=False, default=""),
+            ShortcodeAttr("alt", "Alt text", required=False),
             ShortcodeAttr("width", "Width in pixels", required=False),
             ShortcodeAttr("height", "Height in pixels", required=False),
         ]
     )
     example = '[image url="https://example.com/photo.jpg" alt="A photo"]'
 
-    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Render an img tag, returning empty string if the URL is not allowed.
 
         Args:
