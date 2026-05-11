@@ -27,10 +27,11 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
+        app.config["WTF_CSRF_ENABLED"] = False
 
         with app.test_request_context():
             mock_config.use_www = False
-            app.secret_key = "test_secret_key"
+            app.secret_key = "test_secret_key"  # NOSONAR
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
             assert response.headers.get("Location") == "http://example.de"
@@ -44,10 +45,11 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
+        app.config["WTF_CSRF_ENABLED"] = False
 
         with app.test_request_context():
             mock_config.use_www = False
-            app.secret_key = "test_secret_key"
+            app.secret_key = "test_secret_key"  # NOSONAR
             response = app.test_client().get("/lang/de", follow_redirects=False)
             assert response.status_code == 302
             # When request.referrer is None, it should redirect to "/" instead
@@ -62,10 +64,11 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
+        app.config["WTF_CSRF_ENABLED"] = False
 
         with app.test_request_context():
             mock_config.use_www = False
-            app.secret_key = "test_secret_key"
+            app.secret_key = "test_secret_key"  # NOSONAR
 
             # Verify that session language does not get set to invalid language
             with app.test_client() as client:
@@ -133,7 +136,7 @@ class TestPlatzky:
             config = Config.model_validate(config_raw)
 
             app = create_app_from_config(config)
-            app.secret_key = "test_secret_key"
+            app.secret_key = "test_secret_key"  # NOSONAR
             client = app.test_client()
 
             response = client.get("/admin/")

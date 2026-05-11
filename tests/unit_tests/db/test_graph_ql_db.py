@@ -22,7 +22,7 @@ def mock_client():
 @pytest.fixture
 def graph_ql_db(mock_client: Mock):
     with patch("platzky.db.graph_ql_db.Client", return_value=mock_client):
-        db = GraphQL("http://test.endpoint", "test_token")
+        db = GraphQL("http://test.endpoint", "test_token")  # NOSONAR
         return db
 
 
@@ -61,7 +61,7 @@ def test_graph_ql_init(mock_client: Mock):
         patch("platzky.db.graph_ql_db.AIOHTTPTransport") as mock_transport,
         patch("platzky.db.graph_ql_db.Client", return_value=mock_client) as mock_client_class,
     ):
-        db = GraphQL("http://test.endpoint", "test_token")
+        db = GraphQL("http://test.endpoint", "test_token")  # NOSONAR
 
         mock_transport.assert_called_once_with(
             url="http://test.endpoint", headers={"Authorization": "bearer test_token"}
