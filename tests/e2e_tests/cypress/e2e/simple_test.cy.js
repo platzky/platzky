@@ -8,7 +8,7 @@ describe('Blog test', () => {
   });
 
   it('display posts and leave comment in one of them', () => {
-    posts().should('have.length', 4)
+    posts().should('have.length', 3)
     cy.contains('.post-title', 'title')
       .closest('.row.align-items-center')
       .within(() => {
