@@ -9,6 +9,7 @@ Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 (the lazy regex finds the nearest closing tag).
 """
 
+import inspect
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
@@ -72,6 +73,8 @@ class ShortcodeAttrs:
         Raises:
             AttributeError: If name is not in the schema.
         """
+        if name.startswith("_"):
+            raise AttributeError(name)
         if name in self._values:
             return self._values[name]
         if name in self._schema:
@@ -108,10 +111,12 @@ class Shortcode(ABC):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        if "name" in cls.__dict__ and not _VALID_SHORTCODE_NAME_RE.match(cls.name):
+        if inspect.isabstract(cls):
+            return
+        name = getattr(cls, "name", None)
+        if not isinstance(name, str) or not _VALID_SHORTCODE_NAME_RE.match(name):
             raise ValueError(
-                f"Shortcode name {cls.name!r} is invalid. "
-                "Use only letters, digits, hyphens, and underscores, starting with a letter."
+                f"Shortcode subclass {cls.__name__!r} must declare a valid `name`; got {name!r}."
             )
 
     @abstractmethod

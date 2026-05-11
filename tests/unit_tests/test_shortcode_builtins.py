@@ -38,11 +38,18 @@ class TestLinkShortcode:
     def test_target_attr_included_when_given(self) -> None:
         result = _apply('[link url="https://example.com" target="_blank"]Go[/link]')
         assert 'target="_blank"' in result
+        assert 'rel="noopener noreferrer"' in result
 
     def test_javascript_url_returns_content_only(self) -> None:
         result = _apply('[link url="javascript:alert(1)"]click[/link]')
         assert "<a" not in result
         assert "click" in result
+
+    def test_javascript_url_escapes_html_content(self) -> None:
+        result = _apply('[link url="javascript:alert(1)"]<img src=x onerror=1>[/link]')
+        assert "<a" not in result
+        assert "<img" not in result
+        assert "&lt;img src=x onerror=1&gt;" in result
 
     def test_relative_url_allowed(self) -> None:
         result = _apply('[link url="/about"]About[/link]')

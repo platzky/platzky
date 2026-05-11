@@ -7,7 +7,7 @@ import importlib.metadata
 import inspect
 import logging
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any
 
 import deprecation
 from pydantic import ValidationError
@@ -122,7 +122,7 @@ def find_plugin(plugin_name: str) -> ModuleType:
         ) from e
 
 
-def _is_class_plugin(plugin_module: ModuleType) -> Optional[Type[PluginBase]]:
+def _is_class_plugin(plugin_module: ModuleType) -> type[PluginBase] | None:
     """Check if the plugin module contains a PluginBase implementation."""
     for _, obj in inspect.getmembers(plugin_module):
         if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:

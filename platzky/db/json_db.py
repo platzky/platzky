@@ -240,7 +240,7 @@ class Json(DB):
 
     def get_plugins_data(self) -> list[PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        return [PluginConfigBase.model_validate(d) for d in self.data.get("plugins", [])]
+        return [PluginConfigBase.model_validate(d) for d in self.data.get("plugins") or []]
 
     def health_check(self) -> None:
         """Perform a health check on the JSON database.

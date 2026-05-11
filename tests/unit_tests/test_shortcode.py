@@ -4,20 +4,16 @@ from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
 
 
 def _sc(tag: str) -> Shortcode:
-    """Build a minimal Shortcode that records calls."""
-    calls: list[tuple[ShortcodeAttrs, str]] = []
+    """Build a minimal Shortcode for use in tests."""
 
     class _SC(Shortcode):
         name = tag
         description = "test"
 
-        def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
-            calls.append((attrs, content))
+        def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
             return f"[RENDERED:{tag}:{content}]"
 
-    sc = _SC()
-    sc._calls = calls  # type: ignore[attr-defined]
-    return sc
+    return _SC()
 
 
 class TestApplyShortcodes:

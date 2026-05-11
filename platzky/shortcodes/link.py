@@ -35,9 +35,11 @@ class LinkShortcode(Shortcode):
             An ``<a>`` tag, or raw content if the URL is not allowed.
         """
         if not is_url_allowed(attrs.url):
-            return content
-        target_attr = f' target="{escape(attrs.target)}"' if attrs.target else ""
-        return f'<a href="{escape(attrs.url)}"{target_attr}>{escape(content)}</a>'
+            return str(escape(content))
+        target_value = str(attrs.target or "")
+        target_attr = f' target="{escape(target_value)}"' if target_value else ""
+        rel_attr = ' rel="noopener noreferrer"' if target_value == "_blank" else ""
+        return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{escape(content)}</a>'
 
 
 link_shortcode = LinkShortcode()

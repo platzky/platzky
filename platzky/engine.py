@@ -32,7 +32,7 @@ from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -157,7 +157,10 @@ class Engine(Flask):
                 continue
             if topic not in self._notifier_topic_allowlist.get(plugin, frozenset()):
                 continue
-            plugin.notify(message, topic, attachments, receiver)
+            if isinstance(plugin, AttachmentNotifierPluginBase):
+                plugin.notify_with_attachments(message, topic, attachments, receiver)
+            else:
+                plugin.notify(message, topic, receiver)
 
     @deprecation.deprecated(
         deprecated_in="1.5.0",
@@ -274,7 +277,6 @@ class Engine(Flask):
         from platzky.plugin.plugin import PluginBase
 
         plugin_instance = plugin_class(plugin_config)
-        self.loaded_plugins.append(plugin_instance)
         # MRO-based identity check: every class inherits process() from PluginBase so
         # hasattr() would always return True.  Comparing unbound method objects via `is`
         # detects a genuine override without invoking the deprecation warning that calling
@@ -284,6 +286,7 @@ class Engine(Flask):
             if type(plugin_instance).process is not PluginBase.process
             else self
         )
+        app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin_capabilities(plugin_instance, plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):

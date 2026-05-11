@@ -1,5 +1,6 @@
 """Application factory — assembles config, database, engine, plugins, and blueprints."""
 
+import logging
 import typing as t
 import urllib.parse
 from typing import Any
@@ -28,11 +29,25 @@ from platzky.shortcodes import Shortcode
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
+logger = logging.getLogger(__name__)
+
 _MISSING_OTEL_MSG = (
     "OpenTelemetry is not installed. Install with: "
     "poetry add opentelemetry-api opentelemetry-sdk "
     "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
 )
+
+
+class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
+    """Built-in image and link shortcodes, always registered for posts and pages."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__(config)
+        self.accepted_content_types: set[ContentType] = {"post", "page"}
+
+    def get_content_tags(self) -> dict[str, Shortcode]:
+        """Return built-in image and link shortcodes."""
+        return get_builtin_shortcodes()
 
 
 def _url_encode(x: str) -> str:
@@ -234,17 +249,6 @@ def create_app_from_config(config: Config) -> Engine:
 
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
-    class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
-        """Built-in image and link shortcodes, always registered for posts and pages."""
-
-        def __init__(self, config: dict[str, Any]) -> None:
-            super().__init__(config)
-            self.accepted_content_types: set[ContentType] = {"post", "page"}
-
-        def get_content_tags(self) -> dict[str, Shortcode]:
-            """Return built-in image and link shortcodes."""
-            return get_builtin_shortcodes()
-
     _builtin_transformer = _BuiltinShortcodeTransformer({})
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
     engine.shortcodes.update(_builtin_transformer.get_content_tags())
@@ -253,7 +257,10 @@ def create_app_from_config(config: Config) -> Engine:
     for _plugin in engine.get_plugins(ContentTransformerPluginBase):
         if _plugin is _builtin_transformer:
             continue
-        engine.shortcodes.update(_plugin.get_content_tags())
+        for _tag_name, _shortcode in _plugin.get_content_tags().items():
+            if _tag_name in engine.shortcodes:
+                logger.warning("Plugin shortcode %r overrides an existing registration.", _tag_name)
+            engine.shortcodes[_tag_name] = _shortcode
         for _ext in _plugin.get_jinja_extensions():
             engine.jinja_env.add_extension(_ext)
 

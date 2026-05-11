@@ -16,7 +16,7 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
 
@@ -80,13 +80,30 @@ class SimpleNotifier(NotifierPluginBase):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, list[AttachmentProtocol]]] = []
+        self.received: list[tuple[str, str]] = []
 
     def notify(
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] = [],
+        receiver: str = "",  # noqa: ARG002
+    ) -> None:
+        self.received.append((message, topic))
+
+
+class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
+    """Attachment-aware notifier that records received messages and attachments."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__(config)
+        self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
+        self.received: list[tuple[str, str, list[AttachmentProtocol]]] = []
+
+    def notify_with_attachments(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        attachments: list[AttachmentProtocol],
         receiver: str = "",  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic, attachments))
@@ -104,7 +121,6 @@ class TopicFilteredNotifier(NotifierPluginBase):
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] = [],  # noqa: ARG002
         receiver: str = "",  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic))
@@ -118,7 +134,7 @@ class TestNotifierPluginBase:
 
         app.notify("hello", topic="general")
 
-        assert notifier.received == [("hello", "general", [])]
+        assert notifier.received == [("hello", "general")]
 
     def test_notifier_only_receives_declared_topics(self, app: Engine) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
@@ -175,7 +191,7 @@ class TestNotifierPluginBase:
         assert len(all_topics.received) == 2
 
     def test_notify_with_attachments_forwarded(self, app: Engine) -> None:
-        notifier = SimpleNotifier({})
+        notifier = SimpleAttachmentNotifier({})
         app.plugins[NotifierPluginBase].append(notifier)
         app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
         fake_attachment = object()
@@ -314,7 +330,6 @@ class TestRegisterPluginCapabilities:
                 self,
                 message: str,
                 topic: NotificationTopic,
-                attachments: list[AttachmentProtocol] = [],
                 receiver: str = "",
             ) -> None:
                 # No-op: only verifies capability registration, not notification delivery.
@@ -360,6 +375,7 @@ class TestGetInfo:
         infos = app.get_plugin_infos()
         assert len(infos) == 1
         assert infos[0].name == "SimpleNotifier"
+        assert infos[0].description == SimpleNotifier.__doc__.strip()  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------
@@ -402,7 +418,6 @@ class TestBackwardCompatProcess:
                 self,
                 message: str,
                 topic: NotificationTopic,
-                attachments: list[AttachmentProtocol] = [],
                 receiver: str = "",
             ) -> None:
                 # No-op: only verifies that process() is not called, not notification delivery.
@@ -453,6 +468,17 @@ class JinjaExtPlugin(ContentTransformerPluginBase):
         return [_DummyJinjaExtension]
 
 
+class AllTypesFilter(ContentTransformerPluginBase):
+    """Content transformer that accepts all content types."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__(config)
+        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+
+    def transform_content(self, content: str) -> str:
+        return content + "[filtered]"
+
+
 class TestContentTransformerWiring:
     def test_shortcode_registered_in_engine(self, base_config_data: dict[str, Any]) -> None:
         """Plugin shortcodes must appear in engine.shortcodes after app creation."""
@@ -488,15 +514,6 @@ class TestContentTransformerWiring:
 
     def test_engine_allowlist_blocks_content_type_plugin_wants(self, app: Engine) -> None:
         """Engine allowlist overrides plugin's declared accepted_content_types."""
-
-        class AllTypesFilter(ContentTransformerPluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-
-            def transform_content(self, content: str) -> str:
-                return content + "[filtered]"
-
         f = AllTypesFilter({})
         app.plugins[ContentTransformerPluginBase].append(f)
         app.set_content_transformer_allowlist(f, frozenset({"post"}))
@@ -507,15 +524,6 @@ class TestContentTransformerWiring:
 
     def test_engine_without_allowlist_is_blocked(self, app: Engine) -> None:
         """Plugin with no allowlist registered is blocked for all content types."""
-
-        class AllTypesFilter(ContentTransformerPluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-
-            def transform_content(self, content: str) -> str:
-                return content + "[filtered]"
-
         f = AllTypesFilter({})
         app.plugins[ContentTransformerPluginBase].append(f)
 
