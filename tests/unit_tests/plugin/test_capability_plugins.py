@@ -19,7 +19,7 @@ from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
-from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
+from platzky.shortcodes import Shortcode, ShortcodeAttrs, make_shortcode_applier
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -293,7 +293,7 @@ class TestContentTransformerPluginBase:
                 return {"btag": _BTagSC()}
 
         combined = {**AFilter({}).get_content_tags(), **BFilter({}).get_content_tags()}
-        result = apply_shortcodes("[atag]x[/atag] [btag]y[/btag]", combined)
+        result = make_shortcode_applier(combined)("[atag]x[/atag] [btag]y[/btag]")
         assert result == "A(x) B(y)"
 
 

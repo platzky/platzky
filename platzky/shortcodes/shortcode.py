@@ -42,15 +42,14 @@ class ShortcodeAttrs:
     and as the ``attrs`` argument to ``Shortcode.render`` populated with parsed values.
     """
 
-    def __init__(self, attrs: list[ShortcodeAttr], values: dict[str, str] | None = None) -> None:
-        """Initialise with a schema and optional parsed values.
+    def __init__(self, attrs: list[ShortcodeAttr]) -> None:
+        """Initialise with a schema.
 
         Args:
             attrs: Attribute schema defining names, descriptions, and defaults.
-            values: Parsed attribute values from a shortcode tag, if any.
         """
         self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
-        self._values: dict[str, str] = values or {}
+        self._values: dict[str, str] = {}
 
     def __iter__(self) -> Iterator[ShortcodeAttr]:
         """Iterate over the attribute schema (for the help-page template)."""
@@ -158,7 +157,8 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
         def _replace(m: re.Match[str]) -> str:
             """Dispatch a matched shortcode tag to its registered handler."""
             sc = shortcodes[m.group(1)]
-            attrs = ShortcodeAttrs(list(sc.attributes), dict(_ATTR_RE.findall(m.group(2) or "")))
+            attrs = ShortcodeAttrs(list(sc.attributes))
+            attrs._values = dict(_ATTR_RE.findall(m.group(2) or ""))
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
@@ -169,18 +169,3 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
     return _apply
 
 
-def apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
-    """Replace registered shortcode tags in content with handler output.
-
-    Unregistered tags are passed through unchanged.
-    Prefer ``make_shortcode_applier`` when applying repeatedly to amortise
-    regex compilation.
-
-    Args:
-        content: Raw content string potentially containing shortcode tags.
-        shortcodes: Map of tag name to Shortcode instance.
-
-    Returns:
-        Content with all registered shortcode tags replaced.
-    """
-    return make_shortcode_applier(shortcodes)(content)

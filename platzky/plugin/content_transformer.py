@@ -8,7 +8,7 @@ import jinja2.ext
 
 from platzky.content_types import ContentType
 from platzky.plugin.plugin import PluginBase
-from platzky.shortcodes import Shortcode, apply_shortcodes
+from platzky.shortcodes import Shortcode, make_shortcode_applier
 
 
 class ContentTransformerPluginBase(PluginBase, ABC):
@@ -37,8 +37,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         Returns:
             Transformed content string.
         """
-        tags = self.get_content_tags()
-        return apply_shortcodes(content, tags) if tags else content
+        return make_shortcode_applier(self.get_content_tags())(content)
 
     def get_content_tags(self) -> dict[str, Shortcode]:
         """Return ``{tag_name: Shortcode}`` for shortcode tags in content.
