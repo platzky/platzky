@@ -15,6 +15,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import ClassVar
 
+_VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048
 
@@ -103,6 +105,14 @@ class Shortcode(ABC):
     description: str
     attributes: ClassVar[ShortcodeAttrs] = ShortcodeAttrs([])
     example: str = ""
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if "name" in cls.__dict__ and not _VALID_SHORTCODE_NAME_RE.match(cls.name):
+            raise ValueError(
+                f"Shortcode name {cls.name!r} is invalid. "
+                "Use only letters, digits, hyphens, and underscores, starting with a letter."
+            )
 
     @abstractmethod
     def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
