@@ -39,28 +39,28 @@ def discover_plugins() -> dict[str, type[PluginBase]]:
         Mapping of plugin name to plugin class for every installed plugin.
     """
     discovered: dict[str, type[PluginBase]] = {}
-    for ep in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
+    for entry_point in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
         try:
-            plugin_class = ep.load()
+            plugin_class = entry_point.load()
         except Exception:
-            logger.exception("Failed to load entry point '%s'", ep.name)
+            logger.exception("Failed to load entry point '%s'", entry_point.name)
             continue
 
         if not (inspect.isclass(plugin_class) and issubclass(plugin_class, PluginBase)):
             logger.warning(
                 "Entry point '%s' does not point to a PluginBase subclass, skipping",
-                ep.name,
+                entry_point.name,
             )
             continue
 
-        if ep.name in discovered:
+        if entry_point.name in discovered:
             raise ValueError(
-                f"Duplicate plugin entry-point name '{ep.name}': "
+                f"Duplicate plugin entry-point name '{entry_point.name}': "
                 f"already registered as {discovered[ep.name]}, "
                 f"conflicting class {plugin_class}"
             )
-        discovered[ep.name] = plugin_class
-        logger.debug("Discovered plugin '%s' via entry points", ep.name)
+        discovered[entry_point.name] = plugin_class
+        logger.debug("Discovered plugin '%s' via entry points", entry_point.name)
 
     return discovered
 
