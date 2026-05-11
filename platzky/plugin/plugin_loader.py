@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
-from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase, PluginError
 
@@ -40,8 +40,8 @@ class NotifyPluginConfig(PluginConfigBase):
     allowed_topics: frozenset[NotificationTopic] | None = None
 
 
-class ContentFilterPluginBaseConfig(PluginConfigBase):
-    """Plugin config for ContentFilterPluginBase plugins — carries the content-type allowlist."""
+class ContentTransformerPluginConfig(PluginConfigBase):
+    """Plugin config for ContentTransformerPluginBase — carries the content-type allowlist."""
 
     allowed_content_types: frozenset[ContentType] | None = None
 
@@ -56,8 +56,8 @@ def _extract_allowlists(
         else None
     )
     allowed_content_types = (
-        ContentFilterPluginBaseConfig.model_validate(raw).allowed_content_types
-        if issubclass(plugin_class, ContentFilterPluginBase)
+        ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
+        if issubclass(plugin_class, ContentTransformerPluginBase)
         else None
     )
     return allowed_topics, allowed_content_types

@@ -31,7 +31,7 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
-from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
@@ -68,7 +68,7 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
-_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentFilterPluginBase)
+_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentTransformerPluginBase)
 
 
 class Engine(Flask):
@@ -95,7 +95,9 @@ class Engine(Flask):
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
         self._notifier_topic_allowlist: dict[NotifierPluginBase, frozenset[NotificationTopic]] = {}
-        self._content_filter_allowlist: dict[ContentFilterPluginBase, frozenset[ContentType]] = {}
+        self._content_transformer_allowlist: dict[
+            ContentTransformerPluginBase, frozenset[ContentType]
+        ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
@@ -132,14 +134,16 @@ class Engine(Flask):
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: list[AttachmentProtocol] | None = None,
+        attachments: list[AttachmentProtocol] = [],
+        receiver: str = "",
     ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             topic: Notification topic for routing (default ``"general"``).
-            attachments: Optional list of Attachment objects created via engine.Attachment().
+            attachments: Attachments to include; empty list if none.
+            receiver: Target recipient identifier; empty string means broadcast.
         """
         # Legacy path
         for notifier in self._notifiers:
@@ -156,7 +160,7 @@ class Engine(Flask):
                 and topic not in self._notifier_topic_allowlist[plugin]
             ):
                 continue
-            plugin.notify(message, topic, attachments)
+            plugin.notify(message, topic, attachments, receiver)
 
     @deprecation.deprecated(
         deprecated_in="1.5.0",
@@ -182,32 +186,32 @@ class Engine(Flask):
         """
         self._notifiers_with_attachments.append(notifier)
 
-    def apply_content_filters(self, content: str, content_type: ContentType) -> str:
+    def apply_content_transforms(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
 
         Checks plugin's declared ``accepted_content_types`` first, then the
-        engine-enforced allowlist set via ``set_content_filter_allowlist``.
+        engine-enforced allowlist set via ``set_content_transformer_allowlist``.
         """
-        for plugin in self.get_plugins(ContentFilterPluginBase):
+        for plugin in self.get_plugins(ContentTransformerPluginBase):
             if content_type not in plugin.accepted_content_types:
                 continue
             if (
-                plugin in self._content_filter_allowlist
-                and content_type not in self._content_filter_allowlist[plugin]
+                plugin in self._content_transformer_allowlist
+                and content_type not in self._content_transformer_allowlist[plugin]
             ):
                 continue
-            content = plugin.filter_content(content)
+            content = plugin.transform_content(content)
         return content
 
-    def set_content_filter_allowlist(
-        self, plugin: ContentFilterPluginBase, allowed_types: frozenset[ContentType]
+    def set_content_transformer_allowlist(
+        self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
         """Register engine-enforced content-type allowlist for a content-filter plugin.
 
         Empty frozenset blocks all content types. Plugin not in the allowlist means unrestricted.
         Called by the plugin loader; not intended to be called from plugin code.
         """
-        self._content_filter_allowlist[plugin] = allowed_types
+        self._content_transformer_allowlist[plugin] = allowed_types
 
     def register_plugin_capabilities(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
@@ -291,10 +295,10 @@ class Engine(Flask):
         if isinstance(plugin_instance, NotifierPluginBase) and allowed_topics is not None:
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
         if (
-            isinstance(plugin_instance, ContentFilterPluginBase)
+            isinstance(plugin_instance, ContentTransformerPluginBase)
             and allowed_content_types is not None
         ):
-            app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
+            app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 

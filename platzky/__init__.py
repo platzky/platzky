@@ -11,7 +11,9 @@ from platzky.feature_flags_wrapper import FeatureFlagSet as FeatureFlagSet
 from platzky.notification_topics import NotificationTopic as NotificationTopic
 from platzky.platzky import create_app_from_config as create_app_from_config
 from platzky.platzky import create_engine as create_engine
-from platzky.plugin.content_filter import ContentFilterPluginBase as ContentFilterPluginBase
+from platzky.plugin.content_transformer import (
+    ContentTransformerPluginBase as ContentTransformerPluginBase,
+)
 from platzky.plugin.notifier import NotifierPluginBase as NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
 from platzky.plugin.plugin import PluginBase as PluginBase

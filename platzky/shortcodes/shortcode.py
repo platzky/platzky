@@ -1,6 +1,6 @@
 """Shortcode parser for blog post content.
 
-Plugins register handlers via ContentFilterPluginBase.get_content_tags().
+Plugins register handlers via ContentTransformerPluginBase.get_content_tags().
 Syntax:
     Block: [tagname attr="val"]content[/tagname]
     Void:  [tagname attr="val"]

@@ -21,7 +21,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -232,9 +232,9 @@ def create_app_from_config(config: Config) -> Engine:
                 "Check your telemetry settings in the configuration file."
             ) from e
 
-    # Register built-in shortcodes (image, link) as the first ContentFilterPluginBase,
+    # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
-    class _BuiltinShortcodeFilter(ContentFilterPluginBase):
+    class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
         """Built-in image and link shortcodes, always registered for posts and pages."""
 
         def __init__(self, config: dict[str, Any]) -> None:
@@ -245,13 +245,13 @@ def create_app_from_config(config: Config) -> Engine:
             """Return built-in image and link shortcodes."""
             return get_builtin_shortcodes()
 
-    _builtin_filter = _BuiltinShortcodeFilter({})
-    engine.plugins[ContentFilterPluginBase].insert(0, _builtin_filter)
-    engine.shortcodes.update(_builtin_filter.get_content_tags())
+    _builtin_transformer = _BuiltinShortcodeTransformer({})
+    engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
+    engine.shortcodes.update(_builtin_transformer.get_content_tags())
 
     # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.
-    for _plugin in engine.get_plugins(ContentFilterPluginBase):
-        if _plugin is _builtin_filter:
+    for _plugin in engine.get_plugins(ContentTransformerPluginBase):
+        if _plugin is _builtin_transformer:
             continue
         engine.shortcodes.update(_plugin.get_content_tags())
         for _ext in _plugin.get_jinja_extensions():
@@ -277,7 +277,7 @@ def create_app_from_config(config: Config) -> Engine:
         db=engine.db,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
-        content_filter=engine.apply_content_filters,
+        content_transformer=engine.apply_content_transforms,
     )
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale

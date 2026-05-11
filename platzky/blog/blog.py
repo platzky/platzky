@@ -22,7 +22,7 @@ def create_blog_blueprint(
     db: DB,
     blog_prefix: str,
     locale_func: Callable[[], str],
-    content_filter: Callable[[str, FilterContentType], str],
+    content_transformer: Callable[[str, FilterContentType], str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -30,7 +30,7 @@ def create_blog_blueprint(
         db: Database instance for accessing blog content
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
-        content_filter: Function applied to post/page content before rendering
+        content_transformer: Function applied to post/page content before rendering
 
     Returns:
         Configured Flask Blueprint for blog functionality
@@ -146,7 +146,7 @@ def create_blog_blueprint(
         return render_template(
             "post.html",
             post=post,
-            content=content_filter(post.contentInMarkdown, "post"),
+            content=content_transformer(post.contentInMarkdown, "post"),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -167,7 +167,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             title=page.title,
-            content=content_filter(page.contentInMarkdown, "page"),
+            content=content_transformer(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )
 

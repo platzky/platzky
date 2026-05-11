@@ -24,13 +24,15 @@ class NotifierPluginBase(PluginBase, ABC):
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] | None = None,
+        attachments: list[AttachmentProtocol] = [],
+        receiver: str = "",
     ) -> None:
         """Send a notification.
 
         Args:
             message: The notification message.
             topic: The notification topic.
-            attachments: Optional list of attachments.
+            attachments: Attachments to include; empty list if none.
+            receiver: Target recipient identifier; empty string means broadcast.
         """
         raise NotImplementedError

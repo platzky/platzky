@@ -15,7 +15,7 @@ from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
-from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
@@ -73,13 +73,14 @@ class SimpleNotifier(NotifierPluginBase):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, list[AttachmentProtocol] | None]] = []
+        self.received: list[tuple[str, str, list[AttachmentProtocol]]] = []
 
     def notify(
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] | None = None,
+        attachments: list[AttachmentProtocol] = [],
+        receiver: str = "",  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic, attachments))
 
@@ -96,7 +97,8 @@ class TopicFilteredNotifier(NotifierPluginBase):
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol] | None = None,  # noqa: ARG002
+        attachments: list[AttachmentProtocol] = [],  # noqa: ARG002
+        receiver: str = "",  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic))
 
@@ -108,7 +110,7 @@ class TestNotifierPluginBase:
 
         app.notify("hello", topic="general")
 
-        assert notifier.received == [("hello", "general", None)]
+        assert notifier.received == [("hello", "general", [])]
 
     def test_notifier_only_receives_declared_topics(self, app: Engine) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
@@ -177,7 +179,7 @@ class TestNotifierPluginBase:
 
 
 # ---------------------------------------------------------------------------
-# ContentFilterPluginBase
+# ContentTransformerPluginBase
 # ---------------------------------------------------------------------------
 
 
@@ -190,7 +192,7 @@ class _ShoutShortcode(Shortcode):
         return content.upper()
 
 
-class ShoutFilter(ContentFilterPluginBase):
+class ShoutFilter(ContentTransformerPluginBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -202,9 +204,9 @@ class ShoutFilter(ContentFilterPluginBase):
         return {"shout": _ShoutShortcode()}
 
 
-class TestContentFilterPluginBase:
+class TestContentTransformerPluginBase:
     def test_default_returns_empty_dict(self) -> None:
-        class NoOpFilter(ContentFilterPluginBase):
+        class NoOpFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -222,7 +224,9 @@ class TestContentFilterPluginBase:
         self, base_config_data: dict[str, Any]
     ) -> None:
         app = _app_with_plugin(base_config_data, "shout", ShoutFilter)
-        assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterPluginBase))
+        assert any(
+            isinstance(p, ShoutFilter) for p in app.get_plugins(ContentTransformerPluginBase)
+        )
 
     def test_shortcodes_from_multiple_plugins_chainable(self) -> None:
         class _ATagSC(Shortcode):
@@ -241,7 +245,7 @@ class TestContentFilterPluginBase:
                 """Wrap content in B()."""
                 return f"B({content})"
 
-        class AFilter(ContentFilterPluginBase):
+        class AFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -250,7 +254,7 @@ class TestContentFilterPluginBase:
                 """Return the atag shortcode."""
                 return {"atag": _ATagSC()}
 
-        class BFilter(ContentFilterPluginBase):
+        class BFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -288,7 +292,7 @@ class TestRegisterPluginCapabilities:
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class MultiPlugin(NotifierPluginBase, ContentFilterPluginBase):
+        class MultiPlugin(NotifierPluginBase, ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: set[NotificationTopic] = {"general"}
@@ -298,14 +302,17 @@ class TestRegisterPluginCapabilities:
                 self,
                 message: str,
                 topic: NotificationTopic,
-                attachments: list[AttachmentProtocol] | None = None,
+                attachments: list[AttachmentProtocol] = [],
+                receiver: str = "",
             ) -> None:
                 # No-op: only verifies capability registration, not notification delivery.
                 pass
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierPluginBase))
-        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(ContentFilterPluginBase))
+        assert any(
+            isinstance(p, MultiPlugin) for p in app.get_plugins(ContentTransformerPluginBase)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +390,8 @@ class TestBackwardCompatProcess:
                 self,
                 message: str,
                 topic: NotificationTopic,
-                attachments: list[AttachmentProtocol] | None = None,
+                attachments: list[AttachmentProtocol] = [],
+                receiver: str = "",
             ) -> None:
                 # No-op: only verifies that process() is not called, not notification delivery.
                 pass
@@ -402,11 +410,11 @@ class TestBackwardCompatProcess:
 
 
 # ---------------------------------------------------------------------------
-# ContentFilterPluginBase wiring in create_app_from_config
+# ContentTransformerPluginBase wiring in create_app_from_config
 # ---------------------------------------------------------------------------
 
 
-class ShoutTagPlugin(ContentFilterPluginBase):
+class ShoutTagPlugin(ContentTransformerPluginBase):
     """Registers a [shout] shortcode via get_content_tags()."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -422,7 +430,7 @@ class _DummyJinjaExtension(jinja2.ext.Extension):
     tags = {"dummy_tag"}  # noqa: RUF012
 
 
-class JinjaExtPlugin(ContentFilterPluginBase):
+class JinjaExtPlugin(ContentTransformerPluginBase):
     """Test filter that exposes a Jinja2 extension."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -433,17 +441,19 @@ class JinjaExtPlugin(ContentFilterPluginBase):
         return [_DummyJinjaExtension]
 
 
-class TestContentFilterWiring:
+class TestContentTransformerWiring:
     def test_shortcode_registered_in_engine(self, base_config_data: dict[str, Any]) -> None:
         """Plugin shortcodes must appear in engine.shortcodes after app creation."""
         app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
         assert "shout" in app.shortcodes
 
-    def test_filter_content_applies_shortcode(self, base_config_data: dict[str, Any]) -> None:
-        """filter_content() must transform content via the plugin's shortcode handler."""
+    def test_transform_content_applies_shortcode(self, base_config_data: dict[str, Any]) -> None:
+        """transform_content() must transform content via the plugin's shortcode handler."""
         app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
-        assert any(isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentFilterPluginBase))
-        result = app.apply_content_filters("[shout]hello[/shout]", "post")
+        assert any(
+            isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentTransformerPluginBase)
+        )
+        result = app.apply_content_transforms("[shout]hello[/shout]", "post")
         assert result == "HELLO"
 
     def test_filter_only_applied_to_declared_content_type(
@@ -451,54 +461,54 @@ class TestContentFilterWiring:
     ) -> None:
         """Plugins only receive content types listed in accepted_content_types."""
 
-        class PostOnlyFilter(ContentFilterPluginBase):
+        class PostOnlyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = {"post"}
 
-            def filter_content(self, content: str) -> str:
+            def transform_content(self, content: str) -> str:
                 return content + "[filtered]"
 
         app = _app_with_plugin(base_config_data, "postonly", PostOnlyFilter)
-        assert app.apply_content_filters("text", "post") == "text[filtered]"
-        assert app.apply_content_filters("text", "page") == "text"
-        assert app.apply_content_filters("text", "comment") == "text"
+        assert app.apply_content_transforms("text", "post") == "text[filtered]"
+        assert app.apply_content_transforms("text", "page") == "text"
+        assert app.apply_content_transforms("text", "comment") == "text"
 
     def test_engine_allowlist_blocks_content_type_plugin_wants(self, app: Engine) -> None:
         """Engine allowlist overrides plugin's declared accepted_content_types."""
 
-        class AllTypesFilter(ContentFilterPluginBase):
+        class AllTypesFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-            def filter_content(self, content: str) -> str:
+            def transform_content(self, content: str) -> str:
                 return content + "[filtered]"
 
         f = AllTypesFilter({})
-        app.plugins[ContentFilterPluginBase].append(f)
-        app.set_content_filter_allowlist(f, frozenset({"post"}))
+        app.plugins[ContentTransformerPluginBase].append(f)
+        app.set_content_transformer_allowlist(f, frozenset({"post"}))
 
-        assert app.apply_content_filters("x", "post") == "x[filtered]"
-        assert app.apply_content_filters("x", "page") == "x"
-        assert app.apply_content_filters("x", "comment") == "x"
+        assert app.apply_content_transforms("x", "post") == "x[filtered]"
+        assert app.apply_content_transforms("x", "page") == "x"
+        assert app.apply_content_transforms("x", "comment") == "x"
 
     def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
         """Plugin with no allowlist registered passes all accepted content types."""
 
-        class AllTypesFilter(ContentFilterPluginBase):
+        class AllTypesFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-            def filter_content(self, content: str) -> str:
+            def transform_content(self, content: str) -> str:
                 return content + "[filtered]"
 
         f = AllTypesFilter({})
-        app.plugins[ContentFilterPluginBase].append(f)
+        app.plugins[ContentTransformerPluginBase].append(f)
 
-        assert app.apply_content_filters("x", "post") == "x[filtered]"
-        assert app.apply_content_filters("x", "comment") == "x[filtered]"
+        assert app.apply_content_transforms("x", "post") == "x[filtered]"
+        assert app.apply_content_transforms("x", "comment") == "x[filtered]"
 
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
