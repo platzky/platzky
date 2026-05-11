@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Example platzky notifier plugin — logs every notification."
 authors = []
 
-[tool.poetry.dependencies] # NOSONAR
+[tool.poetry.dependencies]
 python = "^3.10"
 platzky = "*"
 
