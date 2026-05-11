@@ -172,6 +172,7 @@ class TestNotifierPluginBase:
     def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
         app.plugins[NotifierPluginBase].append(security_only)
+        app.set_notifier_allowlist(security_only, frozenset(_ALL_TOPICS))
 
         app.notify("new topic message", topic="general")
 

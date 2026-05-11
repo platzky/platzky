@@ -8,6 +8,8 @@ Two features:
 import re
 from typing import ClassVar
 
+from markupsafe import Markup
+
 from platzky.content_types import ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import ShortcodeAttrs
@@ -28,12 +30,12 @@ class _RedShortcode(Shortcode):
 
         Args:
             attrs: Unused.
-            content: Text to colour red.
+            content: HTML content to colour red (may contain markup from earlier transforms).
 
         Returns:
             Content wrapped in ``<span style="color:red">``.
         """
-        return f'<span style="color:red">{content}</span>'
+        return str(Markup('<span style="color:red">{}</span>').format(Markup(content)))
 
 
 class RedLetterPlugin(ContentTransformerPluginBase):

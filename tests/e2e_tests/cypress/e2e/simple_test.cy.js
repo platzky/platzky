@@ -8,15 +8,13 @@ describe('Blog test', () => {
   });
 
   it('display posts and leave comment in one of them', () => {
-    posts()
-      .should('have.length', 4)
-      .first()
-      .within( () => {
-        cy.get('img')
-          .should('have.attr', 'alt', 'alternate text')
-        }
-      )
-      .contains('title').click()
+    posts().should('have.length', 4)
+    cy.contains('.post-title', 'title')
+      .closest('.row.align-items-center')
+      .within(() => {
+        cy.get('img').should('have.attr', 'alt', 'alternate text')
+        cy.contains('title').click()
+      })
     cy.contains('content')
 
     let user = 'commenting user'

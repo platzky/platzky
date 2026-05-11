@@ -91,6 +91,8 @@ class ShortcodeAttrs:
         """Return a readable representation showing schema keys and values."""
         return f"ShortcodeAttrs({list(self._schema)!r}, values={self.values!r})"
 
+    __hash__ = None  # type: ignore[assignment]
+
 
 class Shortcode(ABC):
     """Base class for a registered shortcode tag. Subclass and implement ``render``."""

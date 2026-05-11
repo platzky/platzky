@@ -69,9 +69,10 @@ class PluginBase(ABC):
 
         Override to provide a user-facing name or description.
         """
+        doc = type(self).__doc__
         return PluginInfo(
             name=type(self).__name__,
-            description=type(self).__doc__ or "",
+            description=inspect.cleandoc(doc) if doc else "",
         )
 
     def get_locale_dir(self) -> Optional[str]:
