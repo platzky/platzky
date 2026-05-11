@@ -94,7 +94,10 @@ def create_fake_login_blueprint() -> DebugBlueprint:
                 session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
             else:
                 session["user"] = {"username": "user", "role": ROLE_NONADMIN}
-            return redirect(session.pop("next", url_for("admin.admin_panel_home")))
+            next_url = session.pop("next", None)
+            if not next_url or not next_url.startswith("/"):
+                next_url = url_for("admin.admin_panel_home")
+            return redirect(next_url)
 
         flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
         return redirect(url_for("admin.admin_panel_home"))
