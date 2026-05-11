@@ -37,28 +37,28 @@ class PluginConfigBase(BaseModel):
 class NotifyPluginConfig(PluginConfigBase):
     """Plugin config for NotifierPluginBase plugins — carries the topic allowlist."""
 
-    allowed_topics: frozenset[NotificationTopic] = frozenset()
+    allowed_topics: frozenset[NotificationTopic] | None = None
 
 
 class ContentFilterPluginBaseConfig(PluginConfigBase):
     """Plugin config for ContentFilterPluginBase plugins — carries the content-type allowlist."""
 
-    allowed_content_types: frozenset[ContentType] = frozenset()
+    allowed_content_types: frozenset[ContentType] | None = None
 
 
 def _extract_allowlists(
     pc: PluginConfigBase, plugin_class: type
-) -> tuple[frozenset[NotificationTopic], frozenset[ContentType]]:
+) -> tuple[frozenset[NotificationTopic] | None, frozenset[ContentType] | None]:
     raw = pc.model_dump()
     allowed_topics = (
         NotifyPluginConfig.model_validate(raw).allowed_topics
         if issubclass(plugin_class, NotifierPluginBase)
-        else frozenset()
+        else None
     )
     allowed_content_types = (
         ContentFilterPluginBaseConfig.model_validate(raw).allowed_content_types
         if issubclass(plugin_class, ContentFilterPluginBase)
-        else frozenset()
+        else None
     )
     return allowed_topics, allowed_content_types
 

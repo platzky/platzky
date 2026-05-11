@@ -151,8 +151,10 @@ class Engine(Flask):
         for plugin in self.get_plugins(NotifierPluginBase):
             if topic not in plugin.accepted_topics:
                 continue
-            allowed = self._notifier_topic_allowlist.get(plugin, frozenset())
-            if allowed and topic not in allowed:
+            if (
+                plugin in self._notifier_topic_allowlist
+                and topic not in self._notifier_topic_allowlist[plugin]
+            ):
                 continue
             plugin.notify(message, topic, attachments)
 
@@ -189,8 +191,10 @@ class Engine(Flask):
         for plugin in self.get_plugins(ContentFilterPluginBase):
             if content_type not in plugin.accepted_content_types:
                 continue
-            allowed = self._content_filter_allowlist.get(plugin, frozenset())
-            if allowed and content_type not in allowed:
+            if (
+                plugin in self._content_filter_allowlist
+                and content_type not in self._content_filter_allowlist[plugin]
+            ):
                 continue
             content = plugin.filter_content(content)
         return content
@@ -200,7 +204,7 @@ class Engine(Flask):
     ) -> None:
         """Register engine-enforced content-type allowlist for a content-filter plugin.
 
-        Empty frozenset means unrestricted — all types the plugin declares are allowed.
+        Empty frozenset blocks all content types. Plugin not in the allowlist means unrestricted.
         Called by the plugin loader; not intended to be called from plugin code.
         """
         self._content_filter_allowlist[plugin] = allowed_types
@@ -252,10 +256,23 @@ class Engine(Flask):
         plugin_class: "type[PluginBase]",
         plugin_config: dict[str, Any],
         plugin_name: str,
-        allowed_topics: frozenset[NotificationTopic] = frozenset(),
-        allowed_content_types: frozenset[ContentType] = frozenset(),
+        allowed_topics: frozenset[NotificationTopic] | None = None,
+        allowed_content_types: frozenset[ContentType] | None = None,
     ) -> "Engine":
-        """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine."""
+        """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
+
+        Args:
+            plugin_class: The plugin class to instantiate.
+            plugin_config: Configuration dict passed to the plugin constructor.
+            plugin_name: Human-readable name used in log messages.
+            allowed_topics: Topic allowlist for notifier plugins. ``None`` means unrestricted;
+                ``frozenset()`` blocks all topics; a non-empty frozenset restricts to those topics.
+            allowed_content_types: Content-type allowlist for filter plugins. ``None`` means
+                unrestricted; ``frozenset()`` blocks all types; a non-empty frozenset restricts.
+
+        Returns:
+            The (possibly replaced) engine after loading the plugin.
+        """
         from platzky.plugin.plugin import PluginBase
 
         plugin_instance = plugin_class(plugin_config)
@@ -271,9 +288,12 @@ class Engine(Flask):
         )
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin_capabilities(plugin_instance, plugin_name)
-        if isinstance(plugin_instance, NotifierPluginBase):
+        if isinstance(plugin_instance, NotifierPluginBase) and allowed_topics is not None:
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
-        if isinstance(plugin_instance, ContentFilterPluginBase):
+        if (
+            isinstance(plugin_instance, ContentFilterPluginBase)
+            and allowed_content_types is not None
+        ):
             app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
@@ -283,7 +303,7 @@ class Engine(Flask):
     ) -> None:
         """Register engine-enforced topic allowlist for a notifier.
 
-        Empty frozenset means unrestricted — all topics the plugin declares are allowed.
+        Empty frozenset blocks all topics. Plugin not in the allowlist means unrestricted.
         Called by the plugin loader; not accessible to plugin code.
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics

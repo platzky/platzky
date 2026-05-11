@@ -132,10 +132,9 @@ class TestNotifierPluginBase:
         assert len(notifier.received) == 1
         assert notifier.received[0][1] == "general"
 
-    def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
+    def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.plugins[NotifierPluginBase].append(notifier)
-        app.set_notifier_allowlist(notifier, None)
 
         app.notify("breach", topic="security")
         app.notify("hi", topic="general")
@@ -484,8 +483,8 @@ class TestContentFilterWiring:
         assert app.apply_content_filters("x", "page") == "x"
         assert app.apply_content_filters("x", "comment") == "x"
 
-    def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
-        """None allowlist allows all content types the plugin declares."""
+    def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
+        """Plugin with no allowlist registered passes all accepted content types."""
 
         class AllTypesFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
@@ -497,7 +496,6 @@ class TestContentFilterWiring:
 
         f = AllTypesFilter({})
         app.plugins[ContentFilterPluginBase].append(f)
-        app.set_content_filter_allowlist(f, None)
 
         assert app.apply_content_filters("x", "post") == "x[filtered]"
         assert app.apply_content_filters("x", "comment") == "x[filtered]"
