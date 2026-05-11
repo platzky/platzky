@@ -19,7 +19,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     cannot bypass user-configured content-type restrictions.
 
     Override ``transform_content`` for arbitrary text transformations (e.g. emoji
-    replacement). Override ``get_content_tags`` to register shortcode tags; the
+    replacement). Override ``get_supported_shortcodes`` to register shortcode tags; the
     default ``transform_content`` applies them automatically.
     """
 
@@ -28,7 +28,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     def transform_content(self, content: str) -> str:
         """Apply this plugin's transformation to a content string.
 
-        Default: applies shortcodes returned by ``get_content_tags()``.
+        Default: applies shortcodes returned by ``get_supported_shortcodes()``.
         Override for arbitrary transformations that don't use shortcode syntax.
 
         Args:
@@ -37,10 +37,10 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         Returns:
             Transformed content string.
         """
-        return make_shortcode_applier(self.get_content_tags())(content)
+        return make_shortcode_applier(self.get_supported_shortcodes())(content)
 
-    def get_content_tags(self) -> dict[str, Shortcode]:
-        """Return ``{tag_name: Shortcode}`` for shortcode tags in content.
+    def get_supported_shortcodes(self) -> dict[str, Shortcode]:
+        """Return shortcode tags this plugin handles.
 
         Used by the default ``transform_content()`` and exposed on the admin help page.
 

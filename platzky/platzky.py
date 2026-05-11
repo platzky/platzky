@@ -45,7 +45,7 @@ class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
         super().__init__(config)
         self.accepted_content_types: set[ContentType] = {"post", "page"}
 
-    def get_content_tags(self) -> dict[str, Shortcode]:
+    def get_supported_shortcodes(self) -> dict[str, Shortcode]:
         """Return built-in image and link shortcodes."""
         return get_builtin_shortcodes()
 
@@ -251,13 +251,13 @@ def create_app_from_config(config: Config) -> Engine:
     # so they run before any plugin filter and appear on the admin help page.
     _builtin_transformer = _BuiltinShortcodeTransformer({})
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
-    engine.shortcodes.update(_builtin_transformer.get_content_tags())
+    engine.shortcodes.update(_builtin_transformer.get_supported_shortcodes())
 
     # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.
     for _plugin in engine.get_plugins(ContentTransformerPluginBase):
         if _plugin is _builtin_transformer:
             continue
-        for _tag_name, _shortcode in _plugin.get_content_tags().items():
+        for _tag_name, _shortcode in _plugin.get_supported_shortcodes().items():
             if _tag_name in engine.shortcodes:
                 logger.warning("Plugin shortcode %r overrides an existing registration.", _tag_name)
             engine.shortcodes[_tag_name] = _shortcode

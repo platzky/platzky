@@ -228,7 +228,7 @@ class ShoutFilter(ContentTransformerPluginBase):
         super().__init__(config)
         self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-    def get_content_tags(self) -> dict[str, Shortcode]:
+    def get_supported_shortcodes(self) -> dict[str, Shortcode]:
         """Return the shout shortcode."""
         return {"shout": _ShoutShortcode()}
 
@@ -241,11 +241,11 @@ class TestContentTransformerPluginBase:
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
         f = NoOpFilter({})
-        assert f.get_content_tags() == {}
+        assert f.get_supported_shortcodes() == {}
 
     def test_override_registers_shortcode(self) -> None:
         f = ShoutFilter({})
-        tags = f.get_content_tags()
+        tags = f.get_supported_shortcodes()
         assert "shout" in tags
         assert tags["shout"].render(ShortcodeAttrs([]), "hello") == "HELLO"
 
@@ -279,7 +279,7 @@ class TestContentTransformerPluginBase:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-            def get_content_tags(self) -> dict[str, Shortcode]:
+            def get_supported_shortcodes(self) -> dict[str, Shortcode]:
                 """Return the atag shortcode."""
                 return {"atag": _ATagSC()}
 
@@ -288,11 +288,11 @@ class TestContentTransformerPluginBase:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-            def get_content_tags(self) -> dict[str, Shortcode]:
+            def get_supported_shortcodes(self) -> dict[str, Shortcode]:
                 """Return the btag shortcode."""
                 return {"btag": _BTagSC()}
 
-        combined = {**AFilter({}).get_content_tags(), **BFilter({}).get_content_tags()}
+        combined = {**AFilter({}).get_supported_shortcodes(), **BFilter({}).get_supported_shortcodes()}
         result = make_shortcode_applier(combined)("[atag]x[/atag] [btag]y[/btag]")
         assert result == "A(x) B(y)"
 
@@ -443,13 +443,13 @@ class TestBackwardCompatProcess:
 
 
 class ShoutTagPlugin(ContentTransformerPluginBase):
-    """Registers a [shout] shortcode via get_content_tags()."""
+    """Registers a [shout] shortcode via get_supported_shortcodes()."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
-    def get_content_tags(self) -> dict[str, Shortcode]:
+    def get_supported_shortcodes(self) -> dict[str, Shortcode]:
         """Return the shout shortcode."""
         return {"shout": _ShoutShortcode()}
 
