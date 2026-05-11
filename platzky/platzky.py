@@ -3,7 +3,9 @@
 import logging
 import typing as t
 import urllib.parse
+from collections.abc import Iterable
 
+import jinja2.ext
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
@@ -24,6 +26,7 @@ from platzky.feature_flags import FakeLogin
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
+from platzky.shortcodes import Shortcode
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
@@ -34,6 +37,32 @@ _MISSING_OTEL_MSG = (
     "poetry add opentelemetry-api opentelemetry-sdk "
     "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
 )
+
+
+def _gather_shortcodes_and_extensions(
+    plugins: Iterable[ContentTransformerPluginBase],
+    registered_shortcodes: dict[str, Shortcode],
+) -> tuple[dict[str, Shortcode], list[type[jinja2.ext.Extension]]]:
+    """Collect shortcodes and Jinja2 extensions from a set of content-transformer plugins.
+
+    Logs a warning for any tag name that collides with an already-registered shortcode.
+
+    Args:
+        plugins: Content-transformer plugins to inspect.
+        registered_shortcodes: Shortcodes already registered (used for duplicate detection only).
+
+    Returns:
+        Tuple of (new shortcodes dict, Jinja2 extension class list).
+    """
+    shortcodes: dict[str, Shortcode] = {}
+    extensions: list[type[jinja2.ext.Extension]] = []
+    for plugin in plugins:
+        for tag_name, shortcode in plugin.shortcodes.items():
+            if tag_name in registered_shortcodes or tag_name in shortcodes:
+                logger.warning("Plugin shortcode %r overrides an existing registration.", tag_name)
+            shortcodes[tag_name] = shortcode
+        extensions.extend(plugin.get_jinja_extensions())
+    return shortcodes, extensions
 
 
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
@@ -249,16 +278,15 @@ def create_app_from_config(config: Config) -> Engine:
     )
     engine.shortcodes.update(_builtin_transformer.shortcodes)
 
-    # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.
-    for _plugin in engine.get_plugins(ContentTransformerPluginBase):
-        if _plugin is _builtin_transformer:
-            continue
-        for _tag_name, _shortcode in _plugin.shortcodes.items():
-            if _tag_name in engine.shortcodes:
-                logger.warning("Plugin shortcode %r overrides an existing registration.", _tag_name)
-            engine.shortcodes[_tag_name] = _shortcode
-        for _ext in _plugin.get_jinja_extensions():
-            engine.jinja_env.add_extension(_ext)
+    _other_transformers = [
+        p for p in engine.get_plugins(ContentTransformerPluginBase) if p is not _builtin_transformer
+    ]
+    _new_shortcodes, _new_extensions = _gather_shortcodes_and_extensions(
+        _other_transformers, engine.shortcodes
+    )
+    engine.shortcodes.update(_new_shortcodes)
+    for _ext in _new_extensions:
+        engine.jinja_env.add_extension(_ext)
 
     admin_blueprint = admin.create_admin_blueprint(
         login_methods=engine.login_methods,
