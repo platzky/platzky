@@ -10,13 +10,18 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 import deprecation
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase, PluginError
+from platzky.plugin.plugin_config import (
+    ContentTransformerPluginConfig,
+    NotifyPluginConfig,
+    PluginConfigBase,
+)
 
 if TYPE_CHECKING:
     from platzky.engine import Engine
@@ -24,26 +29,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "platzky.plugins"
-
-
-class PluginConfigBase(BaseModel):
-    """Validated name and config from DB. Extra fields are preserved for subclass re-validation."""
-
-    model_config = ConfigDict(extra="allow")
-    name: str
-    config: dict[str, Any] = Field(default_factory=dict)
-
-
-class NotifyPluginConfig(PluginConfigBase):
-    """Plugin config for NotifierPluginBase plugins — carries the topic allowlist."""
-
-    allowed_topics: frozenset[NotificationTopic] | None = None
-
-
-class ContentTransformerPluginConfig(PluginConfigBase):
-    """Plugin config for ContentTransformerPluginBase — carries the content-type allowlist."""
-
-    allowed_content_types: frozenset[ContentType] | None = None
 
 
 def _extract_allowlists(

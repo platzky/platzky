@@ -11,7 +11,7 @@ from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
 from platzky.models import MenuItem, Page, Post
-from platzky.plugin.plugin_loader import PluginConfigBase
+from platzky.plugin.plugin_config import PluginConfigBase
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:

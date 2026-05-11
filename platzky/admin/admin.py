@@ -37,7 +37,7 @@ def create_admin_blueprint(
     @admin.before_request
     def require_login() -> str | None:
         if not session.get("user"):
-            session["next"] = request.url
+            session["next"] = request.path
             return render_template("login.html", login_methods=login_methods)
         return None
 

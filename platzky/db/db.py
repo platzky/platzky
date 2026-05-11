@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from platzky.models import MenuItem, Page, Post
-from platzky.plugin.plugin_loader import PluginConfigBase
+from platzky.plugin.plugin_config import PluginConfigBase
 
 
 class DB(ABC):
