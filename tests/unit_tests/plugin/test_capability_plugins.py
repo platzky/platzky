@@ -15,8 +15,8 @@ from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
-from platzky.plugin.content_filter import ContentFilterBase
-from platzky.plugin.notifier import NotifierBase
+from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
 
@@ -61,13 +61,13 @@ def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: 
 
 
 # ---------------------------------------------------------------------------
-# NotifierBase
+# NotifierPluginBase
 # ---------------------------------------------------------------------------
 
 _ALL_TOPICS: set[NotificationTopic] = {"general", "content", "security"}
 
 
-class SimpleNotifier(NotifierBase):
+class SimpleNotifier(NotifierPluginBase):
     """Notifier that accepts all topics and records received messages."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -84,7 +84,7 @@ class SimpleNotifier(NotifierBase):
         self.received.append((message, topic, attachments))
 
 
-class TopicFilteredNotifier(NotifierBase):
+class TopicFilteredNotifier(NotifierPluginBase):
     """Notifier whose accepted_topics are configured via the config dict."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -101,10 +101,10 @@ class TopicFilteredNotifier(NotifierBase):
         self.received.append((message, topic))
 
 
-class TestNotifierBase:
+class TestNotifierPluginBase:
     def test_notifier_receives_matching_topic(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
-        app.plugins[NotifierBase].append(notifier)
+        app.plugins[NotifierPluginBase].append(notifier)
 
         app.notify("hello", topic="general")
 
@@ -112,7 +112,7 @@ class TestNotifierBase:
 
     def test_notifier_only_receives_declared_topics(self, app: Engine) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
-        app.plugins[NotifierBase].append(notifier)
+        app.plugins[NotifierPluginBase].append(notifier)
 
         app.notify("breach", topic="security")
         app.notify("new post", topic="content")
@@ -123,7 +123,7 @@ class TestNotifierBase:
 
     def test_engine_allowlist_blocks_topic_plugin_wants(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
-        app.plugins[NotifierBase].append(notifier)
+        app.plugins[NotifierPluginBase].append(notifier)
         app.set_notifier_allowlist(notifier, frozenset({"general"}))
 
         app.notify("breach", topic="security")
@@ -134,7 +134,7 @@ class TestNotifierBase:
 
     def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
-        app.plugins[NotifierBase].append(notifier)
+        app.plugins[NotifierPluginBase].append(notifier)
         app.set_notifier_allowlist(notifier, None)
 
         app.notify("breach", topic="security")
@@ -144,7 +144,7 @@ class TestNotifierBase:
 
     def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
-        app.plugins[NotifierBase].append(security_only)
+        app.plugins[NotifierPluginBase].append(security_only)
 
         app.notify("new topic message", topic="general")
 
@@ -153,7 +153,7 @@ class TestNotifierBase:
     def test_notify_routes_by_topic(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
         all_topics = SimpleNotifier({})
-        app.plugins[NotifierBase].extend([security_only, all_topics])
+        app.plugins[NotifierPluginBase].extend([security_only, all_topics])
 
         app.notify("breach detected", topic="security")
         app.notify("new post", topic="content")
@@ -164,7 +164,7 @@ class TestNotifierBase:
 
     def test_notify_with_attachments_forwarded(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
-        app.plugins[NotifierBase].append(notifier)
+        app.plugins[NotifierPluginBase].append(notifier)
         fake_attachment = object()
 
         app.notify("msg", topic="general", attachments=[fake_attachment])  # type: ignore[list-item]
@@ -178,7 +178,7 @@ class TestNotifierBase:
 
 
 # ---------------------------------------------------------------------------
-# ContentFilterBase
+# ContentFilterPluginBase
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +191,7 @@ class _ShoutShortcode(Shortcode):
         return content.upper()
 
 
-class ShoutFilter(ContentFilterBase):
+class ShoutFilter(ContentFilterPluginBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -203,9 +203,9 @@ class ShoutFilter(ContentFilterBase):
         return {"shout": _ShoutShortcode()}
 
 
-class TestContentFilterBase:
+class TestContentFilterPluginBase:
     def test_default_returns_empty_dict(self) -> None:
-        class NoOpFilter(ContentFilterBase):
+        class NoOpFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -223,7 +223,7 @@ class TestContentFilterBase:
         self, base_config_data: dict[str, Any]
     ) -> None:
         app = _app_with_plugin(base_config_data, "shout", ShoutFilter)
-        assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterBase))
+        assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterPluginBase))
 
     def test_shortcodes_from_multiple_plugins_chainable(self) -> None:
         class _ATagSC(Shortcode):
@@ -242,7 +242,7 @@ class TestContentFilterBase:
                 """Wrap content in B()."""
                 return f"B({content})"
 
-        class AFilter(ContentFilterBase):
+        class AFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -251,7 +251,7 @@ class TestContentFilterBase:
                 """Return the atag shortcode."""
                 return {"atag": _ATagSC()}
 
-        class BFilter(ContentFilterBase):
+        class BFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -280,7 +280,7 @@ class TestRegisterPluginCapabilities:
 
         app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
         assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
-        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierBase))
+        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierPluginBase))
 
     def test_plugin_stored_under_concrete_type(self, base_config_data: dict[str, Any]) -> None:
         app = _app_with_plugin(base_config_data, "simple", SimpleNotifier)
@@ -289,7 +289,7 @@ class TestRegisterPluginCapabilities:
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class MultiPlugin(NotifierBase, ContentFilterBase):
+        class MultiPlugin(NotifierPluginBase, ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: set[NotificationTopic] = {"general"}
@@ -305,8 +305,8 @@ class TestRegisterPluginCapabilities:
                 pass
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
-        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierBase))
-        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(ContentFilterBase))
+        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierPluginBase))
+        assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(ContentFilterPluginBase))
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +375,7 @@ class TestBackwardCompatProcess:
     def test_new_capability_plugin_process_not_called(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class NewPlugin(NotifierBase):
+        class NewPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: set[NotificationTopic] = {"general"}
@@ -403,11 +403,11 @@ class TestBackwardCompatProcess:
 
 
 # ---------------------------------------------------------------------------
-# ContentFilterBase wiring in create_app_from_config
+# ContentFilterPluginBase wiring in create_app_from_config
 # ---------------------------------------------------------------------------
 
 
-class ShoutTagPlugin(ContentFilterBase):
+class ShoutTagPlugin(ContentFilterPluginBase):
     """Registers a [shout] shortcode via get_content_tags()."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -423,7 +423,7 @@ class _DummyJinjaExtension(jinja2.ext.Extension):
     tags = {"dummy_tag"}  # noqa: RUF012
 
 
-class JinjaExtPlugin(ContentFilterBase):
+class JinjaExtPlugin(ContentFilterPluginBase):
     """Test filter that exposes a Jinja2 extension."""
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -443,7 +443,7 @@ class TestContentFilterWiring:
     def test_filter_content_applies_shortcode(self, base_config_data: dict[str, Any]) -> None:
         """filter_content() must transform content via the plugin's shortcode handler."""
         app = _app_with_plugin(base_config_data, "shout", ShoutTagPlugin)
-        assert any(isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentFilterBase))
+        assert any(isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentFilterPluginBase))
         result = app.apply_content_filters("[shout]hello[/shout]", "post")
         assert result == "HELLO"
 
@@ -452,7 +452,7 @@ class TestContentFilterWiring:
     ) -> None:
         """Plugins only receive content types listed in accepted_content_types."""
 
-        class PostOnlyFilter(ContentFilterBase):
+        class PostOnlyFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = {"post"}
@@ -468,7 +468,7 @@ class TestContentFilterWiring:
     def test_engine_allowlist_blocks_content_type_plugin_wants(self, app: Engine) -> None:
         """Engine allowlist overrides plugin's declared accepted_content_types."""
 
-        class AllTypesFilter(ContentFilterBase):
+        class AllTypesFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -477,7 +477,7 @@ class TestContentFilterWiring:
                 return content + "[filtered]"
 
         f = AllTypesFilter({})
-        app.plugins[ContentFilterBase].append(f)
+        app.plugins[ContentFilterPluginBase].append(f)
         app.set_content_filter_allowlist(f, frozenset({"post"}))
 
         assert app.apply_content_filters("x", "post") == "x[filtered]"
@@ -487,7 +487,7 @@ class TestContentFilterWiring:
     def test_engine_allowlist_none_means_unrestricted(self, app: Engine) -> None:
         """None allowlist allows all content types the plugin declares."""
 
-        class AllTypesFilter(ContentFilterBase):
+        class AllTypesFilter(ContentFilterPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
@@ -496,7 +496,7 @@ class TestContentFilterWiring:
                 return content + "[filtered]"
 
         f = AllTypesFilter({})
-        app.plugins[ContentFilterBase].append(f)
+        app.plugins[ContentFilterPluginBase].append(f)
         app.set_content_filter_allowlist(f, None)
 
         assert app.apply_content_filters("x", "post") == "x[filtered]"

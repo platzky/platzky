@@ -1,4 +1,4 @@
-"""NotifierBase capability — plugins that send notifications."""
+"""NotifierPluginBase capability — plugins that send notifications."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import PluginBase
 
 
-class NotifierBase(PluginBase, ABC):
+class NotifierPluginBase(PluginBase, ABC):
     """Base class for notifier plugins.
 
     Subclasses declare which topics they want to receive via ``accepted_topics``.

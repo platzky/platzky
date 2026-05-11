@@ -21,7 +21,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.plugin.content_filter import ContentFilterBase
+from platzky.plugin.content_filter import ContentFilterPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -232,9 +232,9 @@ def create_app_from_config(config: Config) -> Engine:
                 "Check your telemetry settings in the configuration file."
             ) from e
 
-    # Register built-in shortcodes (image, link) as the first ContentFilterBase,
+    # Register built-in shortcodes (image, link) as the first ContentFilterPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
-    class _BuiltinShortcodeFilter(ContentFilterBase):
+    class _BuiltinShortcodeFilter(ContentFilterPluginBase):
         """Built-in image and link shortcodes, always registered for posts and pages."""
 
         def __init__(self, config: dict[str, Any]) -> None:
@@ -246,11 +246,11 @@ def create_app_from_config(config: Config) -> Engine:
             return get_builtin_shortcodes()
 
     _builtin_filter = _BuiltinShortcodeFilter({})
-    engine.plugins[ContentFilterBase].insert(0, _builtin_filter)
+    engine.plugins[ContentFilterPluginBase].insert(0, _builtin_filter)
     engine.shortcodes.update(_builtin_filter.get_content_tags())
 
     # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.
-    for _plugin in engine.get_plugins(ContentFilterBase):
+    for _plugin in engine.get_plugins(ContentFilterPluginBase):
         if _plugin is _builtin_filter:
             continue
         engine.shortcodes.update(_plugin.get_content_tags())

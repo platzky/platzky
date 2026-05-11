@@ -1,4 +1,4 @@
-"""ContentFilterBase capability — plugins that transform content."""
+"""ContentFilterPluginBase capability — plugins that transform content."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
 
-class ContentFilterBase(PluginBase, ABC):
+class ContentFilterPluginBase(PluginBase, ABC):
     """Base class for content-filter plugins.
 
     Subclasses declare which content types they want to transform via

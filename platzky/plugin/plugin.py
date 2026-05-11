@@ -39,7 +39,7 @@ class PluginBase(ABC):
     """Abstract base class for plugins.
 
     Plugin developers must extend this class to implement their plugins.
-    Implement capability-specific subclasses (NotifierBase, ContentFilterBase, etc.)
+    Implement capability-specific subclasses (NotifierPluginBase, ContentFilterPluginBase, etc.)
     rather than overriding process().
     """
 
@@ -92,7 +92,7 @@ class PluginBase(ABC):
         removed_in="2.0.0",
         details=(
             "Overriding process() is deprecated. Implement a capability subclass instead: "
-            "NotifierBase or ContentFilterBase."
+            "NotifierPluginBase or ContentFilterPluginBase."
         ),
     )
     def process(self, app: Any) -> Any:  # noqa: ANN401

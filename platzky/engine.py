@@ -31,8 +31,8 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
-from platzky.plugin.content_filter import ContentFilterBase
-from platzky.plugin.notifier import NotifierBase
+from platzky.plugin.content_filter import ContentFilterPluginBase
+from platzky.plugin.notifier import NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
-_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierBase, ContentFilterBase)
+_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentFilterPluginBase)
 
 
 class Engine(Flask):
@@ -94,8 +94,8 @@ class Engine(Flask):
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
-        self._notifier_topic_allowlist: dict[NotifierBase, frozenset[NotificationTopic]] = {}
-        self._content_filter_allowlist: dict[ContentFilterBase, frozenset[ContentType]] = {}
+        self._notifier_topic_allowlist: dict[NotifierPluginBase, frozenset[NotificationTopic]] = {}
+        self._content_filter_allowlist: dict[ContentFilterPluginBase, frozenset[ContentType]] = {}
         self.shortcodes: dict[str, Shortcode] = {}
 
         # Deprecated — kept for backward compatibility until v2.0
@@ -148,7 +148,7 @@ class Engine(Flask):
             notifier(message, attachments=attachments)
 
         # New capability-based path
-        for plugin in self.get_plugins(NotifierBase):
+        for plugin in self.get_plugins(NotifierPluginBase):
             if topic not in plugin.accepted_topics:
                 continue
             allowed = self._notifier_topic_allowlist.get(plugin, frozenset())
@@ -159,24 +159,24 @@ class Engine(Flask):
     @deprecation.deprecated(
         deprecated_in="1.5.0",
         removed_in="2.0.0",
-        details="Use NotifierBase subclass instead.",
+        details="Use NotifierPluginBase subclass instead.",
     )
     def add_notifier(self, notifier: Notifier) -> None:
         """Register a simple notifier (message only).
 
-        Deprecated: implement NotifierBase instead.
+        Deprecated: implement NotifierPluginBase instead.
         """
         self._notifiers.append(notifier)
 
     @deprecation.deprecated(
         deprecated_in="1.5.0",
         removed_in="2.0.0",
-        details="Use NotifierBase subclass instead.",
+        details="Use NotifierPluginBase subclass instead.",
     )
     def add_notifier_with_attachments(self, notifier: NotifierWithAttachments) -> None:
         """Register a notifier that supports attachments.
 
-        Deprecated: implement NotifierBase instead.
+        Deprecated: implement NotifierPluginBase instead.
         """
         self._notifiers_with_attachments.append(notifier)
 
@@ -186,7 +186,7 @@ class Engine(Flask):
         Checks plugin's declared ``accepted_content_types`` first, then the
         engine-enforced allowlist set via ``set_content_filter_allowlist``.
         """
-        for plugin in self.get_plugins(ContentFilterBase):
+        for plugin in self.get_plugins(ContentFilterPluginBase):
             if content_type not in plugin.accepted_content_types:
                 continue
             allowed = self._content_filter_allowlist.get(plugin, frozenset())
@@ -196,7 +196,7 @@ class Engine(Flask):
         return content
 
     def set_content_filter_allowlist(
-        self, plugin: ContentFilterBase, allowed_types: frozenset[ContentType]
+        self, plugin: ContentFilterPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
         """Register engine-enforced content-type allowlist for a content-filter plugin.
 
@@ -209,7 +209,7 @@ class Engine(Flask):
         """Register a plugin instance under all matching capability keys.
 
         Each recognised capability base class becomes a key in ``self.plugins`` so the
-        engine can look up e.g. all NotifierBase plugins without knowing concrete types.
+        engine can look up e.g. all NotifierPluginBase plugins without knowing concrete types.
         Plugins that don't match any capability are stored under PluginBase.
         """
         from platzky.plugin.plugin import PluginBase
@@ -271,15 +271,15 @@ class Engine(Flask):
         )
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin_capabilities(plugin_instance, plugin_name)
-        if isinstance(plugin_instance, NotifierBase):
+        if isinstance(plugin_instance, NotifierPluginBase):
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
-        if isinstance(plugin_instance, ContentFilterBase):
+        if isinstance(plugin_instance, ContentFilterPluginBase):
             app.set_content_filter_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 
     def set_notifier_allowlist(
-        self, plugin: NotifierBase, allowed_topics: frozenset[NotificationTopic]
+        self, plugin: NotifierPluginBase, allowed_topics: frozenset[NotificationTopic]
     ) -> None:
         """Register engine-enforced topic allowlist for a notifier.
 
