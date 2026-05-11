@@ -458,8 +458,8 @@ class AllTypesFilter(ContentTransformerPluginBase):
         super().__init__(config)
         self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
-    def transform_content(self, content: str) -> str:
-        return content + "[filtered]"
+    def transform_text(self, text: str) -> str:
+        return text + "[filtered]"
 
 
 class TestContentTransformerWiring:
@@ -487,8 +487,8 @@ class TestContentTransformerWiring:
                 super().__init__(config)
                 self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
 
-            def transform_content(self, content: str) -> str:
-                return content + "[filtered]"
+            def transform_text(self, text: str) -> str:
+                return text + "[filtered]"
 
         app = _app_with_plugin(base_config_data, "postonly", PostOnlyFilter)
         assert app.transform_content("text", "post") == "text[filtered]"

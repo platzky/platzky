@@ -52,6 +52,21 @@
         ]
       },
       {
+        "title": "Red letter post",
+        "author": "Test",
+        "excerpt": "Testing the red letter plugin.",
+        "language": "en",
+        "slug": "red-test",
+        "tags": [],
+        "contentInMarkdown": "Hello [red]danger[/red] world",
+        "date": "2024-01-01",
+        "coverImage": {
+          "alternateText": "red test",
+          "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
+        },
+        "comments": []
+      },
+      {
         "title": "title",
         "author": "autor",
         "excerpt": "post excerpt",
@@ -161,5 +176,15 @@
     }
   },
   "plugins": [
+    {
+      "name": "log_notifier",
+      "config": {},
+      "allowed_topics": ["general", "content", "security"]
+    },
+    {
+      "name": "red_letter",
+      "config": {},
+      "allowed_content_types": ["post", "page"]
+    }
   ]
 }

@@ -6,6 +6,7 @@ Two features:
 """
 
 import re
+from typing import ClassVar
 
 from platzky.content_types import ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
@@ -38,17 +39,16 @@ class _RedShortcode(Shortcode):
 class RedLetterPlugin(ContentTransformerPluginBase):
     """Colours every 'a' red and adds a [red] shortcode."""
 
-    accepted_content_types: set[ContentType] = {"post", "page"}
-    shortcodes = {"red": _RedShortcode()}
+    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"red": _RedShortcode()}
 
-    def transform_content(self, content: str) -> str:
-        """Apply shortcodes, then wrap each 'a' in a red span.
+    def transform_text(self, text: str) -> str:
+        """Wrap each 'a' in a red span.
 
         Args:
-            content: Raw post/page content.
+            text: Plain-text segment (no shortcode tag markup).
 
         Returns:
-            Transformed content with red 'a' letters and [red] shortcode resolved.
+            Text with every 'a' wrapped in ``<span style="color:red">``.
         """
-        content = super().transform_content(content)
-        return _A_RE.sub('<span style="color:red">a</span>', content)
+        return _A_RE.sub('<span style="color:red">a</span>', text)

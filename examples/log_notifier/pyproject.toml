@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "log-notifier"
+version = "0.1.0"
+description = "Example platzky notifier plugin — logs every notification."
+authors = []
+
+[tool.poetry.dependencies]
+python = "^3.10"
+platzky = "*"
+
+[tool.poetry.plugins."platzky.plugins"]
+log_notifier = "log_notifier:LogNotifier"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

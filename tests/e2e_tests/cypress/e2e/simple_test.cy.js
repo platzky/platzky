@@ -9,7 +9,7 @@ describe('Blog test', () => {
 
   it('display posts and leave comment in one of them', () => {
     posts()
-      .should('have.length', 2)
+      .should('have.length', 4)
       .first()
       .within( () => {
         cy.get('img')
