@@ -33,18 +33,18 @@ _ENTRY_POINT_GROUP = "platzky.plugins"
 
 def _extract_allowlists(
     pc: PluginConfigBase, plugin_class: type
-) -> tuple[frozenset[NotificationTopic] | None, frozenset[ContentType] | None]:
+) -> tuple[frozenset[NotificationTopic], frozenset[ContentType]]:
     raw = pc.model_dump()
-    allowed_topics: frozenset[NotificationTopic] | None = None
-    if issubclass(plugin_class, NotifierPluginBase):
-        notify_config = NotifyPluginConfig.model_validate(raw)
-        if "allowed_topics" in notify_config.model_fields_set:
-            allowed_topics = notify_config.allowed_topics
-    allowed_content_types: frozenset[ContentType] | None = None
-    if issubclass(plugin_class, ContentTransformerPluginBase):
-        ct_config = ContentTransformerPluginConfig.model_validate(raw)
-        if "allowed_content_types" in ct_config.model_fields_set:
-            allowed_content_types = ct_config.allowed_content_types
+    allowed_topics = (
+        NotifyPluginConfig.model_validate(raw).allowed_topics
+        if issubclass(plugin_class, NotifierPluginBase)
+        else frozenset()
+    )
+    allowed_content_types = (
+        ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
+        if issubclass(plugin_class, ContentTransformerPluginBase)
+        else frozenset()
+    )
     return allowed_topics, allowed_content_types
 
 

@@ -155,10 +155,7 @@ class Engine(Flask):
         for plugin in self.get_plugins(NotifierPluginBase):
             if topic not in plugin.accepted_topics:
                 continue
-            if (
-                plugin in self._notifier_topic_allowlist
-                and topic not in self._notifier_topic_allowlist[plugin]
-            ):
+            if topic not in self._notifier_topic_allowlist.get(plugin, frozenset()):
                 continue
             plugin.notify(message, topic, attachments, receiver)
 
@@ -195,10 +192,7 @@ class Engine(Flask):
         for plugin in self.get_plugins(ContentTransformerPluginBase):
             if content_type not in plugin.accepted_content_types:
                 continue
-            if (
-                plugin in self._content_transformer_allowlist
-                and content_type not in self._content_transformer_allowlist[plugin]
-            ):
+            if content_type not in self._content_transformer_allowlist.get(plugin, frozenset()):
                 continue
             content = plugin.transform_content(content)
         return content
@@ -206,9 +200,9 @@ class Engine(Flask):
     def set_content_transformer_allowlist(
         self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
-        """Register engine-enforced content-type allowlist for a content-filter plugin.
+        """Register engine-enforced content-type allowlist for a content-transformer plugin.
 
-        Empty frozenset blocks all content types. Plugin not in the allowlist means unrestricted.
+        Empty frozenset blocks all content types. Plugin absent from the allowlist is also blocked.
         Called by the plugin loader; not intended to be called from plugin code.
         """
         self._content_transformer_allowlist[plugin] = allowed_types
@@ -260,8 +254,8 @@ class Engine(Flask):
         plugin_class: "type[PluginBase]",
         plugin_config: dict[str, Any],
         plugin_name: str,
-        allowed_topics: frozenset[NotificationTopic] | None = None,
-        allowed_content_types: frozenset[ContentType] | None = None,
+        allowed_topics: frozenset[NotificationTopic] = frozenset(),
+        allowed_content_types: frozenset[ContentType] = frozenset(),
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
@@ -269,10 +263,10 @@ class Engine(Flask):
             plugin_class: The plugin class to instantiate.
             plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            allowed_topics: Topic allowlist for notifier plugins. ``None`` means unrestricted;
-                ``frozenset()`` blocks all topics; a non-empty frozenset restricts to those topics.
-            allowed_content_types: Content-type allowlist for filter plugins. ``None`` means
-                unrestricted; ``frozenset()`` blocks all types; a non-empty frozenset restricts.
+            allowed_topics: Topic allowlist for notifier plugins. ``frozenset()`` blocks all topics;
+                a non-empty frozenset restricts to those topics.
+            allowed_content_types: Content-type allowlist for transformer plugins.
+                ``frozenset()`` blocks all types; a non-empty frozenset restricts.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
@@ -292,12 +286,9 @@ class Engine(Flask):
         )
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin_capabilities(plugin_instance, plugin_name)
-        if isinstance(plugin_instance, NotifierPluginBase) and allowed_topics is not None:
+        if isinstance(plugin_instance, NotifierPluginBase):
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
-        if (
-            isinstance(plugin_instance, ContentTransformerPluginBase)
-            and allowed_content_types is not None
-        ):
+        if isinstance(plugin_instance, ContentTransformerPluginBase):
             app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
@@ -307,7 +298,7 @@ class Engine(Flask):
     ) -> None:
         """Register engine-enforced topic allowlist for a notifier.
 
-        Empty frozenset blocks all topics. Plugin not in the allowlist means unrestricted.
+        Empty frozenset blocks all topics. Plugin absent from the allowlist is also blocked.
         Called by the plugin loader; not accessible to plugin code.
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics

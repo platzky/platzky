@@ -51,7 +51,14 @@ def app(base_config_data: dict[str, Any]) -> Engine:
 
 def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: type) -> Engine:
     """Load a single plugin via a mocked entry point and return the fully configured app."""
-    base_config_data["DB"]["DATA"]["plugins"] = [{"name": name, "config": {}}]
+    base_config_data["DB"]["DATA"]["plugins"] = [
+        {
+            "name": name,
+            "config": {},
+            "allowed_content_types": list(ALL_CONTENT_TYPES),
+            "allowed_topics": ["general", "content", "security"],
+        }
+    ]
     config = Config.model_validate(base_config_data)
     ep = mock.MagicMock()
     ep.name = name
@@ -107,6 +114,7 @@ class TestNotifierPluginBase:
     def test_notifier_receives_matching_topic(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.plugins[NotifierPluginBase].append(notifier)
+        app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
 
         app.notify("hello", topic="general")
 
@@ -115,6 +123,7 @@ class TestNotifierPluginBase:
     def test_notifier_only_receives_declared_topics(self, app: Engine) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security"]})
         app.plugins[NotifierPluginBase].append(notifier)
+        app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
 
         app.notify("breach", topic="security")
         app.notify("new post", topic="content")
@@ -134,14 +143,14 @@ class TestNotifierPluginBase:
         assert len(notifier.received) == 1
         assert notifier.received[0][1] == "general"
 
-    def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
+    def test_engine_without_allowlist_is_blocked(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.plugins[NotifierPluginBase].append(notifier)
 
         app.notify("breach", topic="security")
         app.notify("hi", topic="general")
 
-        assert len(notifier.received) == 2
+        assert len(notifier.received) == 0
 
     def test_new_topic_not_received_without_explicit_opt_in(self, app: Engine) -> None:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
@@ -155,6 +164,8 @@ class TestNotifierPluginBase:
         security_only = TopicFilteredNotifier({"accepted_topics": ["security"]})
         all_topics = SimpleNotifier({})
         app.plugins[NotifierPluginBase].extend([security_only, all_topics])
+        app.set_notifier_allowlist(security_only, frozenset(_ALL_TOPICS))
+        app.set_notifier_allowlist(all_topics, frozenset(_ALL_TOPICS))
 
         app.notify("breach detected", topic="security")
         app.notify("new post", topic="content")
@@ -166,6 +177,7 @@ class TestNotifierPluginBase:
     def test_notify_with_attachments_forwarded(self, app: Engine) -> None:
         notifier = SimpleNotifier({})
         app.plugins[NotifierPluginBase].append(notifier)
+        app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
         fake_attachment = object()
 
         app.notify("msg", topic="general", attachments=[fake_attachment])  # type: ignore[list-item]
@@ -493,8 +505,8 @@ class TestContentTransformerWiring:
         assert app.transform_content("x", "page") == "x"
         assert app.transform_content("x", "comment") == "x"
 
-    def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
-        """Plugin with no allowlist registered passes all accepted content types."""
+    def test_engine_without_allowlist_is_blocked(self, app: Engine) -> None:
+        """Plugin with no allowlist registered is blocked for all content types."""
 
         class AllTypesFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
@@ -507,8 +519,8 @@ class TestContentTransformerWiring:
         f = AllTypesFilter({})
         app.plugins[ContentTransformerPluginBase].append(f)
 
-        assert app.transform_content("x", "post") == "x[filtered]"
-        assert app.transform_content("x", "comment") == "x[filtered]"
+        assert app.transform_content("x", "post") == "x"
+        assert app.transform_content("x", "comment") == "x"
 
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
