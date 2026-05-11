@@ -18,7 +18,7 @@ from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_filter import ContentFilterBase
 from platzky.plugin.notifier import NotifierBase
 from platzky.plugin.plugin import PluginBase
-from platzky.shortcodes import Shortcode, apply_shortcodes
+from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -186,7 +186,7 @@ class _ShoutShortcode(Shortcode):
     name = "shout"
     description = "Upper-case content."
 
-    def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Return content in upper case."""
         return content.upper()
 
@@ -217,7 +217,7 @@ class TestContentFilterBase:
         f = ShoutFilter({})
         tags = f.get_content_tags()
         assert "shout" in tags
-        assert tags["shout"].handle({}, "hello") == "HELLO"
+        assert tags["shout"].handle(ShortcodeAttrs([]), "hello") == "HELLO"
 
     def test_filters_registered_under_capability_key(
         self, base_config_data: dict[str, Any]
@@ -230,7 +230,7 @@ class TestContentFilterBase:
             name = "atag"
             description = "wrap in A"
 
-            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 """Wrap content in A()."""
                 return f"A({content})"
 
@@ -238,7 +238,7 @@ class TestContentFilterBase:
             name = "btag"
             description = "wrap in B"
 
-            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 """Wrap content in B()."""
                 return f"B({content})"
 

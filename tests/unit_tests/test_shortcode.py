@@ -1,17 +1,17 @@
 """Tests for the shortcode parser."""
 
-from platzky.shortcodes import Shortcode, apply_shortcodes
+from platzky.shortcodes import Shortcode, ShortcodeAttrs, apply_shortcodes
 
 
 def _sc(tag: str) -> Shortcode:
     """Build a minimal Shortcode that records calls."""
-    calls: list[tuple[dict[str, str], str]] = []
+    calls: list[tuple[ShortcodeAttrs, str]] = []
 
     class _SC(Shortcode):
         name = tag
         description = "test"
 
-        def handle(self, attrs: dict[str, str], content: str) -> str:
+        def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
             calls.append((attrs, content))
             return f"[RENDERED:{tag}:{content}]"
 
@@ -39,13 +39,13 @@ class TestApplyShortcodes:
         assert result == "[RENDERED:greet:hello]"
 
     def test_void_tag_calls_handler_with_empty_content(self) -> None:
-        calls: list[tuple[dict[str, str], str]] = []
+        calls: list[tuple[ShortcodeAttrs, str]] = []
 
         class _ImgSC(Shortcode):
             name = "img"
             description = "test"
 
-            def handle(self, attrs: dict[str, str], content: str) -> str:
+            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
                 calls.append((attrs, content))
                 return "<img>"
 
@@ -53,13 +53,13 @@ class TestApplyShortcodes:
         assert calls == [({"url": "x.jpg"}, "")]
 
     def test_attrs_parsed_into_dict(self) -> None:
-        received: list[dict[str, str]] = []
+        received: list[ShortcodeAttrs] = []
 
         class _FooSC(Shortcode):
             name = "foo"
             description = "test"
 
-            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+            def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 received.append(attrs)
                 return ""
 

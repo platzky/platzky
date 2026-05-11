@@ -11,7 +11,7 @@ Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -33,16 +33,57 @@ class ShortcodeAttr:
     default: str | None = None
 
 
+class ShortcodeAttrs:
+    """Attribute schema and parsed values for a shortcode tag.
+
+    Used as a class variable to declare the schema (iterable for the help page)
+    and as the ``attrs`` argument to ``Shortcode.handle`` populated with parsed values.
+    """
+
+    def __init__(self, attrs: list[ShortcodeAttr], values: dict[str, str] | None = None) -> None:
+        """Initialise with a schema and optional parsed values."""
+        self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
+        self._values: dict[str, str] = values or {}
+
+    def __iter__(self) -> Iterator[ShortcodeAttr]:
+        """Iterate over the attribute schema (for the help-page template)."""
+        return iter(self._schema.values())
+
+    def __bool__(self) -> bool:
+        """Return True if the schema declares any attributes."""
+        return bool(self._schema)
+
+    def __getattr__(self, name: str) -> str:
+        """Return the parsed value, falling back to the declared default."""
+        if name in self._values:
+            return self._values[name]
+        if name in self._schema:
+            return self._schema[name].default or ""
+        raise AttributeError(f"No shortcode attribute {name!r}")
+
+    def __eq__(self, other: object) -> bool:
+        """Support comparison with plain dicts for test assertions."""
+        if isinstance(other, dict):
+            return self._values == other
+        if isinstance(other, ShortcodeAttrs):
+            return self._values == other._values
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        """Return a readable representation showing schema keys and values."""
+        return f"ShortcodeAttrs({list(self._schema)!r}, values={self._values!r})"
+
+
 class Shortcode(ABC):
     """Base class for a registered shortcode tag. Subclass and implement ``handle``."""
 
     name: str
     description: str
-    attributes: ClassVar[list[ShortcodeAttr]] = []
+    attributes: ClassVar[ShortcodeAttrs] = ShortcodeAttrs([])
     example: str = ""
 
     @abstractmethod
-    def handle(self, attrs: dict[str, str], content: str) -> str:
+    def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render the shortcode tag and return the replacement HTML."""
 
 
@@ -66,11 +107,12 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
 
         def _replace(m: re.Match[str]) -> str:
             """Dispatch a matched shortcode tag to its registered handler."""
-            attrs = dict(_ATTR_RE.findall(m.group(2) or ""))
+            sc = shortcodes[m.group(1)]
+            attrs = ShortcodeAttrs(list(sc.attributes), dict(_ATTR_RE.findall(m.group(2) or "")))
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
-            return shortcodes[m.group(1)].handle(attrs, inner)
+            return sc.handle(attrs, inner)
 
         return pattern.sub(_replace, content)
 
