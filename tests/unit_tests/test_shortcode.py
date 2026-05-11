@@ -1,7 +1,16 @@
 """Tests for the shortcode parser."""
 
-from platzky.plugin.content_transformer import _apply_shortcodes
+from platzky.content_types import ALL_CONTENT_TYPES, ContentType
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
+
+
+def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
+    class _TestPlugin(ContentTransformerPluginBase):
+        accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+
+    _TestPlugin.shortcodes = shortcodes
+    return _TestPlugin({}).transform_content(content)
 
 
 def _sc(tag: str) -> Shortcode:

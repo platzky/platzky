@@ -42,7 +42,7 @@ class ShortcodeAttrs:
             attrs: Attribute schema defining names, descriptions, and defaults.
         """
         self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
-        self._values: dict[str, str] = {}
+        self.values: dict[str, str] = {}
 
     def __iter__(self) -> Iterator[ShortcodeAttr]:
         """Iterate over the attribute schema (for the help-page template)."""
@@ -66,8 +66,8 @@ class ShortcodeAttrs:
         """
         if name.startswith("_"):
             raise AttributeError(name)
-        if name in self._values:
-            return self._values[name]
+        if name in self.values:
+            return self.values[name]
         if name in self._schema:
             return ""
         raise AttributeError(f"No shortcode attribute {name!r}")
@@ -82,14 +82,14 @@ class ShortcodeAttrs:
             True if the parsed values match; NotImplemented for other types.
         """
         if isinstance(other, dict):
-            return self._values == other
+            return self.values == other
         if isinstance(other, ShortcodeAttrs):
-            return self._values == other._values
+            return self.values == other.values
         return NotImplemented
 
     def __repr__(self) -> str:
         """Return a readable representation showing schema keys and values."""
-        return f"ShortcodeAttrs({list(self._schema)!r}, values={self._values!r})"
+        return f"ShortcodeAttrs({list(self._schema)!r}, values={self.values!r})"
 
 
 class Shortcode(ABC):

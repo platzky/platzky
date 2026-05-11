@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
-from platzky.plugin.content_transformer import _apply_shortcodes
+from platzky.content_types import ALL_CONTENT_TYPES, ContentType
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 
-_builtins = get_builtin_shortcodes()
+
+class _BuiltinTestPlugin(ContentTransformerPluginBase):
+    accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+
+
+_BuiltinTestPlugin.shortcodes = get_builtin_shortcodes()
 
 
 def _apply(content: str) -> str:
-    return _apply_shortcodes(content, _builtins)
+    return _BuiltinTestPlugin({}).transform_content(content)
 
 
 class TestImageShortcode:

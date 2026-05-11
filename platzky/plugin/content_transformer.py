@@ -31,7 +31,7 @@ def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
         def _replace(m: re.Match[str]) -> str:
             sc = shortcodes[m.group(1)]
             attrs = ShortcodeAttrs(list(sc.attributes))
-            attrs._values = dict(_ATTR_RE.findall(m.group(2) or ""))
+            attrs.values = dict(_ATTR_RE.findall(m.group(2) or ""))
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
