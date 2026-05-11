@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC
+from typing import ClassVar
 
 import jinja2.ext
 
@@ -48,18 +49,19 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     ``accepted_content_types``. The engine enforces final routing — plugins
     cannot bypass user-configured content-type restrictions.
 
-    Override ``transform_content`` for arbitrary text transformations (e.g. emoji
-    replacement). Override ``get_supported_shortcodes`` to register shortcode tags; the
-    default ``transform_content`` applies them automatically.
+    Declare ``shortcodes`` to register shortcode tags; the default
+    ``transform_content`` applies them automatically. Override
+    ``transform_content`` for arbitrary transformations that don't use
+    shortcode syntax (e.g. emoji replacement).
     """
 
     accepted_content_types: set[ContentType]
+    shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
     def transform_content(self, content: str) -> str:
         """Apply this plugin's transformation to a content string.
 
-        Default: applies shortcodes returned by ``get_supported_shortcodes()``.
-        Override for arbitrary transformations that don't use shortcode syntax.
+        Default: applies ``shortcodes``. Override for custom transformations.
 
         Args:
             content: Raw content string to transform.
@@ -67,17 +69,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         Returns:
             Transformed content string.
         """
-        return _apply_shortcodes(content, self.get_supported_shortcodes())
-
-    def get_supported_shortcodes(self) -> dict[str, Shortcode]:
-        """Return shortcode tags this plugin handles.
-
-        Used by the default ``transform_content()`` and exposed on the admin help page.
-
-        Returns:
-            Map of tag name to Shortcode; empty dict if no shortcodes registered.
-        """
-        return {}
+        return _apply_shortcodes(content, self.shortcodes)
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         """Return Jinja2 extension classes to register with the template engine.

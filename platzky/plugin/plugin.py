@@ -61,8 +61,7 @@ class PluginBase(ABC):
 
         return locale_dir if os.path.isdir(locale_dir) else None
 
-    @abstractmethod
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:  # noqa: ARG002
         super().__init__()
 
     def get_info(self) -> PluginInfo:
