@@ -113,6 +113,7 @@ class TestPlugin(PluginBase):
                 mock_module = mock.MagicMock()
                 mock_module.MaliciousPlugin = MaliciousPlugin
                 mock_module.__file__ = str(plugin_dir / "__init__.py")
+                mock_module.__name__ = MaliciousPlugin.__module__
                 mock_find.return_value = mock_module
 
                 base_config_data["DB"]["DATA"]["plugins"] = [

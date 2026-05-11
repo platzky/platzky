@@ -125,7 +125,12 @@ def find_plugin(plugin_name: str) -> ModuleType:
 def _is_class_plugin(plugin_module: ModuleType) -> type[PluginBase] | None:
     """Check if the plugin module contains a PluginBase implementation."""
     for _, obj in inspect.getmembers(plugin_module):
-        if inspect.isclass(obj) and issubclass(obj, PluginBase) and obj != PluginBase:
+        if (
+            inspect.isclass(obj)
+            and issubclass(obj, PluginBase)
+            and obj is not PluginBase
+            and obj.__module__ == plugin_module.__name__
+        ):
             return obj
     return None
 
