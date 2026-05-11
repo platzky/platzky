@@ -27,7 +27,9 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = False  # NOSONAR - CSRF intentionally disabled in test context
+        app.config["WTF_CSRF_ENABLED"] = (
+            False  # NOSONAR - CSRF intentionally disabled in test context
+        )
 
         with app.test_request_context():
             mock_config.use_www = False
@@ -45,7 +47,9 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = False  # NOSONAR - CSRF intentionally disabled in test context
+        app.config["WTF_CSRF_ENABLED"] = (
+            False  # NOSONAR - CSRF intentionally disabled in test context
+        )
 
         with app.test_request_context():
             mock_config.use_www = False
@@ -64,7 +68,9 @@ class TestPlatzky:
         }
 
         app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = False  # NOSONAR - CSRF intentionally disabled in test context
+        app.config["WTF_CSRF_ENABLED"] = (
+            False  # NOSONAR - CSRF intentionally disabled in test context
+        )
 
         with app.test_request_context():
             mock_config.use_www = False
