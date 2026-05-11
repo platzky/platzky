@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
@@ -134,7 +134,7 @@ class Engine(Flask):
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: list[AttachmentProtocol] = [],
+        attachments: Sequence[AttachmentProtocol] = (),
         receiver: str = "",
     ) -> None:
         """Send a notification to all registered notifiers.
@@ -142,7 +142,7 @@ class Engine(Flask):
         Args:
             message: The notification message text.
             topic: Notification topic for routing (default ``"general"``).
-            attachments: Attachments to include; empty list if none.
+            attachments: Attachments to include; empty sequence if none.
             receiver: Target recipient identifier; empty string means broadcast.
         """
         # Legacy path

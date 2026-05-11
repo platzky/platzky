@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from platzky.attachment import AttachmentProtocol
 from platzky.notification_topics import NotificationTopic
@@ -35,20 +36,20 @@ class AttachmentNotifierPluginBase(NotifierPluginBase, ABC):
     """Notifier plugin that handles file attachments.
 
     Subclasses implement ``notify_with_attachments``; the engine calls it when
-    attachments are present. ``notify`` delegates to it with an empty list so
+    attachments are present. ``notify`` delegates to it with an empty tuple so
     the plugin also works when no attachments are sent.
     """
 
     def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
         """Delegate to notify_with_attachments with no attachments."""
-        self.notify_with_attachments(message, topic, [], receiver)
+        self.notify_with_attachments(message, topic, (), receiver)
 
     @abstractmethod
     def notify_with_attachments(
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol],
+        attachments: Sequence[AttachmentProtocol],
         receiver: str = "",
     ) -> None:
         """Send a notification with attachments.

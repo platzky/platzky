@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 from unittest import mock
 
@@ -97,13 +98,13 @@ class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, list[AttachmentProtocol]]] = []
+        self.received: list[tuple[str, str, Sequence[AttachmentProtocol]]] = []
 
     def notify_with_attachments(
         self,
         message: str,
         topic: NotificationTopic,
-        attachments: list[AttachmentProtocol],
+        attachments: Sequence[AttachmentProtocol],
         receiver: str = "",  # noqa: ARG002
     ) -> None:
         self.received.append((message, topic, attachments))
