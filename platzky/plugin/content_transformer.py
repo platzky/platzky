@@ -55,7 +55,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     shortcode syntax (e.g. emoji replacement).
     """
 
-    accepted_content_types: set[ContentType]
+    accepted_content_types: frozenset[ContentType]
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
     def transform_content(self, content: str) -> str:

@@ -3,7 +3,6 @@
 import logging
 import typing as t
 import urllib.parse
-from typing import Any
 
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
@@ -25,7 +24,6 @@ from platzky.feature_flags import FakeLogin
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
-from platzky.shortcodes import Shortcode
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
@@ -41,7 +39,7 @@ _MISSING_OTEL_MSG = (
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
     """Built-in image and link shortcodes, always registered for posts and pages."""
 
-    accepted_content_types: set[ContentType] = {"post", "page"}
+    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
     shortcodes = get_builtin_shortcodes()
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, ClassVar
 from unittest import mock
 
 import jinja2.ext
@@ -16,10 +16,9 @@ from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.content_transformer import ContentTransformerPluginBase, _apply_shortcodes
 from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
-from platzky.plugin.content_transformer import _apply_shortcodes
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
 # ---------------------------------------------------------------------------
@@ -225,14 +224,14 @@ class _ShoutShortcode(Shortcode):
 class ShoutFilter(ContentTransformerPluginBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
-    accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-    shortcodes = {"shout": _ShoutShortcode()}
+    accepted_content_types: ClassVar[frozenset[ContentType]] = set(ALL_CONTENT_TYPES)
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 class TestContentTransformerPluginBase:
     def test_default_returns_empty_dict(self) -> None:
         class NoOpFilter(ContentTransformerPluginBase):
-            accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+            accepted_content_types: ClassVar[frozenset[ContentType]] = set(ALL_CONTENT_TYPES)
 
         f = NoOpFilter({})
         assert f.shortcodes == {}
@@ -268,12 +267,12 @@ class TestContentTransformerPluginBase:
                 return f"B({content})"
 
         class AFilter(ContentTransformerPluginBase):
-            accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-            shortcodes = {"atag": _ATagSC()}
+            accepted_content_types: ClassVar[frozenset[ContentType]] = set(ALL_CONTENT_TYPES)
+            shortcodes: ClassVar[dict[str, Shortcode]] = {"atag": _ATagSC()}
 
         class BFilter(ContentTransformerPluginBase):
-            accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-            shortcodes = {"btag": _BTagSC()}
+            accepted_content_types: ClassVar[frozenset[ContentType]] = set(ALL_CONTENT_TYPES)
+            shortcodes: ClassVar[dict[str, Shortcode]] = {"btag": _BTagSC()}
 
         combined = {**AFilter.shortcodes, **BFilter.shortcodes}
         result = _apply_shortcodes("[atag]x[/atag] [btag]y[/btag]", combined)
@@ -308,7 +307,7 @@ class TestRegisterPluginCapabilities:
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: set[NotificationTopic] = {"general"}
-                self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+                self.accepted_content_types: frozenset[ContentType] = set(ALL_CONTENT_TYPES)
 
             def notify(
                 self,
@@ -428,8 +427,8 @@ class TestBackwardCompatProcess:
 class ShoutTagPlugin(ContentTransformerPluginBase):
     """Registers a [shout] shortcode."""
 
-    accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
-    shortcodes = {"shout": _ShoutShortcode()}
+    accepted_content_types: ClassVar[frozenset[ContentType]] = set(ALL_CONTENT_TYPES)
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 class _DummyJinjaExtension(jinja2.ext.Extension):
@@ -441,7 +440,7 @@ class JinjaExtPlugin(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+        self.accepted_content_types: frozenset[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         return [_DummyJinjaExtension]
@@ -452,7 +451,7 @@ class AllTypesFilter(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
+        self.accepted_content_types: frozenset[ContentType] = set(ALL_CONTENT_TYPES)
 
     def transform_content(self, content: str) -> str:
         return content + "[filtered]"
@@ -481,7 +480,7 @@ class TestContentTransformerWiring:
         class PostOnlyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: set[ContentType] = {"post"}
+                self.accepted_content_types: frozenset[ContentType] = {"post"}
 
             def transform_content(self, content: str) -> str:
                 return content + "[filtered]"

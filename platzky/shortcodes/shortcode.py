@@ -121,6 +121,3 @@ class Shortcode(ABC):
         Returns:
             Replacement HTML string.
         """
-
-
-

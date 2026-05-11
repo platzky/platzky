@@ -6,7 +6,7 @@ import inspect
 import logging
 import os
 import types
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Optional
 
