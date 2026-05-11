@@ -19,10 +19,10 @@ class PluginConfigBase(BaseModel):
 class NotifyPluginConfig(PluginConfigBase):
     """Plugin config for NotifierPluginBase plugins — carries the topic allowlist."""
 
-    allowed_topics: frozenset[NotificationTopic] | None = None
+    allowed_topics: frozenset[NotificationTopic] = frozenset()
 
 
 class ContentTransformerPluginConfig(PluginConfigBase):
     """Plugin config for ContentTransformerPluginBase — carries the content-type allowlist."""
 
-    allowed_content_types: frozenset[ContentType] | None = None
+    allowed_content_types: frozenset[ContentType] = frozenset()
