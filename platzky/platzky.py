@@ -277,7 +277,7 @@ def create_app_from_config(config: Config) -> Engine:
         db=engine.db,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
-        content_transformer=engine.apply_content_transforms,
+        content_transformer=engine.transform_content,
     )
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale

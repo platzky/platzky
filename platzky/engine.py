@@ -186,7 +186,7 @@ class Engine(Flask):
         """
         self._notifiers_with_attachments.append(notifier)
 
-    def apply_content_transforms(self, content: str, content_type: ContentType) -> str:
+    def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
 
         Checks plugin's declared ``accepted_content_types`` first, then the

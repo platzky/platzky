@@ -453,7 +453,7 @@ class TestContentTransformerWiring:
         assert any(
             isinstance(p, ShoutTagPlugin) for p in app.get_plugins(ContentTransformerPluginBase)
         )
-        result = app.apply_content_transforms("[shout]hello[/shout]", "post")
+        result = app.transform_content("[shout]hello[/shout]", "post")
         assert result == "HELLO"
 
     def test_filter_only_applied_to_declared_content_type(
@@ -470,9 +470,9 @@ class TestContentTransformerWiring:
                 return content + "[filtered]"
 
         app = _app_with_plugin(base_config_data, "postonly", PostOnlyFilter)
-        assert app.apply_content_transforms("text", "post") == "text[filtered]"
-        assert app.apply_content_transforms("text", "page") == "text"
-        assert app.apply_content_transforms("text", "comment") == "text"
+        assert app.transform_content("text", "post") == "text[filtered]"
+        assert app.transform_content("text", "page") == "text"
+        assert app.transform_content("text", "comment") == "text"
 
     def test_engine_allowlist_blocks_content_type_plugin_wants(self, app: Engine) -> None:
         """Engine allowlist overrides plugin's declared accepted_content_types."""
@@ -489,9 +489,9 @@ class TestContentTransformerWiring:
         app.plugins[ContentTransformerPluginBase].append(f)
         app.set_content_transformer_allowlist(f, frozenset({"post"}))
 
-        assert app.apply_content_transforms("x", "post") == "x[filtered]"
-        assert app.apply_content_transforms("x", "page") == "x"
-        assert app.apply_content_transforms("x", "comment") == "x"
+        assert app.transform_content("x", "post") == "x[filtered]"
+        assert app.transform_content("x", "page") == "x"
+        assert app.transform_content("x", "comment") == "x"
 
     def test_engine_without_allowlist_is_unrestricted(self, app: Engine) -> None:
         """Plugin with no allowlist registered passes all accepted content types."""
@@ -507,8 +507,8 @@ class TestContentTransformerWiring:
         f = AllTypesFilter({})
         app.plugins[ContentTransformerPluginBase].append(f)
 
-        assert app.apply_content_transforms("x", "post") == "x[filtered]"
-        assert app.apply_content_transforms("x", "comment") == "x[filtered]"
+        assert app.transform_content("x", "post") == "x[filtered]"
+        assert app.transform_content("x", "comment") == "x[filtered]"
 
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
