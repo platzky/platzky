@@ -145,7 +145,7 @@ class Engine(Flask):
             attachments: Attachments to include; empty sequence if none.
             receiver: Target recipient identifier; empty string means broadcast.
         """
-        # Legacy path
+        # Legacy path — TODO(2.0.0): remove both lists and merge into NotifierPluginBase only
         for notifier in self._notifiers:
             notifier(message)
         for notifier in self._notifiers_with_attachments:
