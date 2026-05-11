@@ -10,8 +10,10 @@ Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 """
 
 import re
+from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import ClassVar
 
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048
@@ -31,15 +33,17 @@ class ShortcodeAttr:
     default: str | None = None
 
 
-@dataclass
-class Shortcode:
-    """Descriptor for a registered shortcode tag."""
+class Shortcode(ABC):
+    """Base class for a registered shortcode tag. Subclass and implement ``handle``."""
 
     name: str
-    handler: Callable[[dict[str, str], str], str]
     description: str
-    attributes: list[ShortcodeAttr] = field(default_factory=list)
+    attributes: ClassVar[list[ShortcodeAttr]] = []
     example: str = ""
+
+    @abstractmethod
+    def handle(self, attrs: dict[str, str], content: str) -> str:
+        """Render the shortcode tag and return the replacement HTML."""
 
 
 def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], str]:
@@ -66,7 +70,7 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
-            return shortcodes[m.group(1)].handler(attrs, inner)
+            return shortcodes[m.group(1)].handle(attrs, inner)
 
         return pattern.sub(_replace, content)
 

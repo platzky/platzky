@@ -1,19 +1,21 @@
 """Tests for the shortcode parser."""
 
-from __future__ import annotations
-
 from platzky.shortcodes import Shortcode, apply_shortcodes
 
 
-def _sc(name: str) -> Shortcode:
+def _sc(tag: str) -> Shortcode:
     """Build a minimal Shortcode that records calls."""
     calls: list[tuple[dict[str, str], str]] = []
 
-    def handler(attrs: dict[str, str], content: str) -> str:
-        calls.append((attrs, content))
-        return f"[RENDERED:{name}:{content}]"
+    class _SC(Shortcode):
+        name = tag
+        description = "test"
 
-    sc = Shortcode(name=name, handler=handler, description="test")
+        def handle(self, attrs: dict[str, str], content: str) -> str:
+            calls.append((attrs, content))
+            return f"[RENDERED:{tag}:{content}]"
+
+    sc = _SC()
     sc._calls = calls  # type: ignore[attr-defined]
     return sc
 
@@ -39,23 +41,29 @@ class TestApplyShortcodes:
     def test_void_tag_calls_handler_with_empty_content(self) -> None:
         calls: list[tuple[dict[str, str], str]] = []
 
-        def handler(attrs: dict[str, str], content: str) -> str:
-            calls.append((attrs, content))
-            return "<img>"
+        class _ImgSC(Shortcode):
+            name = "img"
+            description = "test"
 
-        sc = Shortcode(name="img", handler=handler, description="test")
-        apply_shortcodes('[img url="x.jpg"]', {"img": sc})
+            def handle(self, attrs: dict[str, str], content: str) -> str:
+                calls.append((attrs, content))
+                return "<img>"
+
+        apply_shortcodes('[img url="x.jpg"]', {"img": _ImgSC()})
         assert calls == [({"url": "x.jpg"}, "")]
 
     def test_attrs_parsed_into_dict(self) -> None:
         received: list[dict[str, str]] = []
 
-        def handler(attrs: dict[str, str], _content: str) -> str:
-            received.append(attrs)
-            return ""
+        class _FooSC(Shortcode):
+            name = "foo"
+            description = "test"
 
-        sc = Shortcode(name="foo", handler=handler, description="test")
-        apply_shortcodes('[foo color="#f00" size="large"]x[/foo]', {"foo": sc})
+            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+                received.append(attrs)
+                return ""
+
+        apply_shortcodes('[foo color="#f00" size="large"]x[/foo]', {"foo": _FooSC()})
         assert received == [{"color": "#f00", "size": "large"}]
 
     def test_multiple_different_tags_both_replaced(self) -> None:

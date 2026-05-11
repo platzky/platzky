@@ -182,6 +182,15 @@ class TestNotifierBase:
 # ---------------------------------------------------------------------------
 
 
+class _ShoutShortcode(Shortcode):
+    name = "shout"
+    description = "Upper-case content."
+
+    def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+        """Return content in upper case."""
+        return content.upper()
+
+
 class ShoutFilter(ContentFilterBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
@@ -190,13 +199,8 @@ class ShoutFilter(ContentFilterBase):
         self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_content_tags(self) -> dict[str, Shortcode]:
-        return {
-            "shout": Shortcode(
-                name="shout",
-                handler=lambda _attrs, content: content.upper(),
-                description="Upper-case content.",
-            )
-        }
+        """Return the shout shortcode."""
+        return {"shout": _ShoutShortcode()}
 
 
 class TestContentFilterBase:
@@ -213,7 +217,7 @@ class TestContentFilterBase:
         f = ShoutFilter({})
         tags = f.get_content_tags()
         assert "shout" in tags
-        assert tags["shout"].handler({}, "hello") == "HELLO"
+        assert tags["shout"].handle({}, "hello") == "HELLO"
 
     def test_filters_registered_under_capability_key(
         self, base_config_data: dict[str, Any]
@@ -222,19 +226,30 @@ class TestContentFilterBase:
         assert any(isinstance(p, ShoutFilter) for p in app.get_plugins(ContentFilterBase))
 
     def test_shortcodes_from_multiple_plugins_chainable(self) -> None:
+        class _ATagSC(Shortcode):
+            name = "atag"
+            description = "wrap in A"
+
+            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+                """Wrap content in A()."""
+                return f"A({content})"
+
+        class _BTagSC(Shortcode):
+            name = "btag"
+            description = "wrap in B"
+
+            def handle(self, attrs: dict[str, str], content: str) -> str:  # noqa: ARG002
+                """Wrap content in B()."""
+                return f"B({content})"
+
         class AFilter(ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
             def get_content_tags(self) -> dict[str, Shortcode]:
-                return {
-                    "atag": Shortcode(
-                        name="atag",
-                        handler=lambda _attrs, content: f"A({content})",
-                        description="wrap in A",
-                    )
-                }
+                """Return the atag shortcode."""
+                return {"atag": _ATagSC()}
 
         class BFilter(ContentFilterBase):
             def __init__(self, config: dict[str, Any]) -> None:
@@ -242,13 +257,8 @@ class TestContentFilterBase:
                 self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
             def get_content_tags(self) -> dict[str, Shortcode]:
-                return {
-                    "btag": Shortcode(
-                        name="btag",
-                        handler=lambda _attrs, content: f"B({content})",
-                        description="wrap in B",
-                    )
-                }
+                """Return the btag shortcode."""
+                return {"btag": _BTagSC()}
 
         combined = {**AFilter({}).get_content_tags(), **BFilter({}).get_content_tags()}
         result = apply_shortcodes("[atag]x[/atag] [btag]y[/btag]", combined)
@@ -405,13 +415,8 @@ class ShoutTagPlugin(ContentFilterBase):
         self.accepted_content_types: set[ContentType] = set(ALL_CONTENT_TYPES)
 
     def get_content_tags(self) -> dict[str, Shortcode]:
-        return {
-            "shout": Shortcode(
-                name="shout",
-                handler=lambda _attrs, content: content.upper(),
-                description="Upper-case content.",
-            )
-        }
+        """Return the shout shortcode."""
+        return {"shout": _ShoutShortcode()}
 
 
 class _DummyJinjaExtension(jinja2.ext.Extension):
