@@ -12,18 +12,11 @@ Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 import inspect
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import ClassVar
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
-
-_MAX_ATTR_NAME_LEN = 100
-_MAX_ATTR_VALUE_LEN = 2048
-
-# Bounding the quantifiers makes the maximum engine work a fixed constant
-# regardless of input, preventing backtracking-based DoS.
-_ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
 
 
 @dataclass
@@ -129,43 +122,5 @@ class Shortcode(ABC):
             Replacement HTML string.
         """
 
-
-def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], str]:
-    """Return a callable that applies all registered shortcodes to a content string.
-
-    Compiles the regex once at call time so repeated application is cheap.
-    Returns the identity function when no shortcodes are registered.
-
-    Args:
-        shortcodes: Map of tag name to Shortcode instance.
-
-    Returns:
-        A callable that replaces shortcode tags in a content string.
-    """
-    if not shortcodes:
-        return lambda content: content
-
-    tag_names = "|".join(re.escape(n) for n in shortcodes)
-    pattern = re.compile(
-        rf"\[({tag_names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\](?:(.*?)\[/\1\])?",
-        re.DOTALL,
-    )
-
-    def _apply(content: str) -> str:
-        """Replace registered shortcode tags in content with handler output."""
-
-        def _replace(m: re.Match[str]) -> str:
-            """Dispatch a matched shortcode tag to its registered handler."""
-            sc = shortcodes[m.group(1)]
-            attrs = ShortcodeAttrs(list(sc.attributes))
-            attrs._values = dict(_ATTR_RE.findall(m.group(2) or ""))
-            inner = m.group(3) or ""
-            if inner:
-                inner = _apply(inner)
-            return sc.render(attrs, inner)
-
-        return pattern.sub(_replace, content)
-
-    return _apply
 
 

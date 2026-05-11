@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from platzky.shortcodes import make_shortcode_applier
+from platzky.plugin.content_transformer import _apply_shortcodes
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 
-_apply = make_shortcode_applier(get_builtin_shortcodes())
+_builtins = get_builtin_shortcodes()
+
+
+def _apply(content: str) -> str:
+    return _apply_shortcodes(content, _builtins)
 
 
 class TestImageShortcode:
