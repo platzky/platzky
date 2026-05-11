@@ -1600,7 +1600,7 @@ platzky = "*"
 
 [package.source]
 type = "directory"
-url = "examples/log_notifier"
+url = "examples/plugins/log_notifier"
 
 [[package]]
 name = "markdown-it-py"
@@ -3148,7 +3148,7 @@ platzky = "*"
 
 [package.source]
 type = "directory"
-url = "examples/red_letter"
+url = "examples/plugins/red_letter"
 
 [[package]]
 name = "requests"
@@ -3999,4 +3999,4 @@ telemetry = ["opentelemetry-api", "opentelemetry-exporter-otlp-proto-grpc", "ope
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "beae8424231fd42870ea3b495d9d8f61ba9c0f3059491eca5e22097a48f7bddf"
+content-hash = "dd970e38209084a0d84d8355f0e11de056ce64b6cbaac1385a2240442ec4239a"
