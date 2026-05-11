@@ -513,6 +513,30 @@ class TestContentTransformerWiring:
         assert app.transform_content("x", "post") == "x"
         assert app.transform_content("x", "comment") == "x"
 
+    def test_builtin_shortcodes_applied_by_engine(self, base_config_data: dict[str, Any]) -> None:
+        """Builtin [image] shortcode must be resolved by the engine pipeline."""
+        config = Config.model_validate(base_config_data)
+        app = create_app_from_config(config)
+        result = app.transform_content('[image url="https://example.com/x.png" alt="x"]', "post")
+        assert '<img src="https://example.com/x.png"' in result
+
+    def test_transform_text_does_not_mangle_html_from_earlier_transformer(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        """transform_text must not receive HTML tags produced by earlier transformers."""
+
+        class AToXFilter(ContentTransformerPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+
+            def transform_text(self, text: str) -> str:
+                return text.replace("a", "X")
+
+        app = _app_with_plugin(base_config_data, "atox", AToXFilter)
+        result = app.transform_content('<img alt="anchor">', "post")
+        assert result == '<img alt="anchor">'
+
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
         app = _app_with_plugin(base_config_data, "jinjaext", JinjaExtPlugin)

@@ -244,6 +244,9 @@ def create_app_from_config(config: Config) -> Engine:
     # so they run before any plugin filter and appear on the admin help page.
     _builtin_transformer = _BuiltinShortcodeTransformer({})
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
+    engine.set_content_transformer_allowlist(
+        _builtin_transformer, _builtin_transformer.accepted_content_types
+    )
     engine.shortcodes.update(_builtin_transformer.shortcodes)
 
     # Collect shortcodes and Jinja2 extensions from plugin-provided content filters.

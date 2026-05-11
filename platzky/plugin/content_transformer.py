@@ -13,7 +13,7 @@ from platzky.content_types import ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
-_SHORTCODE_TAG_RE = re.compile(r"\[[^\]]*\]")
+_SHORTCODE_TAG_RE = re.compile(r"\[[^\]]*\]|<[^>]*>")
 
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048
