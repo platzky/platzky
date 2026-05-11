@@ -1,5 +1,6 @@
 """Flask application engine with notification support."""
 
+import inspect
 import logging
 import os
 import threading
@@ -44,8 +45,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     Prevents malicious plugins from exposing arbitrary filesystem paths
     by ensuring the locale directory is within the plugin's module directory.
     """
-    import inspect
-
     if not os.path.isdir(locale_dir):
         return False
 
@@ -61,9 +60,8 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     locale_path = os.path.realpath(locale_dir)
     module_path = os.path.realpath(os.path.dirname(module.__file__))
 
-    if not locale_path.startswith(module_path + os.sep):
-        if locale_path != module_path:
-            return False
+    if not locale_path.startswith(module_path + os.sep) and locale_path != module_path:
+        return False
 
     return True
 
@@ -191,6 +189,8 @@ class Engine(Flask):
 
         Checks plugin's declared ``accepted_content_types`` first, then the
         engine-enforced allowlist set via ``set_content_transformer_allowlist``.
+        Transformers chain their output, so a failing transformer aborts the chain
+        rather than silently passing through partial output to the next stage.
         """
         for plugin in self.get_plugins(ContentTransformerPluginBase):
             if content_type not in plugin.accepted_content_types:
@@ -266,10 +266,10 @@ class Engine(Flask):
             plugin_class: The plugin class to instantiate.
             plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            allowed_topics: Topic allowlist for notifier plugins. ``frozenset()`` blocks all topics;
-                a non-empty frozenset restricts to those topics.
+            allowed_topics: Topic allowlist for notifier plugins. Empty frozenset blocks all
+                topics; a non-empty frozenset restricts to those topics.
             allowed_content_types: Content-type allowlist for transformer plugins.
-                ``frozenset()`` blocks all types; a non-empty frozenset restricts.
+                Empty frozenset blocks all types; a non-empty frozenset restricts.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.

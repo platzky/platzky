@@ -59,7 +59,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     transformations cannot accidentally mangle tags intended for other plugins.
     """
 
-    accepted_content_types: frozenset[ContentType]
+    accepted_content_types: frozenset[ContentType] = frozenset()
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
     @final

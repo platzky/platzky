@@ -22,7 +22,8 @@ class Notifier(Protocol):
         engine.add_notifier(slack_notifier)
     """
 
-    def __call__(self, message: str) -> None: ...
+    def __call__(self, message: str) -> None:
+        pass
 
 
 class NotifierWithAttachments(Protocol):
@@ -39,4 +40,5 @@ class NotifierWithAttachments(Protocol):
         engine.add_notifier_with_attachments(email_notifier)
     """
 
-    def __call__(self, message: str, attachments: Sequence[AttachmentProtocol] = ()) -> None: ...
+    def __call__(self, message: str, attachments: Sequence[AttachmentProtocol] = ()) -> None:
+        pass

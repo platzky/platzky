@@ -59,7 +59,11 @@ def _gather_shortcodes_and_extensions(
     for plugin in plugins:
         for tag_name, shortcode in plugin.shortcodes.items():
             if tag_name in registered_shortcodes or tag_name in shortcodes:
-                logger.warning("Plugin shortcode %r overrides an existing registration.", tag_name)
+                logger.warning(
+                    "Plugin %s shortcode %r overrides an existing registration.",
+                    type(plugin).__name__,
+                    tag_name,
+                )
             shortcodes[tag_name] = shortcode
         extensions.extend(plugin.get_jinja_extensions())
     return shortcodes, extensions

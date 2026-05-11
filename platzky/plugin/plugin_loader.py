@@ -171,8 +171,15 @@ def _process_legacy_plugin(
     return app
 
 
-def _load_legacy_plugin(app: Engine, pc: PluginConfigBase) -> Engine:
+def _load_legacy_plugin(
+    app: Engine, pc: PluginConfigBase, failed_entry_points: dict[str, Exception]
+) -> Engine:
     """Load a plugin using the deprecated module-name fallback convention."""
+    if pc.name in failed_entry_points:
+        raise PluginError(
+            f"Plugin '{pc.name}' failed to load via its entry point. "
+            f"Original error: {failed_entry_points[pc.name]}"
+        ) from failed_entry_points[pc.name]
     logger.warning(
         "Plugin '%s' has no 'platzky.plugins' entry point. "
         "Falling back to module-name convention — this is deprecated and will be "
@@ -216,7 +223,17 @@ def plugify(app: Engine) -> Engine:
         plugins_data = app.db.get_plugins_data()
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
-    discovered = discover_plugins()
+
+    discovered: dict[str, type[PluginBase]] = {}
+    failed_entry_points: dict[str, Exception] = {}
+    for entry_point in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
+        try:
+            plugin_class = entry_point.load()
+        except Exception as e:
+            failed_entry_points[entry_point.name] = e
+            continue
+        if inspect.isclass(plugin_class) and issubclass(plugin_class, PluginBase):
+            discovered[entry_point.name] = plugin_class
 
     for pc in plugins_data:
         try:
@@ -227,10 +244,12 @@ def plugify(app: Engine) -> Engine:
                     plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
                 )
             else:
-                app = _load_legacy_plugin(app, pc)
+                app = _load_legacy_plugin(app, pc, failed_entry_points)
 
         except PluginError:
             raise
+        except ValidationError as e:
+            raise PluginError(f"Invalid config for plugin {pc.name}: {e}") from e
         except Exception as e:
             logger.exception("Error processing plugin %s", pc.name)
             raise PluginError(f"Error processing plugin {pc.name}: {e}") from e

@@ -12,11 +12,11 @@ from werkzeug.wrappers import Response
 
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
-from platzky.models import Post
+from platzky.models import Page, Post
 
 from . import comment_form
 
-_ContentT = TypeVar("_ContentT", bound=Post)
+_ContentT = TypeVar("_ContentT", Post, Page)
 
 logger = logging.getLogger(__name__)
 

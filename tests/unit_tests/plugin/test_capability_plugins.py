@@ -80,7 +80,7 @@ class SimpleNotifier(NotifierPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
+        self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
         self.received: list[tuple[str, str]] = []
 
     def notify(
@@ -97,7 +97,7 @@ class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_topics = set(config.get("accepted_topics", _ALL_TOPICS))
+        self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
         self.received: list[tuple[str, str, Sequence[AttachmentProtocol]]] = []
 
     def notify_with_attachments(
@@ -115,7 +115,7 @@ class TopicFilteredNotifier(NotifierPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_topics = set(config.get("accepted_topics", set()))
+        self.accepted_topics = frozenset(config.get("accepted_topics", frozenset()))
         self.received: list[tuple[str, str]] = []
 
     def notify(
@@ -204,8 +204,8 @@ class TestNotifierPluginBase:
 
     def test_accepted_topics_from_config_list(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
-        assert isinstance(notifier.accepted_topics, set)
-        assert notifier.accepted_topics == {"security", "content"}
+        assert isinstance(notifier.accepted_topics, frozenset)
+        assert notifier.accepted_topics == frozenset({"security", "content"})
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +312,7 @@ class TestRegisterPluginCapabilities:
         class MultiPlugin(NotifierPluginBase, ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_topics: set[NotificationTopic] = {"general"}
+                self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
                 self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
             def notify(
@@ -364,7 +364,7 @@ class TestGetInfo:
         infos = app.get_plugin_infos()
         assert len(infos) == 1
         assert infos[0].name == "SimpleNotifier"
-        assert infos[0].description == SimpleNotifier.__doc__.strip()  # type: ignore[union-attr]
+        assert infos[0].description == (SimpleNotifier.__doc__ or "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ class TestBackwardCompatProcess:
         class NewPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_topics: set[NotificationTopic] = {"general"}
+                self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
 
             def notify(
                 self,

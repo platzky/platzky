@@ -18,7 +18,7 @@ class NotifierPluginBase(PluginBase, ABC):
     topic restrictions.
     """
 
-    accepted_topics: set[NotificationTopic]
+    accepted_topics: frozenset[NotificationTopic] = frozenset()
 
     @abstractmethod
     def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:

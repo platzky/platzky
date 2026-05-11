@@ -14,7 +14,9 @@ class LogNotifier(NotifierPluginBase):
 
     def __init__(self, _config: dict[str, Any]) -> None:
         super().__init__(_config)
-        self.accepted_topics: set[NotificationTopic] = {"general", "content", "security"}
+        self.accepted_topics: frozenset[NotificationTopic] = frozenset(
+            {"general", "content", "security"}
+        )
 
     def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
         """Log the notification.
