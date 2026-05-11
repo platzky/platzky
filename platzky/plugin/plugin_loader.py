@@ -48,27 +48,15 @@ def _extract_allowlists(
     return allowed_topics, allowed_content_types
 
 
-def discover_plugins() -> dict[str, type[PluginBase]]:
-    """Return all installed platzky plugins declared via entry points.
-
-    Plugin packages advertise themselves by declaring a ``platzky.plugins``
-    entry point in their package metadata, e.g. in ``pyproject.toml``::
-
-        [tool.poetry.plugins."platzky.plugins"]
-        sendmail = "platzky_sendmail.entrypoint:SendMailPlugin"
-
-    Only plugins installed in the current environment are returned.
-    Configured (active) plugins are a subset determined by the database.
-
-    Returns:
-        Mapping of plugin name to plugin class for every installed plugin.
-    """
+def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
     discovered: dict[str, type[PluginBase]] = {}
+    failed: dict[str, Exception] = {}
     for entry_point in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
         try:
             plugin_class = entry_point.load()
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to load entry point '%s'", entry_point.name)
+            failed[entry_point.name] = e
             continue
 
         if not (inspect.isclass(plugin_class) and issubclass(plugin_class, PluginBase)):
@@ -87,6 +75,25 @@ def discover_plugins() -> dict[str, type[PluginBase]]:
         discovered[entry_point.name] = plugin_class
         logger.debug("Discovered plugin '%s' via entry points", entry_point.name)
 
+    return discovered, failed
+
+
+def discover_plugins() -> dict[str, type[PluginBase]]:
+    """Return all installed platzky plugins declared via entry points.
+
+    Plugin packages advertise themselves by declaring a ``platzky.plugins``
+    entry point in their package metadata, e.g. in ``pyproject.toml``::
+
+        [tool.poetry.plugins."platzky.plugins"]
+        sendmail = "platzky_sendmail.entrypoint:SendMailPlugin"
+
+    Only plugins installed in the current environment are returned.
+    Configured (active) plugins are a subset determined by the database.
+
+    Returns:
+        Mapping of plugin name to plugin class for every installed plugin.
+    """
+    discovered, _ = _discover_entry_points()
     return discovered
 
 
@@ -224,16 +231,7 @@ def plugify(app: Engine) -> Engine:
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
 
-    discovered: dict[str, type[PluginBase]] = {}
-    failed_entry_points: dict[str, Exception] = {}
-    for entry_point in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
-        try:
-            plugin_class = entry_point.load()
-        except Exception as e:
-            failed_entry_points[entry_point.name] = e
-            continue
-        if inspect.isclass(plugin_class) and issubclass(plugin_class, PluginBase):
-            discovered[entry_point.name] = plugin_class
+    discovered, failed_entry_points = _discover_entry_points()
 
     for pc in plugins_data:
         try:
