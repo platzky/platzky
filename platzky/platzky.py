@@ -1,6 +1,11 @@
+"""Application factory — assembles config, database, engine, plugins, and blueprints."""
+
+import logging
 import typing as t
 import urllib.parse
+from collections.abc import Iterable
 
+import jinja2.ext
 from flask import redirect, render_template, request, session
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
@@ -13,19 +18,62 @@ from platzky.config import (
     Config,
     languages_dict,
 )
+from platzky.content_types import ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
+from platzky.shortcodes import Shortcode
+from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
+
+logger = logging.getLogger(__name__)
 
 _MISSING_OTEL_MSG = (
     "OpenTelemetry is not installed. Install with: "
     "poetry add opentelemetry-api opentelemetry-sdk "
     "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
 )
+
+
+def _gather_shortcodes_and_extensions(
+    plugins: Iterable[ContentTransformerPluginBase],
+    registered_shortcodes: dict[str, Shortcode],
+) -> tuple[dict[str, Shortcode], list[type[jinja2.ext.Extension]]]:
+    """Collect shortcodes and Jinja2 extensions from a set of content-transformer plugins.
+
+    Logs a warning for any tag name that collides with an already-registered shortcode.
+
+    Args:
+        plugins: Content-transformer plugins to inspect.
+        registered_shortcodes: Shortcodes already registered (used for duplicate detection only).
+
+    Returns:
+        Tuple of (new shortcodes dict, Jinja2 extension class list).
+    """
+    shortcodes: dict[str, Shortcode] = {}
+    extensions: list[type[jinja2.ext.Extension]] = []
+    for plugin in plugins:
+        for tag_name, shortcode in plugin.shortcodes.items():
+            if tag_name in registered_shortcodes or tag_name in shortcodes:
+                logger.warning(
+                    "Plugin %s shortcode %r overrides an existing registration.",
+                    type(plugin).__name__,
+                    tag_name,
+                )
+            shortcodes[tag_name] = shortcode
+        extensions.extend(plugin.get_jinja_extensions())
+    return shortcodes, extensions
+
+
+class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
+    """Built-in image and link shortcodes, always registered for posts and pages."""
+
+    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+    shortcodes = get_builtin_shortcodes()
 
 
 def _url_encode(x: str) -> str:
@@ -225,8 +273,30 @@ def create_app_from_config(config: Config) -> Engine:
                 "Check your telemetry settings in the configuration file."
             ) from e
 
+    # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
+    # so they run before any plugin filter and appear on the admin help page.
+    _builtin_transformer = _BuiltinShortcodeTransformer({})
+    engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
+    engine.set_content_transformer_allowlist(
+        _builtin_transformer, _builtin_transformer.accepted_content_types
+    )
+    engine.shortcodes.update(_builtin_transformer.shortcodes)
+
+    _other_transformers = [
+        p for p in engine.get_plugins(ContentTransformerPluginBase) if p is not _builtin_transformer
+    ]
+    _new_shortcodes, _new_extensions = _gather_shortcodes_and_extensions(
+        _other_transformers, engine.shortcodes
+    )
+    engine.shortcodes.update(_new_shortcodes)
+    for _ext in _new_extensions:
+        engine.jinja_env.add_extension(_ext)
+
     admin_blueprint = admin.create_admin_blueprint(
-        login_methods=engine.login_methods, cms_modules=engine.cms_modules
+        login_methods=engine.login_methods,
+        cms_modules=engine.cms_modules,
+        shortcodes=list(engine.shortcodes.values()),
+        plugin_infos=engine.get_plugin_infos(),
     )
 
     # Two-layer defense: is_enabled() gates the feature flag, and
@@ -242,6 +312,7 @@ def create_app_from_config(config: Config) -> Engine:
         db=engine.db,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
+        content_transformer=engine.transform_content,
     )
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale

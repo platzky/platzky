@@ -10,23 +10,30 @@ from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
+from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.models import Page, Post
 
 from . import comment_form
 
-ContentType = TypeVar("ContentType", Post, Page)
+_ContentT = TypeVar("_ContentT", Post, Page)
 
 logger = logging.getLogger(__name__)
 
 
-def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], str]) -> Blueprint:
+def create_blog_blueprint(
+    db: DB,
+    blog_prefix: str,
+    locale_func: Callable[[], str],
+    content_transformer: Callable[[str, FilterContentType], str],
+) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
     Args:
         db: Database instance for accessing blog content
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
+        content_transformer: Function applied to post/page content before rendering
 
     Returns:
         Configured Flask Blueprint for blog functionality
@@ -107,9 +114,9 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
         return get_post(post_slug=post_slug)
 
     def _get_content_or_404(
-        getter_func: Callable[[str], ContentType],
+        getter_func: Callable[[str], _ContentT],
         slug: str,
-    ) -> ContentType:
+    ) -> _ContentT:
         """Helper to fetch content from database or abort with 404.
 
         Args:
@@ -142,6 +149,7 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
         return render_template(
             "post.html",
             post=post,
+            content=content_transformer(post.contentInMarkdown, "post"),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -159,7 +167,12 @@ def create_blog_blueprint(db: DB, blog_prefix: str, locale_func: Callable[[], st
         """
         page = _get_content_or_404(db.get_page, page_slug)
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
-        return render_template("page.html", page=page, cover_image=cover_image_url)
+        return render_template(
+            "page.html",
+            title=page.title,
+            content=content_transformer(page.contentInMarkdown, "page"),
+            cover_image=cover_image_url,
+        )
 
     @blog.route("/tag/<path:tag>", methods=["GET"])
     def get_posts_from_tag(tag: str) -> str:

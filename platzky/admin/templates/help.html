@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block description %}Help and reference for content authors.{% endblock %}
+
+{% block content %}
+<div class="admin-contents mx-auto w-75">
+  <h1>{% block title %}Help{% endblock %}</h1>
+
+  <h2>Shortcodes</h2>
+  <p>Use these shortcodes in blog posts and pages to embed rich content.</p>
+
+  <div class="accordion mb-4" id="shortcodes-accordion">
+  {% for shortcode in shortcodes %}
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#sc-{{ shortcode.name }}"
+              aria-expanded="false" aria-controls="sc-{{ shortcode.name }}">
+        <code>[{{ shortcode.name }}]</code>&nbsp;<span class="text-muted ms-2 small">{{ shortcode.description }}</span>
+      </button>
+    </h2>
+    <div id="sc-{{ shortcode.name }}" class="accordion-collapse collapse"
+         data-bs-parent="#shortcodes-accordion">
+      <div class="accordion-body">
+        {% if shortcode.example %}
+        <h6>Example</h6>
+        <pre><code>{{ shortcode.example }}</code></pre>
+        {% endif %}
+
+        {% if shortcode.attributes %}
+        <h6>Attributes</h6>
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Required</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attr in shortcode.attributes %}
+            <tr>
+              <td><code>{{ attr.name }}</code></td>
+              <td><span class="{{ 'text-success' if attr.required else 'text-danger' }}">{{ "✓" if attr.required else "✗" }}</span></td>
+              <td>{{ attr.default if attr.default is not none else "—" }}</td>
+              <td>{{ attr.description }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  </div>
+
+  <h2>Loaded plugins</h2>
+  {% if plugin_infos %}
+  <ul class="list-unstyled">
+    {% for info in plugin_infos %}
+    <li class="mb-1"><strong>{{ info.name }}</strong>{% if info.description %}<span class="text-muted ms-2 small">{{ info.description }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">No plugins loaded.</p>
+  {% endif %}
+
+</div>
+{% endblock %}

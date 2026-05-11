@@ -22,7 +22,9 @@ def mock_client():
 @pytest.fixture
 def graph_ql_db(mock_client: Mock):
     with patch("platzky.db.graph_ql_db.Client", return_value=mock_client):
-        db = GraphQL("http://test.endpoint", "test_token")
+        db = GraphQL(
+            "https://test.endpoint", "test_token"
+        )  # NOSONAR - hardcoded token acceptable in tests
         return db
 
 
@@ -32,28 +34,28 @@ def test_db_config_type():
 
 def test_graph_ql_db_config():
     config = GraphQlDbConfig.model_validate(
-        {"TYPE": "graph_ql_db", "CMS_ENDPOINT": "http://test.endpoint", "CMS_TOKEN": "test_token"}
+        {"TYPE": "graph_ql_db", "CMS_ENDPOINT": "https://test.endpoint", "CMS_TOKEN": "test_token"}
     )
-    assert config.endpoint == "http://test.endpoint"
+    assert config.endpoint == "https://test.endpoint"
     assert config.token == "test_token"
 
 
 def test_get_db():
     config = GraphQlDbConfig(
-        TYPE="graph_ql_db", CMS_ENDPOINT="http://test.endpoint", CMS_TOKEN="test_token"
+        TYPE="graph_ql_db", CMS_ENDPOINT="https://test.endpoint", CMS_TOKEN="test_token"
     )
     with patch("platzky.db.graph_ql_db.GraphQL") as mock_graph_ql:
         get_db(config)
-        mock_graph_ql.assert_called_once_with("http://test.endpoint", "test_token")
+        mock_graph_ql.assert_called_once_with("https://test.endpoint", "test_token")
 
 
 def test_db_from_config():
     config = GraphQlDbConfig(
-        TYPE="graph_ql_db", CMS_ENDPOINT="http://test.endpoint", CMS_TOKEN="test_token"
+        TYPE="graph_ql_db", CMS_ENDPOINT="https://test.endpoint", CMS_TOKEN="test_token"
     )
     with patch("platzky.db.graph_ql_db.GraphQL") as mock_graph_ql:
         db_from_config(config)
-        mock_graph_ql.assert_called_once_with("http://test.endpoint", "test_token")
+        mock_graph_ql.assert_called_once_with("https://test.endpoint", "test_token")
 
 
 def test_graph_ql_init(mock_client: Mock):
@@ -61,10 +63,12 @@ def test_graph_ql_init(mock_client: Mock):
         patch("platzky.db.graph_ql_db.AIOHTTPTransport") as mock_transport,
         patch("platzky.db.graph_ql_db.Client", return_value=mock_client) as mock_client_class,
     ):
-        db = GraphQL("http://test.endpoint", "test_token")
+        db = GraphQL(
+            "https://test.endpoint", "test_token"
+        )  # NOSONAR - hardcoded token acceptable in tests
 
         mock_transport.assert_called_once_with(
-            url="http://test.endpoint", headers={"Authorization": "bearer test_token"}
+            url="https://test.endpoint", headers={"Authorization": "bearer test_token"}
         )
         mock_client_class.assert_called_once()
         assert db.client == mock_client
@@ -304,8 +308,8 @@ def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
     plugins_data = graph_ql_db.get_plugins_data()
 
     assert len(plugins_data) == 1
-    assert plugins_data[0]["name"] == "plugin1"
-    assert plugins_data[0]["config"] == {"key": "value"}
+    assert plugins_data[0].name == "plugin1"
+    assert plugins_data[0].config == {"key": "value"}
     mock_client.execute.assert_called_once()
 
 

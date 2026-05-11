@@ -87,7 +87,7 @@ def test_dynamic_content(test_app: Engine, content_type: str):
 def test_www_redirects(use_www: bool):
     config_data = {
         "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",
+        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": use_www,
         "BLOG_PREFIX": "/blog",
         "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
@@ -388,7 +388,7 @@ def test_is_enabled_with_flag_on():
     """Test engine.is_enabled with fake_login enabled"""
     config_data = {
         "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",
+        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "BLOG_PREFIX": "/blog",
         "TESTING": True,
         "FEATURE_FLAGS": {"FAKE_LOGIN": True},

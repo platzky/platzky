@@ -1,6 +1,7 @@
 """Tests for attachment functionality."""
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -328,13 +329,13 @@ class TestNotifierWithAttachments:
     def test_notifiers_receive_attachments(self, text_allowed_test_app: Engine):
         """Test that notifiers correctly receive messages and attachments."""
         simple_messages: list[str] = []
-        attachment_data: list[list[Any] | None] = []
+        attachment_data: list[Sequence[Any]] = []
 
         def simple_notifier(message: str) -> None:
             simple_messages.append(message)
 
         def notifier_with_attachments(
-            message: str, attachments: list[Any] | None = None  # noqa: ARG001
+            message: str, attachments: Sequence[Any] = ()  # noqa: ARG001
         ) -> None:
             attachment_data.append(attachments)
 

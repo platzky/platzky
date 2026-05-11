@@ -13,7 +13,7 @@ def test_config_creation_with_incorrect_mappings():
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
-    app.config.update({"TESTING": True, "DEBUG": True})
+    app.config.update({"TESTING": True, "DEBUG": True, "WTF_CSRF_ENABLED": False})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/robots.txt")
@@ -56,6 +56,7 @@ def test_sitemap():
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
+    app.config.update({"WTF_CSRF_ENABLED": False})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/sitemap.xml")

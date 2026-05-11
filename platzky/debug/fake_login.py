@@ -34,6 +34,7 @@ def get_fake_login_html() -> Callable[[], str]:
     """Return a callable that generates HTML for fake login buttons."""
 
     def generate_html() -> str:
+        """Render the fake login buttons HTML with CSRF tokens."""
         admin_url = url_for("fake_login.handle_fake_login", role="admin")
         nonadmin_url = url_for("fake_login.handle_fake_login", role="nonadmin")
 
@@ -86,13 +87,17 @@ def create_fake_login_blueprint() -> DebugBlueprint:
 
     @bp.route("/fake-login/<role>", methods=["POST"])
     def handle_fake_login(role: str) -> Response:
+        """Process a fake login request for the given *role* (admin or nonadmin)."""
         form = FakeLoginForm()
         if form.validate_on_submit() and role in VALID_ROLES:
             if role == ROLE_ADMIN:
                 session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
             else:
                 session["user"] = {"username": "user", "role": ROLE_NONADMIN}
-            return redirect(url_for("admin.admin_panel_home"))
+            next_url = session.pop("next", None)
+            if not next_url or not next_url.startswith("/"):
+                next_url = url_for("admin.admin_panel_home")
+            return redirect(next_url)
 
         flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
         return redirect(url_for("admin.admin_panel_home"))

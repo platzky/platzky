@@ -11,7 +11,8 @@ import pytest
 from platzky.config import Config
 from platzky.engine import Engine
 from platzky.platzky import create_app_from_config
-from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginBaseConfig, PluginError
+from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginError
+from platzky.plugin.plugin_loader import discover_plugins
 from tests.unit_tests.plugin import fake_plugin
 
 
@@ -71,9 +72,9 @@ class TestPluginErrors:
     ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
-        class ErrorPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class ErrorPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.dynamic_body += "This will fail"
@@ -115,33 +116,17 @@ class TestPluginErrors:
 
 
 class TestPluginConfigValidation:
-    def test_config_plugin_error(self):
-        class CustomPluginConfig(PluginBaseConfig):
-            required_field: str  # Required field that will be missing
-
-        class CustomPlugin(PluginBase[CustomPluginConfig]):
-            @classmethod
-            def get_config_model(cls) -> type[CustomPluginConfig]:
-                return CustomPluginConfig
-
-            def process(self, app: Engine) -> Engine:
-                return app
+    def test_plugin_can_raise_config_plugin_error(self):
+        class StrictPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                if "required_field" not in config:
+                    raise ConfigPluginError("Invalid configuration: required_field missing")
 
         with pytest.raises(ConfigPluginError) as excinfo:
-            CustomPlugin({})
+            StrictPlugin({})
 
-        assert "Invalid configuration" in str(excinfo.value)
         assert "required_field" in str(excinfo.value)
-
-    def test_plugin_base_default_config_model(self):
-        class MinimalPlugin(PluginBase[PluginBaseConfig]):
-            def process(self, app: Engine) -> Engine:
-                return app
-
-        assert MinimalPlugin.get_config_model() == PluginBaseConfig
-
-        plugin = MinimalPlugin({})
-        assert isinstance(plugin.config, PluginBaseConfig)
 
 
 class TestPluginLoading:
@@ -150,9 +135,9 @@ class TestPluginLoading:
     ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
-        class MockPluginBase(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class MockPluginBase(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("Plugin added content")
@@ -176,17 +161,17 @@ class TestPluginLoading:
     ):
         mock_find_plugin, mock_is_class_plugin = mock_plugin_setup
 
-        class FirstPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class FirstPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_body("First plugin content")
                 return app
 
-        class SecondPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class SecondPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 app.add_dynamic_head("Second plugin content")
@@ -286,10 +271,9 @@ class TestLocaleDirectorySecurity:
         locale_dir = temp_plugin_structure["locale_dir"]
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class SafePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
-                # Override __module__ and __file__ for testing
+        class SafePlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -332,16 +316,15 @@ class TestLocaleDirectorySecurity:
         external_dir = temp_plugin_structure["external_dir"]
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class MaliciousPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class MaliciousPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
                 return app
 
             def get_locale_dir(self) -> str:
-                # Try to expose a directory outside the plugin
                 return str(external_dir)
 
         with (
@@ -379,16 +362,15 @@ class TestLocaleDirectorySecurity:
         """Test that path traversal attempts (../) are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class PathTraversalPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class PathTraversalPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
                 return app
 
             def get_locale_dir(self) -> str:
-                # Try path traversal to escape plugin directory
                 return os.path.join(str(plugin_file.parent), "..", "..", "etc")
 
         with (
@@ -433,9 +415,9 @@ class TestLocaleDirectorySecurity:
         except OSError:
             pytest.skip("Unable to create symlinks on this system")
 
-        class SymlinkPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class SymlinkPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -475,9 +457,9 @@ class TestLocaleDirectorySecurity:
         """Test that non-existent directories are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class NonExistentDirPlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class NonExistentDirPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -515,9 +497,9 @@ class TestLocaleDirectorySecurity:
         """Test that plugins without locale directories work normally."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class NoLocalePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class NoLocalePlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
             def process(self, app: Engine) -> Engine:
@@ -550,9 +532,9 @@ class TestLocaleDirectorySecurity:
     ):
         """Test handling of plugins where module has no __file__ attribute."""
 
-        class NoFilePlugin(PluginBase[PluginBaseConfig]):
-            def __init__(self, config: PluginBaseConfig) -> None:
-                self.config = config
+        class NoFilePlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
 
             def process(self, app: Engine) -> Engine:
                 return app
@@ -581,3 +563,98 @@ class TestLocaleDirectorySecurity:
 
             # Verify warning was logged
             assert "path validation failed" in caplog.text
+
+
+class TestDiscoverPlugins:
+    def _make_entry_point(self, name: str, plugin_class: type) -> MagicMock:
+        ep = MagicMock()
+        ep.name = name
+        ep.load.return_value = plugin_class
+        return ep
+
+    def test_returns_empty_dict_when_no_entry_points(self) -> None:
+        with mock.patch("importlib.metadata.entry_points", return_value=[]):
+            result = discover_plugins()
+        assert result == {}
+
+    def test_discovers_valid_plugin(self) -> None:
+        class MyPlugin(PluginBase):
+            pass
+
+        ep = self._make_entry_point("myplugin", MyPlugin)
+        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+            result = discover_plugins()
+
+        assert result == {"myplugin": MyPlugin}
+
+    def test_discovers_multiple_plugins(self) -> None:
+        class PluginA(PluginBase):
+            pass
+
+        class PluginB(PluginBase):
+            pass
+
+        eps = [
+            self._make_entry_point("plugin_a", PluginA),
+            self._make_entry_point("plugin_b", PluginB),
+        ]
+        with mock.patch("importlib.metadata.entry_points", return_value=eps):
+            result = discover_plugins()
+
+        assert result == {"plugin_a": PluginA, "plugin_b": PluginB}
+
+    def test_skips_non_plugin_base_entry_point(self) -> None:
+        class NotAPlugin:
+            pass
+
+        ep = self._make_entry_point("bad", NotAPlugin)
+        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+            result = discover_plugins()
+
+        assert result == {}
+
+    def test_skips_failed_entry_point_load(self) -> None:
+        ep = MagicMock()
+        ep.name = "broken"
+        ep.load.side_effect = ImportError("missing dependency")
+
+        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+            result = discover_plugins()
+
+        assert result == {}
+
+    def test_plugify_uses_entry_point_when_available(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        class EntryPointPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+
+        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]
+        config = Config.model_validate(base_config_data)
+
+        ep = self._make_entry_point("myplugin", EntryPointPlugin)
+        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+            app = create_app_from_config(config)
+
+        assert any(isinstance(p, EntryPointPlugin) for p in app.loaded_plugins)
+
+    def test_plugify_falls_back_when_no_entry_point(self, base_config_data: dict[str, Any]) -> None:
+        class FallbackPlugin(PluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+
+        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "fallback", "config": {}}]
+        config = Config.model_validate(base_config_data)
+
+        with (
+            mock.patch("importlib.metadata.entry_points", return_value=[]),
+            mock.patch(
+                "platzky.plugin.plugin_loader.find_plugin", return_value=MagicMock()
+            ) as mock_find,
+            mock.patch(
+                "platzky.plugin.plugin_loader._is_class_plugin", return_value=FallbackPlugin
+            ),
+        ):
+            create_app_from_config(config)
+            mock_find.assert_called_once_with("fallback")

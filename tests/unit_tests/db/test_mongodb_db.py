@@ -307,7 +307,7 @@ class TestMongoDB:
 
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert plugins[0]["name"] == "plugin1"
+        assert plugins[0].name == "plugin1"
 
     def test_get_plugins_data_no_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = None

@@ -11,6 +11,7 @@ from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
 from platzky.models import MenuItem, Page, Post
+from platzky.plugin.plugin_config import PluginConfigBase
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:
@@ -442,17 +443,15 @@ class GraphQL(DB):
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
     def get_primary_color(self) -> str:
+        """Return the primary brand colour."""
         return "white"  # Default color as string
 
     def get_secondary_color(self) -> str:
+        """Return the secondary brand colour."""
         return "navy"  # Default color as string
 
-    def get_plugins_data(self) -> list[dict[str, Any]]:
-        """Retrieve configuration data for all plugins.
-
-        Returns:
-            List of plugin configuration dictionaries
-        """
+    def get_plugins_data(self) -> list[PluginConfigBase]:
+        """Retrieve configuration data for all plugins."""
         plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
@@ -461,7 +460,8 @@ class GraphQL(DB):
               }
             }
             """)
-        return self.client.execute(plugins_data)["pluginConfigs"]
+        raw = self.client.execute(plugins_data)["pluginConfigs"]
+        return [PluginConfigBase.model_validate(d) for d in raw]
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.

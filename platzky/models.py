@@ -1,4 +1,7 @@
+"""Pydantic models for blog posts, pages, comments, and CMS modules."""
+
 import datetime
+import functools
 import warnings
 from typing import Annotated
 
@@ -152,6 +155,7 @@ class Comment(BaseModel):
         return humanize.naturaltime(now - self.date)
 
 
+@functools.total_ordering
 class Post(BaseModel):
     """Represents a blog post with metadata, content, and comments.
 

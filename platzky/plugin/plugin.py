@@ -1,15 +1,26 @@
+"""Plugin base classes for the Platzky plugin system."""
+
+from __future__ import annotations
+
 import inspect
 import logging
 import os
 import types
-from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+from abc import ABC
+from dataclasses import dataclass
+from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict
-
-from platzky.platzky import Engine as PlatzkyEngine
+import deprecation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginInfo:
+    """Metadata snapshot describing a plugin."""
+
+    name: str
+    description: str
 
 
 class PluginError(Exception):
@@ -24,29 +35,17 @@ class ConfigPluginError(PluginError):
     pass
 
 
-class PluginBaseConfig(BaseModel):
-    """Base Pydantic model for plugin configurations.
-
-    Plugin developers should extend this class to define their own configuration schema.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-
-T = TypeVar("T", bound=PluginBaseConfig)
-
-
-class PluginBase(Generic[T], ABC):
+class PluginBase(ABC):
     """Abstract base class for plugins.
 
     Plugin developers must extend this class to implement their plugins.
+    Implement capability-specific subclasses (NotifierPluginBase, ContentTransformerPluginBase,
+    etc.) rather than overriding process().
     """
 
     @staticmethod
     def get_locale_dir_from_module(plugin_module: types.ModuleType) -> Optional[str]:
         """Get plugin locale directory from a module.
-
-        Encapsulates the knowledge of how plugins organize their locale directories.
 
         Args:
             plugin_module: The plugin module
@@ -57,22 +56,24 @@ class PluginBase(Generic[T], ABC):
         if not hasattr(plugin_module, "__file__") or plugin_module.__file__ is None:
             return None
 
-        # Use realpath to resolve symlinks and get canonical path
         plugin_dir = os.path.dirname(os.path.realpath(plugin_module.__file__))
         locale_dir = os.path.join(plugin_dir, "locale")
 
         return locale_dir if os.path.isdir(locale_dir) else None
 
-    @classmethod
-    def get_config_model(cls) -> type[PluginBaseConfig]:
-        return PluginBaseConfig
+    def __init__(self, _config: dict[str, Any]) -> None:
+        super().__init__()
 
-    def __init__(self, config: dict[str, Any]) -> None:
-        try:
-            config_class = self.get_config_model()
-            self.config = config_class.model_validate(config)
-        except Exception as e:
-            raise ConfigPluginError(f"Invalid configuration: {e}") from e
+    def get_info(self) -> PluginInfo:
+        """Return a metadata snapshot describing this plugin.
+
+        Override to provide a user-facing name or description.
+        """
+        doc = type(self).__doc__
+        return PluginInfo(
+            name=type(self).__name__,
+            description=inspect.cleandoc(doc) if doc else "",
+        )
 
     def get_locale_dir(self) -> Optional[str]:
         """Get this plugin's locale directory.
@@ -86,17 +87,17 @@ class PluginBase(Generic[T], ABC):
 
         return self.get_locale_dir_from_module(module)
 
-    @abstractmethod
-    def process(self, app: PlatzkyEngine) -> PlatzkyEngine:
-        """Process the plugin with the given app.
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details=(
+            "Overriding process() is deprecated. Implement a capability subclass instead: "
+            "NotifierPluginBase or ContentTransformerPluginBase."
+        ),
+    )
+    def process(self, app: Any) -> Any:  # noqa: ANN401
+        """Apply this plugin to the app.
 
-        Args:
-            app: The Flask application instance
-
-        Returns:
-            Platzky Engine with processed plugins
-
-        Raises:
-            PluginError: If plugin processing fails
+        Deprecated: implement a typed capability subclass instead.
         """
-        pass
+        return app

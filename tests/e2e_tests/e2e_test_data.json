@@ -14,7 +14,7 @@
         "tags": [
           "tag/1"
         ],
-        "contentInMarkdown": "Once upon a time...",
+        "contentInMarkdown": "Once upon a time...[image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\"]",
         "date": "1954-01-29",
         "coverImage": {
           "alternateText": "The Fellowship of the Ring cover",
@@ -37,7 +37,7 @@
         "tags": [
           "tag/1"
         ],
-        "contentInMarkdown": "Once upon a time...",
+        "contentInMarkdown": "Once upon a time...[image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\"]",
         "date": "1954-01-29",
         "coverImage": {
           "alternateText": "The Fellowship of the Ring cover",
@@ -50,6 +50,21 @@
             "author": "Gollum"
           }
         ]
+      },
+      {
+        "title": "Red letter post",
+        "author": "Test",
+        "excerpt": "Testing the red letter plugin.",
+        "language": "en",
+        "slug": "red-test",
+        "tags": [],
+        "contentInMarkdown": "Hello [red]danger[/red] world",
+        "date": "2024-01-01",
+        "coverImage": {
+          "alternateText": "red test",
+          "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
+        },
+        "comments": []
       },
       {
         "title": "title",
@@ -161,5 +176,15 @@
     }
   },
   "plugins": [
+    {
+      "name": "log_notifier",
+      "config": {},
+      "allowed_topics": ["general", "content", "security"]
+    },
+    {
+      "name": "red_letter",
+      "config": {},
+      "allowed_content_types": ["post", "page"]
+    }
   ]
 }

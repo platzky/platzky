@@ -7,7 +7,7 @@
     <div class="row">
       <div class="col-lg-8 col-md-10 mx-auto">
         <div class="post-heading position-relative">
-          <h1>{% block title %}{{ page.title }}{% endblock %}</h1>
+          <h1>{% block title %}{{ title }}{% endblock %}</h1>
         </div>
       </div>
     </div>
@@ -18,7 +18,7 @@
   <div class="container">
     <div class="row">
       <div class="col-lg-8 col-md-10 mx-auto post-content">
-        {{page.contentInMarkdown | markdown}}
+        {{content | markdown}}
       </div>
     </div>
   </div>
