@@ -25,7 +25,15 @@ class LinkShortcode(Shortcode):
     example = '[link url="https://example.com"]Click here[/link]'
 
     def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Render an anchor tag, returning raw content if the URL is not allowed."""
+        """Render an anchor tag, returning raw content if the URL is not allowed.
+
+        Args:
+            attrs: Parsed shortcode attributes (url, target).
+            content: Link text.
+
+        Returns:
+            An ``<a>`` tag, or raw content if the URL is not allowed.
+        """
         if not is_url_allowed(attrs.url):
             return content
         target_attr = f' target="{escape(attrs.target)}"' if attrs.target else ""

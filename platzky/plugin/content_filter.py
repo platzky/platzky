@@ -30,6 +30,12 @@ class ContentFilterPluginBase(PluginBase, ABC):
 
         Default: applies shortcodes returned by ``get_content_tags()``.
         Override for arbitrary transformations that don't use shortcode syntax.
+
+        Args:
+            content: Raw content string to transform.
+
+        Returns:
+            Transformed content string.
         """
         tags = self.get_content_tags()
         return apply_shortcodes(content, tags) if tags else content
@@ -38,9 +44,16 @@ class ContentFilterPluginBase(PluginBase, ABC):
         """Return ``{tag_name: Shortcode}`` for shortcode tags in content.
 
         Used by the default ``filter_content()`` and exposed on the admin help page.
+
+        Returns:
+            Map of tag name to Shortcode; empty dict if no shortcodes registered.
         """
         return {}
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
-        """Return Jinja2 extension classes to register with the template engine."""
+        """Return Jinja2 extension classes to register with the template engine.
+
+        Returns:
+            Jinja2 extension classes to register; empty list by default.
+        """
         return []

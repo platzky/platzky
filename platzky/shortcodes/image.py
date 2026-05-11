@@ -23,7 +23,15 @@ class ImageShortcode(Shortcode):
     example = '[image url="https://example.com/photo.jpg" alt="A photo"]'
 
     def handle(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
-        """Render an img tag, returning empty string if the URL is not allowed."""
+        """Render an img tag, returning empty string if the URL is not allowed.
+
+        Args:
+            attrs: Parsed shortcode attributes (url, alt, width, height).
+            content: Unused — image is a void element.
+
+        Returns:
+            An ``<img>`` tag, or empty string if the URL is not allowed.
+        """
         if not is_url_allowed(attrs.url):
             return ""
         extra = ""

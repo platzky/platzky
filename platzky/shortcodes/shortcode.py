@@ -41,7 +41,12 @@ class ShortcodeAttrs:
     """
 
     def __init__(self, attrs: list[ShortcodeAttr], values: dict[str, str] | None = None) -> None:
-        """Initialise with a schema and optional parsed values."""
+        """Initialise with a schema and optional parsed values.
+
+        Args:
+            attrs: Attribute schema defining names, descriptions, and defaults.
+            values: Parsed attribute values from a shortcode tag, if any.
+        """
         self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
         self._values: dict[str, str] = values or {}
 
@@ -54,7 +59,17 @@ class ShortcodeAttrs:
         return bool(self._schema)
 
     def __getattr__(self, name: str) -> str:
-        """Return the parsed value, falling back to the declared default."""
+        """Return the parsed value, falling back to the declared default.
+
+        Args:
+            name: Attribute name to look up.
+
+        Returns:
+            Parsed value, or the declared default, or empty string.
+
+        Raises:
+            AttributeError: If name is not in the schema.
+        """
         if name in self._values:
             return self._values[name]
         if name in self._schema:
@@ -62,7 +77,14 @@ class ShortcodeAttrs:
         raise AttributeError(f"No shortcode attribute {name!r}")
 
     def __eq__(self, other: object) -> bool:
-        """Support comparison with plain dicts for test assertions."""
+        """Support comparison with plain dicts for test assertions.
+
+        Args:
+            other: A dict or ShortcodeAttrs to compare against.
+
+        Returns:
+            True if the parsed values match; NotImplemented for other types.
+        """
         if isinstance(other, dict):
             return self._values == other
         if isinstance(other, ShortcodeAttrs):
@@ -84,7 +106,15 @@ class Shortcode(ABC):
 
     @abstractmethod
     def handle(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Render the shortcode tag and return the replacement HTML."""
+        """Render the shortcode tag and return the replacement HTML.
+
+        Args:
+            attrs: Parsed shortcode attributes with dot-access and default fallback.
+            content: Inner content between opening and closing tags.
+
+        Returns:
+            Replacement HTML string.
+        """
 
 
 def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], str]:
@@ -92,6 +122,12 @@ def make_shortcode_applier(shortcodes: dict[str, Shortcode]) -> Callable[[str], 
 
     Compiles the regex once at call time so repeated application is cheap.
     Returns the identity function when no shortcodes are registered.
+
+    Args:
+        shortcodes: Map of tag name to Shortcode instance.
+
+    Returns:
+        A callable that replaces shortcode tags in a content string.
     """
     if not shortcodes:
         return lambda content: content
@@ -125,5 +161,12 @@ def apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
     Unregistered tags are passed through unchanged.
     Prefer ``make_shortcode_applier`` when applying repeatedly to amortise
     regex compilation.
+
+    Args:
+        content: Raw content string potentially containing shortcode tags.
+        shortcodes: Map of tag name to Shortcode instance.
+
+    Returns:
+        Content with all registered shortcode tags replaced.
     """
     return make_shortcode_applier(shortcodes)(content)
