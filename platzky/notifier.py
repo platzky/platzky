@@ -22,9 +22,8 @@ class Notifier(Protocol):
         engine.add_notifier(slack_notifier)
     """
 
-    def __call__(
-        self, message: str
-    ) -> None: ...  # Protocol stub — implementations provided by conforming callables.
+    def __call__(self, message: str) -> None:
+        """Protocol stub — implementations provided by conforming callables."""
 
 
 class NotifierWithAttachments(Protocol):
@@ -41,6 +40,5 @@ class NotifierWithAttachments(Protocol):
         engine.add_notifier_with_attachments(email_notifier)
     """
 
-    def __call__(
-        self, message: str, attachments: Sequence[AttachmentProtocol] = ()
-    ) -> None: ...  # Protocol stub — implementations provided by conforming callables.
+    def __call__(self, message: str, attachments: Sequence[AttachmentProtocol] = ()) -> None:
+        """Protocol stub — implementations provided by conforming callables."""
