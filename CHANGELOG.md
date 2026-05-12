@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [1.5.1](https://github.com/platzky/platzky/compare/v1.5.0...v1.5.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* release no more uses cache ([#204](https://github.com/platzky/platzky/issues/204)) ([cdc8f78](https://github.com/platzky/platzky/commit/cdc8f78261e41c62502532143c5275be8a8d0df3))
+
 ## [1.5.0](https://github.com/platzky/platzky/compare/1.4.11...v1.5.0) (2026-05-11)
 
 
