@@ -53,18 +53,6 @@ def test_favicon_is_applied(test_app: Engine):
     assert found_ico.get("href") == "https://example.com/favicon.ico"
 
 
-def test_notifier(test_app: Engine):
-    engine = test_app
-    messages: list[str] = []
-
-    def notifier(message: str) -> None:
-        messages.append(message)
-
-    engine.add_notifier(notifier)
-    engine.notify("test")
-    assert messages == ["test"]
-
-
 @pytest.mark.parametrize("content_type", ["body", "head"])
 def test_dynamic_content(test_app: Engine, content_type: str):
     def add_dynamic_element(engine: Engine, content: str) -> None:

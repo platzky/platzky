@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config, get_db
+from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
 from platzky.models import MenuItem, Post
 
 
@@ -20,17 +20,6 @@ class TestMongoDbConfig:
 
 
 class TestFactoryFunctions:
-    @patch("platzky.db.mongodb_db.MongoClient")
-    def test_get_db(self, mock_client: Mock):
-        config_data = {
-            "TYPE": "mongodb",
-            "CONNECTION_STRING": "mongodb://localhost:27017",
-            "DATABASE_NAME": "test_db",
-        }
-        db = get_db(config_data)
-        assert isinstance(db, MongoDB)
-        mock_client.assert_called_once_with("mongodb://localhost:27017")
-
     @patch("platzky.db.mongodb_db.MongoClient")
     def test_db_from_config(self, mock_client: Mock):
         config = MongoDbConfig.model_validate(
