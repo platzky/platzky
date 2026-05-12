@@ -4,59 +4,44 @@ Plugins
 .. versionadded:: 1.2.0
 
 Platzky includes an extensible plugin system that allows you to add custom functionality
-to your application. Plugins can add notifiers, login methods, CMS modules, health checks,
-dynamic content, and more.
+to your application. Plugins can add notifiers, content transformers, shortcodes, login
+methods, CMS modules, health checks, dynamic content, and more.
 
 Overview
 --------
 
-Plugins are external Python packages that follow the naming convention ``platzky_<name>``.
-For example, a plugin called ``analytics`` would be packaged as ``platzky_analytics``.
+Plugins are ordinary Python packages installed into the same environment as Platzky.
+They advertise themselves via the ``platzky.plugins`` entry-point group and are
+discovered automatically at startup.
 
-There are two plugin styles:
+Since 1.5.0, plugins are built around *capability base classes*. Pick the one that
+matches what your plugin does:
 
-* **Class-based** (preferred): Extend ``PluginBase`` and implement the ``process`` method
-* **Legacy** (deprecated): A module with a ``process(app, config)`` function
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
 
-Creating a Plugin (Class-based)
--------------------------------
+   * - Base class
+     - When to use
+   * - ``NotifierPluginBase``
+     - Send notifications (email, Slack, SMS, …)
+   * - ``AttachmentNotifierPluginBase``
+     - Same as above, plus handle file attachments
+   * - ``ContentTransformerPluginBase``
+     - Transform post/page/comment content; register shortcodes
+   * - ``PluginBase``
+     - Any other engine customisation (CMS modules, health checks, …)
 
-A class-based plugin consists of three parts:
-
-1. A Pydantic config model extending ``PluginBaseConfig``
-2. A plugin class extending ``PluginBase``
-3. A module-level ``Plugin`` attribute pointing to your class
-
-Here is a minimal example:
+All capability classes are importable directly from ``platzky``:
 
 .. code-block:: python
 
-    from platzky.engine import Engine
-    from platzky.plugin.plugin import PluginBase, PluginBaseConfig
-
-
-    class MyPluginConfig(PluginBaseConfig):
-        """Configuration for the plugin."""
-
-        api_key: str
-        enabled: bool = True
-
-
-    class MyPlugin(PluginBase[MyPluginConfig]):
-        """A plugin that adds custom functionality."""
-
-        @classmethod
-        def get_config_model(cls) -> type[MyPluginConfig]:
-            return MyPluginConfig
-
-        def process(self, app: Engine) -> Engine:
-            if self.config.enabled:
-                app.add_health_check("my_plugin", lambda: None)
-            return app
-
-
-    # Required: module-level attribute for plugin discovery
-    Plugin = MyPlugin
+    from platzky import (
+        PluginBase,
+        NotifierPluginBase,
+        AttachmentNotifierPluginBase,
+        ContentTransformerPluginBase,
+    )
 
 Quick Start with Cookiecutter
 -----------------------------
@@ -71,18 +56,15 @@ The fastest way to create a new plugin is using the official
 
 You will be prompted for:
 
-* ``plugin_name`` -- snake_case name for your plugin (e.g. ``analytics``)
-* ``plugin_class_name`` -- PascalCase class name (must match ``plugin_name``)
-* ``description`` -- short description of the plugin
-* ``author`` -- author name used in the license and package metadata
+* ``plugin_name`` — snake_case name for your plugin (e.g. ``analytics``)
+* ``plugin_class_name`` — PascalCase class name
+* ``description`` — short description of the plugin
+* ``author`` — author name for license and package metadata
 
-The generated project includes:
-
-* A ready-to-use class-based plugin with config model
-* ``pyproject.toml`` with Poetry, linting (black, ruff), type checking (pyright), and test setup
-* ``Makefile`` with ``lint``, ``dev``, ``lint-check``, ``unit-tests``, ``coverage``, and ``build`` targets
-* CI/CD workflows for testing and semantic release
-* MIT license
+The generated project includes a ``PluginBase`` subclass as a starting point,
+``pyproject.toml`` with the ``platzky.plugins`` entry point already wired up,
+and a Makefile with ``lint``, ``dev``, ``unit-tests``, ``coverage``, and ``build``
+targets.
 
 After generation:
 
@@ -93,173 +75,320 @@ After generation:
     make dev          # lint + type check
     make unit-tests   # run tests
 
-**Key points:**
+Notifier Plugins
+----------------
 
-* Override ``get_config_model()`` to return your config class so Platzky can validate
-  the plugin configuration automatically.
-* The ``process`` method receives the Platzky ``Engine`` (a Flask subclass) and must
-  return it after applying modifications.
-* The module must expose a ``Plugin`` attribute at the top level.
+.. versionadded:: 1.5.0
 
-**Optional overrides:**
+Subclass ``NotifierPluginBase`` to send notifications. Declare which topics your
+plugin handles via ``accepted_topics``; the engine routes notifications to matching
+plugins only.
 
-* Add a ``config: MyPluginConfig`` type hint to the class body for better type checking.
-* Override ``__init__`` if you need custom initialization beyond config validation.
+The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
+
+.. code-block:: python
+
+    from typing import Any
+    from platzky import NotifierPluginBase, NotificationTopic
+
+    class SlackNotifier(NotifierPluginBase):
+        """Send notifications to a Slack channel."""
+
+        accepted_topics: frozenset[NotificationTopic] = frozenset({"general", "security"})
+
+        def __init__(self, config: dict[str, Any]) -> None:
+            super().__init__(config)
+            self._webhook = config.get("webhook_url", "")
+
+        def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            # post to self._webhook …
+            pass
+
+**With attachments**
+
+Subclass ``AttachmentNotifierPluginBase`` instead when your plugin needs to handle
+files. Implement ``notify_with_attachments``; the base class delegates plain
+``notify`` calls to it with an empty attachment list automatically.
+
+.. code-block:: python
+
+    from collections.abc import Sequence
+    from typing import Any
+    from platzky import AttachmentNotifierPluginBase, NotificationTopic
+    from platzky.attachment import AttachmentProtocol
+
+    class MailNotifier(AttachmentNotifierPluginBase):
+        """Email notifier with attachment support."""
+
+        accepted_topics: frozenset[NotificationTopic] = frozenset({"content"})
+
+        def __init__(self, config: dict[str, Any]) -> None:
+            super().__init__(config)
+            self._to = config.get("recipient", "")
+
+        def notify_with_attachments(
+            self,
+            message: str,
+            topic: NotificationTopic,
+            attachments: Sequence[AttachmentProtocol],
+            receiver: str = "",
+        ) -> None:
+            # send email …
+            pass
+
+Content Transformer Plugins
+---------------------------
+
+.. versionadded:: 1.5.0
+
+Subclass ``ContentTransformerPluginBase`` to modify post, page, or comment content
+before rendering. Declare which content types to process via ``accepted_content_types``.
+
+The three content types are ``"post"``, ``"page"``, and ``"comment"``.
+
+.. code-block:: python
+
+    from typing import Any
+    from platzky import ContentTransformerPluginBase, ContentType
+
+    class EmojiPlugin(ContentTransformerPluginBase):
+        """Replace :smile: tokens with emoji in posts and pages."""
+
+        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+
+        def transform_text(self, text: str) -> str:
+            return text.replace(":smile:", "😊")
+
+Override ``transform_text`` to apply plain-text transformations. The framework
+guarantees that shortcode tags are excluded from the text passed here and
+re-inserted after transformation. ``transform_content`` is ``@final`` and must
+not be overridden.
+
+Shortcodes
+~~~~~~~~~~
+
+Content transformer plugins can also register *shortcodes* — bracket-style tags
+that content authors embed in posts and pages.
+
+**Syntax**
+
+.. code-block:: text
+
+    [tagname attr="val"]              # void (no inner content)
+    [tagname attr="val"]content[/tagname]  # block
+
+Declare ``shortcodes`` as a class variable:
+
+.. code-block:: python
+
+    from typing import ClassVar
+    from markupsafe import Markup, escape
+    from platzky import ContentTransformerPluginBase, ContentType
+    from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeAttr
+
+    class _AlertShortcode(Shortcode):
+        name = "alert"
+        description = "Render content inside a Bootstrap alert box."
+        attributes = ShortcodeAttrs([
+            ShortcodeAttr("type", "Alert type: info, warning, danger", required=False),
+        ])
+        example = '[alert type="warning"]Watch out![/alert]'
+
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            kind = attrs.type or "info"
+            return str(Markup('<div class="alert alert-{}">{}</div>').format(escape(kind), escape(content)))
+
+    class AlertPlugin(ContentTransformerPluginBase):
+        """Adds an [alert] shortcode for Bootstrap alert boxes."""
+
+        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+        shortcodes: ClassVar[dict[str, Shortcode]] = {"alert": _AlertShortcode()}
+
+**Built-in shortcodes**
+
+Platzky ships two shortcodes that are always available:
+
+``[image url="…" alt="…" width="…" height="…"]``
+    Embeds an ``<img>`` tag. ``url`` is required.
+
+``[link url="…" target="…"]text[/link]``
+    Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
+    adds ``rel="noopener noreferrer"``.
+
+Both reject non-HTTP/HTTPS external URLs and relative paths not starting with ``/``.
+
+Shortcodes are documented for content authors on the admin *Help* page
+(``/admin/help``).
+
+Other Engine Extensions
+-----------------------
+
+For capabilities that don't yet have a dedicated class — CMS modules, login methods,
+health checks, or injecting dynamic HTML — override ``process()`` on a plain
+``PluginBase`` subclass:
+
+.. code-block:: python
+
+    from typing import Any
+    from platzky.plugin.plugin import PluginBase
+    from platzky.engine import Engine
+
+    class AnalyticsPlugin(PluginBase):
+        """Injects the analytics script and registers a health check."""
+
+        def __init__(self, config: dict[str, Any]) -> None:
+            super().__init__(config)
+            self._tag = config.get("script_tag", "")
+
+        def process(self, app: Engine) -> Engine:
+            app.add_dynamic_body(self._tag)
+            app.add_health_check("analytics", lambda: None)
+            return app
+
+Available ``Engine`` extension points:
+
+``add_cms_module(module)``
+    Add a CMS module that appears in the admin panel.
+
+``add_login_method(login_method)``
+    Register an additional admin login method.
+
+``add_dynamic_body(html)``
+    Append HTML to every page's ``<body>`` (scripts, widgets).
+
+``add_dynamic_head(html)``
+    Append HTML to every page's ``<head>`` (stylesheets, meta tags).
+
+``add_health_check(name, check_fn)``
+    Register a check included in the ``/health/readiness`` endpoint. The function
+    should raise on failure.
+
+``is_enabled(flag)``
+    Check whether a feature flag is enabled.
+
+.. note::
+    ``process()`` is deprecated since 1.5.0 and will be removed in 2.0.0. Where
+    possible, use the capability subclasses above. Engine extension points for CMS
+    modules, health checks, and dynamic HTML will gain dedicated capability classes
+    in a future release.
+
+Packaging a Plugin
+------------------
+
+Plugins are discovered via the ``platzky.plugins`` entry-point group. Declare your
+plugin class in ``pyproject.toml``:
+
+.. code-block:: toml
+
+    [tool.poetry.plugins."platzky.plugins"]
+    my_plugin = "platzky_my_plugin:MyPlugin"
+
+The key (``my_plugin``) is the name used in the database configuration.
 
 Plugin Configuration
 --------------------
 
-Plugins are configured through the database. The ``get_plugins_data()`` method on the
-database returns a list of plugin entries, each with the following structure:
+After the package is installed, activate the plugin by adding it to the ``plugins``
+list in your database:
 
-.. code-block:: python
+.. code-block:: json
 
     {
-        "name": "platzky_analytics",
-        "config": {
-            "api_key": "abc123",
-            "enabled": True
-        }
+        "plugins": [
+            {
+                "name": "my_plugin",
+                "config": { "api_key": "abc123" }
+            }
+        ]
     }
 
-The ``name`` field must match the installed Python package name (``platzky_<name>``).
-The ``config`` dictionary is passed to the plugin's constructor and validated against
-the plugin's config model.
+The ``config`` object is passed as a ``dict[str, Any]`` to the plugin's ``__init__``.
 
-Engine Extension Points
------------------------
+For notifier plugins you can restrict which topics the plugin receives:
 
-The ``Engine`` class provides several methods that plugins can use to extend the
-application:
+.. code-block:: json
 
-``add_notifier(notifier)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+    {
+        "name": "slack_notifier",
+        "config": { "webhook_url": "https://hooks.slack.com/…" },
+        "allowed_topics": ["security", "general"]
+    }
 
-Register a notifier that receives message strings. Notifiers are called when the
-application triggers a notification via ``engine.notify(message)``.
+For content transformer plugins you can restrict which content types are processed:
 
-.. code-block:: python
+.. code-block:: json
 
-    def process(self, app: Engine) -> Engine:
-        app.add_notifier(lambda msg: print(f"Notification: {msg}"))
-        return app
+    {
+        "name": "alert_plugin",
+        "config": {},
+        "allowed_content_types": ["post", "page"]
+    }
 
-``add_notifier_with_attachments(notifier)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Admin Help Page
+---------------
 
-Register a notifier that supports attachments. The notifier receives a message string
-and an optional list of attachments.
-
-``add_cms_module(module)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Add a CMS module to the application. CMS modules appear in the admin panel.
+Loaded plugins and their shortcodes are listed on the admin *Help* page
+(``/admin/help``). Override ``get_info()`` to provide a user-facing name and
+description:
 
 .. code-block:: python
 
-    from platzky.models import CmsModule
+    from platzky.plugin.plugin import PluginBase, PluginInfo
 
-    def process(self, app: Engine) -> Engine:
-        module = CmsModule(name="Analytics", url="/analytics")
-        app.add_cms_module(module)
-        return app
+    class MyPlugin(PluginBase):
+        def get_info(self) -> PluginInfo:
+            return PluginInfo(name="My Plugin", description="Does something useful.")
 
-``add_login_method(login_method)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Listing Installed Plugins
+--------------------------
 
-Register an additional login method for the admin panel.
-
-``add_dynamic_body(body)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Append HTML content to the page body. Useful for injecting scripts or widgets.
+``discover_plugins()`` returns all plugins installed in the current environment,
+regardless of which ones are active in the database:
 
 .. code-block:: python
 
-    def process(self, app: Engine) -> Engine:
-        app.add_dynamic_body('<script src="/analytics.js"></script>')
-        return app
+    from platzky import discover_plugins
 
-``add_dynamic_head(head)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Append HTML content to the page head. Useful for injecting stylesheets or meta tags.
-
-``add_health_check(name, check_function)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Register a health check that is included in the ``/health/readiness`` endpoint.
-The check function should raise an exception if the check fails.
-
-.. code-block:: python
-
-    import requests
-
-    def process(self, app: Engine) -> Engine:
-        def check():
-            # Raise an exception if unhealthy
-            response = requests.get("https://api.example.com/health")
-            response.raise_for_status()
-
-        app.add_health_check("external_api", check)
-        return app
-
-``is_enabled(flag)``
-~~~~~~~~~~~~~~~~~~~~
-
-Check whether a feature flag is enabled. Plugins can use this to conditionally
-activate functionality.
-
-.. code-block:: python
-
-    from platzky.feature_flags import FeatureFlag
-
-    def process(self, app: Engine) -> Engine:
-        if app.is_enabled(FeatureFlag.SOME_FLAG):
-            # Enable feature
-            pass
-        return app
+    for name, cls in discover_plugins().items():
+        print(name, cls)
 
 Translation Support
 -------------------
 
-Plugins can provide their own translation files. To add translations:
+Plugins can provide their own translation files. Place them under a ``locale/``
+directory inside your plugin package:
 
-1. Create a ``locale`` directory inside your plugin package:
+.. code-block:: text
 
-   .. code-block:: text
+    platzky_myplugin/
+        __init__.py
+        plugin.py
+        locale/
+            en/
+                LC_MESSAGES/
+                    messages.po
+                    messages.mo
+            pl/
+                LC_MESSAGES/
+                    messages.po
+                    messages.mo
 
-       platzky_myplugin/
-           __init__.py
-           plugin.py
-           locale/
-               en/
-                   LC_MESSAGES/
-                       messages.po
-                       messages.mo
-               pl/
-                   LC_MESSAGES/
-                       messages.po
-                       messages.mo
-
-2. The ``get_locale_dir()`` method on ``PluginBase`` automatically discovers the
-   ``locale`` directory relative to your plugin module. Platzky registers it with
-   Flask-Babel during plugin loading.
+``PluginBase.get_locale_dir()`` discovers the directory automatically. Platzky
+registers it with Flask-Babel during plugin loading.
 
 Legacy Plugins
 --------------
 
 .. deprecated:: 1.2.0
-    Legacy plugins are deprecated and will be removed in 2.0.0.
-    Use the class-based style instead.
+    Module-style legacy plugins are deprecated and will be removed in 2.0.0.
+    Use a class-based capability subclass instead.
 
-Legacy plugins are modules with a ``process`` function:
+Legacy plugins are plain modules with a ``process`` function:
 
 .. code-block:: python
 
     def process(app, config):
-        # Modify the app
         return app
 
-This style does not support configuration validation or translation discovery.
-Migrate to the class-based style by extending ``PluginBase``.
+This style does not support configuration validation, translation discovery, or
+capability routing. Migrate to a class-based subclass.
