@@ -9,13 +9,6 @@
 
 * drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215))
 
-### Bug Fixes
-
-* add versioning prerelease strategy for alpha releases ([#224](https://github.com/platzky/platzky/issues/224)) ([ffed46e](https://github.com/platzky/platzky/commit/ffed46ec50a9f5695475e1df3545d7293ca109a8))
-* added v prefix for releases ([#219](https://github.com/platzky/platzky/issues/219)) ([79bbe92](https://github.com/platzky/platzky/commit/79bbe9250fc087cd5d2a073d3c59491b83a91567))
-* should fix release problem ([#217](https://github.com/platzky/platzky/issues/217)) ([d79fe4d](https://github.com/platzky/platzky/commit/d79fe4d7eaea3b0ca45a67b093515450a843b067))
-
-
 ### Code Refactoring
 
 * drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215)) ([6a8ddbc](https://github.com/platzky/platzky/commit/6a8ddbc51f1c1f2277c205fde514b96475b3140c))
