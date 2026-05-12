@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.json_db import Json, JsonDbConfig, db_from_config, get_db
+from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.models import MenuItem, Page, Post
 
 
@@ -20,12 +20,6 @@ class TestJsonDbConfig:
 
 
 class TestFactoryFunctions:
-    def test_get_db(self):
-        config_data = {"TYPE": "json_db", "DATA": {"test": "data"}}
-        db = get_db(config_data)
-        assert isinstance(db, Json)
-        assert db.data == {"test": "data"}
-
     def test_db_from_config(self):
         config = JsonDbConfig(TYPE="json_db", DATA={"test": "data"})
         db = db_from_config(config)

@@ -1,14 +1,12 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from gql.transport.exceptions import TransportQueryError
 
 from platzky.db.graph_ql_db import (
     GraphQL,
     GraphQlDbConfig,
     db_config_type,
     db_from_config,
-    get_db,
 )
 from platzky.models import Post
 
@@ -38,15 +36,6 @@ def test_graph_ql_db_config():
     )
     assert config.endpoint == "https://test.endpoint"
     assert config.token == "test_token"
-
-
-def test_get_db():
-    config = GraphQlDbConfig(
-        TYPE="graph_ql_db", CMS_ENDPOINT="https://test.endpoint", CMS_TOKEN="test_token"
-    )
-    with patch("platzky.db.graph_ql_db.GraphQL") as mock_graph_ql:
-        get_db(config)
-        mock_graph_ql.assert_called_once_with("https://test.endpoint", "test_token")
 
 
 def test_db_from_config():
@@ -122,20 +111,6 @@ def test_get_menu_items_in_lang_with_lang(graph_ql_db: GraphQL, mock_client: Moc
     assert menu_items[0].name == "Home"
     assert menu_items[1].url == "/about"
     mock_client.execute.assert_called_once()
-
-
-def test_get_menu_items_in_lang_without_lang(graph_ql_db: GraphQL, mock_client: Mock):
-    # First call raises TransportQueryError, second call succeeds
-    mock_client.execute.side_effect = [
-        TransportQueryError("Error"),
-        {"menuItems": [{"name": "Home", "url": "/"}]},
-    ]
-
-    menu_items = graph_ql_db.get_menu_items_in_lang("en")
-
-    assert len(menu_items) == 1
-    assert menu_items[0].name == "Home"
-    assert mock_client.execute.call_count == 2
 
 
 def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):

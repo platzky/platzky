@@ -368,64 +368,6 @@ class TestGetInfo:
 
 
 # ---------------------------------------------------------------------------
-# Backward compatibility: process() still called when overridden
-# ---------------------------------------------------------------------------
-
-
-class TestBackwardCompatProcess:
-    def test_legacy_process_called_on_class_plugin(self, base_config_data: dict[str, Any]) -> None:
-        class LegacyPlugin(PluginBase):
-            processed = False
-
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-
-            def process(self, app: Engine) -> Engine:
-                LegacyPlugin.processed = True
-                return app
-
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "legacy", "config": {}}]
-        config = Config.model_validate(base_config_data)
-
-        with (
-            mock.patch("platzky.plugin.plugin_loader.find_plugin"),
-            mock.patch("platzky.plugin.plugin_loader._is_class_plugin", return_value=LegacyPlugin),
-        ):
-            create_app_from_config(config)
-
-        assert LegacyPlugin.processed
-
-    def test_new_capability_plugin_process_not_called(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        class NewPlugin(NotifierPluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
-
-            def notify(
-                self,
-                message: str,
-                topic: NotificationTopic,
-                receiver: str = "",
-            ) -> None:
-                # No-op: only verifies that process() is not called, not notification delivery.
-                pass
-
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "new", "config": {}}]
-        config = Config.model_validate(base_config_data)
-
-        with (
-            mock.patch("platzky.plugin.plugin_loader.find_plugin"),
-            mock.patch("platzky.plugin.plugin_loader._is_class_plugin", return_value=NewPlugin),
-            mock.patch.object(PluginBase, "process", wraps=PluginBase.process) as mock_process,
-        ):
-            create_app_from_config(config)
-
-        mock_process.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
 # ContentTransformerPluginBase wiring in create_app_from_config
 # ---------------------------------------------------------------------------
 

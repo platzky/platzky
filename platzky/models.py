@@ -2,89 +2,20 @@
 
 import datetime
 import functools
-import warnings
 from typing import Annotated
 
 import humanize
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 
-def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
-    """Parse date string to datetime for backward compatibility.
-
-    Handles string dates in various ISO 8601 formats for backward compatibility.
-    Emits deprecation warning when parsing strings.
-
-    In version 2.0.0, only datetime objects will be accepted.
-
-    Args:
-        v: Either a datetime object or an ISO 8601 date string
-
-    Returns:
-        Timezone-aware datetime object
-
-    Raises:
-        ValueError: If the date string cannot be parsed
-    """
-    if isinstance(v, datetime.datetime):
-        # If already a datetime object, ensure it's timezone-aware
-        if v.tzinfo is None:
-            # Naive datetime - make timezone-aware using UTC
-            return v.replace(tzinfo=datetime.timezone.utc)
-        return v
-
-    # v must be a string (based on type annotation)
-    # Emit deprecation warning for string dates
-    warnings.warn(
-        f"Passing date as string ('{v}') is deprecated. "
-        "Please use datetime objects instead. "
-        "String support will be removed in version 2.0.0.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    # Check for timezone in the original string (before any manipulation)
-    # Check for: +HH:MM, -HH:MM, or Z suffix
-    time_part = v.split("T")[-1] if "T" in v else ""
-    has_timezone = (
-        v.endswith("Z")
-        or "+" in time_part
-        or ("-" in time_part and ":" in time_part.split("-")[-1])
-    )
-
-    # Normalize 'Z' suffix to '+00:00' for fromisoformat
-    normalized = v.replace("Z", "+00:00") if v.endswith("Z") else v
-
-    if has_timezone:
-        # Parse timezone-aware datetime (handles microseconds automatically)
-        return datetime.datetime.fromisoformat(normalized)
-    else:
-        # Legacy format: naive datetime - make timezone-aware using UTC
-        warnings.warn(
-            f"Naive datetime '{v}' interpreted as UTC. "
-            "Explicitly specify timezone in future versions for clarity.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        try:
-            parsed = datetime.datetime.fromisoformat(normalized)
-            return parsed.replace(tzinfo=datetime.timezone.utc)
-        except ValueError:
-            # Fallback: date-only format
-            parsed_date = datetime.date.fromisoformat(normalized)
-            return datetime.datetime.combine(
-                parsed_date, datetime.time.min, tzinfo=datetime.timezone.utc
-            )
+def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
+    """Ensure a datetime is UTC-aware, converting naive datetimes to UTC."""
+    if v.tzinfo is None:
+        return v.replace(tzinfo=datetime.timezone.utc)
+    return v
 
 
-# Type alias for datetime fields that accept strings for backward compatibility
-# Input: str | datetime.datetime
-# Output (after validation): datetime.datetime
-DateTimeField = Annotated[
-    datetime.datetime,
-    BeforeValidator(_parse_date_string),
-    # This allows str at the type-checker level while ensuring datetime after validation
-]
+DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
 
 
 class CmsModule(BaseModel):

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import importlib
 import importlib.metadata
 import inspect
 import logging
-from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import deprecation
 from pydantic import ValidationError
 
 from platzky.content_types import ContentType
@@ -97,125 +94,10 @@ def discover_plugins() -> dict[str, type[PluginBase]]:
     return discovered
 
 
-@deprecation.deprecated(
-    deprecated_in="1.5.0",
-    removed_in="2.0.0",
-    details=(
-        "Importing plugins by module name is deprecated. "
-        "Declare a 'platzky.plugins' entry point in your plugin package instead."
-    ),
-)
-def find_plugin(plugin_name: str) -> ModuleType:
-    """Find plugin by name and return it as module.
-
-    Deprecated: declare a ``platzky.plugins`` entry point in the plugin package
-    so it is discoverable via :func:`discover_plugins`.
-
-    Args:
-        plugin_name: name of plugin to find
-
-    Raises:
-        PluginError: if plugin cannot be imported
-
-    Returns:
-        module of plugin
-    """
-    try:
-        return importlib.import_module(f"platzky_{plugin_name}")
-    except ImportError as e:
-        raise PluginError(
-            f"Plugin {plugin_name} not found. Ensure it's installed and follows "
-            f"the 'platzky_<plugin_name>' naming convention"
-        ) from e
-
-
-def _is_class_plugin(plugin_module: ModuleType) -> type[PluginBase] | None:
-    """Check if the plugin module contains a PluginBase implementation."""
-    for _, obj in inspect.getmembers(plugin_module):
-        if (
-            inspect.isclass(obj)
-            and issubclass(obj, PluginBase)
-            and obj is not PluginBase
-            and obj.__module__ == plugin_module.__name__
-        ):
-            return obj
-    return None
-
-
-@deprecation.deprecated(
-    deprecated_in="1.2.0",
-    removed_in="2.0.0",
-    details=(
-        "Legacy plugin style using the entrypoint process() function is deprecated. "
-        "Migrate to PluginBase to support plugin translations and other features. "
-        "See: https://platzky.readthedocs.io/en/latest/plugins.html"
-    ),
-)
-def _process_legacy_plugin(
-    plugin_module: ModuleType, app: Engine, plugin_config: dict[str, Any], plugin_name: str
-) -> Engine:
-    """Process a legacy plugin using the entrypoint approach.
-
-    DEPRECATED: This function will be removed in version 2.0.0.
-    Please migrate your plugin to extend PluginBase.
-
-    Args:
-        plugin_module: The plugin module
-        app: The Platzky Engine instance
-        plugin_config: Plugin configuration dictionary
-        plugin_name: Name of the plugin
-
-    Returns:
-        Platzky Engine with processed plugin
-    """
-    app = plugin_module.process(app, plugin_config)
-    logger.warning(
-        "Plugin '%s' uses deprecated legacy interface. "
-        "This will be removed in version 2.0.0. "
-        "Migrate to PluginBase: https://platzky.readthedocs.io/",
-        plugin_name,
-    )
-    return app
-
-
-def _load_legacy_plugin(
-    app: Engine, pc: PluginConfigBase, failed_entry_points: dict[str, Exception]
-) -> Engine:
-    """Load a plugin using the deprecated module-name fallback convention."""
-    if pc.name in failed_entry_points:
-        raise PluginError(
-            f"Plugin '{pc.name}' failed to load via its entry point. "
-            f"Original error: {failed_entry_points[pc.name]}"
-        ) from failed_entry_points[pc.name]
-    logger.warning(
-        "Plugin '%s' has no 'platzky.plugins' entry point. "
-        "Falling back to module-name convention — this is deprecated and will be "
-        "removed in 2.0.0. Add an entry point to your plugin package.",
-        pc.name,
-    )
-    plugin_module = find_plugin(pc.name)
-    plugin_class = _is_class_plugin(plugin_module)
-
-    if plugin_class:
-        allowed_topics, allowed_content_types = _extract_allowlists(pc, plugin_class)
-        return app.load_plugin(
-            plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
-        )
-    if hasattr(plugin_module, "process"):
-        return _process_legacy_plugin(plugin_module, app, pc.config, pc.name)
-    raise PluginError(
-        f"Plugin {pc.name} doesn't implement either the PluginBase interface "
-        f"or provide a process() function"
-    )
-
-
 def plugify(app: Engine) -> Engine:
     """Load and initialise plugins configured in the database.
 
-    Plugins are looked up via ``platzky.plugins`` entry points first.
-    If a configured plugin has no entry point, the legacy module-name
-    convention (``platzky_<name>``) is used as a fallback — this fallback
-    is deprecated and will be removed in 2.0.0.
+    Plugins must declare a ``platzky.plugins`` entry point in their package metadata.
 
     Args:
         app: Platzky Engine instance
@@ -241,8 +123,16 @@ def plugify(app: Engine) -> Engine:
                 app = app.load_plugin(
                     plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
                 )
+            elif pc.name in failed_entry_points:
+                raise PluginError(
+                    f"Plugin '{pc.name}' failed to load via its entry point. "
+                    f"Original error: {failed_entry_points[pc.name]}"
+                ) from failed_entry_points[pc.name]
             else:
-                app = _load_legacy_plugin(app, pc, failed_entry_points)
+                raise PluginError(
+                    f"Plugin '{pc.name}' not found. "
+                    "Ensure it is installed and declares a 'platzky.plugins' entry point."
+                )
 
         except PluginError:
             raise

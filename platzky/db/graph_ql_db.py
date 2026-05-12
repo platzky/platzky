@@ -6,7 +6,6 @@ from typing import Any
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
-from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
@@ -40,10 +39,6 @@ def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
         Configured GraphQL database instance
     """
     return GraphQL(config.endpoint, config.token)
-
-
-# Legacy alias retained for backward compatibility
-get_db = db_from_config
 
 
 def _standardize_comment(
@@ -113,7 +108,7 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
         "coverImage": {
             "url": page.get("coverImage", {}).get("url", ""),
         },
-        "date": page.get("date", "1970-01-01"),
+        "date": page.get("date"),
     }
 
 
@@ -214,33 +209,15 @@ class GraphQL(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items = []
-        try:
-            menu_items_with_lang = gql("""
-                query MyQuery($lang: Lang!) {
-                  menuItems(where: {language: $lang}, stage: PUBLISHED){
-                    name
-                    url
-                  }
-                }
-                """)
-            menu_items = self.client.execute(
-                menu_items_with_lang, variable_values={"language": lang}
-            )
-
-        # TODO remove try except block after bumping up version
-        # now it's backwards compatible with older versions
-        except TransportQueryError:
-            menu_items_without_lang = gql("""
-                query MyQuery {
-                  menuItems(stage: PUBLISHED){
-                    name
-                    url
-                  }
-                }
-                """)
-            menu_items = self.client.execute(menu_items_without_lang)
-
+        menu_items_query = gql("""
+            query MyQuery($lang: Lang!) {
+              menuItems(where: {language: $lang}, stage: PUBLISHED){
+                name
+                url
+              }
+            }
+            """)
+        menu_items = self.client.execute(menu_items_query, variable_values={"language": lang})
         return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
 
     def get_post(self, slug: str) -> Post:

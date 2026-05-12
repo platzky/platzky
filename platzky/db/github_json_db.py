@@ -1,7 +1,6 @@
 """GitHub-based JSON database implementation."""
 
 import json
-from typing import Any
 
 import requests
 from github import Github
@@ -41,18 +40,6 @@ def db_from_config(config: GithubJsonDbConfig) -> "GithubJsonDb":
     return GithubJsonDb(
         config.github_token, config.repo_name, config.branch_name, config.path_to_file
     )
-
-
-def get_db(config: dict[str, Any]) -> "GithubJsonDb":
-    """Get a GitHub JSON database instance from raw configuration.
-
-    Args:
-        config: Raw configuration dictionary
-
-    Returns:
-        Configured GitHub JSON database instance
-    """
-    return db_from_config(GithubJsonDbConfig.model_validate(config))
 
 
 class GithubJsonDb(JsonDB):

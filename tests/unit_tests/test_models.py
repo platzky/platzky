@@ -94,49 +94,6 @@ class TestColorValidation:
         Color(r=10, g=200, b=50, a=250)
 
 
-class TestDatetimeParsing:
-    """Test backward compatibility for datetime parsing.
-
-    NOTE: These tests cover deprecated string date parsing (will be removed in v2.0.0).
-    """
-
-    def test_naive_datetime_uses_utc(self):
-        """Naive datetimes are interpreted as UTC.
-
-        Regression test for a bug where naive dates used server local timezone,
-        causing non-deterministic behavior across different servers.
-        """
-        with pytest.warns(DeprecationWarning, match="Passing date as string"):
-            post = Post.model_validate(make_post_data(date="2021-02-19T12:30:00"))
-
-        assert post.date is not None
-        assert post.date.tzinfo is not None
-        assert post.date.tzinfo == datetime.timezone.utc
-        assert post.date.utcoffset() == datetime.timedelta(0)
-
-    @pytest.mark.parametrize(
-        ("date_string", "expected_offset"),
-        [
-            ("2021-02-19T12:30:00.123456+05:30", datetime.timedelta(hours=5, minutes=30)),
-            ("2021-02-19T12:30:00.123456-05:00", datetime.timedelta(hours=-5)),
-            ("2021-02-19T12:30:00.123456Z", datetime.timedelta(0)),
-        ],
-    )
-    def test_datetime_parsing_preserves_timezone_with_microseconds(
-        self, date_string: str, expected_offset: datetime.timedelta
-    ) -> None:
-        """String parsing preserves timezone with microseconds.
-
-        Regression test for a bug where splitting on '.' to remove microseconds
-        would also strip timezone info.
-        """
-        with pytest.warns(DeprecationWarning, match="Passing date as string"):
-            post = Post.model_validate(make_post_data(date=date_string))
-
-        assert post.date is not None
-        assert post.date.utcoffset() == expected_offset
-
-
 class TestPostWithMinimalFields:
     """Test that Post/Page can be created with only required fields.
 

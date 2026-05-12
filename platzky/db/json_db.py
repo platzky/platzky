@@ -25,18 +25,6 @@ class JsonDbConfig(DBConfig):
     data: dict[str, Any] = Field(alias="DATA")
 
 
-def get_db(config: dict[str, Any]) -> "Json":
-    """Get a JSON database instance from raw configuration.
-
-    Args:
-        config: Raw configuration dictionary
-
-    Returns:
-        Configured JSON database instance
-    """
-    return db_from_config(JsonDbConfig.model_validate(config))
-
-
 def db_from_config(config: JsonDbConfig) -> "Json":
     """Create a JSON database instance from configuration.
 

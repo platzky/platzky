@@ -116,7 +116,7 @@ class TestConfigWithFeatureFlags:
 
 
 class TestFeatureFlagSet:
-    """Tests for the FeatureFlagSet backward-compatible wrapper."""
+    """Tests for FeatureFlagSet."""
 
     def test_dict_get_access(self) -> None:
         """Test that dict .get() works for raw keys."""
@@ -128,18 +128,6 @@ class TestFeatureFlagSet:
         """Test that dict bracket access works."""
         flag_set = FeatureFlagSet({"MY_KEY": True})
         assert flag_set["MY_KEY"] is True
-
-    def test_attribute_access(self) -> None:
-        """Test Jinja2 dot-notation attribute access."""
-        flag_set = FeatureFlagSet({"MY_KEY": True, "OFF": False})
-        assert flag_set.MY_KEY is True
-        assert flag_set.OFF is False
-
-    def test_attribute_access_missing_raises(self) -> None:
-        """Test that missing attribute raises AttributeError."""
-        flag_set = FeatureFlagSet({})
-        with pytest.raises(AttributeError, match="MISSING"):
-            _ = flag_set.MISSING
 
     def test_feature_flag_membership(self) -> None:
         """Test that FeatureFlag 'in' check resolves dynamically."""

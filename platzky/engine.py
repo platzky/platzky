@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from platzky.plugin.plugin import PluginBase
 
-import deprecation
 from flask import (
     Blueprint,
     Flask,
@@ -31,7 +30,6 @@ from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
-from platzky.notifier import Notifier, NotifierWithAttachments
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.shortcodes import Shortcode
@@ -97,11 +95,6 @@ class Engine(Flask):
             ContentTransformerPluginBase, frozenset[ContentType]
         ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
-
-        # Deprecated — kept for backward compatibility until v2.0
-        self._notifiers: list[Notifier] = []
-        self._notifiers_with_attachments: list[NotifierWithAttachments] = []
-
         self.login_methods: list[Callable[[], str]] = []
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -143,13 +136,6 @@ class Engine(Flask):
             attachments: Attachments to include; empty sequence if none.
             receiver: Target recipient identifier; empty string means broadcast.
         """
-        # Legacy path — TODO(2.0.0): remove both lists and merge into NotifierPluginBase only
-        for notifier in self._notifiers:
-            notifier(message)
-        for notifier in self._notifiers_with_attachments:
-            notifier(message, attachments=attachments)
-
-        # New capability-based path
         for plugin in self.get_plugins(NotifierPluginBase):
             if topic not in plugin.accepted_topics:
                 continue
@@ -159,30 +145,6 @@ class Engine(Flask):
                 plugin.notify_with_attachments(message, topic, attachments, receiver)
             else:
                 plugin.notify(message, topic, receiver)
-
-    @deprecation.deprecated(
-        deprecated_in="1.5.0",
-        removed_in="2.0.0",
-        details="Use NotifierPluginBase subclass instead.",
-    )
-    def add_notifier(self, notifier: Notifier) -> None:
-        """Register a simple notifier (message only).
-
-        Deprecated: implement NotifierPluginBase instead.
-        """
-        self._notifiers.append(notifier)
-
-    @deprecation.deprecated(
-        deprecated_in="1.5.0",
-        removed_in="2.0.0",
-        details="Use NotifierPluginBase subclass instead.",
-    )
-    def add_notifier_with_attachments(self, notifier: NotifierWithAttachments) -> None:
-        """Register a notifier that supports attachments.
-
-        Deprecated: implement NotifierPluginBase instead.
-        """
-        self._notifiers_with_attachments.append(notifier)
 
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
@@ -274,18 +236,8 @@ class Engine(Flask):
         Returns:
             The (possibly replaced) engine after loading the plugin.
         """
-        from platzky.plugin.plugin import PluginBase
-
         plugin_instance = plugin_class(plugin_config)
-        # MRO-based identity check: every class inherits process() from PluginBase so
-        # hasattr() would always return True.  Comparing unbound method objects via `is`
-        # detects a genuine override without invoking the deprecation warning that calling
-        # the base no-op implementation would raise.
-        app = (
-            plugin_instance.process(self)
-            if type(plugin_instance).process is not PluginBase.process
-            else self
-        )
+        app = self
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin_capabilities(plugin_instance, plugin_name)

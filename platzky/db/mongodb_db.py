@@ -29,18 +29,6 @@ class MongoDbConfig(DBConfig):
     database_name: str = Field(alias="DATABASE_NAME")
 
 
-def get_db(config: dict[str, Any]) -> "MongoDB":
-    """Get a MongoDB database instance from raw configuration.
-
-    Args:
-        config: Raw configuration dictionary
-
-    Returns:
-        Configured MongoDB database instance
-    """
-    return db_from_config(MongoDbConfig.model_validate(config))
-
-
 def db_from_config(config: MongoDbConfig) -> "MongoDB":
     """Create a MongoDB database instance from configuration.
 
