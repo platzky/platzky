@@ -1,4 +1,4 @@
-name: Semantic Please
+name: Semantic Release
 
 on:
   push:
