@@ -10,8 +10,6 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Optional
 
-import deprecation
-
 logger = logging.getLogger(__name__)
 
 
@@ -86,18 +84,3 @@ class PluginBase(ABC):
             return None
 
         return self.get_locale_dir_from_module(module)
-
-    @deprecation.deprecated(
-        deprecated_in="1.5.0",
-        removed_in="2.0.0",
-        details=(
-            "Overriding process() is deprecated. Implement a capability subclass instead: "
-            "NotifierPluginBase or ContentTransformerPluginBase."
-        ),
-    )
-    def process(self, app: Any) -> Any:  # noqa: ANN401
-        """Apply this plugin to the app.
-
-        Deprecated: implement a typed capability subclass instead.
-        """
-        return app

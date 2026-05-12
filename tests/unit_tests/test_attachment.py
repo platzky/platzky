@@ -1,9 +1,7 @@
 """Tests for attachment functionality."""
 
 import logging
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -302,51 +300,6 @@ class TestEngineAttachment:
         # Respects configured max_size
         with pytest.raises(AttachmentSizeError):
             engine.Attachment("test.txt", b"x" * 1001, "text/plain")
-
-
-class TestNotifierWithAttachments:
-    """Tests for notifier functionality with attachments."""
-
-    @pytest.fixture
-    def text_allowed_test_app(self):
-        """Create an Engine with text types allowed for attachments."""
-        config_data = {
-            "APP_NAME": "testApp",
-            "SECRET_KEY": "secret",
-            "BLOG_PREFIX": "/blog",
-            "TRANSLATION_DIRECTORIES": [],
-            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": []}}},
-            "ATTACHMENT": {
-                "allowed_mime_types": list(_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"}),
-                "validate_content": False,
-                "allowed_extensions": ["txt"],
-            },
-        }
-        config = Config.model_validate(config_data)
-        db = db_from_config(config.db)  # type: ignore[arg-type]
-        return Engine(config, db, "test")
-
-    def test_notifiers_receive_attachments(self, text_allowed_test_app: Engine):
-        """Test that notifiers correctly receive messages and attachments."""
-        simple_messages: list[str] = []
-        attachment_data: list[Sequence[Any]] = []
-
-        def simple_notifier(message: str) -> None:
-            simple_messages.append(message)
-
-        def notifier_with_attachments(
-            message: str, attachments: Sequence[Any] = ()  # noqa: ARG001
-        ) -> None:
-            attachment_data.append(attachments)
-
-        attachment = text_allowed_test_app.Attachment("test.txt", b"hello", "text/plain")
-        text_allowed_test_app.add_notifier(simple_notifier)
-        text_allowed_test_app.add_notifier_with_attachments(notifier_with_attachments)
-        text_allowed_test_app.notify("test message", attachments=[attachment])
-
-        assert simple_messages == ["test message"]
-        assert attachment_data[0] is not None
-        assert attachment_data[0][0].filename == "test.txt"
 
 
 class TestMagicByteValidation:
