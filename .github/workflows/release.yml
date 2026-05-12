@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - next
 
 jobs:
   tests:
@@ -31,6 +32,7 @@ jobs:
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
+          target-branch: ${{ github.ref_name }}
 
   publish:
     runs-on: ubuntu-latest
