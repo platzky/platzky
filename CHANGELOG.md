@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha](https://github.com/platzky/platzky/compare/v1.5.1...v2.0.0-alpha) (2026-05-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215))
+
+### Code Refactoring
+
+* drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215)) ([6a8ddbc](https://github.com/platzky/platzky/commit/6a8ddbc51f1c1f2277c205fde514b96475b3140c))
+
 ## [1.5.1](https://github.com/platzky/platzky/compare/v1.5.0...v1.5.1) (2026-05-12)
 
 
