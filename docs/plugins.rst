@@ -182,7 +182,7 @@ Declare ``shortcodes`` as a class variable:
 .. code-block:: python
 
     from typing import ClassVar
-    from markupsafe import Markup
+    from markupsafe import Markup, escape
     from platzky import ContentTransformerPluginBase, ContentType
     from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeAttr
 
@@ -196,7 +196,7 @@ Declare ``shortcodes`` as a class variable:
 
         def render(self, attrs: ShortcodeAttrs, content: str) -> str:
             kind = attrs.type or "info"
-            return str(Markup('<div class="alert alert-{}">{}</div>').format(kind, Markup(content)))
+            return str(Markup('<div class="alert alert-{}">{}</div>').format(escape(kind), escape(content)))
 
     class AlertPlugin(ContentTransformerPluginBase):
         """Adds an [alert] shortcode for Bootstrap alert boxes."""
