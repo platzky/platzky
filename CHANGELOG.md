@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [1.5.0](https://github.com/platzky/platzky/compare/1.4.11...v1.5.0) (2026-05-11)
+
+
+### Features
+
+* added shortcodes, plugin repository and capability plugin bases ([#198](https://github.com/platzky/platzky/issues/198)) ([4e8bb19](https://github.com/platzky/platzky/commit/4e8bb19825a60e54eccb08c15cd5cd427068880c))
+
 ## v1.4.11 (2026-05-05)
 
 ### Bug Fixes
