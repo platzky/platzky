@@ -148,28 +148,29 @@ class TestPlatzky:
             response = client.get("/admin/")
             html = response.data.decode("utf-8")
 
-            match = re.search(r'name="csrf_token" type="hidden" value="(.+?)"', html)
+            match = re.search(r'name="csrf_token" value="(.+?)"', html)
             csrf_token = match.group(1) if match else None
             assert csrf_token is not None
 
+            # Invalid role returns 401, no session user set
             response = client.post(
-                "/admin/fake-login/invalidrole",
-                follow_redirects=True,
-                data={"csrf_token": csrf_token},
+                "/verify_login/fake",
+                data={"csrf_token": csrf_token, "role": "invalidrole"},
             )
-            assert response.status_code == 200
+            assert response.status_code == 401
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
-            response = client.get("/admin/fake-login/admin")
-            assert response.status_code == 405  # Method Not Allowed
-
-            # Ensure no user is set in the session after attempting GET request
+            # GET is not allowed
+            response = client.get("/verify_login/fake")
+            assert response.status_code == 405
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
             response = client.post(
-                "/admin/fake-login/admin", follow_redirects=True, data={"csrf_token": csrf_token}
+                "/verify_login/fake",
+                follow_redirects=True,
+                data={"csrf_token": csrf_token, "role": "admin"},
             )
             assert response.status_code == 200
             with client.session_transaction() as sess:
@@ -178,7 +179,9 @@ class TestPlatzky:
                 assert sess["user"]["role"] == "admin"
 
             response = client.post(
-                "/admin/fake-login/nonadmin", follow_redirects=True, data={"csrf_token": csrf_token}
+                "/verify_login/fake",
+                follow_redirects=True,
+                data={"csrf_token": csrf_token, "role": "nonadmin"},
             )
             assert response.status_code == 200
             with client.session_transaction() as sess:

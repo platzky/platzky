@@ -17,31 +17,7 @@ discovered automatically at startup.
 Since 1.5.0, plugins are built around *capability base classes*. Pick the one that
 matches what your plugin does:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Base class
-     - When to use
-   * - ``NotifierPluginBase``
-     - Send notifications (email, Slack, SMS, …)
-   * - ``AttachmentNotifierPluginBase``
-     - Same as above, plus handle file attachments
-   * - ``ContentTransformerPluginBase``
-     - Transform post/page/comment content; register shortcodes
-   * - ``PluginBase``
-     - Any other engine customisation (CMS modules, health checks, …)
-
-All capability classes are importable directly from ``platzky``:
-
-.. code-block:: python
-
-    from platzky import (
-        PluginBase,
-        NotifierPluginBase,
-        AttachmentNotifierPluginBase,
-        ContentTransformerPluginBase,
-    )
+.. plugin-capabilities::
 
 Quick Start with Cookiecutter
 -----------------------------
@@ -220,57 +196,49 @@ Both reject non-HTTP/HTTPS external URLs and relative paths not starting with ``
 Shortcodes are documented for content authors on the admin *Help* page
 (``/admin/help``).
 
-Other Engine Extensions
------------------------
+Login Plugins
+-------------
 
-For capabilities that don't yet have a dedicated class — CMS modules, login methods,
-health checks, or injecting dynamic HTML — override ``process()`` on a plain
-``PluginBase`` subclass:
+.. versionadded:: 2.0.0
+
+Subclass ``LoginPluginBase`` to add a login provider to the admin panel.
+Declare a ``provider_name`` (used as the URL segment) and implement
+``get_login_method`` (renders the button HTML) and ``authenticate``
+(validates the incoming request and returns user info).
+
+The engine automatically registers a ``/verify_login/<provider>`` route
+that dispatches to the matching plugin, so no Flask blueprint is needed.
 
 .. code-block:: python
 
-    from typing import Any
-    from platzky.plugin.plugin import PluginBase
-    from platzky.engine import Engine
+    from collections.abc import Callable
+    from typing import Any, ClassVar, Optional
+    from flask import Request
+    from platzky import LoginPluginBase
+    from platzky.plugin.plugin import ConfigPluginError
 
-    class AnalyticsPlugin(PluginBase):
-        """Injects the analytics script and registers a health check."""
+    class GithubLoginPlugin(LoginPluginBase):
+        """Login via GitHub OAuth."""
+
+        provider_name: ClassVar[str] = "github"
 
         def __init__(self, config: dict[str, Any]) -> None:
             super().__init__(config)
-            self._tag = config.get("script_tag", "")
+            self._client_id = config.get("client_id", "")
+            self._client_secret = config.get("client_secret", "")
 
-        def process(self, app: Engine) -> Engine:
-            app.add_dynamic_body(self._tag)
-            app.add_health_check("analytics", lambda: None)
-            return app
+        def get_login_method(self) -> Callable[[], str]:
+            client_id = self._client_id
+            def render() -> str:
+                return f'<a href="https://github.com/login/oauth/authorize?client_id={client_id}">Login with GitHub</a>'
+            return render
 
-Available ``Engine`` extension points:
-
-``add_cms_module(module)``
-    Add a CMS module that appears in the admin panel.
-
-``add_login_method(login_method)``
-    Register an additional admin login method.
-
-``add_dynamic_body(html)``
-    Append HTML to every page's ``<body>`` (scripts, widgets).
-
-``add_dynamic_head(html)``
-    Append HTML to every page's ``<head>`` (stylesheets, meta tags).
-
-``add_health_check(name, check_fn)``
-    Register a check included in the ``/health/readiness`` endpoint. The function
-    should raise on failure.
-
-``is_enabled(flag)``
-    Check whether a feature flag is enabled.
-
-.. note::
-    ``process()`` is deprecated since 1.5.0 and will be removed in 2.0.0. Where
-    possible, use the capability subclasses above. Engine extension points for CMS
-    modules, health checks, and dynamic HTML will gain dedicated capability classes
-    in a future release.
+        def authenticate(self, request: Request) -> Optional[dict[str, Any]]:
+            code = (request.get_json() or {}).get("code")
+            if not code:
+                return None
+            # exchange code for token, fetch user info …
+            return {"login": "example-user"}
 
 Packaging a Plugin
 ------------------

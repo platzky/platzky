@@ -30,6 +30,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "myst_parser",
     "feature_flags",  # Auto-generate feature flags docs from FeatureFlagsConfig
+    "plugin_capabilities",  # Auto-generate plugin capability base class table
 ]
 
 templates_path = ["_templates"]

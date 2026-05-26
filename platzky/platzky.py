@@ -1,18 +1,20 @@
 """Application factory — assembles config, database, engine, plugins, and blueprints."""
 
 import logging
+import os
 import typing as t
 import urllib.parse
 from collections.abc import Iterable
 
 import jinja2.ext
-from flask import redirect, render_template, request, session
+from flask import jsonify, redirect, render_template, request, session, url_for
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
+from platzky.auth import AuthenticationError
 from platzky.blog import blog
 from platzky.config import (
     Config,
@@ -24,6 +26,7 @@ from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -236,6 +239,30 @@ def create_engine(config: Config, db: DB) -> Engine:
         """
         return render_template("404.html", title="404"), 404
 
+    @app.route("/verify_login/<provider>", methods=["POST"])
+    def verify_login(provider: str) -> Response | tuple[Response, int]:
+        """Dispatch a login request to the matching LoginPluginBase plugin.
+
+        Args:
+            provider: The provider name declared by the plugin (e.g. ``google``).
+
+        Returns:
+            JSON response with user info on success, or an error response.
+        """
+        plugins: list[LoginPluginBase] = app.get_plugins(LoginPluginBase)
+        plugin = next((p for p in plugins if p.provider_name == provider), None)
+        if plugin is None:
+            return jsonify({"error": f"Unknown provider: {provider}"}), 404
+        try:
+            user = plugin.authenticate(request)
+        except AuthenticationError as e:
+            return jsonify({"error": str(e)}), 401
+        session["user"] = user
+        next_url = session.pop("next", None)
+        if not next_url or not next_url.startswith("/"):
+            next_url = url_for("admin.admin_panel_home")
+        return redirect(next_url)
+
     return plugify(app)
 
 
@@ -299,14 +326,15 @@ def create_app_from_config(config: Config) -> Engine:
         plugin_infos=engine.get_plugin_infos(),
     )
 
-    # Two-layer defense: is_enabled() gates the feature flag, and
-    # DebugBlueprint.register() independently blocks registration
-    # unless the app is in debug or testing mode.
     if engine.is_enabled(FakeLogin):
-        from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
+        from platzky.debug.blueprint import DebugBlueprintProductionError
 
-        engine.login_methods.append(get_fake_login_html())
-        engine.register_blueprint(create_fake_login_blueprint())
+        flask_debug = os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"}
+        if not (engine.debug or engine.testing or flask_debug):
+            raise DebugBlueprintProductionError("fake_login")
+        from platzky.debug.fake_login import FakeLoginPlugin
+
+        engine.register_plugin_capabilities(FakeLoginPlugin({}), "fake_login")
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,

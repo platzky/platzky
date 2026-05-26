@@ -33,6 +33,7 @@ from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.notifier import Notifier, NotifierWithAttachments
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
@@ -66,7 +67,12 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
-_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentTransformerPluginBase)
+_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (
+    NotifierPluginBase,
+    AttachmentNotifierPluginBase,
+    ContentTransformerPluginBase,
+    LoginPluginBase,
+)
 
 
 class Engine(Flask):
@@ -219,19 +225,22 @@ class Engine(Flask):
         """
         from platzky.plugin.plugin import PluginBase
 
-        registered = False
+        matched = False
         for base in _PLUGIN_CAPABILITY_BASES:
             if isinstance(instance, base):
                 self.plugins[base].append(instance)
-                registered = True
+                matched = True
                 logger.debug(
                     "Registered plugin '%s' under capability %s", plugin_name, base.__name__
                 )
 
         self.plugins[type(instance)].append(instance)
 
-        if not registered:
+        if not matched:
             self.plugins[PluginBase].append(instance)
+
+        if isinstance(instance, LoginPluginBase):
+            self.add_login_method(instance.get_login_method())
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
         """Register plugin's locale directory with Babel if it exists."""
