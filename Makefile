@@ -35,9 +35,6 @@ extract-translations:
 	poetry run pybabel extract ./platzky -o extracted.pot -F ./babel.cfg --project=platzky
 	poetry run pybabel update -i extracted.pot -d platzky/locale --ignore-pot-creation-date --ignore-obsolete
 
-audit:  # py package has no fix available (CVE-2022-42969) - dev-only dep of interrogate, not exploitable in our usage
-	poetry audit --ignore-package=py
-
 build:
 	poetry run pybabel compile -d platzky/locale
 	poetry build
