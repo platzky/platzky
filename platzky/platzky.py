@@ -259,7 +259,11 @@ def create_engine(config: Config, db: DB) -> Engine:
             return jsonify({"error": str(e)}), 401
         session["user"] = user
         next_url = session.pop("next", None)
-        if not next_url or not next_url.startswith("/"):
+        if (
+            not next_url
+            or not next_url.startswith("/")
+            or next_url.startswith("//")
+        ):
             next_url = url_for("admin.admin_panel_home")
         return redirect(next_url)
 

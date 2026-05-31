@@ -212,10 +212,10 @@ that dispatches to the matching plugin, so no Flask blueprint is needed.
 .. code-block:: python
 
     from collections.abc import Callable
-    from typing import Any, ClassVar, Optional
+    from typing import Any, ClassVar
     from flask import Request
     from platzky import LoginPluginBase
-    from platzky.plugin.plugin import ConfigPluginError
+    from platzky.auth import AuthenticationError, User
 
     class GithubLoginPlugin(LoginPluginBase):
         """Login via GitHub OAuth."""
@@ -233,12 +233,12 @@ that dispatches to the matching plugin, so no Flask blueprint is needed.
                 return f'<a href="https://github.com/login/oauth/authorize?client_id={client_id}">Login with GitHub</a>'
             return render
 
-        def authenticate(self, request: Request) -> Optional[dict[str, Any]]:
+        def authenticate(self, request: Request) -> User:
             code = (request.get_json() or {}).get("code")
             if not code:
-                return None
+                raise AuthenticationError("Missing OAuth code")
             # exchange code for token, fetch user info …
-            return {"login": "example-user"}
+            return {"username": "example-user"}
 
 Packaging a Plugin
 ------------------
