@@ -207,7 +207,7 @@ Declare a ``provider_name`` (used as the URL segment) and implement
 (validates the incoming request and returns user info).
 
 The engine automatically registers a ``/verify_login/<provider>`` route
-that dispatches to the matching plugin, so no Flask blueprint is needed.
+that dispatches to the matching plugin.
 
 .. code-block:: python
 
