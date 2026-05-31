@@ -6,7 +6,6 @@ WARNING: Never use in production — bypasses real authentication.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 
 from flask import Request, current_app, render_template_string
