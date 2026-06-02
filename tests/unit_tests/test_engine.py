@@ -166,18 +166,6 @@ def test_that_page_has_proper_html_lang_attribute(test_app: Engine):
     assert soup.html.get("lang") == "en-GB"
 
 
-def test_add_login_method(test_app: Engine):
-    def sample_login_method():
-        return "Login Method"
-
-    test_app.add_login_method(sample_login_method)
-    assert sample_login_method in test_app.login_methods
-
-    app = test_app.test_client()
-    response = app.get("/admin/", follow_redirects=True)
-
-    assert response.status_code == 200
-    assert b"Login Method" in response.data
 
 
 def test_add_cms_module(test_app: Engine):
@@ -379,6 +367,7 @@ def test_is_enabled_with_flag_on():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "BLOG_PREFIX": "/blog",
         "TESTING": True,
+        "DEBUG": True,
         "FEATURE_FLAGS": {"FAKE_LOGIN": True},
         "DB": {
             "TYPE": "json",

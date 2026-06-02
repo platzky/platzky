@@ -291,20 +291,16 @@ class TestContentTransformerPluginBase:
 
 
 class TestRegisterPluginCapabilities:
-    def test_uncategorised_plugin_stored_under_pluginbase(
+    def test_uncategorised_plugin_raises_type_error(
         self, base_config_data: dict[str, Any]
     ) -> None:
         class GenericPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-        app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
-        assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
-        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierPluginBase))
-
-    def test_plugin_stored_under_concrete_type(self, base_config_data: dict[str, Any]) -> None:
-        app = _app_with_plugin(base_config_data, "simple", SimpleNotifier)
-        assert any(isinstance(p, SimpleNotifier) for p in app.get_plugins(SimpleNotifier))
+        app = create_app_from_config(Config.model_validate(base_config_data))
+        with pytest.raises(TypeError, match="does not implement any recognised capability"):
+            app.register_plugin(GenericPlugin({}), "generic")
 
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]

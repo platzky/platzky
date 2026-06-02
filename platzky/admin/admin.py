@@ -1,17 +1,17 @@
 """Blueprint for admin panel functionality."""
 
-from collections.abc import Callable
 from os.path import dirname
 
 from flask import Blueprint, render_template, request, session
 
 from platzky.models import CmsModule
+from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin import PluginInfo
 from platzky.shortcodes import Shortcode
 
 
 def create_admin_blueprint(
-    login_methods: list[Callable[[], str]],
+    login_plugins: list[LoginPluginBase],
     cms_modules: list[CmsModule],
     shortcodes: list[Shortcode],
     plugin_infos: list[PluginInfo],
@@ -19,7 +19,7 @@ def create_admin_blueprint(
     """Create admin blueprint with dynamic module routes.
 
     Args:
-        login_methods: Available login methods
+        login_plugins: Login provider plugin instances
         cms_modules: List of CMS modules to register routes for
         shortcodes: Registered shortcode descriptors for the help page
         plugin_infos: Metadata for all loaded plugins
@@ -38,7 +38,7 @@ def create_admin_blueprint(
     def require_login() -> str | None:
         if not session.get("user"):
             session["next"] = request.path
-            return render_template("login.html", login_methods=login_methods)
+            return render_template("login.html", login_plugins=login_plugins)
         return None
 
     for module in cms_modules:

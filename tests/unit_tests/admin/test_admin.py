@@ -6,7 +6,7 @@ from flask import Flask
 from platzky.admin.admin import create_admin_blueprint
 from platzky.models import CmsModule
 
-mock_login_methods = Mock()
+mock_login_plugins = [Mock()]
 
 CMS_MODULE = CmsModule(
     slug="module1",
@@ -21,7 +21,7 @@ def admin_blueprint():
     app = Flask(__name__)
     app.config.update({"WTF_CSRF_ENABLED": False})
     blueprint = create_admin_blueprint(
-        mock_login_methods, [CMS_MODULE], shortcodes=[], plugin_infos=[]
+        mock_login_plugins, [CMS_MODULE], shortcodes=[], plugin_infos=[]
     )
     app.register_blueprint(blueprint)
     app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
@@ -33,7 +33,7 @@ def test_admin_panel_renders_login_when_no_user(mock_render_template: Mock, admi
     mock_render_template.return_value = "login"
     with admin_blueprint.test_client() as client:
         client.get("/admin/")
-        mock_render_template.assert_called_with("login.html", login_methods=mock_login_methods)
+        mock_render_template.assert_called_with("login.html", login_plugins=mock_login_plugins)
 
 
 @patch("platzky.admin.admin.render_template")

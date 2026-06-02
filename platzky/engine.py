@@ -101,7 +101,6 @@ class Engine(Flask):
             ContentTransformerPluginBase, frozenset[ContentType]
         ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
-        self.login_methods: list[Callable[[], str]] = []
         self.dynamic_body = ""
         self.dynamic_head = ""
         self.health_checks: list[tuple[str, Callable[[], None]]] = []
@@ -178,15 +177,16 @@ class Engine(Flask):
         """
         self._content_transformer_allowlist[plugin] = allowed_types
 
-    def register_plugin_capabilities(self, instance: "PluginBase", plugin_name: str) -> None:
+    def register_plugin(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
 
-        Each recognised capability base class becomes a key in ``self.plugins`` so the
-        engine can look up e.g. all NotifierPluginBase plugins without knowing concrete types.
-        Plugins that don't match any capability are stored under PluginBase.
-        """
-        from platzky.plugin.plugin import PluginBase
+        Args:
+            instance: Plugin instance to register.
+            plugin_name: Human-readable name used in log messages.
 
+        Raises:
+            TypeError: If the plugin does not implement any recognised capability.
+        """
         matched = False
         for base in _PLUGIN_CAPABILITY_BASES:
             if isinstance(instance, base):
@@ -195,14 +195,12 @@ class Engine(Flask):
                 logger.debug(
                     "Registered plugin '%s' under capability %s", plugin_name, base.__name__
                 )
-
-        self.plugins[type(instance)].append(instance)
-
         if not matched:
-            self.plugins[PluginBase].append(instance)
-
-        if isinstance(instance, LoginPluginBase):
-            self.add_login_method(instance.get_login_method())
+            raise TypeError(
+                f"Plugin '{plugin_name}' ({type(instance).__name__}) does not implement "
+                f"any recognised capability. Must subclass one of: "
+                f"{', '.join(b.__name__ for b in _PLUGIN_CAPABILITY_BASES)}"
+            )
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
         """Register plugin's locale directory with Babel if it exists."""
@@ -249,7 +247,7 @@ class Engine(Flask):
         app = self
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
-        app.register_plugin_capabilities(plugin_instance, plugin_name)
+        app.register_plugin(plugin_instance, plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
         if isinstance(plugin_instance, ContentTransformerPluginBase):
@@ -270,10 +268,6 @@ class Engine(Flask):
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
-
-    def add_login_method(self, login_method: Callable[[], str]) -> None:
-        """Register a login method callable."""
-        self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str) -> None:
         """Append HTML to the dynamic body section rendered in templates."""

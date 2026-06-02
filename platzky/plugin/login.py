@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import ClassVar
 
 from flask import Request
+from markupsafe import Markup
 
 from platzky.auth import AuthenticationError as AuthenticationError
 from platzky.auth import User as User
@@ -32,11 +32,11 @@ class LoginPluginBase(PluginBase, ABC):
             raise TypeError(f"{cls.__name__} must define provider_name as a class attribute")
 
     @abstractmethod
-    def get_login_method(self) -> Callable[[], str]:
-        """Return a callable that renders the login button HTML.
+    def render_login_button(self) -> Markup:
+        """Render the login button HTML for this provider.
 
         Returns:
-            A zero-argument callable returning an HTML string.
+            Safe HTML markup for the login button, rendered within a request context.
         """
         ...
 

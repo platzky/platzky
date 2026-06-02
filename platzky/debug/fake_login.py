@@ -6,8 +6,6 @@ WARNING: Never use in production — bypasses real authentication.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from flask import Request, current_app, render_template_string
 from markupsafe import Markup
 
@@ -46,17 +44,13 @@ class FakeLoginPlugin(LoginPluginBase):
 
     provider_name = "fake"
 
-    def get_login_method(self) -> Callable[[], str]:
-        """Return a callable that renders the dev login buttons with CSRF tokens.
+    def render_login_button(self) -> Markup:
+        """Render the dev login buttons with CSRF tokens.
 
         Returns:
-            A zero-argument callable that renders the button HTML inside a request context.
+            Safe HTML markup for the development login buttons.
         """
-
-        def render() -> str:
-            return Markup(render_template_string(_BUTTON_TEMPLATE))
-
-        return render
+        return Markup(render_template_string(_BUTTON_TEMPLATE))
 
     def authenticate(self, request: Request) -> User:
         """Authenticate from a form POST, mapping role to a User.

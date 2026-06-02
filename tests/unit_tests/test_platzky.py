@@ -6,7 +6,6 @@ import pytest
 
 from platzky import create_app_from_config
 from platzky.config import Config, LanguageConfig
-from platzky.debug import DebugBlueprintProductionError
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -135,7 +134,8 @@ class TestPlatzky:
                 "APP_NAME": "testing App Name",
                 "SECRET_KEY": "secret",
                 "SEO_PREFIX": "/seo",
-                "TESTING": True,  # Required for FAKE_LOGIN
+                "TESTING": True,
+                "DEBUG": True,
                 "DB": {"TYPE": "json", "DATA": {}},
                 "FEATURE_FLAGS": {"FAKE_LOGIN": True},
             }
@@ -205,7 +205,7 @@ class TestPlatzky:
         config = Config.model_validate(config_raw)
 
         with pytest.raises(
-            DebugBlueprintProductionError,
-            match="Cannot register DebugBlueprint 'fake_login' in production",
+            RuntimeError,
+            match="Cannot register FakeLoginPlugin in production",
         ):
             create_app_from_config(config)

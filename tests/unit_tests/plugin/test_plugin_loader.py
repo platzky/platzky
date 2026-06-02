@@ -9,7 +9,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from platzky.config import Config
+from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config
+from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginError
 from platzky.plugin.plugin_loader import discover_plugins
 from tests.unit_tests.plugin import fake_plugin
@@ -98,10 +100,13 @@ class TestPluginConfigValidation:
 
 class TestPluginLoading:
     def test_plugin_loading_success(self, base_config_data: dict[str, Any]):
-        class MockPlugin(PluginBase):
+        class MockPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.setting = config.get("setting")
+
+            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+                pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "test_plugin", "config": {"setting": "value"}}
@@ -115,13 +120,19 @@ class TestPluginLoading:
         assert any(isinstance(p, MockPlugin) and p.setting == "value" for p in app.loaded_plugins)
 
     def test_multiple_plugins_loading(self, base_config_data: dict[str, Any]):
-        class FirstPlugin(PluginBase):
+        class FirstPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-        class SecondPlugin(PluginBase):
+            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+                pass
+
+        class SecondPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
+
+            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+                pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "first_plugin", "config": {}},
@@ -165,15 +176,12 @@ class TestLocaleDirectorySecurity:
             plugin_dir = Path(tmpdir) / "test_plugin"
             plugin_dir.mkdir()
 
-            # Create plugin module file
             plugin_file = plugin_dir / "__init__.py"
             plugin_file.write_text("# test plugin")
 
-            # Create a valid locale directory inside plugin
             locale_dir = plugin_dir / "locale"
             locale_dir.mkdir()
 
-            # Create a directory outside plugin for testing path traversal
             external_dir = Path(tmpdir) / "external"
             external_dir.mkdir()
 
@@ -185,6 +193,22 @@ class TestLocaleDirectorySecurity:
                 "tmpdir": tmpdir,
             }
 
+    def _locale_plugin(self, locale_dir_value: Any) -> type:
+        """Create a minimal NotifierPluginBase subclass returning the given locale dir."""
+
+        class LocalePlugin(NotifierPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.__class__.__module__ = "test_plugin"
+
+            def get_locale_dir(self) -> Any:
+                return locale_dir_value
+
+            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+                pass
+
+        return LocalePlugin
+
     def test_valid_locale_directory_within_plugin(
         self, base_config_data: dict[str, Any], temp_plugin_structure: TempPluginStructure
     ):
@@ -192,15 +216,7 @@ class TestLocaleDirectorySecurity:
         locale_dir = temp_plugin_structure["locale_dir"]
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class SafePlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> str:
-                return str(locale_dir)
-
-        ep = _make_entry_point("test_plugin", SafePlugin)
+        ep = _make_entry_point("test_plugin", self._locale_plugin(str(locale_dir)))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -228,15 +244,7 @@ class TestLocaleDirectorySecurity:
         external_dir = temp_plugin_structure["external_dir"]
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class MaliciousPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> str:
-                return str(external_dir)
-
-        ep = _make_entry_point("malicious_plugin", MaliciousPlugin)
+        ep = _make_entry_point("malicious_plugin", self._locale_plugin(str(external_dir)))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -265,16 +273,9 @@ class TestLocaleDirectorySecurity:
     ):
         """Test that path traversal attempts (../) are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
+        traversal_path = os.path.join(str(plugin_file.parent), "..", "..", "etc")
 
-        class PathTraversalPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> str:
-                return os.path.join(str(plugin_file.parent), "..", "..", "etc")
-
-        ep = _make_entry_point("traversal_plugin", PathTraversalPlugin)
+        ep = _make_entry_point("traversal_plugin", self._locale_plugin(traversal_path))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -311,15 +312,7 @@ class TestLocaleDirectorySecurity:
         except OSError:
             pytest.skip("Unable to create symlinks on this system")
 
-        class SymlinkPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> str:
-                return str(symlink_path)
-
-        ep = _make_entry_point("symlink_plugin", SymlinkPlugin)
+        ep = _make_entry_point("symlink_plugin", self._locale_plugin(str(symlink_path)))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -345,15 +338,10 @@ class TestLocaleDirectorySecurity:
         """Test that non-existent directories are rejected."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class NonExistentDirPlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> str:
-                return "/completely/fake/path/that/does/not/exist"
-
-        ep = _make_entry_point("nonexistent_plugin", NonExistentDirPlugin)
+        ep = _make_entry_point(
+            "nonexistent_plugin",
+            self._locale_plugin("/completely/fake/path/that/does/not/exist"),
+        )
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -378,15 +366,7 @@ class TestLocaleDirectorySecurity:
         """Test that plugins without locale directories work normally."""
         plugin_file = temp_plugin_structure["plugin_file"]
 
-        class NoLocalePlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.__class__.__module__ = "test_plugin"
-
-            def get_locale_dir(self) -> None:
-                return None
-
-        ep = _make_entry_point("no_locale_plugin", NoLocalePlugin)
+        ep = _make_entry_point("no_locale_plugin", self._locale_plugin(None))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -405,15 +385,7 @@ class TestLocaleDirectorySecurity:
         self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
     ):
         """Test handling of plugins where module has no __file__ attribute."""
-
-        class NoFilePlugin(PluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-
-            def get_locale_dir(self) -> str:
-                return "/some/path"
-
-        ep = _make_entry_point("no_file_plugin", NoFilePlugin)
+        ep = _make_entry_point("no_file_plugin", self._locale_plugin("/some/path"))
         with (
             mock.patch("importlib.metadata.entry_points", return_value=[ep]),
             mock.patch("inspect.getmodule") as mock_getmodule,
@@ -492,9 +464,12 @@ class TestDiscoverPlugins:
     def test_plugify_uses_entry_point_when_available(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        class EntryPointPlugin(PluginBase):
+        class EntryPointPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
+
+            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+                pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]
         config = Config.model_validate(base_config_data)

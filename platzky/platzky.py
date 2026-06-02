@@ -319,22 +319,22 @@ def create_app_from_config(config: Config) -> Engine:
     for _ext in _new_extensions:
         engine.jinja_env.add_extension(_ext)
 
+    if engine.is_enabled(FakeLogin):
+        if not (config.testing and config.debug):
+            raise RuntimeError(
+                "SECURITY ERROR: Cannot register FakeLoginPlugin in production. "
+                "Set TESTING: true and DEBUG: true in your config."
+            )
+        from platzky.debug.fake_login import FakeLoginPlugin
+
+        engine.register_plugin(FakeLoginPlugin({}), "fake_login")
+
     admin_blueprint = admin.create_admin_blueprint(
-        login_methods=engine.login_methods,
+        login_plugins=engine.get_plugins(LoginPluginBase),
         cms_modules=engine.cms_modules,
         shortcodes=list(engine.shortcodes.values()),
         plugin_infos=engine.get_plugin_infos(),
     )
-
-    if engine.is_enabled(FakeLogin):
-        from platzky.debug.blueprint import DebugBlueprintProductionError
-
-        flask_debug = os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"}
-        if not (engine.debug or engine.testing or flask_debug):
-            raise DebugBlueprintProductionError("fake_login")
-        from platzky.debug.fake_login import FakeLoginPlugin
-
-        engine.register_plugin_capabilities(FakeLoginPlugin({}), "fake_login")
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
