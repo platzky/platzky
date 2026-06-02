@@ -6,14 +6,13 @@ import urllib.parse
 from collections.abc import Iterable
 
 import jinja2.ext
-from flask import jsonify, redirect, render_template, request, session, url_for
+from flask import redirect, render_template, request, session
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
-from platzky.auth import AuthenticationError
 from platzky.blog import blog
 from platzky.config import (
     Config,
@@ -24,6 +23,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin_loader import plugify
@@ -238,30 +238,6 @@ def create_engine(config: Config, db: DB) -> Engine:
         """
         return render_template("404.html", title="404"), 404
 
-    @app.route("/verify_login/<provider>", methods=["POST"])
-    def verify_login(provider: str) -> Response | tuple[Response, int]:
-        """Dispatch a login request to the matching LoginPluginBase plugin.
-
-        Args:
-            provider: The provider name declared by the plugin (e.g. ``google``).
-
-        Returns:
-            Redirect to the next URL on success, or a JSON error response.
-        """
-        plugins: list[LoginPluginBase] = app.get_plugins(LoginPluginBase)
-        plugin = next((p for p in plugins if p.provider_name == provider), None)
-        if plugin is None:
-            return jsonify({"error": f"Unknown provider: {provider}"}), 404
-        try:
-            user = plugin.authenticate(request)
-        except AuthenticationError as e:
-            return jsonify({"error": str(e)}), 401
-        session["user"] = user
-        next_url = session.pop("next", None)
-        if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
-            next_url = url_for("admin.admin_panel_home")
-        return redirect(next_url)
-
     return plugify(app)
 
 
@@ -328,8 +304,10 @@ def create_app_from_config(config: Config) -> Engine:
 
         engine.register_plugin(FakeLoginPlugin({}), "fake_login")
 
-    admin_blueprint = admin.create_admin_blueprint(
+    login_blueprint = login.create_login_blueprint(
         login_plugins=engine.get_plugins(LoginPluginBase),
+    )
+    admin_blueprint = admin.create_admin_blueprint(
         cms_modules=engine.cms_modules,
         shortcodes=list(engine.shortcodes.values()),
         plugin_infos=engine.get_plugin_infos(),
@@ -344,6 +322,7 @@ def create_app_from_config(config: Config) -> Engine:
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale
     )
+    engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)

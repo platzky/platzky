@@ -9,7 +9,11 @@
 <div class="admin-contents mx-auto w-75">
   <h1>{% block title %}Admin{% endblock %}</h1>
   {% if user %}
-    <div class="alert alert-success" role="alert">You're logged in</div>
+    <div class="alert alert-success" role="alert">You're logged in as {{ user.username }}</div>
+    <form method="post" action="{{ url_for('login.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Logout</button>
+    </form>
   {% endif %}
 </div>
 

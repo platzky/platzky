@@ -179,7 +179,7 @@ Declare a ``provider_name`` (used as the URL segment) and implement
 ``get_login_method`` (renders the button HTML) and ``authenticate``
 (validates the incoming request and returns user info).
 
-The engine automatically registers a ``/verify_login/<provider>`` route
+The login blueprint registers a ``/login/verify/<provider>`` route
 that dispatches to the matching plugin.
 
 .. code-block:: python

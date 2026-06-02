@@ -145,7 +145,7 @@ class TestPlatzky:
             app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
             client = app.test_client()
 
-            response = client.get("/admin/")
+            response = client.get("/login")
             html = response.data.decode("utf-8")
 
             match = re.search(r'name="csrf_token" value="(.+?)"', html)
@@ -154,7 +154,7 @@ class TestPlatzky:
 
             # Invalid role returns 401, no session user set
             response = client.post(
-                "/verify_login/fake",
+                "/login/verify/fake",
                 data={"csrf_token": csrf_token, "role": "invalidrole"},
             )
             assert response.status_code == 401
@@ -162,13 +162,13 @@ class TestPlatzky:
                 assert "user" not in sess
 
             # GET is not allowed
-            response = client.get("/verify_login/fake")
+            response = client.get("/login/verify/fake")
             assert response.status_code == 405
             with client.session_transaction() as sess:
                 assert "user" not in sess
 
             response = client.post(
-                "/verify_login/fake",
+                "/login/verify/fake",
                 follow_redirects=True,
                 data={"csrf_token": csrf_token, "role": "admin"},
             )
@@ -179,7 +179,7 @@ class TestPlatzky:
                 assert sess["user"]["role"] == "admin"
 
             response = client.post(
-                "/verify_login/fake",
+                "/login/verify/fake",
                 follow_redirects=True,
                 data={"csrf_token": csrf_token, "role": "nonadmin"},
             )

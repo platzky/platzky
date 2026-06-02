@@ -17,7 +17,7 @@ class LoginPluginBase(PluginBase, ABC):
     Subclasses declare a ``provider_name`` and implement ``authenticate``
     (credential verification) and ``render_login_button`` (login UI).
 
-    The engine registers a single ``/verify_login/<provider>`` route that
+    The login blueprint registers ``/login/verify/<provider>`` which
     dispatches incoming data to the matching plugin's ``authenticate`` method.
     """
 

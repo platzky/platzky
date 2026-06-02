@@ -4,12 +4,12 @@
     <div class="card-body">
       <p class="text-danger"><strong>Warning:</strong> For development only</p>
       <div class="d-flex justify-content-around">
-        <form method="post" action="/verify_login/fake" style="display: inline;">
+        <form method="post" action="{{ url_for('login.verify_login', provider='fake') }}" style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="role" value="admin">
           <button type="submit" class="btn btn-primary">Login as Admin</button>
         </form>
-        <form method="post" action="/verify_login/fake" style="display: inline;">
+        <form method="post" action="{{ url_for('login.verify_login', provider='fake') }}" style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="role" value="nonadmin">
           <button type="submit" class="btn btn-secondary">Login as Non-Admin</button>
