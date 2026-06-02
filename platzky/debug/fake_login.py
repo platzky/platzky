@@ -4,6 +4,8 @@ Fake login plugin for development environments only.
 WARNING: Never use in production — bypasses real authentication.
 """
 
+from importlib.resources import files
+
 from flask import Request, current_app, render_template_string
 from markupsafe import Markup
 
@@ -13,28 +15,7 @@ from platzky.plugin.login import LoginPluginBase
 ROLE_ADMIN = "admin"
 ROLE_NONADMIN = "nonadmin"
 
-_BUTTON_TEMPLATE = """\
-<div class="col-md-6 mb-4">
-  <div class="card">
-    <div class="card-header">Development Login</div>
-    <div class="card-body">
-      <p class="text-danger"><strong>Warning:</strong> For development only</p>
-      <div class="d-flex justify-content-around">
-        <form method="post" action="/verify_login/fake" style="display: inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="role" value="admin">
-          <button type="submit" class="btn btn-primary">Login as Admin</button>
-        </form>
-        <form method="post" action="/verify_login/fake" style="display: inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="role" value="nonadmin">
-          <button type="submit" class="btn btn-secondary">Login as Non-Admin</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-"""
+_BUTTON_TEMPLATE = files("platzky.debug").joinpath("templates/fake_login_button.html").read_text()
 
 
 class FakeLoginPlugin(LoginPluginBase):
