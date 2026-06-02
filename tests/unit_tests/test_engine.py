@@ -166,8 +166,6 @@ def test_that_page_has_proper_html_lang_attribute(test_app: Engine):
     assert soup.html.get("lang") == "en-GB"
 
 
-
-
 def test_add_cms_module(test_app: Engine):
     module = CmsModule(
         slug="test-module", template="test.html", name="Test Module", description="Test Description"

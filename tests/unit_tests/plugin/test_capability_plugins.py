@@ -291,9 +291,7 @@ class TestContentTransformerPluginBase:
 
 
 class TestRegisterPluginCapabilities:
-    def test_uncategorised_plugin_raises_type_error(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
+    def test_uncategorised_plugin_raises_type_error(self, base_config_data: dict[str, Any]) -> None:
         class GenericPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)

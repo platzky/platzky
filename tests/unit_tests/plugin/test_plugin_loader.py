@@ -193,7 +193,7 @@ class TestLocaleDirectorySecurity:
                 "tmpdir": tmpdir,
             }
 
-    def _locale_plugin(self, locale_dir_value: Any) -> type:
+    def _locale_plugin(self, locale_dir_value: str | None) -> type:
         """Create a minimal NotifierPluginBase subclass returning the given locale dir."""
 
         class LocalePlugin(NotifierPluginBase):
@@ -201,7 +201,7 @@ class TestLocaleDirectorySecurity:
                 super().__init__(config)
                 self.__class__.__module__ = "test_plugin"
 
-            def get_locale_dir(self) -> Any:
+            def get_locale_dir(self) -> str | None:
                 return locale_dir_value
 
             def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:

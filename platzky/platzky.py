@@ -1,7 +1,6 @@
 """Application factory — assembles config, database, engine, plugins, and blueprints."""
 
 import logging
-import os
 import typing as t
 import urllib.parse
 from collections.abc import Iterable

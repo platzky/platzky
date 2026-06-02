@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from platzky.config import Config
+from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config
 
 
@@ -100,7 +101,9 @@ class TestPlugin(NotifierPluginBase):
                 def get_locale_dir(self) -> str | None:
                     return str(external_dir)
 
-                def notify(self, message: str, topic: Any, receiver: str = "") -> None:
+                def notify(
+                    self, message: str, topic: NotificationTopic, receiver: str = ""
+                ) -> None:
                     pass
 
             ep = _make_entry_point("malicious_plugin", MaliciousPlugin)
