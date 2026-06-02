@@ -9,9 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from platzky.config import Config
-from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config
-from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginError
 from platzky.plugin.plugin_loader import discover_plugins
 from tests.unit_tests.plugin import fake_plugin
@@ -105,7 +104,7 @@ class TestPluginLoading:
                 super().__init__(config)
                 self.setting = config.get("setting")
 
-            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            def notify(self, notification: Notification) -> None:
                 pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [
@@ -124,14 +123,14 @@ class TestPluginLoading:
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            def notify(self, notification: Notification) -> None:
                 pass
 
         class SecondPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            def notify(self, notification: Notification) -> None:
                 pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [
@@ -204,7 +203,7 @@ class TestLocaleDirectorySecurity:
             def get_locale_dir(self) -> str | None:
                 return locale_dir_value
 
-            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            def notify(self, notification: Notification) -> None:
                 pass
 
         return LocalePlugin
@@ -468,7 +467,7 @@ class TestDiscoverPlugins:
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-            def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+            def notify(self, notification: Notification) -> None:
                 pass
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]

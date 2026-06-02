@@ -246,7 +246,7 @@ def create_engine(config: Config, db: DB) -> Engine:
             provider: The provider name declared by the plugin (e.g. ``google``).
 
         Returns:
-            JSON response with user info on success, or an error response.
+            Redirect to the next URL on success, or a JSON error response.
         """
         plugins: list[LoginPluginBase] = app.get_plugins(LoginPluginBase)
         plugin = next((p for p in plugins if p.provider_name == provider), None)

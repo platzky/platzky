@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any, ClassVar
 from unittest import mock
 
@@ -17,7 +16,7 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
@@ -83,31 +82,20 @@ class SimpleNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
         self.received: list[tuple[str, str]] = []
 
-    def notify(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic))
 
 
-class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
-    """Attachment-aware notifier that records received messages and attachments."""
+class SimpleAttachmentNotifier(NotifierPluginBase):
+    """Notifier that records received messages and attachments."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, Sequence[AttachmentProtocol]]] = []
+        self.received: list[tuple[str, str, frozenset[AttachmentProtocol]]] = []
 
-    def notify_with_attachments(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        attachments: Sequence[AttachmentProtocol],
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic, attachments))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic, notification.attachments))
 
 
 class TopicFilteredNotifier(NotifierPluginBase):
@@ -118,13 +106,8 @@ class TopicFilteredNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", frozenset()))
         self.received: list[tuple[str, str]] = []
 
-    def notify(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic))
 
 
 class TestNotifierPluginBase:
@@ -198,9 +181,9 @@ class TestNotifierPluginBase:
         app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
         fake_attachment = object()
 
-        app.notify("msg", topic="general", attachments=[fake_attachment])  # type: ignore[list-item]
+        app.notify("msg", topic="general", attachments=frozenset({fake_attachment}))  # type: ignore[arg-type]
 
-        assert notifier.received[0][2] == [fake_attachment]
+        assert notifier.received[0][2] == frozenset({fake_attachment})
 
     def test_accepted_topics_from_config_list(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
@@ -309,13 +292,7 @@ class TestRegisterPluginCapabilities:
                 self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
                 self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
-            def notify(
-                self,
-                message: str,
-                topic: NotificationTopic,
-                receiver: str = "",
-            ) -> None:
-                # No-op: only verifies capability registration, not notification delivery.
+            def notify(self, notification: Notification) -> None:
                 pass
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)

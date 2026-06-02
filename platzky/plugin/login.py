@@ -1,7 +1,5 @@
 """LoginPluginBase capability — plugins that provide authentication methods."""
 
-from __future__ import annotations
-
 import inspect
 from abc import ABC, abstractmethod
 from typing import ClassVar
@@ -9,8 +7,7 @@ from typing import ClassVar
 from flask import Request
 from markupsafe import Markup
 
-from platzky.auth import AuthenticationError as AuthenticationError
-from platzky.auth import User as User
+from platzky.auth import User
 from platzky.plugin.plugin import PluginBase
 
 
@@ -18,7 +15,7 @@ class LoginPluginBase(PluginBase, ABC):
     """Base class for login provider plugins.
 
     Subclasses declare a ``provider_name`` and implement ``authenticate``
-    (credential verification) and ``get_login_method`` (login UI).
+    (credential verification) and ``render_login_button`` (login UI).
 
     The engine registers a single ``/verify_login/<provider>`` route that
     dispatches incoming data to the matching plugin's ``authenticate`` method.

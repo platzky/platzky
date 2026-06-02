@@ -4,8 +4,6 @@ Fake login plugin for development environments only.
 WARNING: Never use in production — bypasses real authentication.
 """
 
-from __future__ import annotations
-
 from flask import Request, current_app, render_template_string
 from markupsafe import Markup
 

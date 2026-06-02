@@ -14,7 +14,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase as ContentTransformerPluginBase,
 )
 from platzky.plugin.login import LoginPluginBase as LoginPluginBase
-from platzky.plugin.notifier import AttachmentNotifierPluginBase as AttachmentNotifierPluginBase
+from platzky.plugin.notifier import Notification as Notification
 from platzky.plugin.notifier import NotifierPluginBase as NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
 from platzky.plugin.plugin import PluginBase as PluginBase

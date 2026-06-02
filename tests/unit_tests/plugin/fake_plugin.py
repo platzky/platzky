@@ -1,7 +1,6 @@
 from typing import Any
 
-from platzky.notification_topics import NotificationTopic
-from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 
 
 class FakePlugin(NotifierPluginBase):
@@ -11,5 +10,5 @@ class FakePlugin(NotifierPluginBase):
         super().__init__(config)
         self.test_value: str = config.get("test_value", "default")
 
-    def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+    def notify(self, notification: Notification) -> None:
         pass

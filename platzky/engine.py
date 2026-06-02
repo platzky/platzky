@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
@@ -32,7 +32,7 @@ from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
-from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
 
 _PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (
     NotifierPluginBase,
-    AttachmentNotifierPluginBase,
     ContentTransformerPluginBase,
     LoginPluginBase,
 )
@@ -96,7 +95,9 @@ class Engine(Flask):
         self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
-        self._notifier_topic_allowlist: dict[NotifierPluginBase, frozenset[NotificationTopic]] = {}
+        self._notifier_topic_allowlist: defaultdict[
+            NotifierPluginBase, frozenset[NotificationTopic]
+        ] = defaultdict(frozenset)
         self._content_transformer_allowlist: dict[
             ContentTransformerPluginBase, frozenset[ContentType]
         ] = {}
@@ -130,26 +131,24 @@ class Engine(Flask):
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: Sequence[AttachmentProtocol] = (),
-        receiver: str = "",
+        attachments: frozenset[AttachmentProtocol] = frozenset(),
+        receivers: frozenset[str] = frozenset(),
     ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             topic: Notification topic for routing (default ``"general"``).
-            attachments: Attachments to include; empty sequence if none.
-            receiver: Target recipient identifier; empty string means broadcast.
+            attachments: Attachments to include; empty frozenset if none.
+            receivers: Target recipients; empty frozenset means send to no one.
         """
+        notification = Notification(message, topic, attachments, receivers)
         for plugin in self.get_plugins(NotifierPluginBase):
-            if topic not in plugin.accepted_topics:
+            if notification.topic not in plugin.accepted_topics:
                 continue
-            if topic not in self._notifier_topic_allowlist.get(plugin, frozenset()):
+            if notification.topic not in self._notifier_topic_allowlist[plugin]:
                 continue
-            if isinstance(plugin, AttachmentNotifierPluginBase):
-                plugin.notify_with_attachments(message, topic, attachments, receiver)
-            else:
-                plugin.notify(message, topic, receiver)
+            plugin.notify(notification)
 
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
