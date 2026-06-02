@@ -30,8 +30,8 @@ from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
+from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
@@ -63,13 +63,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
         return False
 
     return True
-
-
-_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (
-    NotifierPluginBase,
-    ContentTransformerPluginBase,
-    LoginPluginBase,
-)
 
 
 class Engine(Flask):
@@ -187,7 +180,7 @@ class Engine(Flask):
             TypeError: If the plugin does not implement any recognised capability.
         """
         matched = False
-        for base in _PLUGIN_CAPABILITY_BASES:
+        for base in PLUGIN_BASES:
             if isinstance(instance, base):
                 self.plugins[base].append(instance)
                 matched = True
@@ -198,7 +191,7 @@ class Engine(Flask):
             raise TypeError(
                 f"Plugin '{plugin_name}' ({type(instance).__name__}) does not implement "
                 f"any recognised capability. Must subclass one of: "
-                f"{', '.join(b.__name__ for b in _PLUGIN_CAPABILITY_BASES)}"
+                f"{', '.join(b.__name__ for b in PLUGIN_BASES)}"
             )
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:

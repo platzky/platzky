@@ -5,7 +5,7 @@ from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 
-CAPABILITY_BASES: tuple[type[PluginBase], ...] = (
+PLUGIN_BASES: tuple[type[PluginBase], ...] = (
     NotifierPluginBase,
     ContentTransformerPluginBase,
     LoginPluginBase,

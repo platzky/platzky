@@ -269,11 +269,11 @@ class TestContentTransformerPluginBase:
 
 
 # ---------------------------------------------------------------------------
-# Plugin capability registration
+# Plugin base registration
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterPluginCapabilities:
+class TestRegisterPluginBases:
     def test_uncategorised_plugin_raises_type_error(self, base_config_data: dict[str, Any]) -> None:
         class GenericPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:

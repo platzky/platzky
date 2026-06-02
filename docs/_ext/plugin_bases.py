@@ -1,13 +1,13 @@
-"""Sphinx extension for auto-documenting plugin capability base classes.
+"""Sphinx extension for auto-documenting plugin base classes.
 
-Provides the ``plugin-capabilities`` directive that generates a summary table
-and import block from ``platzky.plugin.CAPABILITY_BASES``.  Adding a new
-capability base class to that tuple is sufficient — the docs update at the
+Provides the ``plugin-bases`` directive that generates a summary table
+and import block from ``platzky.plugin.PLUGIN_BASES``.  Adding a new
+base class to that tuple is sufficient — the docs update at the
 next build with no manual edits required.
 
 Usage in RST::
 
-    .. plugin-capabilities::
+    .. plugin-bases::
 
 """
 
@@ -28,8 +28,8 @@ def _first_sentence(docstring: str | None) -> str:
     return sentence + "." if sentence else ""
 
 
-def _build_rst(capability_bases: tuple[type, ...]) -> list[str]:
-    """Build RST lines for the capability table and import block."""
+def _build_rst(plugin_bases: tuple[type, ...]) -> list[str]:
+    """Build RST lines for the plugin bases table and import block."""
     lines: list[str] = []
 
     # Summary table
@@ -41,7 +41,7 @@ def _build_rst(capability_bases: tuple[type, ...]) -> list[str]:
         "   * - Base class",
         "     - When to use",
     ]
-    for cls in capability_bases:
+    for cls in plugin_bases:
         lines += [
             f"   * - :class:`~{cls.__module__}.{cls.__name__}`",
             f"     - {_first_sentence(cls.__doc__)}",
@@ -49,9 +49,9 @@ def _build_rst(capability_bases: tuple[type, ...]) -> list[str]:
     lines.append("")
 
     # Import block
-    imports = ", ".join(cls.__name__ for cls in capability_bases)
+    imports = ", ".join(cls.__name__ for cls in plugin_bases)
     lines += [
-        "All capability classes (plus :class:`~platzky.plugin.plugin.PluginBase` itself)"
+        "All plugin base classes (plus :class:`~platzky.plugin.plugin.PluginBase` itself)"
         " are importable directly from ``platzky``::",
         "",
         f"    from platzky import PluginBase, {imports}",
@@ -61,26 +61,26 @@ def _build_rst(capability_bases: tuple[type, ...]) -> list[str]:
     return lines
 
 
-class PluginCapabilitiesDirective(SphinxDirective):
-    """Directive to auto-generate plugin capability documentation."""
+class PluginBasesDirective(SphinxDirective):
+    """Directive to auto-generate plugin base class documentation."""
 
     has_content = False
     required_arguments = 0
     optional_arguments = 0
 
     def run(self) -> list[nodes.Node]:
-        """Generate plugin capability documentation nodes."""
-        from platzky.plugin import CAPABILITY_BASES
+        """Generate plugin base class documentation nodes."""
+        from platzky.plugin import PLUGIN_BASES
 
-        rst_lines = _build_rst(CAPABILITY_BASES)
+        rst_lines = _build_rst(PLUGIN_BASES)
         node = nodes.container()
         self.state.nested_parse(StringList(rst_lines), self.content_offset, node)
         return [node]
 
 
 def setup(app: Sphinx) -> dict[str, object]:
-    """Register the plugin-capabilities directive with Sphinx."""
-    app.add_directive("plugin-capabilities", PluginCapabilitiesDirective)
+    """Register the plugin-bases directive with Sphinx."""
+    app.add_directive("plugin-bases", PluginBasesDirective)
     return {
         "version": "1.0",
         "parallel_read_safe": True,

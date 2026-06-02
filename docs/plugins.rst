@@ -14,10 +14,10 @@ Plugins are ordinary Python packages installed into the same environment as Plat
 They advertise themselves via the ``platzky.plugins`` entry-point group and are
 discovered automatically at startup.
 
-Since 1.5.0, plugins are built around *capability base classes*. Pick the one that
+Since 1.5.0, plugins are built around *plugin base classes*. Pick the one that
 matches what your plugin does:
 
-.. plugin-capabilities::
+.. plugin-bases::
 
 Quick Start with Cookiecutter
 -----------------------------
@@ -65,7 +65,7 @@ The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
 .. code-block:: python
 
     from typing import Any
-    from platzky import NotifierPluginBase, NotificationTopic
+    from platzky import Notification, NotifierPluginBase, NotificationTopic
 
     class SlackNotifier(NotifierPluginBase):
         """Send notifications to a Slack channel."""
@@ -76,41 +76,14 @@ The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
             super().__init__(config)
             self._webhook = config.get("webhook_url", "")
 
-        def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+        def notify(self, notification: Notification) -> None:
             # post to self._webhook …
             pass
 
-**With attachments**
-
-Subclass ``AttachmentNotifierPluginBase`` instead when your plugin needs to handle
-files. Implement ``notify_with_attachments``; the base class delegates plain
-``notify`` calls to it with an empty attachment list automatically.
-
-.. code-block:: python
-
-    from collections.abc import Sequence
-    from typing import Any
-    from platzky import AttachmentNotifierPluginBase, NotificationTopic
-    from platzky.attachment import AttachmentProtocol
-
-    class MailNotifier(AttachmentNotifierPluginBase):
-        """Email notifier with attachment support."""
-
-        accepted_topics: frozenset[NotificationTopic] = frozenset({"content"})
-
-        def __init__(self, config: dict[str, Any]) -> None:
-            super().__init__(config)
-            self._to = config.get("recipient", "")
-
-        def notify_with_attachments(
-            self,
-            message: str,
-            topic: NotificationTopic,
-            attachments: Sequence[AttachmentProtocol],
-            receiver: str = "",
-        ) -> None:
-            # send email …
-            pass
+Notifications carry ``message``, ``topic``, ``attachments`` (a ``frozenset`` of
+:class:`~platzky.attachment.AttachmentProtocol`), and ``receivers`` (a
+``frozenset[str]``; empty means nobody specific — send to the channel). Access
+whichever fields your plugin needs.
 
 Content Transformer Plugins
 ---------------------------
@@ -349,7 +322,7 @@ Legacy Plugins
 
 .. deprecated:: 1.2.0
     Module-style legacy plugins are deprecated and will be removed in 2.0.0.
-    Use a class-based capability subclass instead.
+    Use a class-based plugin base subclass instead.
 
 Legacy plugins are plain modules with a ``process`` function:
 
@@ -359,4 +332,4 @@ Legacy plugins are plain modules with a ``process`` function:
         return app
 
 This style does not support configuration validation, translation discovery, or
-capability routing. Migrate to a class-based subclass.
+plugin base routing. Migrate to a class-based subclass.
