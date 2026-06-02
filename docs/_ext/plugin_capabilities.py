@@ -11,17 +11,12 @@ Usage in RST::
 
 """
 
-from __future__ import annotations
-
 import inspect
 
 from docutils import nodes
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
-from sphinx.util.logging import getLogger
-
-logger = getLogger(__name__)
 
 
 def _first_sentence(docstring: str | None) -> str:
@@ -54,7 +49,7 @@ def _build_rst(capability_bases: tuple[type, ...]) -> list[str]:
     lines.append("")
 
     # Import block
-    imports = ", ".join(c.__name__ for c in capability_bases)
+    imports = ", ".join(cls.__name__ for cls in capability_bases)
     lines += [
         "All capability classes (plus :class:`~platzky.plugin.plugin.PluginBase` itself)"
         " are importable directly from ``platzky``::",
@@ -75,20 +70,7 @@ class PluginCapabilitiesDirective(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         """Generate plugin capability documentation nodes."""
-        try:
-            from platzky.plugin import CAPABILITY_BASES
-        except ImportError as e:
-            logger.warning(
-                "Could not import CAPABILITY_BASES: %s. "
-                "Plugin capability documentation will not be generated.",
-                e,
-            )
-            warning = nodes.warning()
-            warning += nodes.paragraph(
-                text="Plugin capability documentation could not be generated. "
-                "See build logs for details."
-            )
-            return [warning]
+        from platzky.plugin import CAPABILITY_BASES
 
         rst_lines = _build_rst(CAPABILITY_BASES)
         node = nodes.container()
