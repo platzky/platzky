@@ -5,8 +5,9 @@ from flask import Flask
 
 from platzky.admin.admin import create_admin_blueprint
 from platzky.models import CmsModule
+from platzky.plugin.login import LoginPluginBase
 
-mock_login_plugins = [Mock()]
+mock_login_plugins = [Mock(spec=LoginPluginBase)]
 
 CMS_MODULE = CmsModule(
     slug="module1",

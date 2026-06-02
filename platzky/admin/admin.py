@@ -1,5 +1,6 @@
 """Blueprint for admin panel functionality."""
 
+from collections.abc import Sequence
 from os.path import dirname
 
 from flask import Blueprint, render_template, request, session
@@ -11,7 +12,7 @@ from platzky.shortcodes import Shortcode
 
 
 def create_admin_blueprint(
-    login_plugins: list[LoginPluginBase],
+    login_plugins: Sequence[LoginPluginBase],
     cms_modules: list[CmsModule],
     shortcodes: list[Shortcode],
     plugin_infos: list[PluginInfo],
