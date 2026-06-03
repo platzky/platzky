@@ -56,10 +56,6 @@ Notifier Plugins
 
 .. versionadded:: 1.5.0
 
-Subclass ``NotifierPluginBase`` to send notifications. Declare which topics your
-plugin handles via ``accepted_topics``; the engine routes notifications to matching
-plugins only.
-
 The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
 
 .. code-block:: python
@@ -89,9 +85,6 @@ Content Transformer Plugins
 ---------------------------
 
 .. versionadded:: 1.5.0
-
-Subclass ``ContentTransformerPluginBase`` to modify post, page, or comment content
-before rendering. Declare which content types to process via ``accepted_content_types``.
 
 The three content types are ``"post"``, ``"page"``, and ``"comment"``.
 
@@ -174,19 +167,15 @@ Login Plugins
 
 .. versionadded:: 2.0.0
 
-Subclass ``LoginPluginBase`` to add a login provider to the admin panel.
-Declare a ``provider_name`` (used as the URL segment) and implement
-``get_login_method`` (renders the button HTML) and ``authenticate``
-(validates the incoming request and returns user info).
-
-The login blueprint registers a ``/login/verify/<provider>`` route
-that dispatches to the matching plugin.
+Declare a ``provider_name`` and implement ``render_login_button`` and
+``authenticate``. The login blueprint registers ``/login/verify/<provider>``
+which dispatches to the matching plugin.
 
 .. code-block:: python
 
-    from collections.abc import Callable
     from typing import Any, ClassVar
     from flask import Request
+    from markupsafe import Markup
     from platzky import LoginPluginBase
     from platzky.auth import AuthenticationError, User
 
@@ -200,11 +189,9 @@ that dispatches to the matching plugin.
             self._client_id = config.get("client_id", "")
             self._client_secret = config.get("client_secret", "")
 
-        def get_login_method(self) -> Callable[[], str]:
-            client_id = self._client_id
-            def render() -> str:
-                return f'<a href="https://github.com/login/oauth/authorize?client_id={client_id}">Login with GitHub</a>'
-            return render
+        def render_login_button(self) -> Markup:
+            url = f"https://github.com/login/oauth/authorize?client_id={self._client_id}"
+            return Markup(f'<a href="{url}">Login with GitHub</a>')
 
         def authenticate(self, request: Request) -> User:
             code = (request.get_json() or {}).get("code")
