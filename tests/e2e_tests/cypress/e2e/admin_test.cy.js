@@ -6,7 +6,7 @@ describe('Admin authentication', () => {
     cy.contains('Login')
 
     // Log in as admin via fake login
-    cy.get('form[action*="/verify_login/fake"]:has(input[value="admin"])').submit()
+    cy.get('form[action*="/login/verify/fake"]:has(input[value="admin"])').submit()
 
     // Should land on /admin/help, not /admin/
     cy.url().should('include', '/admin/help')
