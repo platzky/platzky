@@ -304,19 +304,3 @@ directory inside your plugin package:
 ``PluginBase.get_locale_dir()`` discovers the directory automatically. Platzky
 registers it with Flask-Babel during plugin loading.
 
-Legacy Plugins
---------------
-
-.. deprecated:: 1.2.0
-    Module-style legacy plugins are deprecated and will be removed in 2.0.0.
-    Use a class-based plugin base subclass instead.
-
-Legacy plugins are plain modules with a ``process`` function:
-
-.. code-block:: python
-
-    def process(app, config):
-        return app
-
-This style does not support configuration validation, translation discovery, or
-plugin base routing. Migrate to a class-based subclass.
