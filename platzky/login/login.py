@@ -25,7 +25,7 @@ def create_login_blueprint(login_plugins: Sequence[LoginPluginBase]) -> Blueprin
         template_folder=f"{dirname(__file__)}/templates",
     )
 
-    @login.route("/login")
+    @login.route("/login", methods=["GET"])
     def login_page() -> str:
         """Render the login page."""
         return render_template("login.html", login_plugins=login_plugins)
