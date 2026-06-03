@@ -1,4 +1,4 @@
-"""Core Attachment class factory for file attachments in notifications."""
+"""Core Attachment dataclass for file attachments in notifications."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import logging
 import mimetypes
 import ntpath
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
 
 from platzky.attachment.constants import (
     AttachmentSizeError,
@@ -24,48 +24,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@runtime_checkable
-class AttachmentProtocol(Protocol):
-    """Protocol defining the interface for Attachment classes.
-
-    This protocol allows type-safe usage of dynamically created Attachment classes.
-    """
-
-    filename: str
-    content: bytes
-    mime_type: str
-
-    def __init__(
-        self,
-        filename: str,
-        content: bytes,
-        mime_type: str,
-        _max_size: int | None = None,
-    ) -> None: ...
-
-    @classmethod
-    def from_bytes(
-        cls,
-        content: bytes,
-        filename: str,
-        mime_type: str,
-        max_size_override: int | None = None,
-    ) -> AttachmentProtocol:
-        """Create an attachment from raw bytes with explicit MIME type."""
-        raise NotImplementedError
-
-    @classmethod
-    def from_file(
-        cls,
-        file_path: str | Path,
-        filename: str | None = None,
-        mime_type: str | None = None,
-        max_size_override: int | None = None,
-    ) -> AttachmentProtocol:
-        """Create an attachment by reading a file from disk."""
-        raise NotImplementedError
-
-
 def _sanitize_filename(filename: str) -> str:
     """Remove path components from filename, returning just the basename.
 
@@ -73,7 +31,6 @@ def _sanitize_filename(filename: str) -> str:
     then extracts basename. Returns empty string for invalid inputs rather than
     preserving path separators, allowing validation to reject them.
     """
-    # Strip trailing separators to handle inputs like "/" or "dir/"
     stripped = filename.rstrip("/\\")
     return os.path.basename(ntpath.basename(stripped))
 
@@ -140,133 +97,150 @@ def _do_sanitize_filename(filename: str) -> str:
     return sanitized
 
 
-def create_attachment_class(config: AttachmentConfig) -> type:
-    """Create an Attachment class with configuration captured via closure.
+@dataclass(frozen=True)
+class Attachment:
+    """Represents a file attachment for notifications.
 
-    Args:
-        config: Attachment configuration containing allowed_mime_types,
-            validate_content, allow_unrecognized_content, max_size,
-            and blocked_extensions.
-
-    Returns:
-        A configured Attachment class that validates attachments according
-        to the provided configuration.
+    Attributes:
+        filename: Name of the file (without path components).
+        content: Binary content of the file.
+        mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf').
 
     Example:
-        >>> from platzky.config import AttachmentConfig
-        >>> config = AttachmentConfig()
-        >>> Attachment = create_attachment_class(config)
-        >>> attachment = Attachment("report.pdf", pdf_bytes, "application/pdf")
+        >>> attachment = Attachment.create("report.pdf", pdf_bytes, "application/pdf", config)
     """
-    # Capture config values in closure
-    allowed_mime_types = config.allowed_mime_types
-    validate_content = config.validate_content
-    allow_unrecognized_content = config.allow_unrecognized_content
-    max_size = config.max_size
-    blocked_extensions = config.blocked_extensions
-    allowed_extensions = config.allowed_extensions
 
-    @dataclass(frozen=True)
-    class Attachment:
-        """Represents a file attachment for notifications.
+    filename: str
+    content: bytes
+    mime_type: str
 
-        Attributes:
-            filename: Name of the file (without path components).
+    @classmethod
+    def create(
+        cls,
+        filename: str,
+        content: bytes,
+        mime_type: str,
+        config: AttachmentConfig,
+    ) -> Attachment:
+        """Validate and construct an Attachment.
+
+        Args:
+            filename: Name of the file; path components are stripped automatically.
             content: Binary content of the file.
-            mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf').
+            mime_type: MIME type of the file.
+            config: Attachment configuration controlling validation rules.
+
+        Returns:
+            A validated, immutable Attachment instance.
 
         Raises:
-            ValueError: If filename is empty or MIME type is invalid/not allowed.
+            ValueError: If filename is empty after sanitization.
+            BlockedExtensionError: If the file extension is on the block-list.
+            ExtensionNotAllowedError: If the file extension is not in the allow-list.
             AttachmentSizeError: If content exceeds configured max_size.
-            ContentMismatchError: If content does not match declared MIME type.
-
-        Example:
-            >>> attachment = Attachment("report.pdf", pdf_bytes, "application/pdf")
+            InvalidMimeTypeError: If MIME type is invalid or not in the allowlist.
+            ContentMismatchError: If content does not match the declared MIME type.
         """
+        return cls._validated(filename, content, mime_type, config, config.max_size)
 
-        filename: str
-        content: bytes
-        mime_type: str
-        _max_size: int | None = field(default=None, repr=False, compare=False)
+    @classmethod
+    def from_bytes(
+        cls,
+        content: bytes,
+        filename: str,
+        mime_type: str,
+        config: AttachmentConfig,
+        max_size_override: int | None = None,
+    ) -> Attachment:
+        """Create an Attachment from bytes with size validation before object creation.
 
-        def __post_init__(self) -> None:
-            """Validate attachment data using config from closure."""
-            sanitized = _do_sanitize_filename(self.filename)
-            if sanitized != self.filename:
-                object.__setattr__(self, "filename", sanitized)
+        Args:
+            content: Binary content; must already be in memory.
+            filename: Name of the file.
+            mime_type: MIME type of the file.
+            config: Attachment configuration controlling validation rules.
+            max_size_override: Override the config max_size for this attachment only.
 
-            _validate_extension(
-                self.filename, _get_extension(self.filename), blocked_extensions, allowed_extensions
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        limit = config.max_size if max_size_override is None else max_size_override
+        if len(content) > limit:
+            raise AttachmentSizeError(_sanitize_filename(filename), len(content), limit)
+        return cls._validated(filename, content, mime_type, config, limit)
+
+    @classmethod
+    def from_file(
+        cls,
+        file_path: str | Path,
+        config: AttachmentConfig,
+        filename: str | None = None,
+        mime_type: str | None = None,
+        max_size_override: int | None = None,
+    ) -> Attachment:
+        """Create an Attachment from a file path with bounded read for size safety.
+
+        Args:
+            file_path: Path to the file on disk.
+            config: Attachment configuration controlling validation rules.
+            filename: Override the filename; defaults to the file's basename.
+            mime_type: Override the MIME type; defaults to guessing from filename.
+            max_size_override: Override the config max_size for this attachment only.
+
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        path = Path(file_path)
+        limit = config.max_size if max_size_override is None else max_size_override
+
+        # Early check to reject obviously oversized files without opening them
+        file_size = path.stat().st_size
+        if file_size > limit:
+            raise AttachmentSizeError(path.name, file_size, limit)
+
+        # Bounded read to prevent TOCTOU: even if file grows after stat(),
+        # we never load more than limit + 1 bytes
+        with path.open("rb") as f:
+            content = f.read(limit + 1)
+
+        if len(content) > limit:
+            # Report actual bytes read (not stat size) for TOCTOU consistency
+            raise AttachmentSizeError(path.name, len(content), limit)
+
+        effective_filename = filename or path.name
+        return cls._validated(
+            effective_filename,
+            content,
+            mime_type or _guess_mime_type(effective_filename),
+            config,
+            limit,
+        )
+
+    @classmethod
+    def _validated(
+        cls,
+        filename: str,
+        content: bytes,
+        mime_type: str,
+        config: AttachmentConfig,
+        max_size: int,
+    ) -> Attachment:
+        """Run all validation checks with an explicit size limit and construct the instance."""
+        sanitized = _do_sanitize_filename(filename)
+        _validate_extension(
+            sanitized,
+            _get_extension(sanitized),
+            config.blocked_extensions,
+            config.allowed_extensions,
+        )
+        if len(content) > max_size:
+            raise AttachmentSizeError(sanitized, len(content), max_size)
+        _validate_mime_type(mime_type, sanitized, config.allowed_mime_types)
+        if config.validate_content:
+            validate_content_mime_type(
+                content,
+                mime_type,
+                sanitized,
+                allow_unrecognized=config.allow_unrecognized_content,
             )
-
-            effective_max_size = self._max_size if self._max_size is not None else max_size
-            if len(self.content) > effective_max_size:
-                raise AttachmentSizeError(self.filename, len(self.content), effective_max_size)
-
-            _validate_mime_type(self.mime_type, self.filename, allowed_mime_types)
-
-            if validate_content:
-                validate_content_mime_type(
-                    self.content,
-                    self.mime_type,
-                    self.filename,
-                    allow_unrecognized=allow_unrecognized_content,
-                )
-
-        @classmethod
-        def from_bytes(
-            cls,
-            content: bytes,
-            filename: str,
-            mime_type: str,
-            max_size_override: int | None = None,
-        ) -> Attachment:
-            """Create an Attachment from bytes with size validation before object creation.
-
-            Note: The bytes must already be in memory. This method validates size before
-            creating the Attachment object. For memory-safe loading from disk, use from_file().
-            """
-            limit = max_size if max_size_override is None else max_size_override
-            if len(content) > limit:
-                raise AttachmentSizeError(_sanitize_filename(filename), len(content), limit)
-            return cls(filename=filename, content=content, mime_type=mime_type, _max_size=limit)
-
-        @classmethod
-        def from_file(
-            cls,
-            file_path: str | Path,
-            filename: str | None = None,
-            mime_type: str | None = None,
-            max_size_override: int | None = None,
-        ) -> Attachment:
-            """Create an Attachment from a file path with bounded read for size safety.
-
-            Uses a bounded read to prevent loading oversized files into memory,
-            avoiding TOCTOU issues where a file could grow between size check and read.
-            """
-            path = Path(file_path)
-            limit = max_size if max_size_override is None else max_size_override
-
-            # Early check to reject obviously oversized files without opening them
-            file_size = path.stat().st_size
-            if file_size > limit:
-                raise AttachmentSizeError(path.name, file_size, limit)
-
-            # Bounded read to prevent TOCTOU: even if file grows after stat(),
-            # we never load more than limit + 1 bytes
-            with path.open("rb") as f:
-                content = f.read(limit + 1)
-
-            if len(content) > limit:
-                # Report actual bytes read (not stat size) for TOCTOU consistency
-                raise AttachmentSizeError(path.name, len(content), limit)
-
-            effective_filename = filename or path.name
-            return cls(
-                filename=effective_filename,
-                content=content,
-                mime_type=mime_type or _guess_mime_type(effective_filename),
-                _max_size=limit,
-            )
-
-    return Attachment
+        return cls(filename=sanitized, content=content, mime_type=mime_type)

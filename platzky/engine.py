@@ -23,7 +23,7 @@ from flask import (
 )
 from flask_babel import Babel
 
-from platzky.attachment import AttachmentProtocol, create_attachment_class
+from platzky.attachment import Attachment
 from platzky.config import Config
 from platzky.content_types import ContentType
 from platzky.db.db import DB
@@ -85,7 +85,7 @@ class Engine(Flask):
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
-        self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
+        self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
         self._notifier_topic_allowlist: defaultdict[
@@ -120,11 +120,68 @@ class Engine(Flask):
         """Return PluginInfo metadata for all loaded plugins."""
         return [plugin.get_info() for plugin in self.loaded_plugins]
 
+    def create_attachment(self, filename: str, content: bytes, mime_type: str) -> Attachment:
+        """Validate and construct an Attachment using the engine's configured rules.
+
+        Args:
+            filename: Name of the file; path components are stripped automatically.
+            content: Binary content of the file.
+            mime_type: MIME type of the file.
+
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        return Attachment.create(filename, content, mime_type, self._attachment_config)
+
+    def attachment_from_bytes(
+        self,
+        content: bytes,
+        filename: str,
+        mime_type: str,
+        max_size_override: int | None = None,
+    ) -> Attachment:
+        """Create an Attachment from bytes using the engine's configured rules.
+
+        Args:
+            content: Binary content; must already be in memory.
+            filename: Name of the file.
+            mime_type: MIME type of the file.
+            max_size_override: Override the configured max_size for this attachment only.
+
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        return Attachment.from_bytes(
+            content, filename, mime_type, self._attachment_config, max_size_override
+        )
+
+    def attachment_from_file(
+        self,
+        file_path: str,
+        filename: str | None = None,
+        mime_type: str | None = None,
+        max_size_override: int | None = None,
+    ) -> Attachment:
+        """Create an Attachment from a file path using the engine's configured rules.
+
+        Args:
+            file_path: Path to the file on disk.
+            filename: Override the filename; defaults to the file's basename.
+            mime_type: Override the MIME type; defaults to guessing from filename.
+            max_size_override: Override the configured max_size for this attachment only.
+
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        return Attachment.from_file(
+            file_path, self._attachment_config, filename, mime_type, max_size_override
+        )
+
     def notify(
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: frozenset[AttachmentProtocol] = frozenset(),
+        attachments: frozenset[Attachment] = frozenset(),
         receivers: frozenset[str] = frozenset(),
     ) -> None:
         """Send a notification to all registered notifiers.

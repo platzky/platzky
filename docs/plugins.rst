@@ -77,7 +77,7 @@ The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
             pass
 
 Notifications carry ``message``, ``topic``, ``attachments`` (a ``frozenset`` of
-:class:`~platzky.attachment.AttachmentProtocol`), and ``receivers`` (a
+:class:`~platzky.attachment.Attachment`), and ``receivers`` (a
 ``frozenset[str]``; empty means nobody specific — send to the channel). Access
 whichever fields your plugin needs.
 

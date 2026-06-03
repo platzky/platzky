@@ -8,7 +8,7 @@ from unittest import mock
 import jinja2.ext
 import pytest
 
-from platzky.attachment import AttachmentProtocol
+from platzky.attachment import Attachment
 from platzky.config import Config
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
@@ -92,7 +92,7 @@ class SimpleAttachmentNotifier(NotifierPluginBase):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, frozenset[AttachmentProtocol]]] = []
+        self.received: list[tuple[str, str, frozenset[Attachment]]] = []
 
     def notify(self, notification: Notification) -> None:
         self.received.append((notification.message, notification.topic, notification.attachments))

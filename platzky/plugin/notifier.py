@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from platzky.attachment import AttachmentProtocol
+from platzky.attachment import Attachment
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import PluginBase
 
@@ -14,7 +14,7 @@ class Notification:
 
     message: str
     topic: NotificationTopic
-    attachments: frozenset[AttachmentProtocol] = field(default_factory=frozenset)
+    attachments: frozenset[Attachment] = field(default_factory=frozenset)
     receivers: frozenset[str] = field(default_factory=frozenset)
 
 
