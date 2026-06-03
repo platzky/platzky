@@ -293,7 +293,7 @@ class TestRegisterPluginBases:
                 self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierPluginBase))

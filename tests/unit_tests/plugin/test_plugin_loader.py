@@ -105,7 +105,7 @@ class TestPluginLoading:
                 self.setting = config.get("setting")
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "test_plugin", "config": {"setting": "value"}}
@@ -124,14 +124,14 @@ class TestPluginLoading:
                 super().__init__(config)
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         class SecondPlugin(NotifierPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         base_config_data["DB"]["DATA"]["plugins"] = [
             {"name": "first_plugin", "config": {}},
@@ -204,7 +204,7 @@ class TestLocaleDirectorySecurity:
                 return locale_dir_value
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         return LocalePlugin
 
@@ -468,7 +468,7 @@ class TestDiscoverPlugins:
                 super().__init__(config)
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]
         config = Config.model_validate(base_config_data)

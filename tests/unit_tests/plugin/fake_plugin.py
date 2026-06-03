@@ -11,4 +11,4 @@ class FakePlugin(NotifierPluginBase):
         self.test_value: str = config.get("test_value", "default")
 
     def notify(self, notification: Notification) -> None:
-        pass
+        pass  # no-op: test stub
