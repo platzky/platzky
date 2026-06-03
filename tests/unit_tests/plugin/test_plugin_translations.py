@@ -102,7 +102,7 @@ class TestPlugin(NotifierPluginBase):
                     return str(external_dir)
 
                 def notify(self, notification: Notification) -> None:
-                    pass
+                    pass  # no-op: test stub
 
             ep = _make_entry_point("malicious_plugin", MaliciousPlugin)
             mock_module = mock.MagicMock()
