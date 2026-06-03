@@ -25,6 +25,6 @@ class LogNotifier(NotifierPluginBase):
             notification: The notification payload to log.
         """
         receivers = (
-            f" → {', '.join(sorted(notification.receivers))}" if notification.receivers else ""
+            f" → {len(notification.receivers)} receiver(s)" if notification.receivers else ""
         )
         logger.info("[%s%s] %s", notification.topic, receivers, notification.message)
