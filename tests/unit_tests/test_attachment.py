@@ -143,26 +143,7 @@ class TestAttachmentBasics:
 
 
 class TestAttachmentFactoryMethods:
-    """Tests for from_bytes() and from_file() factory methods."""
-
-    def test_from_bytes(self, text_allowed_config: AttachmentConfig):
-        """Test from_bytes creates valid attachment and validates size."""
-        attachment = Attachment.from_bytes(
-            content=b"content",
-            filename="test.txt",
-            mime_type="text/plain",
-            config=text_allowed_config,
-        )
-        assert attachment.filename == "test.txt"
-
-        # Size validation
-        with pytest.raises(AttachmentSizeError):
-            Attachment.from_bytes(
-                content=b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1),
-                filename="large.bin",
-                mime_type="text/plain",
-                config=text_allowed_config,
-            )
+    """Tests for from_file() factory method."""
 
     def test_from_file(self, tmp_path: Path, text_allowed_config: AttachmentConfig):
         """Test from_file creates valid attachment."""
@@ -220,43 +201,6 @@ class TestAttachmentFactoryMethods:
         with patch.object(Path, "open", return_value=mock_file):
             with pytest.raises(AttachmentSizeError):
                 Attachment.from_file(file_path=test_file, config=config, mime_type="text/plain")
-
-    def test_max_size_override(self, tmp_path: Path):
-        """Test max_size_override for both from_bytes and from_file."""
-        config = AttachmentConfig(
-            max_size=100,
-            allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
-            validate_content=False,
-            allowed_extensions=frozenset({"txt"}),
-        )
-
-        # from_bytes: override allows larger content
-        attachment = Attachment.from_bytes(
-            content=b"x" * 200,
-            filename="large.txt",
-            mime_type="text/plain",
-            config=config,
-            max_size_override=500,
-        )
-        assert len(attachment.content) == 200
-
-        # from_bytes: override still enforced
-        with pytest.raises(AttachmentSizeError):
-            Attachment.from_bytes(
-                content=b"x" * 600,
-                filename="huge.txt",
-                mime_type="text/plain",
-                config=config,
-                max_size_override=500,
-            )
-
-        # from_file: same behavior
-        large_file = tmp_path / "large.txt"
-        large_file.write_bytes(b"x" * 200)
-        attachment = Attachment.from_file(
-            file_path=large_file, config=config, mime_type="text/plain", max_size_override=500
-        )
-        assert len(attachment.content) == 200
 
 
 class TestEngineAttachment:

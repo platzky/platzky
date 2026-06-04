@@ -133,34 +133,11 @@ class Engine(Flask):
         """
         return Attachment.create(filename, content, mime_type, self._attachment_config)
 
-    def attachment_from_bytes(
-        self,
-        content: bytes,
-        filename: str,
-        mime_type: str,
-        max_size_override: int | None = None,
-    ) -> Attachment:
-        """Create an Attachment from bytes using the engine's configured rules.
-
-        Args:
-            content: Binary content; must already be in memory.
-            filename: Name of the file.
-            mime_type: MIME type of the file.
-            max_size_override: Override the configured max_size for this attachment only.
-
-        Returns:
-            A validated, immutable Attachment instance.
-        """
-        return Attachment.from_bytes(
-            content, filename, mime_type, self._attachment_config, max_size_override
-        )
-
     def attachment_from_file(
         self,
         file_path: str,
         filename: str | None = None,
         mime_type: str | None = None,
-        max_size_override: int | None = None,
     ) -> Attachment:
         """Create an Attachment from a file path using the engine's configured rules.
 
@@ -168,14 +145,11 @@ class Engine(Flask):
             file_path: Path to the file on disk.
             filename: Override the filename; defaults to the file's basename.
             mime_type: Override the MIME type; defaults to guessing from filename.
-            max_size_override: Override the configured max_size for this attachment only.
 
         Returns:
             A validated, immutable Attachment instance.
         """
-        return Attachment.from_file(
-            file_path, self._attachment_config, filename, mime_type, max_size_override
-        )
+        return Attachment.from_file(file_path, self._attachment_config, filename, mime_type)
 
     def notify(
         self,
