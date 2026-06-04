@@ -1,6 +1,5 @@
 """Tests for attachment functionality."""
 
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -90,12 +89,10 @@ class TestAttachmentBasics:
         self,
         filename: str,
         expected: str,
-        caplog: pytest.LogCaptureFixture,
         text_allowed_config: AttachmentConfig,
     ):
         """Test that path components are stripped from filename."""
-        with caplog.at_level(logging.WARNING):
-            attachment = Attachment.create(filename, b"content", "text/plain", text_allowed_config)
+        attachment = Attachment.create(filename, b"content", "text/plain", text_allowed_config)
         assert attachment.filename == expected
 
     def test_size_validation(self, text_allowed_config: AttachmentConfig):

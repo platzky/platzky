@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 import mimetypes
-import ntpath
-import os
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING
+
+from werkzeug.utils import secure_filename
 
 from platzky.attachment.constants import (
     AttachmentSizeError,
@@ -21,79 +20,13 @@ from platzky.attachment.mime_validation import validate_content_mime_type
 if TYPE_CHECKING:
     from platzky.config import AttachmentConfig
 
-logger = logging.getLogger(__name__)
 
-
-def _sanitize_filename(filename: str) -> str:
-    """Remove path components from filename, returning just the basename.
-
-    Strips trailing separators first to handle path-only inputs like "/" or "dir/",
-    then extracts basename. Returns empty string for invalid inputs rather than
-    preserving path separators, allowing validation to reject them.
-    """
-    stripped = filename.rstrip("/\\")
-    return os.path.basename(ntpath.basename(stripped))
-
-
-def _get_extension(filename: str) -> str | None:
-    """Extract the file extension from a filename, lowercased.
-
-    Returns None if no extension is found or if extension is empty (e.g., "file.").
-    """
-    if "." not in filename:
-        return None
-    ext = filename.rsplit(".", 1)[-1]
-    return ext.lower() or None
-
-
-def _guess_mime_type(filename: str) -> str:
-    """Guess MIME type from filename, defaulting to application/octet-stream."""
-    guessed_type, _ = mimetypes.guess_type(filename)
-    return guessed_type or "application/octet-stream"
-
-
-def _validate_extension(
-    filename: str,
-    ext: str | None,
-    blocked_extensions: frozenset[str],
-    allowed_extensions: frozenset[str] | None,
-) -> None:
-    """Validate filename extension against block-list and allow-list.
-
-    Validation order:
-    1. If extension is in blocked_extensions → REJECT (BlockedExtensionError)
-    2. If allowed_extensions is None → REJECT (ExtensionNotAllowedError)
-    3. If no extension → REJECT (ExtensionNotAllowedError)
-    4. If extension not in allowed_extensions → REJECT (ExtensionNotAllowedError)
-    5. Otherwise → ALLOW
-    """
-    if ext is not None and ext in blocked_extensions:
-        raise BlockedExtensionError(filename, ext)
-
-    if allowed_extensions is None or ext is None or ext not in allowed_extensions:
-        raise ExtensionNotAllowedError(filename, ext)
-
-
-def _validate_mime_type(mime_type: str, filename: str, allowed_mime_types: frozenset[str]) -> None:
-    """Validate MIME type format and against allowlist."""
-    if not mime_type or "/" not in mime_type:
-        raise InvalidMimeTypeError(filename, mime_type, invalid_format=True)
-
-    if mime_type not in allowed_mime_types:
-        raise InvalidMimeTypeError(filename, mime_type)
-
-
-def _do_sanitize_filename(filename: str) -> str:
-    """Sanitize filename and return result. Raises if empty or invalid after sanitization."""
-    sanitized = _sanitize_filename(filename)
-    if not sanitized or sanitized in (".", ".."):
+def _sanitize(filename: str) -> str:
+    """Strip path components and sanitize filename. Raises if result is empty."""
+    # PureWindowsPath handles both / and \ separators cross-platform
+    sanitized = secure_filename(PureWindowsPath(filename).name)
+    if not sanitized:
         raise ValueError("Attachment filename cannot be empty")
-    if sanitized != filename:
-        logger.warning(
-            "Attachment filename contained path components, sanitized from '%s' to '%s'",
-            filename,
-            sanitized,
-        )
     return sanitized
 
 
@@ -166,7 +99,7 @@ class Attachment:
         """
         limit = config.max_size if max_size_override is None else max_size_override
         if len(content) > limit:
-            raise AttachmentSizeError(_sanitize_filename(filename), len(content), limit)
+            raise AttachmentSizeError(filename, len(content), limit)
         return cls._validated(filename, content, mime_type, config, limit)
 
     @classmethod
@@ -204,17 +137,13 @@ class Attachment:
             content = f.read(limit + 1)
 
         if len(content) > limit:
-            # Report actual bytes read (not stat size) for TOCTOU consistency
             raise AttachmentSizeError(path.name, len(content), limit)
 
         effective_filename = filename or path.name
-        return cls._validated(
-            effective_filename,
-            content,
-            mime_type or _guess_mime_type(effective_filename),
-            config,
-            limit,
+        effective_mime = (
+            mime_type or mimetypes.guess_type(effective_filename)[0] or "application/octet-stream"
         )
+        return cls._validated(effective_filename, content, effective_mime, config, limit)
 
     @classmethod
     def _validated(
@@ -226,21 +155,25 @@ class Attachment:
         max_size: int,
     ) -> Attachment:
         """Run all validation checks with an explicit size limit and construct the instance."""
-        sanitized = _do_sanitize_filename(filename)
-        _validate_extension(
-            sanitized,
-            _get_extension(sanitized),
-            config.blocked_extensions,
-            config.allowed_extensions,
-        )
+        sanitized = _sanitize(filename)
+
+        ext = sanitized.rsplit(".", 1)[-1].lower() if "." in sanitized else None
+        if ext is not None and ext in config.blocked_extensions:
+            raise BlockedExtensionError(sanitized, ext)
+        if config.allowed_extensions is None or ext is None or ext not in config.allowed_extensions:
+            raise ExtensionNotAllowedError(sanitized, ext)
+
         if len(content) > max_size:
             raise AttachmentSizeError(sanitized, len(content), max_size)
-        _validate_mime_type(mime_type, sanitized, config.allowed_mime_types)
+
+        if not mime_type or "/" not in mime_type:
+            raise InvalidMimeTypeError(sanitized, mime_type, invalid_format=True)
+        if mime_type not in config.allowed_mime_types:
+            raise InvalidMimeTypeError(sanitized, mime_type)
+
         if config.validate_content:
             validate_content_mime_type(
-                content,
-                mime_type,
-                sanitized,
-                allow_unrecognized=config.allow_unrecognized_content,
+                content, mime_type, sanitized, allow_unrecognized=config.allow_unrecognized_content
             )
+
         return cls(filename=sanitized, content=content, mime_type=mime_type)
