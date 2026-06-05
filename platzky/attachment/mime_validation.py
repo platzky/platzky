@@ -9,7 +9,7 @@ class ContentMismatchError(ValueError):
     """Raised when attachment content does not match the declared MIME type."""
 
 
-# puremagic may return alternative names for the same format; normalize to canonical before comparing
+# puremagic may return alternative names; normalize to canonical before comparing
 _MIME_ALIASES: dict[str, str] = {
     "image/x-ms-bmp": "image/bmp",
     "application/x-gzip": "application/gzip",

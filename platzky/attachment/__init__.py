@@ -4,10 +4,10 @@ Usage via Engine (recommended):
     >>> attachment = engine.create_attachment("report.pdf", pdf_bytes, "application/pdf")
 
 Direct usage with explicit config:
-    >>> from platzky.attachment import Attachment
+    >>> from platzky.attachment import create_attachment
     >>> from platzky.config import AttachmentConfig
     >>> config = AttachmentConfig(max_size=5 * 1024 * 1024)  # 5MB limit
-    >>> attachment = Attachment.create("report.pdf", pdf_bytes, "application/pdf", config)
+    >>> attachment = create_attachment("report.pdf", pdf_bytes, "application/pdf", config)
 """
 
 from platzky.attachment.constants import (
@@ -18,7 +18,7 @@ from platzky.attachment.constants import (
     ExtensionNotAllowedError,
     InvalidMimeTypeError,
 )
-from platzky.attachment.core import Attachment
+from platzky.attachment.core import Attachment, create_attachment
 from platzky.attachment.mime_validation import ContentMismatchError
 
 __all__ = [
@@ -30,4 +30,5 @@ __all__ = [
     "ContentMismatchError",
     "ExtensionNotAllowedError",
     "InvalidMimeTypeError",
+    "create_attachment",
 ]

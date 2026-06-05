@@ -23,7 +23,7 @@ from flask import (
 )
 from flask_babel import Babel
 
-from platzky.attachment import Attachment
+from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
 from platzky.content_types import ContentType
 from platzky.db.db import DB
@@ -131,7 +131,7 @@ class Engine(Flask):
         Returns:
             A validated, immutable Attachment instance.
         """
-        return Attachment.create(filename, content, mime_type, self._attachment_config)
+        return create_attachment(filename, content, mime_type, self._attachment_config)
 
     def notify(
         self,

@@ -1,6 +1,5 @@
 """Tests for attachment functionality."""
 
-
 import pytest
 
 from platzky.attachment import (
@@ -11,6 +10,7 @@ from platzky.attachment import (
     ContentMismatchError,
     ExtensionNotAllowedError,
     InvalidMimeTypeError,
+    create_attachment,
 )
 from platzky.config import (
     _DEFAULT_ALLOWED_MIME_TYPES,  # pyright: ignore[reportPrivateUsage]
@@ -54,7 +54,7 @@ class TestAttachmentBasics:
 
     def test_valid_attachment(self, default_config: AttachmentConfig):
         """Test creating a valid attachment."""
-        attachment = Attachment.create(
+        attachment = create_attachment(
             filename="test.pdf",
             content=b"%PDF-1.7 content here",
             mime_type="application/pdf",
@@ -67,13 +67,13 @@ class TestAttachmentBasics:
     def test_empty_filename_raises_error(self, text_allowed_config: AttachmentConfig):
         """Test that empty filename raises ValueError."""
         with pytest.raises(ValueError, match="filename cannot be empty"):
-            Attachment.create("", b"content", "text/plain", text_allowed_config)
+            create_attachment("", b"content", "text/plain", text_allowed_config)
 
     @pytest.mark.parametrize("filename", [".", "..", "/", "//"])
     def test_invalid_filenames_rejected(self, filename: str, text_allowed_config: AttachmentConfig):
         """Test that directory traversal filenames are rejected."""
         with pytest.raises(ValueError, match="filename cannot be empty"):
-            Attachment.create(filename, b"c", "text/plain", text_allowed_config)
+            create_attachment(filename, b"c", "text/plain", text_allowed_config)
 
     @pytest.mark.parametrize(
         ("filename", "expected"),
@@ -90,13 +90,13 @@ class TestAttachmentBasics:
         text_allowed_config: AttachmentConfig,
     ):
         """Test that path components are stripped from filename."""
-        attachment = Attachment.create(filename, b"content", "text/plain", text_allowed_config)
+        attachment = create_attachment(filename, b"content", "text/plain", text_allowed_config)
         assert attachment.filename == expected
 
     def test_size_validation(self, text_allowed_config: AttachmentConfig):
         """Test attachment size limits."""
         # Exactly at max size - should work
-        attachment = Attachment.create(
+        attachment = create_attachment(
             "max.bin",
             b"x" * DEFAULT_MAX_ATTACHMENT_SIZE,
             "text/plain",
@@ -106,7 +106,7 @@ class TestAttachmentBasics:
 
         # Over max size - should fail
         with pytest.raises(AttachmentSizeError, match="exceeds maximum size"):
-            Attachment.create(
+            create_attachment(
                 "large.bin",
                 b"x" * (DEFAULT_MAX_ATTACHMENT_SIZE + 1),
                 "text/plain",
@@ -122,21 +122,21 @@ class TestAttachmentBasics:
             allowed_extensions=frozenset({"txt"}),
         )
         # At limit - works
-        assert len(Attachment.create("s.txt", b"x" * 100, "text/plain", config).content) == 100
+        assert len(create_attachment("s.txt", b"x" * 100, "text/plain", config).content) == 100
         # Over limit - fails
         with pytest.raises(AttachmentSizeError):
-            Attachment.create("big.txt", b"x" * 101, "text/plain", config)
+            create_attachment("big.txt", b"x" * 101, "text/plain", config)
 
     def test_mime_type_validation(self, default_config: AttachmentConfig):
         """Test MIME type validation."""
         # Invalid format
         with pytest.raises(InvalidMimeTypeError, match="Invalid MIME type format") as exc_info:
-            Attachment.create("file.pdf", b"content", "invalid", default_config)
+            create_attachment("file.pdf", b"content", "invalid", default_config)
         assert exc_info.value.invalid_format is True
 
         # Not in allowlist
         with pytest.raises(InvalidMimeTypeError, match="is not allowed") as exc_info:
-            Attachment.create("file.bin", b"content", "application/x-executable", default_config)
+            create_attachment("file.bin", b"content", "application/x-executable", default_config)
         assert exc_info.value.invalid_format is False
 
 
@@ -188,21 +188,21 @@ class TestMagicByteValidation:
     ):
         """Test MIME types with correct magic bytes are accepted."""
         content = magic_bytes + b"rest of file data"
-        attachment = Attachment.create("file.bin", content, mime_type, default_config)
+        attachment = create_attachment("file.bin", content, mime_type, default_config)
         assert attachment.content == content
 
     @pytest.mark.parametrize("mime_type", ["image/png", "image/jpeg", "application/pdf"])
     def test_invalid_content_raises_error(self, mime_type: str, default_config: AttachmentConfig):
         """Test MIME types with invalid content are rejected."""
         with pytest.raises(ContentMismatchError):
-            Attachment.create("file.bin", b"INVALID CONTENT", mime_type, default_config)
+            create_attachment("file.bin", b"INVALID CONTENT", mime_type, default_config)
 
     def test_mismatched_content_type_raises_error(self, default_config: AttachmentConfig):
         """Test that content recognized as different type raises error."""
         # Valid PNG magic bytes but declared as PDF
         png_content = b"\x89PNG\r\n\x1a\n" + b"fake png data"
         with pytest.raises(ContentMismatchError, match="Detected types:"):
-            Attachment.create("fake.pdf", png_content, "application/pdf", default_config)
+            create_attachment("fake.pdf", png_content, "application/pdf", default_config)
 
     def test_validation_bypass_options(self):
         """Test various ways to bypass content validation."""
@@ -212,16 +212,16 @@ class TestMagicByteValidation:
             allowed_extensions=frozenset({"bin"}),
         )
         assert (
-            Attachment.create("f.bin", b"random xyz", "application/octet-stream", config1).content
+            create_attachment("f.bin", b"random xyz", "application/octet-stream", config1).content
             is not None
         )
 
         config2 = AttachmentConfig(validate_content=False, allowed_extensions=frozenset({"png"}))
-        assert Attachment.create("i.png", b"invalid", "image/png", config2).content == b"invalid"
+        assert create_attachment("i.png", b"invalid", "image/png", config2).content == b"invalid"
 
         # Empty content skips validation
         config3 = AttachmentConfig(allowed_extensions=frozenset({"png"}))
-        assert Attachment.create("empty.png", b"", "image/png", config3).content == b""
+        assert create_attachment("empty.png", b"", "image/png", config3).content == b""
 
 
 class TestMimeTypeRestrictions:
@@ -236,7 +236,7 @@ class TestMimeTypeRestrictions:
     ):
         """Test that text/* and related types are rejected by default."""
         with pytest.raises(ValueError, match="is not allowed"):
-            Attachment.create("test.bin", b"content", mime_type, default_config)
+            create_attachment("test.bin", b"content", mime_type, default_config)
 
     def test_text_types_can_be_explicitly_allowed(self):
         """Test that text types can be explicitly allowed."""
@@ -245,7 +245,7 @@ class TestMimeTypeRestrictions:
             validate_content=False,
             allowed_extensions=frozenset({"txt"}),
         )
-        attachment = Attachment.create("test.txt", b"Hello", "text/plain", config)
+        attachment = create_attachment("test.txt", b"Hello", "text/plain", config)
         assert attachment.mime_type == "text/plain"
 
 
@@ -256,23 +256,23 @@ class TestExtensionValidation:
     def test_blocked_extensions_rejected(self, extension: str, default_config: AttachmentConfig):
         """Test that dangerous extensions are rejected."""
         with pytest.raises(BlockedExtensionError, match="blocked extension"):
-            Attachment.create(f"malware.{extension}", b"content", "application/pdf", default_config)
+            create_attachment(f"malware.{extension}", b"content", "application/pdf", default_config)
 
     def test_blocked_extension_case_insensitive(self, default_config: AttachmentConfig):
         """Test that extension blocking is case insensitive."""
         for ext in ["EXE", "Exe", "exe"]:
             with pytest.raises(BlockedExtensionError):
-                Attachment.create(f"file.{ext}", b"c", "application/pdf", default_config)
+                create_attachment(f"file.{ext}", b"c", "application/pdf", default_config)
 
     def test_blocked_extension_checked_before_mime_type(self, default_config: AttachmentConfig):
         """Test that extension is validated before MIME type."""
         with pytest.raises(BlockedExtensionError):
-            Attachment.create("malware.exe", b"c", "invalid", default_config)
+            create_attachment("malware.exe", b"c", "invalid", default_config)
 
     def test_blocked_extension_error_attributes(self, default_config: AttachmentConfig):
         """Test BlockedExtensionError attributes."""
         with pytest.raises(BlockedExtensionError) as exc_info:
-            Attachment.create("virus.exe", b"c", "application/pdf", default_config)
+            create_attachment("virus.exe", b"c", "application/pdf", default_config)
         assert exc_info.value.filename == "virus.exe"
         assert exc_info.value.extension == "exe"
 
@@ -284,10 +284,10 @@ class TestExtensionValidation:
             allowed_extensions=frozenset({"exe", "pdf"}),
         )
         with pytest.raises(BlockedExtensionError):
-            Attachment.create("app.exe", b"content", "application/pdf", config)
+            create_attachment("app.exe", b"content", "application/pdf", config)
         # pdf should work
         assert (
-            Attachment.create("doc.pdf", b"%PDF", "application/pdf", config).filename == "doc.pdf"
+            create_attachment("doc.pdf", b"%PDF", "application/pdf", config).filename == "doc.pdf"
         )
 
     @pytest.mark.parametrize(
@@ -302,7 +302,7 @@ class TestExtensionValidation:
             ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         }
         ext = "." + filename.rsplit(".", 1)[-1]
-        attachment = Attachment.create(filename, b"c", mime_types[ext], no_validation_config)
+        attachment = create_attachment(filename, b"c", mime_types[ext], no_validation_config)
         assert attachment.filename == filename
 
 
@@ -314,7 +314,7 @@ class TestExtensionAllowList:
         for allowed in [None, frozenset()]:
             config = AttachmentConfig(validate_content=False, allowed_extensions=allowed)
             with pytest.raises(ExtensionNotAllowedError):
-                Attachment.create("file.pdf", b"content", "application/pdf", config)
+                create_attachment("file.pdf", b"content", "application/pdf", config)
 
     def test_allowed_extensions_filtering(self):
         """Test that only listed extensions are allowed."""
@@ -323,37 +323,37 @@ class TestExtensionAllowList:
         )
         # Allowed
         assert (
-            Attachment.create("doc.pdf", b"%PDF", "application/pdf", config).filename == "doc.pdf"
+            create_attachment("doc.pdf", b"%PDF", "application/pdf", config).filename == "doc.pdf"
         )
         # Not allowed
         with pytest.raises(ExtensionNotAllowedError, match="not in the allowed"):
-            Attachment.create("image.gif", b"content", "image/gif", config)
+            create_attachment("image.gif", b"content", "image/gif", config)
 
     def test_no_extension_blocked_when_allow_list_set(self):
         """Test that files without extension are blocked when allow-list is set."""
         config = AttachmentConfig(validate_content=False, allowed_extensions=frozenset({"pdf"}))
         with pytest.raises(ExtensionNotAllowedError, match="no file extension"):
-            Attachment.create("README", b"content", "application/pdf", config)
+            create_attachment("README", b"content", "application/pdf", config)
 
     def test_extension_not_allowed_error_attributes(self):
         """Test ExtensionNotAllowedError attributes."""
         config = AttachmentConfig(validate_content=False, allowed_extensions=frozenset({"pdf"}))
         # With extension
         with pytest.raises(ExtensionNotAllowedError) as exc_info:
-            Attachment.create("image.png", b"content", "image/png", config)
+            create_attachment("image.png", b"content", "image/png", config)
         assert exc_info.value.filename == "image.png"
         assert exc_info.value.extension == "png"
 
         # Without extension
         with pytest.raises(ExtensionNotAllowedError) as exc_info:
-            Attachment.create("README", b"content", "application/pdf", config)
+            create_attachment("README", b"content", "application/pdf", config)
         assert exc_info.value.extension is None
 
     def test_allowed_extensions_case_insensitive(self):
         """Test that extension matching is case-insensitive."""
         config = AttachmentConfig(validate_content=False, allowed_extensions=frozenset({"pdf"}))
         assert (
-            Attachment.create("document.PDF", b"%PDF", "application/pdf", config).filename
+            create_attachment("document.PDF", b"%PDF", "application/pdf", config).filename
             == "document.PDF"
         )
 
@@ -362,10 +362,10 @@ class TestExtensionAllowList:
         config = AttachmentConfig(validate_content=False)
 
         # Common extensions should work
-        assert Attachment.create("photo.png", b"c", "image/png", config).filename == "photo.png"
-        assert Attachment.create("doc.pdf", b"c", "application/pdf", config).filename == "doc.pdf"
-        assert Attachment.create("data.zip", b"c", "application/zip", config).filename == "data.zip"
+        assert create_attachment("photo.png", b"c", "image/png", config).filename == "photo.png"
+        assert create_attachment("doc.pdf", b"c", "application/pdf", config).filename == "doc.pdf"
+        assert create_attachment("data.zip", b"c", "application/zip", config).filename == "data.zip"
 
         # Extensions not in default list should be rejected
         with pytest.raises(ExtensionNotAllowedError):
-            Attachment.create("code.json", b"{}", "application/json", config)
+            create_attachment("code.json", b"{}", "application/json", config)
