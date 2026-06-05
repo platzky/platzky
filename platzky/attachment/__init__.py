@@ -10,6 +10,7 @@ Direct usage with explicit config:
     >>> attachment = create_attachment("report.pdf", pdf_bytes, "application/pdf", config)
 """
 
+from platzky.attachment.attachment import Attachment
 from platzky.attachment.constants import (
     BLOCKED_EXTENSIONS,
     DEFAULT_MAX_ATTACHMENT_SIZE,
@@ -18,7 +19,7 @@ from platzky.attachment.constants import (
     ExtensionNotAllowedError,
     InvalidMimeTypeError,
 )
-from platzky.attachment.core import Attachment, create_attachment
+from platzky.attachment.factory import create_attachment
 from platzky.attachment.mime_validation import ContentMismatchError
 
 __all__ = [

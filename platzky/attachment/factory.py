@@ -1,13 +1,13 @@
-"""Core Attachment dataclass and factory for file attachments in notifications."""
+"""Factory function for creating validated Attachment instances."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING
 
 from werkzeug.utils import secure_filename
 
+from platzky.attachment.attachment import Attachment
 from platzky.attachment.constants import (
     AttachmentSizeError,
     BlockedExtensionError,
@@ -18,21 +18,6 @@ from platzky.attachment.mime_validation import validate_content_mime_type
 
 if TYPE_CHECKING:
     from platzky.config import AttachmentConfig
-
-
-@dataclass(frozen=True)
-class Attachment:
-    """Represents a file attachment for notifications.
-
-    Attributes:
-        filename: Name of the file (without path components).
-        content: Binary content of the file.
-        mime_type: MIME type of the file (e.g., 'image/png', 'application/pdf').
-    """
-
-    filename: str
-    content: bytes
-    mime_type: str
 
 
 def create_attachment(
