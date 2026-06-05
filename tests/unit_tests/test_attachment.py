@@ -1,7 +1,5 @@
 """Tests for attachment functionality."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -140,67 +138,6 @@ class TestAttachmentBasics:
         with pytest.raises(InvalidMimeTypeError, match="is not allowed") as exc_info:
             Attachment.create("file.bin", b"content", "application/x-executable", default_config)
         assert exc_info.value.invalid_format is False
-
-
-class TestAttachmentFactoryMethods:
-    """Tests for from_file() factory method."""
-
-    def test_from_file(self, tmp_path: Path, text_allowed_config: AttachmentConfig):
-        """Test from_file creates valid attachment."""
-        test_file = tmp_path / "test.txt"
-        test_file.write_bytes(b"Hello, World!")
-
-        attachment = Attachment.from_file(
-            file_path=test_file, config=text_allowed_config, mime_type="text/plain"
-        )
-        assert attachment.filename == "test.txt"
-        assert attachment.content == b"Hello, World!"
-
-    def test_from_file_with_custom_filename(
-        self, tmp_path: Path, text_allowed_config: AttachmentConfig
-    ):
-        """Test from_file with custom filename override."""
-        test_file = tmp_path / "original.txt"
-        test_file.write_bytes(b"content")
-
-        attachment = Attachment.from_file(
-            file_path=test_file,
-            config=text_allowed_config,
-            filename="custom.txt",
-            mime_type="text/plain",
-        )
-        assert attachment.filename == "custom.txt"
-
-    def test_from_file_guesses_mime_type(
-        self, tmp_path: Path, no_validation_config: AttachmentConfig
-    ):
-        """Test that from_file guesses MIME type from filename."""
-        pdf_file = tmp_path / "document.pdf"
-        pdf_file.write_bytes(b"%PDF-1.4 fake pdf")
-
-        attachment = Attachment.from_file(file_path=pdf_file, config=no_validation_config)
-        assert attachment.mime_type == "application/pdf"
-
-    def test_from_file_toctou_protection(self, tmp_path: Path):
-        """Test that from_file catches files that grow between stat and read."""
-        config = AttachmentConfig(
-            max_size=100,
-            allowed_mime_types=_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"},
-            validate_content=False,
-            allowed_extensions=frozenset({"txt"}),
-        )
-        test_file = tmp_path / "growing.txt"
-        test_file.write_bytes(b"x" * 50)  # Small enough to pass stat check
-
-        # Mock to return more data than stat reported
-        mock_file = MagicMock()
-        mock_file.read.return_value = b"x" * 101
-        mock_file.__enter__ = MagicMock(return_value=mock_file)
-        mock_file.__exit__ = MagicMock(return_value=False)
-
-        with patch.object(Path, "open", return_value=mock_file):
-            with pytest.raises(AttachmentSizeError):
-                Attachment.from_file(file_path=test_file, config=config, mime_type="text/plain")
 
 
 class TestEngineAttachment:

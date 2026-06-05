@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import mimetypes
 from dataclasses import dataclass
-from pathlib import Path, PureWindowsPath
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING
 
 from werkzeug.utils import secure_filename
@@ -96,43 +95,3 @@ class Attachment:
             )
 
         return cls(filename=sanitized, content=content, mime_type=mime_type)
-
-    @classmethod
-    def from_file(
-        cls,
-        file_path: str | Path,
-        config: AttachmentConfig,
-        filename: str | None = None,
-        mime_type: str | None = None,
-    ) -> Attachment:
-        """Create an Attachment from a file path with bounded read for size safety.
-
-        Args:
-            file_path: Path to the file on disk.
-            config: Attachment configuration controlling validation rules.
-            filename: Override the filename; defaults to the file's basename.
-            mime_type: Override the MIME type; defaults to guessing from filename.
-
-        Returns:
-            A validated, immutable Attachment instance.
-        """
-        path = Path(file_path)
-
-        # Early check to reject obviously oversized files without opening them
-        file_size = path.stat().st_size
-        if file_size > config.max_size:
-            raise AttachmentSizeError(path.name, file_size, config.max_size)
-
-        # Bounded read to prevent TOCTOU: even if file grows after stat(),
-        # we never load more than max_size + 1 bytes
-        with path.open("rb") as f:
-            content = f.read(config.max_size + 1)
-
-        if len(content) > config.max_size:
-            raise AttachmentSizeError(path.name, len(content), config.max_size)
-
-        effective_filename = filename or path.name
-        effective_mime = (
-            mime_type or mimetypes.guess_type(effective_filename)[0] or "application/octet-stream"
-        )
-        return cls.create(effective_filename, content, effective_mime, config)
