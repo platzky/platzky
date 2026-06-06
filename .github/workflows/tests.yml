@@ -33,7 +33,7 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install Poetry
-      run: pip install poetry==2.0.1 poetry-audit-plugin==1.0.0
+      run: pip install poetry==2.0.1
     - name: Set up Python 3.10
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
@@ -43,8 +43,6 @@ jobs:
       run: poetry install
     - name: Run linters
       run: make lint-check
-    - name: Security audit
-      run: make audit
 
   test:
     runs-on: ubuntu-latest

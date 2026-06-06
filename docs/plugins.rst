@@ -14,34 +14,10 @@ Plugins are ordinary Python packages installed into the same environment as Plat
 They advertise themselves via the ``platzky.plugins`` entry-point group and are
 discovered automatically at startup.
 
-Since 1.5.0, plugins are built around *capability base classes*. Pick the one that
+Since 1.5.0, plugins are built around *plugin base classes*. Pick the one that
 matches what your plugin does:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Base class
-     - When to use
-   * - ``NotifierPluginBase``
-     - Send notifications (email, Slack, SMS, …)
-   * - ``AttachmentNotifierPluginBase``
-     - Same as above, plus handle file attachments
-   * - ``ContentTransformerPluginBase``
-     - Transform post/page/comment content; register shortcodes
-   * - ``PluginBase``
-     - Any other engine customisation (CMS modules, health checks, …)
-
-All capability classes are importable directly from ``platzky``:
-
-.. code-block:: python
-
-    from platzky import (
-        PluginBase,
-        NotifierPluginBase,
-        AttachmentNotifierPluginBase,
-        ContentTransformerPluginBase,
-    )
+.. plugin-bases::
 
 Quick Start with Cookiecutter
 -----------------------------
@@ -80,16 +56,12 @@ Notifier Plugins
 
 .. versionadded:: 1.5.0
 
-Subclass ``NotifierPluginBase`` to send notifications. Declare which topics your
-plugin handles via ``accepted_topics``; the engine routes notifications to matching
-plugins only.
-
 The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
 
 .. code-block:: python
 
     from typing import Any
-    from platzky import NotifierPluginBase, NotificationTopic
+    from platzky import Notification, NotifierPluginBase, NotificationTopic
 
     class SlackNotifier(NotifierPluginBase):
         """Send notifications to a Slack channel."""
@@ -100,49 +72,19 @@ The three built-in topics are ``"security"``, ``"content"``, and ``"general"``.
             super().__init__(config)
             self._webhook = config.get("webhook_url", "")
 
-        def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+        def notify(self, notification: Notification) -> None:
             # post to self._webhook …
             pass
 
-**With attachments**
-
-Subclass ``AttachmentNotifierPluginBase`` instead when your plugin needs to handle
-files. Implement ``notify_with_attachments``; the base class delegates plain
-``notify`` calls to it with an empty attachment list automatically.
-
-.. code-block:: python
-
-    from collections.abc import Sequence
-    from typing import Any
-    from platzky import AttachmentNotifierPluginBase, NotificationTopic
-    from platzky.attachment import AttachmentProtocol
-
-    class MailNotifier(AttachmentNotifierPluginBase):
-        """Email notifier with attachment support."""
-
-        accepted_topics: frozenset[NotificationTopic] = frozenset({"content"})
-
-        def __init__(self, config: dict[str, Any]) -> None:
-            super().__init__(config)
-            self._to = config.get("recipient", "")
-
-        def notify_with_attachments(
-            self,
-            message: str,
-            topic: NotificationTopic,
-            attachments: Sequence[AttachmentProtocol],
-            receiver: str = "",
-        ) -> None:
-            # send email …
-            pass
+Notifications carry ``message``, ``topic``, ``attachments`` (a ``frozenset`` of
+:class:`~platzky.attachment.Attachment`), and ``receivers`` (a
+``frozenset[str]``; empty means nobody specific — send to the channel). Access
+whichever fields your plugin needs.
 
 Content Transformer Plugins
 ---------------------------
 
 .. versionadded:: 1.5.0
-
-Subclass ``ContentTransformerPluginBase`` to modify post, page, or comment content
-before rendering. Declare which content types to process via ``accepted_content_types``.
 
 The three content types are ``"post"``, ``"page"``, and ``"comment"``.
 
@@ -220,57 +162,43 @@ Both reject non-HTTP/HTTPS external URLs and relative paths not starting with ``
 Shortcodes are documented for content authors on the admin *Help* page
 (``/admin/help``).
 
-Other Engine Extensions
------------------------
+Login Plugins
+-------------
 
-For capabilities that don't yet have a dedicated class — CMS modules, login methods,
-health checks, or injecting dynamic HTML — override ``process()`` on a plain
-``PluginBase`` subclass:
+.. versionadded:: 2.0.0
+
+Declare a ``provider_name`` and implement ``render_login_button`` and
+``authenticate``. The login blueprint registers ``/login/verify/<provider>``
+which dispatches to the matching plugin.
 
 .. code-block:: python
 
-    from typing import Any
-    from platzky.plugin.plugin import PluginBase
-    from platzky.engine import Engine
+    from typing import Any, ClassVar
+    from flask import Request
+    from markupsafe import Markup
+    from platzky import LoginPluginBase
+    from platzky.auth import AuthenticationError, User
 
-    class AnalyticsPlugin(PluginBase):
-        """Injects the analytics script and registers a health check."""
+    class GithubLoginPlugin(LoginPluginBase):
+        """Login via GitHub OAuth."""
+
+        provider_name: ClassVar[str] = "github"
 
         def __init__(self, config: dict[str, Any]) -> None:
             super().__init__(config)
-            self._tag = config.get("script_tag", "")
+            self._client_id = config.get("client_id", "")
+            self._client_secret = config.get("client_secret", "")
 
-        def process(self, app: Engine) -> Engine:
-            app.add_dynamic_body(self._tag)
-            app.add_health_check("analytics", lambda: None)
-            return app
+        def render_login_button(self) -> Markup:
+            url = f"https://github.com/login/oauth/authorize?client_id={self._client_id}"
+            return Markup(f'<a href="{url}">Login with GitHub</a>')
 
-Available ``Engine`` extension points:
-
-``add_cms_module(module)``
-    Add a CMS module that appears in the admin panel.
-
-``add_login_method(login_method)``
-    Register an additional admin login method.
-
-``add_dynamic_body(html)``
-    Append HTML to every page's ``<body>`` (scripts, widgets).
-
-``add_dynamic_head(html)``
-    Append HTML to every page's ``<head>`` (stylesheets, meta tags).
-
-``add_health_check(name, check_fn)``
-    Register a check included in the ``/health/readiness`` endpoint. The function
-    should raise on failure.
-
-``is_enabled(flag)``
-    Check whether a feature flag is enabled.
-
-.. note::
-    ``process()`` is deprecated since 1.5.0 and will be removed in 2.0.0. Where
-    possible, use the capability subclasses above. Engine extension points for CMS
-    modules, health checks, and dynamic HTML will gain dedicated capability classes
-    in a future release.
+        def authenticate(self, request: Request) -> User:
+            code = (request.get_json() or {}).get("code")
+            if not code:
+                raise AuthenticationError("Missing OAuth code")
+            # exchange code for token, fetch user info …
+            return {"username": "example-user"}
 
 Packaging a Plugin
 ------------------
@@ -376,19 +304,3 @@ directory inside your plugin package:
 ``PluginBase.get_locale_dir()`` discovers the directory automatically. Platzky
 registers it with Flask-Babel during plugin loading.
 
-Legacy Plugins
---------------
-
-.. deprecated:: 1.2.0
-    Module-style legacy plugins are deprecated and will be removed in 2.0.0.
-    Use a class-based capability subclass instead.
-
-Legacy plugins are plain modules with a ``process`` function:
-
-.. code-block:: python
-
-    def process(app, config):
-        return app
-
-This style does not support configuration validation, translation discovery, or
-capability routing. Migrate to a class-based subclass.

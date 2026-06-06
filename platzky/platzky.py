@@ -23,7 +23,9 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -292,21 +294,24 @@ def create_app_from_config(config: Config) -> Engine:
     for _ext in _new_extensions:
         engine.jinja_env.add_extension(_ext)
 
+    if engine.is_enabled(FakeLogin):
+        if not (config.testing and config.debug):
+            raise RuntimeError(
+                "SECURITY ERROR: Cannot register FakeLoginPlugin in production. "
+                "Set TESTING: true and DEBUG: true in your config."
+            )
+        from platzky.debug.fake_login import FakeLoginPlugin
+
+        engine.register_plugin(FakeLoginPlugin({}), "fake_login")
+
+    login_blueprint = login.create_login_blueprint(
+        login_plugins=engine.get_plugins(LoginPluginBase),
+    )
     admin_blueprint = admin.create_admin_blueprint(
-        login_methods=engine.login_methods,
         cms_modules=engine.cms_modules,
         shortcodes=list(engine.shortcodes.values()),
         plugin_infos=engine.get_plugin_infos(),
     )
-
-    # Two-layer defense: is_enabled() gates the feature flag, and
-    # DebugBlueprint.register() independently blocks registration
-    # unless the app is in debug or testing mode.
-    if engine.is_enabled(FakeLogin):
-        from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
-
-        engine.login_methods.append(get_fake_login_html())
-        engine.register_blueprint(create_fake_login_blueprint())
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
@@ -317,6 +322,7 @@ def create_app_from_config(config: Config) -> Engine:
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale
     )
+    engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)
