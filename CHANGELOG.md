@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.1](https://github.com/platzky/platzky/compare/v2.0.0-alpha...v2.0.0-alpha.1) (2026-06-06)
+
+
+### Features
+
+* add login plugins ([#227](https://github.com/platzky/platzky/issues/227)) ([a4fec9f](https://github.com/platzky/platzky/commit/a4fec9fe4f5f916b53f209c9c47d79f0d578df2c))
+
 ## [2.0.0-alpha](https://github.com/platzky/platzky/compare/v1.5.1...v2.0.0-alpha) (2026-05-12)
 
 
