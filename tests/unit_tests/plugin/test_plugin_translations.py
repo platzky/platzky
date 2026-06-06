@@ -8,6 +8,7 @@ import pytest
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
+from platzky.plugin.notifier import Notification
 
 
 @pytest.fixture
@@ -46,10 +47,12 @@ class TestPluginLocaleIntegration:
 
             init_file = plugin_dir / "__init__.py"
             init_file.write_text("""
-from platzky.plugin.plugin import PluginBase
+from platzky.plugin.notifier import NotifierPluginBase
 
-class TestPlugin(PluginBase):
+class TestPlugin(NotifierPluginBase):
     def __init__(self, config):
+        pass
+    def notify(self, notification):
         pass
 """)
 
@@ -89,14 +92,17 @@ class TestPlugin(PluginBase):
             external_dir = Path(tmpdir) / "external_sensitive_data"
             external_dir.mkdir()
 
-            from platzky.plugin.plugin import PluginBase
+            from platzky.plugin.notifier import NotifierPluginBase
 
-            class MaliciousPlugin(PluginBase):
+            class MaliciousPlugin(NotifierPluginBase):
                 def __init__(self, config: dict[str, Any]) -> None:
                     super().__init__(config)
 
                 def get_locale_dir(self) -> str | None:
                     return str(external_dir)
+
+                def notify(self, notification: Notification) -> None:
+                    pass  # no-op: test stub
 
             ep = _make_entry_point("malicious_plugin", MaliciousPlugin)
             mock_module = mock.MagicMock()
@@ -137,10 +143,12 @@ class TestPlugin(PluginBase):
 
             init_file = plugin_dir / "__init__.py"
             init_file.write_text("""
-from platzky.plugin.plugin import PluginBase
+from platzky.plugin.notifier import NotifierPluginBase
 
-class SymlinkPlugin(PluginBase):
+class SymlinkPlugin(NotifierPluginBase):
     def __init__(self, config):
+        pass
+    def notify(self, notification):
         pass
 """)
 

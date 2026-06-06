@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any, ClassVar
 from unittest import mock
 
 import jinja2.ext
 import pytest
 
-from platzky.attachment import AttachmentProtocol
+from platzky.attachment import Attachment
 from platzky.config import Config
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
@@ -17,7 +16,7 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
@@ -83,31 +82,20 @@ class SimpleNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
         self.received: list[tuple[str, str]] = []
 
-    def notify(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic))
 
 
-class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
-    """Attachment-aware notifier that records received messages and attachments."""
+class SimpleAttachmentNotifier(NotifierPluginBase):
+    """Notifier that records received messages and attachments."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, Sequence[AttachmentProtocol]]] = []
+        self.received: list[tuple[str, str, frozenset[Attachment]]] = []
 
-    def notify_with_attachments(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        attachments: Sequence[AttachmentProtocol],
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic, attachments))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic, notification.attachments))
 
 
 class TopicFilteredNotifier(NotifierPluginBase):
@@ -118,13 +106,8 @@ class TopicFilteredNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", frozenset()))
         self.received: list[tuple[str, str]] = []
 
-    def notify(
-        self,
-        message: str,
-        topic: NotificationTopic,
-        receiver: str = "",  # noqa: ARG002
-    ) -> None:
-        self.received.append((message, topic))
+    def notify(self, notification: Notification) -> None:
+        self.received.append((notification.message, notification.topic))
 
 
 class TestNotifierPluginBase:
@@ -198,9 +181,9 @@ class TestNotifierPluginBase:
         app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
         fake_attachment = object()
 
-        app.notify("msg", topic="general", attachments=[fake_attachment])  # type: ignore[list-item]
+        app.notify("msg", topic="general", attachments=frozenset({fake_attachment}))  # type: ignore[arg-type]
 
-        assert notifier.received[0][2] == [fake_attachment]
+        assert notifier.received[0][2] == frozenset({fake_attachment})
 
     def test_accepted_topics_from_config_list(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
@@ -286,25 +269,19 @@ class TestContentTransformerPluginBase:
 
 
 # ---------------------------------------------------------------------------
-# Plugin capability registration
+# Plugin base registration
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterPluginCapabilities:
-    def test_uncategorised_plugin_stored_under_pluginbase(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
+class TestRegisterPluginBases:
+    def test_uncategorised_plugin_raises_type_error(self, base_config_data: dict[str, Any]) -> None:
         class GenericPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-        app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
-        assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
-        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierPluginBase))
-
-    def test_plugin_stored_under_concrete_type(self, base_config_data: dict[str, Any]) -> None:
-        app = _app_with_plugin(base_config_data, "simple", SimpleNotifier)
-        assert any(isinstance(p, SimpleNotifier) for p in app.get_plugins(SimpleNotifier))
+        app = create_app_from_config(Config.model_validate(base_config_data))
+        with pytest.raises(TypeError, match="does not implement any recognised capability"):
+            app.register_plugin(GenericPlugin({}), "generic")
 
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
@@ -315,14 +292,8 @@ class TestRegisterPluginCapabilities:
                 self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
                 self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
-            def notify(
-                self,
-                message: str,
-                topic: NotificationTopic,
-                receiver: str = "",
-            ) -> None:
-                # No-op: only verifies capability registration, not notification delivery.
-                pass
+            def notify(self, notification: Notification) -> None:
+                pass  # no-op: test stub
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierPluginBase))

@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
@@ -23,15 +23,16 @@ from flask import (
 )
 from flask_babel import Babel
 
-from platzky.attachment import AttachmentProtocol, create_attachment_class
+from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
 from platzky.content_types import ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
+from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
-_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentTransformerPluginBase)
-
-
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
 
@@ -87,15 +85,16 @@ class Engine(Flask):
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
-        self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
+        self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
-        self._notifier_topic_allowlist: dict[NotifierPluginBase, frozenset[NotificationTopic]] = {}
+        self._notifier_topic_allowlist: defaultdict[
+            NotifierPluginBase, frozenset[NotificationTopic]
+        ] = defaultdict(frozenset)
         self._content_transformer_allowlist: dict[
             ContentTransformerPluginBase, frozenset[ContentType]
         ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
-        self.login_methods: list[Callable[[], str]] = []
         self.dynamic_body = ""
         self.dynamic_head = ""
         self.health_checks: list[tuple[str, Callable[[], None]]] = []
@@ -121,30 +120,41 @@ class Engine(Flask):
         """Return PluginInfo metadata for all loaded plugins."""
         return [plugin.get_info() for plugin in self.loaded_plugins]
 
+    def create_attachment(self, filename: str, content: bytes, mime_type: str) -> Attachment:
+        """Validate and construct an Attachment using the engine's configured rules.
+
+        Args:
+            filename: Name of the file; path components are stripped automatically.
+            content: Binary content of the file.
+            mime_type: MIME type of the file.
+
+        Returns:
+            A validated, immutable Attachment instance.
+        """
+        return create_attachment(filename, content, mime_type, self._attachment_config)
+
     def notify(
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: Sequence[AttachmentProtocol] = (),
-        receiver: str = "",
+        attachments: frozenset[Attachment] = frozenset(),
+        receivers: frozenset[str] = frozenset(),
     ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             topic: Notification topic for routing (default ``"general"``).
-            attachments: Attachments to include; empty sequence if none.
-            receiver: Target recipient identifier; empty string means broadcast.
+            attachments: Attachments to include; empty frozenset if none.
+            receivers: Target recipients; empty frozenset means send to no one.
         """
+        notification = Notification(message, topic, attachments, receivers)
         for plugin in self.get_plugins(NotifierPluginBase):
-            if topic not in plugin.accepted_topics:
+            if notification.topic not in plugin.accepted_topics:
                 continue
-            if topic not in self._notifier_topic_allowlist.get(plugin, frozenset()):
+            if notification.topic not in self._notifier_topic_allowlist[plugin]:
                 continue
-            if isinstance(plugin, AttachmentNotifierPluginBase):
-                plugin.notify_with_attachments(message, topic, attachments, receiver)
-            else:
-                plugin.notify(message, topic, receiver)
+            plugin.notify(notification)
 
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
@@ -172,28 +182,30 @@ class Engine(Flask):
         """
         self._content_transformer_allowlist[plugin] = allowed_types
 
-    def register_plugin_capabilities(self, instance: "PluginBase", plugin_name: str) -> None:
+    def register_plugin(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
 
-        Each recognised capability base class becomes a key in ``self.plugins`` so the
-        engine can look up e.g. all NotifierPluginBase plugins without knowing concrete types.
-        Plugins that don't match any capability are stored under PluginBase.
-        """
-        from platzky.plugin.plugin import PluginBase
+        Args:
+            instance: Plugin instance to register.
+            plugin_name: Human-readable name used in log messages.
 
-        registered = False
-        for base in _PLUGIN_CAPABILITY_BASES:
+        Raises:
+            TypeError: If the plugin does not implement any recognised capability.
+        """
+        matched = False
+        for base in PLUGIN_BASES:
             if isinstance(instance, base):
                 self.plugins[base].append(instance)
-                registered = True
+                matched = True
                 logger.debug(
                     "Registered plugin '%s' under capability %s", plugin_name, base.__name__
                 )
-
-        self.plugins[type(instance)].append(instance)
-
-        if not registered:
-            self.plugins[PluginBase].append(instance)
+        if not matched:
+            raise TypeError(
+                f"Plugin '{plugin_name}' ({type(instance).__name__}) does not implement "
+                f"any recognised capability. Must subclass one of: "
+                f"{', '.join(b.__name__ for b in PLUGIN_BASES)}"
+            )
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
         """Register plugin's locale directory with Babel if it exists."""
@@ -240,7 +252,7 @@ class Engine(Flask):
         app = self
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
-        app.register_plugin_capabilities(plugin_instance, plugin_name)
+        app.register_plugin(plugin_instance, plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
         if isinstance(plugin_instance, ContentTransformerPluginBase):
@@ -261,10 +273,6 @@ class Engine(Flask):
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
-
-    def add_login_method(self, login_method: Callable[[], str]) -> None:
-        """Register a login method callable."""
-        self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str) -> None:
         """Append HTML to the dynamic body section rendered in templates."""
