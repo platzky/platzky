@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.2](https://github.com/platzky/platzky/compare/v2.0.0-alpha.1...v2.0.0-alpha.2) (2026-06-07)
+
+
+### Bug Fixes
+
+* transforming fields method added ([#236](https://github.com/platzky/platzky/issues/236)) ([514bd92](https://github.com/platzky/platzky/commit/514bd92b6c0046c9266d44b0d866b51d5f86bd45))
+
 ## [2.0.0-alpha.1](https://github.com/platzky/platzky/compare/v2.0.0-alpha...v2.0.0-alpha.1) (2026-06-06)
 
 
