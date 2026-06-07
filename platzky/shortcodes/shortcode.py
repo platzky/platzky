@@ -14,7 +14,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, cast
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
@@ -117,16 +117,19 @@ class Shortcode(ABC):
 
         Called when a content entry has a field mapped to this shortcode — for example
         the string ``"SUMMER24"`` for a promocode field.  The base implementation
-        returns a dict with just ``"scope": self.name`` so the frontend can route to
-        the right component.  Override to unpack *value*, merge rendering defaults,
-        encode sensitive data, or otherwise produce the full frontend payload.
+        adds ``"scope": self.name`` and, if *value* is a dict, merges its keys in.
+        Override to unpack the value, merge rendering defaults, encode sensitive data,
+        or otherwise produce the full frontend payload.
 
         Args:
-            value: Raw field value from the content data (typically a string).
+            value: Raw field value from the content data.
 
         Returns:
             Dict with at least ``"scope"`` present.
         """
+        if isinstance(value, dict):
+            # isinstance narrows to dict[Unknown, Unknown]; cast supplies the key type pyright needs
+            return {**cast(dict[str, object], value), "scope": self.name}
         return {"scope": self.name}
 
     @abstractmethod

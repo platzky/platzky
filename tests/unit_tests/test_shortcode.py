@@ -1,6 +1,7 @@
 """Tests for the shortcode parser."""
 
 import pytest
+
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
@@ -71,11 +72,15 @@ class TestShortcodeSubclassing:
                 description = "test"
 
                 def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-                    return ""
+                    return str(attrs) + content
 
-    def test_base_transform_field_value_returns_scope(self) -> None:
+    def test_base_transform_field_value_non_dict_returns_scope_only(self) -> None:
         sc = _sc("mytag")
         assert sc.transform_field_value("anything") == {"scope": "mytag"}
+
+    def test_base_transform_field_value_dict_merges_with_scope(self) -> None:
+        sc = _sc("mytag")
+        assert sc.transform_field_value({"color": "red"}) == {"scope": "mytag", "color": "red"}
 
 
 class TestApplyShortcodes:
