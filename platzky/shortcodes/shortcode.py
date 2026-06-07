@@ -112,6 +112,23 @@ class Shortcode(ABC):
                 f"Shortcode subclass {cls.__name__!r} must declare a valid `name`; got {name!r}."
             )
 
+    def transform_field_value(self, value: object) -> dict[str, object]:
+        """Transform a raw field value into a frontend-ready dict.
+
+        Called when a content entry has a field mapped to this shortcode — for example
+        the string ``"SUMMER24"`` for a promocode field.  The base implementation
+        returns a dict with just ``"scope": self.name`` so the frontend can route to
+        the right component.  Override to unpack *value*, merge rendering defaults,
+        encode sensitive data, or otherwise produce the full frontend payload.
+
+        Args:
+            value: Raw field value from the content data (typically a string).
+
+        Returns:
+            Dict with at least ``"scope"`` present.
+        """
+        return {"scope": self.name}
+
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render the shortcode tag and return the replacement HTML.
