@@ -60,19 +60,22 @@ class TestShortcodeSubclassing:
     def test_abstract_subclass_skips_name_validation(self) -> None:
         from abc import abstractmethod
 
-        class _AbstractSC(Shortcode):  # no name, but abstract — should not raise
+        class _AbstractSC(Shortcode):
             @abstractmethod
             def render(self, attrs: ShortcodeAttrs, content: str) -> str: ...
 
+        assert issubclass(_AbstractSC, Shortcode)
+
     def test_invalid_name_raises(self) -> None:
+        def _render(_self: object, attrs: ShortcodeAttrs, content: str) -> str:
+            return str(attrs) + content
+
         with pytest.raises(ValueError, match="valid `name`"):
-
-            class _BadSC(Shortcode):
-                name = "123invalid"
-                description = "test"
-
-                def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-                    return str(attrs) + content
+            type(
+                "_BadSC",
+                (Shortcode,),
+                {"name": "123invalid", "description": "test", "render": _render},
+            )
 
     def test_base_transform_field_value_non_dict_returns_scope_only(self) -> None:
         sc = _sc("mytag")
