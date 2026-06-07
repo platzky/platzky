@@ -71,7 +71,7 @@ class TestShortcodeSubclassing:
             return str(attrs) + content
 
         with pytest.raises(ValueError, match="valid `name`"):
-            type(
+            _ = type(
                 "_BadSC",
                 (Shortcode,),
                 {"name": "123invalid", "description": "test", "render": _render},
