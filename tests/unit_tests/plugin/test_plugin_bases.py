@@ -455,3 +455,41 @@ class TestContentTransformerWiring:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
         app = _app_with_plugin(base_config_data, "jinjaext", JinjaExtPlugin)
         assert any("_DummyJinjaExtension" in k for k in app.jinja_env.extensions)
+
+
+# ---------------------------------------------------------------------------
+# ContentType "field" — field-rendering opt-in
+# ---------------------------------------------------------------------------
+
+
+class TestFieldContentType:
+    def test_field_in_all_content_types(self) -> None:
+        assert "field" in ALL_CONTENT_TYPES
+
+    def test_plugin_with_field_processes_field_content(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        class FieldReadyFilter(ContentTransformerPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+
+            def transform_text(self, text: str) -> str:
+                return text + "[field]"
+
+        app = _app_with_plugin(base_config_data, "fieldready", FieldReadyFilter)
+        assert app.transform_content("x", "field") == "x[field]"
+
+    def test_plugin_without_field_skips_field_content(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        class PostOnlyFilter(ContentTransformerPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+
+            def transform_text(self, text: str) -> str:
+                return text + "[post]"
+
+        app = _app_with_plugin(base_config_data, "postonlyfilter", PostOnlyFilter)
+        assert app.transform_content("x", "field") == "x"
