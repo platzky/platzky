@@ -86,7 +86,8 @@ Content Transformer Plugins
 
 .. versionadded:: 1.5.0
 
-The three content types are ``"post"``, ``"page"``, and ``"comment"``.
+Available content types are defined in :data:`platzky.content_types.ContentType`.
+See :ref:`field-rendering` below for the meaning of ``"field"``.
 
 .. code-block:: python
 
@@ -145,6 +146,27 @@ Declare ``shortcodes`` as a class variable:
 
         accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
         shortcodes: ClassVar[dict[str, Shortcode]] = {"alert": _AlertShortcode()}
+
+.. _field-rendering:
+
+**Field rendering**
+
+A shortcode's :meth:`~platzky.shortcodes.Shortcode.transform_field_value` method
+is called by host applications (such as Goodmap) to transform a structured field
+value into a frontend-ready dict, rather than rendering HTML from post content.
+
+To opt a plugin's shortcodes in to field rendering, include ``"field"`` in
+``accepted_content_types``:
+
+.. code-block:: python
+
+    class MyPlugin(ContentTransformerPluginBase):
+        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page", "field"})
+
+To opt out — for example a purely cosmetic shortcode that has no meaningful field
+representation — simply omit ``"field"`` from the set. Host applications must
+also grant the plugin permission via ``allowed_content_types`` in the database
+config (see :ref:`plugin-configuration`).
 
 **Built-in shortcodes**
 
@@ -213,6 +235,8 @@ plugin class in ``pyproject.toml``:
 
 The key (``my_plugin``) is the name used in the database configuration.
 
+.. _plugin-configuration:
+
 Plugin Configuration
 --------------------
 
@@ -242,14 +266,16 @@ For notifier plugins you can restrict which topics the plugin receives:
         "allowed_topics": ["security", "general"]
     }
 
-For content transformer plugins you can restrict which content types are processed:
+For content transformer plugins you can restrict which content types are processed.
+Include ``"field"`` to also allow the plugin's shortcodes to be used for field
+rendering by host applications:
 
 .. code-block:: json
 
     {
         "name": "alert_plugin",
         "config": {},
-        "allowed_content_types": ["post", "page"]
+        "allowed_content_types": ["post", "page", "field"]
     }
 
 Admin Help Page
