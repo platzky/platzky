@@ -1,27 +1,35 @@
 from unittest.mock import MagicMock
 
-from flask import Flask
+from flask import Blueprint, Flask
 
 from platzky.models import Comment, Image, Post
 from platzky.seo import seo
-from platzky.seo.seo import _INTERNAL_BLUEPRINTS, _is_public_route
 
 
-def _make_rule(
-    endpoint: str,
-    methods: set[str],
-    path: str,
-    arguments: set[str] | None = None,
-) -> MagicMock:
-    rule = MagicMock()
-    rule.endpoint = endpoint
-    rule.methods = methods
-    rule.arguments = arguments or set()
-    rule.__str__ = lambda _: path
-    return rule
+def _make_seo_app(extra_blueprints: list[Blueprint] | None = None) -> Flask:
+    """Build a minimal Flask app with the SEO blueprint and optional extra blueprints."""
+    config = {
+        "SEO_PREFIX": "/prefix",
+        "BLOG_PREFIX": "/blog",
+        "SITEMAP_EXCLUDED_PREFIXES": [],
+    }
+    config_mock = MagicMock()
+    config_mock.__getitem__.side_effect = config.__getitem__
+    config_mock.get.side_effect = config.get
+
+    db_mock = MagicMock()
+    db_mock.get_all_posts.return_value = []
+
+    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
+    app = Flask(__name__)
+    app.config.update({"WTF_CSRF_ENABLED": False})
+    for bp in extra_blueprints or []:
+        app.register_blueprint(bp)
+    app.register_blueprint(seo_blueprint)
+    return app
 
 
-def test_config_creation_with_incorrect_mappings():
+def test_robots_txt():
     db_mock = MagicMock()
     config_mock = MagicMock()
     config_mock.__getitem__.return_value = "/prefix"
@@ -32,11 +40,20 @@ def test_config_creation_with_incorrect_mappings():
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/robots.txt")
-    assert "Sitemap: https://localhost/sitemap.xml" in response.text
     assert response.status_code == 200
+    assert "Sitemap: https://localhost/sitemap.xml" in response.text
 
 
-def test_sitemap():
+def test_sitemap_includes_blog_posts():
+    config = {
+        "SEO_PREFIX": "/prefix",
+        "BLOG_PREFIX": "/blog",
+        "SITEMAP_EXCLUDED_PREFIXES": [],
+    }
+    config_mock = MagicMock()
+    config_mock.__getitem__.side_effect = config.__getitem__
+    config_mock.get.side_effect = config.get
+
     db_mock = MagicMock()
     db_mock.get_all_posts.return_value = [
         Post(
@@ -61,15 +78,6 @@ def test_sitemap():
             ],
         )
     ]
-    config = {
-        "SEO_PREFIX": "/prefix",
-        "BLOG_PREFIX": "/blog",
-        "DOMAIN_TO_LANG": {"localhost": "en"},
-        "SITEMAP_EXCLUDED_PREFIXES": [],
-    }
-    config_mock = MagicMock()
-    config_mock.__getitem__.side_effect = config.__getitem__
-    config_mock.get.side_effect = config.get
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
@@ -81,32 +89,108 @@ def test_sitemap():
     assert "http://localhost/blog/slug" in response.text
 
 
-class TestIsPublicRoute:
-    def test_accepts_plain_get_route(self):
-        rule = _make_rule("main.index", {"GET", "HEAD"}, "/")
-        assert _is_public_route(rule)
+class TestSitemapFiltering:
+    def test_includes_public_get_route(self) -> None:
+        public_bp = Blueprint("public", __name__)
 
-    def test_rejects_non_get(self):
-        rule = _make_rule("main.index", {"POST"}, "/submit")
-        assert not _is_public_route(rule)
+        @public_bp.route("/about")
+        def about() -> str:
+            return "about"
 
-    def test_rejects_route_with_arguments(self):
-        rule = _make_rule("blog.get_post", {"GET"}, "/blog/<slug>", arguments={"slug"})
-        assert not _is_public_route(rule)
+        app = _make_seo_app([public_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/about" in response.text
 
-    def test_rejects_internal_blueprints(self):
-        for bp in _INTERNAL_BLUEPRINTS:
-            rule = _make_rule(f"{bp}.some_view", {"GET"}, f"/{bp}/something")
-            assert not _is_public_route(rule), f"expected {bp} to be excluded"
+    def test_excludes_post_only_route(self) -> None:
+        form_bp = Blueprint("forms", __name__)
 
-    def test_rejects_lang_prefix(self):
-        rule = _make_rule("change_language", {"GET"}, "/lang/pl")
-        assert not _is_public_route(rule)
+        @form_bp.route("/submit", methods=["POST"])
+        def submit() -> str:
+            return "ok"
 
-    def test_rejects_extra_excluded_prefix(self):
-        rule = _make_rule("custom.view", {"GET"}, "/private/data")
-        assert not _is_public_route(rule, extra_excluded_prefixes=("/private/",))
+        app = _make_seo_app([form_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/submit" not in response.text
 
-    def test_accepts_blog_route(self):
-        rule = _make_rule("blog.get_page", {"GET"}, "/blog/page/about-us")
-        assert _is_public_route(rule)
+    def test_excludes_route_with_url_arguments(self) -> None:
+        items_bp = Blueprint("items", __name__)
+
+        @items_bp.route("/item/<int:item_id>")
+        def item(item_id: int) -> str:
+            return str(item_id)
+
+        app = _make_seo_app([items_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/item/" not in response.text
+
+    def test_excludes_admin_blueprint(self) -> None:
+        admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+        @admin_bp.route("/dashboard")
+        def dashboard() -> str:
+            return "admin"
+
+        app = _make_seo_app([admin_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/admin/dashboard" not in response.text
+
+    def test_excludes_api_blueprint(self) -> None:
+        api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+        @api_bp.route("/locations")
+        def locations() -> str:
+            return "[]"
+
+        app = _make_seo_app([api_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/api/locations" not in response.text
+
+    def test_excludes_health_blueprint(self) -> None:
+        health_bp = Blueprint("health", __name__, url_prefix="/health")
+
+        @health_bp.route("/liveness")
+        def liveness() -> str:
+            return "ok"
+
+        app = _make_seo_app([health_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/health/liveness" not in response.text
+
+    def test_excludes_lang_prefix(self) -> None:
+        lang_bp = Blueprint("lang", __name__)
+
+        @lang_bp.route("/lang/pl")
+        def lang_pl() -> str:
+            return "ok"
+
+        app = _make_seo_app([lang_bp])
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/lang/pl" not in response.text
+
+    def test_excludes_custom_prefix_from_config(self) -> None:
+        config = {
+            "SEO_PREFIX": "/prefix",
+            "BLOG_PREFIX": "/blog",
+            "SITEMAP_EXCLUDED_PREFIXES": ["/private/"],
+        }
+        config_mock = MagicMock()
+        config_mock.__getitem__.side_effect = config.__getitem__
+        config_mock.get.side_effect = config.get
+
+        db_mock = MagicMock()
+        db_mock.get_all_posts.return_value = []
+
+        private_bp = Blueprint("private", __name__)
+
+        @private_bp.route("/private/data")
+        def data() -> str:
+            return "secret"
+
+        seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
+        app = Flask(__name__)
+        app.config.update({"WTF_CSRF_ENABLED": False})
+        app.register_blueprint(private_bp)
+        app.register_blueprint(seo_blueprint)
+
+        response = app.test_client().get("/prefix/sitemap.xml")
+        assert "/private/data" not in response.text
