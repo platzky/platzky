@@ -8,6 +8,20 @@ from flask import Blueprint, Response, current_app, make_response, render_templa
 
 from platzky.db.db import DB
 
+_INTERNAL_BLUEPRINTS = frozenset({"static", "seo", "admin", "login", "health", "api"})
+_INTERNAL_PATH_PREFIXES = ("/lang/",)
+
+
+def _is_public_route(rule: t.Any, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
+    """Return True if the route should be included in the sitemap."""
+    if not rule.methods or "GET" not in rule.methods or rule.arguments:
+        return False
+    blueprint = rule.endpoint.split(".")[0] if "." in rule.endpoint else rule.endpoint
+    if blueprint in _INTERNAL_BLUEPRINTS:
+        return False
+    path = str(rule)
+    return not any(path.startswith(p) for p in _INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
+
 
 def create_seo_blueprint(
     db: DB, config: dict[str, t.Any], locale_func: t.Callable[[], str]
@@ -80,11 +94,13 @@ def create_seo_blueprint(
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc
 
+        extra_excluded = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
+
         # Static routes with static content
         static_urls = [
             {"loc": f"{host_base}{rule!s}"}
             for rule in current_app.url_map.iter_rules()
-            if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0
+            if _is_public_route(rule, extra_excluded)
         ]
 
         dynamic_urls = get_blog_entries(host_base, lang, db, config["BLOG_PREFIX"])

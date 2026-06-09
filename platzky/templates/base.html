@@ -7,8 +7,27 @@
   {{ dynamic_head | safe }}
 
   <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
-  <title>{% block title %}{{app_name}}{% endblock %}</title>
-  <meta name="description" content="{% block description %} {{ app_description }} {% endblock %}">
+  <title>{% block head_title %}{% block title %}{{ app_name }}{% endblock %}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ app_description }}{% endblock %}">
+
+  <!-- Open Graph -->
+  <meta property="og:site_name" content="{{ app_name }}">
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta property="og:title" content="{{ self.title() | trim }}">
+  <meta property="og:description" content="{{ self.description() | trim }}">
+  <meta property="og:locale" content="{{ current_language }}_{{ current_lang_country | upper }}">
+  {% block og_image_meta %}{% if logo_url %}
+  <meta property="og:image" content="{{ logo_url }}">
+  {% endif %}{% endblock %}
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ self.title() | trim }}">
+  <meta name="twitter:description" content="{{ self.description() | trim }}">
+  {% if logo_url %}<meta name="twitter:image" content="{{ logo_url }}">{% endif %}
+
+  {% block structured_data %}{% endblock %}
 </head>
 <body>
 {% block body_meta %}
