@@ -25,7 +25,9 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ self.title() | trim }}">
   <meta name="twitter:description" content="{{ self.description() | trim }}">
-  {% if logo_url %}<meta name="twitter:image" content="{{ logo_url }}">{% endif %}
+  {% block twitter_image_meta %}{% if logo_url %}
+  <meta name="twitter:image" content="{{ logo_url }}">
+  {% endif %}{% endblock %}
 
   {% block structured_data %}{% endblock %}
 </head>

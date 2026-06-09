@@ -8,6 +8,11 @@
 {% elif logo_url %}
 <meta property="og:image" content="{{ logo_url }}">
 {% endif %}{% endblock %}
+{% block twitter_image_meta %}{% if post.coverImage and post.coverImage.url %}
+<meta name="twitter:image" content="{{ post.coverImage.url }}">
+{% elif logo_url %}
+<meta name="twitter:image" content="{{ logo_url }}">
+{% endif %}{% endblock %}
 
 {% block content %}
 <header class="masthead" style="background-image: url({{post.coverImage.url}})">

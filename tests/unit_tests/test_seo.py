@@ -22,7 +22,7 @@ def _make_seo_app(extra_blueprints: list[Blueprint] | None = None) -> Flask:
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
-    app.config.update({"WTF_CSRF_ENABLED": False})
+    app.config.update({"TESTING": True})
     for bp in extra_blueprints or []:
         app.register_blueprint(bp)
     app.register_blueprint(seo_blueprint)
