@@ -5,6 +5,7 @@ import urllib.parse
 from os.path import dirname
 
 from flask import Blueprint, Response, current_app, make_response, render_template, request
+from werkzeug.routing import Rule
 
 from platzky.db.db import DB
 
@@ -12,7 +13,7 @@ _INTERNAL_BLUEPRINTS = frozenset({"static", "seo", "admin", "login", "health", "
 _INTERNAL_PATH_PREFIXES = ("/lang/",)
 
 
-def _is_public_route(rule: t.Any, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
+def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
     """Return True if the route should be included in the sitemap."""
     if not rule.methods or "GET" not in rule.methods or rule.arguments:
         return False

@@ -4,15 +4,20 @@ from flask import Flask
 
 from platzky.models import Comment, Image, Post
 from platzky.seo import seo
-from platzky.seo.seo import _INTERNAL_BLUEPRINTS, _INTERNAL_PATH_PREFIXES, _is_public_route
+from platzky.seo.seo import _INTERNAL_BLUEPRINTS, _is_public_route
 
 
-def _make_rule(endpoint, methods, path, arguments=None):
+def _make_rule(
+    endpoint: str,
+    methods: set[str],
+    path: str,
+    arguments: set[str] | None = None,
+) -> MagicMock:
     rule = MagicMock()
     rule.endpoint = endpoint
     rule.methods = methods
     rule.arguments = arguments or set()
-    rule.__str__ = lambda self: path
+    rule.__str__ = lambda _: path
     return rule
 
 
