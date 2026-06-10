@@ -1,3 +1,4 @@
+import secrets
 from unittest.mock import MagicMock
 
 from flask import Blueprint, Flask
@@ -6,12 +7,10 @@ from flask_wtf.csrf import CSRFProtect
 from platzky.models import Comment, Image, Post
 from platzky.seo import seo
 
-_TEST_SECRET_KEY = "test-only-secret"
-
 
 def _make_test_flask_app() -> Flask:
     app = Flask(__name__)
-    app.config.update({"TESTING": True, "SECRET_KEY": _TEST_SECRET_KEY})
+    app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
     CSRFProtect(app)
     return app
 
