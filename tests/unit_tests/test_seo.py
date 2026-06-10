@@ -93,7 +93,7 @@ class TestSitemapFiltering:
     def test_includes_public_get_route(self) -> None:
         public_bp = Blueprint("public", __name__)
 
-        @public_bp.route("/about")
+        @public_bp.route("/about", methods=["GET"])
         def about() -> str:
             return "about"
 
@@ -115,7 +115,7 @@ class TestSitemapFiltering:
     def test_excludes_route_with_url_arguments(self) -> None:
         items_bp = Blueprint("items", __name__)
 
-        @items_bp.route("/item/<int:item_id>")
+        @items_bp.route("/item/<int:item_id>", methods=["GET"])
         def item(item_id: int) -> str:
             return str(item_id)
 
@@ -126,7 +126,7 @@ class TestSitemapFiltering:
     def test_excludes_admin_blueprint(self) -> None:
         admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-        @admin_bp.route("/dashboard")
+        @admin_bp.route("/dashboard", methods=["GET"])
         def dashboard() -> str:
             return "admin"
 
@@ -137,7 +137,7 @@ class TestSitemapFiltering:
     def test_excludes_api_blueprint(self) -> None:
         api_bp = Blueprint("api", __name__, url_prefix="/api")
 
-        @api_bp.route("/locations")
+        @api_bp.route("/locations", methods=["GET"])
         def locations() -> str:
             return "[]"
 
@@ -148,7 +148,7 @@ class TestSitemapFiltering:
     def test_excludes_health_blueprint(self) -> None:
         health_bp = Blueprint("health", __name__, url_prefix="/health")
 
-        @health_bp.route("/liveness")
+        @health_bp.route("/liveness", methods=["GET"])
         def liveness() -> str:
             return "ok"
 
@@ -159,7 +159,7 @@ class TestSitemapFiltering:
     def test_excludes_lang_prefix(self) -> None:
         lang_bp = Blueprint("lang", __name__)
 
-        @lang_bp.route("/lang/pl")
+        @lang_bp.route("/lang/pl", methods=["GET"])
         def lang_pl() -> str:
             return "ok"
 
@@ -182,13 +182,13 @@ class TestSitemapFiltering:
 
         private_bp = Blueprint("private", __name__)
 
-        @private_bp.route("/private/data")
+        @private_bp.route("/private/data", methods=["GET"])
         def data() -> str:
             return "secret"
 
         seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
         app = Flask(__name__)
-        app.config.update({"WTF_CSRF_ENABLED": False})
+        app.config.update({"TESTING": True})
         app.register_blueprint(private_bp)
         app.register_blueprint(seo_blueprint)
 
