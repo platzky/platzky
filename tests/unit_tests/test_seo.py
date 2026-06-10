@@ -1,9 +1,19 @@
 from unittest.mock import MagicMock
 
 from flask import Blueprint, Flask
+from flask_wtf.csrf import CSRFProtect
 
 from platzky.models import Comment, Image, Post
 from platzky.seo import seo
+
+_TEST_SECRET_KEY = "test-only-secret"
+
+
+def _make_test_flask_app() -> Flask:
+    app = Flask(__name__)
+    app.config.update({"TESTING": True, "SECRET_KEY": _TEST_SECRET_KEY})
+    CSRFProtect(app)
+    return app
 
 
 def _make_seo_app(
@@ -24,8 +34,7 @@ def _make_seo_app(
     db_mock.get_all_posts.return_value = []
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = Flask(__name__)
-    app.config.update({"TESTING": True})
+    app = _make_test_flask_app()
     for bp in extra_blueprints or []:
         app.register_blueprint(bp)
     app.register_blueprint(seo_blueprint)
@@ -38,8 +47,8 @@ def test_robots_txt():
     config_mock.__getitem__.return_value = "/prefix"
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = Flask(__name__)
-    app.config.update({"TESTING": True, "DEBUG": True})
+    app = _make_test_flask_app()
+    app.config.update({"DEBUG": True})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/robots.txt")
@@ -83,8 +92,7 @@ def test_sitemap_includes_blog_posts():
     ]
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = Flask(__name__)
-    app.config.update({"TESTING": True})
+    app = _make_test_flask_app()
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/sitemap.xml")
