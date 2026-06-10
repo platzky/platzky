@@ -6,12 +6,15 @@ from platzky.models import Comment, Image, Post
 from platzky.seo import seo
 
 
-def _make_seo_app(extra_blueprints: list[Blueprint] | None = None) -> Flask:
+def _make_seo_app(
+    extra_blueprints: list[Blueprint] | None = None,
+    sitemap_excluded_prefixes: list[str] | None = None,
+) -> Flask:
     """Build a minimal Flask app with the SEO blueprint and optional extra blueprints."""
     config = {
         "SEO_PREFIX": "/prefix",
         "BLOG_PREFIX": "/blog",
-        "SITEMAP_EXCLUDED_PREFIXES": [],
+        "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes or [],
     }
     config_mock = MagicMock()
     config_mock.__getitem__.side_effect = config.__getitem__
@@ -168,29 +171,12 @@ class TestSitemapFiltering:
         assert "/lang/pl" not in response.text
 
     def test_excludes_custom_prefix_from_config(self) -> None:
-        config = {
-            "SEO_PREFIX": "/prefix",
-            "BLOG_PREFIX": "/blog",
-            "SITEMAP_EXCLUDED_PREFIXES": ["/private/"],
-        }
-        config_mock = MagicMock()
-        config_mock.__getitem__.side_effect = config.__getitem__
-        config_mock.get.side_effect = config.get
-
-        db_mock = MagicMock()
-        db_mock.get_all_posts.return_value = []
-
         private_bp = Blueprint("private", __name__)
 
         @private_bp.route("/private/data", methods=["GET"])
         def data() -> str:
             return "secret"
 
-        seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-        app = Flask(__name__)
-        app.config.update({"TESTING": True})
-        app.register_blueprint(private_bp)
-        app.register_blueprint(seo_blueprint)
-
+        app = _make_seo_app([private_bp], sitemap_excluded_prefixes=["/private/"])
         response = app.test_client().get("/prefix/sitemap.xml")
         assert "/private/data" not in response.text
