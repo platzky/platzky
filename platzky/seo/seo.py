@@ -9,7 +9,7 @@ from werkzeug.routing import Rule
 
 from platzky.db.db import DB
 
-INTERNAL_BLUEPRINTS = frozenset({"static", "seo", "admin", "login", "health", "api"})
+INTERNAL_NAMESPACES = frozenset({"static", "seo", "admin", "login", "health", "api"})
 INTERNAL_PATH_PREFIXES = ("/lang/",)
 
 
@@ -18,7 +18,7 @@ def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) 
     if not rule.methods or "GET" not in rule.methods or rule.arguments:
         return False
     blueprint = rule.endpoint.split(".")[0] if "." in rule.endpoint else rule.endpoint
-    if blueprint in INTERNAL_BLUEPRINTS:
+    if blueprint in INTERNAL_NAMESPACES:
         return False
     path = str(rule)
     return not any(path.startswith(p) for p in INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
