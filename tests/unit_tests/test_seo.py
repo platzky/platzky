@@ -36,7 +36,7 @@ def test_robots_txt():
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
-    app.config.update({"TESTING": True, "DEBUG": True, "WTF_CSRF_ENABLED": False})
+    app.config.update({"TESTING": True, "DEBUG": True})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/robots.txt")
@@ -81,7 +81,7 @@ def test_sitemap_includes_blog_posts():
 
     seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
     app = Flask(__name__)
-    app.config.update({"WTF_CSRF_ENABLED": False})
+    app.config.update({"TESTING": True})
     app.register_blueprint(seo_blueprint)
 
     response = app.test_client().get("/prefix/sitemap.xml")
