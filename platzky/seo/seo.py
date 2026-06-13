@@ -17,8 +17,8 @@ def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) 
     """Return True if the route should be included in the sitemap."""
     if not rule.methods or "GET" not in rule.methods or rule.arguments:
         return False
-    blueprint = rule.endpoint.split(".")[0] if "." in rule.endpoint else rule.endpoint
-    if blueprint in INTERNAL_NAMESPACES:
+    namespace = rule.endpoint.split(".")[0]
+    if namespace in INTERNAL_NAMESPACES:
         return False
     path = str(rule)
     return not any(path.startswith(p) for p in INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
