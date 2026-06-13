@@ -1,6 +1,6 @@
-User-agent: Googlebot
-User-agent: AdsBot-Google
+User-agent: *
 Allow: /
-Disallow: /lang/*
+Disallow: /lang/
+Disallow: /admin/
 
 Sitemap: https://{{domain}}/sitemap.xml

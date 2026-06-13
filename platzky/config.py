@@ -262,6 +262,10 @@ class Config(BaseModel):
     )
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig, alias="TELEMETRY")
     attachment: AttachmentConfig = Field(default_factory=AttachmentConfig, alias="ATTACHMENT")
+    sitemap_excluded_prefixes: list[str] = Field(
+        default_factory=list,
+        alias="SITEMAP_EXCLUDED_PREFIXES",
+    )
 
     @field_validator("feature_flags", mode="before")
     @classmethod
