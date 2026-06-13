@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.3](https://github.com/platzky/platzky/compare/v2.0.0-alpha.2...v2.0.0-alpha.3) (2026-06-13)
+
+
+### Features
+
+* added field as contenttype ([#240](https://github.com/platzky/platzky/issues/240)) ([45fb65c](https://github.com/platzky/platzky/commit/45fb65c5acaf8c34c03ed161900a192866210c07))
+
+
+### Bug Fixes
+
+* Add sitemap filtering and improve SEO meta tag ([#241](https://github.com/platzky/platzky/issues/241)) ([be5ce91](https://github.com/platzky/platzky/commit/be5ce917dcc1f45d04eac7db18cfab5c63540397))
+
 ## [2.0.0-alpha.2](https://github.com/platzky/platzky/compare/v2.0.0-alpha.1...v2.0.0-alpha.2) (2026-06-07)
 
 
