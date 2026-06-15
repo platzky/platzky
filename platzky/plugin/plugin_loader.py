@@ -11,12 +11,15 @@ from pydantic import ValidationError
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
+from platzky.page_sections import PageSection
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.page_decorator import PageDecoratorPluginBase
 from platzky.plugin.plugin import PluginBase, PluginError
 from platzky.plugin.plugin_config import (
     ContentTransformerPluginConfig,
     NotifyPluginConfig,
+    PageDecoratorPluginConfig,
     PluginConfigBase,
 )
 
@@ -30,7 +33,7 @@ _ENTRY_POINT_GROUP = "platzky.plugins"
 
 def _extract_allowlists(
     pc: PluginConfigBase, plugin_class: type
-) -> tuple[frozenset[NotificationTopic], frozenset[ContentType]]:
+) -> tuple[frozenset[NotificationTopic], frozenset[ContentType], frozenset[PageSection]]:
     raw = pc.model_dump()
     allowed_topics = (
         NotifyPluginConfig.model_validate(raw).allowed_topics
@@ -42,7 +45,12 @@ def _extract_allowlists(
         if issubclass(plugin_class, ContentTransformerPluginBase)
         else frozenset()
     )
-    return allowed_topics, allowed_content_types
+    allowed_page_sections = (
+        PageDecoratorPluginConfig.model_validate(raw).allowed_page_sections
+        if issubclass(plugin_class, PageDecoratorPluginBase)
+        else frozenset()
+    )
+    return allowed_topics, allowed_content_types, allowed_page_sections
 
 
 def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
@@ -119,9 +127,16 @@ def plugify(app: Engine) -> Engine:
         try:
             if pc.name in discovered:
                 plugin_class = discovered[pc.name]
-                allowed_topics, allowed_content_types = _extract_allowlists(pc, plugin_class)
+                allowed_topics, allowed_content_types, allowed_page_sections = _extract_allowlists(
+                    pc, plugin_class
+                )
                 app = app.load_plugin(
-                    plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
+                    plugin_class,
+                    pc.config,
+                    pc.name,
+                    allowed_topics,
+                    allowed_content_types,
+                    allowed_page_sections,
                 )
             elif pc.name in failed_entry_points:
                 raise PluginError(

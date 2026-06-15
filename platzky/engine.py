@@ -10,6 +10,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from platzky.page_sections import PageSection
     from platzky.plugin.plugin import PluginBase
 
 from flask import (
@@ -33,6 +34,7 @@ from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import Notification, NotifierPluginBase
+from platzky.plugin.page_decorator import PageDecoratorPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -233,6 +235,7 @@ class Engine(Flask):
         plugin_name: str,
         allowed_topics: frozenset[NotificationTopic] = frozenset(),
         allowed_content_types: frozenset[ContentType] = frozenset(),
+        allowed_page_sections: "frozenset[PageSection]" = frozenset(),
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
@@ -244,6 +247,8 @@ class Engine(Flask):
                 topics; a non-empty frozenset restricts to those topics.
             allowed_content_types: Content-type allowlist for transformer plugins.
                 Empty frozenset blocks all types; a non-empty frozenset restricts.
+            allowed_page_sections: Page-section allowlist for page-decorator plugins.
+                Empty frozenset blocks all sections; a non-empty frozenset restricts.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
@@ -254,9 +259,26 @@ class Engine(Flask):
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin(plugin_instance, plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):
+            if not plugin_instance.accepted_topics:
+                logger.debug(
+                    "Plugin %s declares no accepted_topics; it will receive no notifications.",
+                    plugin_name,
+                )
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
         if isinstance(plugin_instance, ContentTransformerPluginBase):
+            if not plugin_instance.accepted_content_types:
+                logger.debug(
+                    "Plugin %s declares no accepted_content_types; it will transform no content.",
+                    plugin_name,
+                )
             app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
+        if isinstance(plugin_instance, PageDecoratorPluginBase):
+            if not plugin_instance.accepted_page_sections:
+                logger.debug(
+                    "Plugin %s declares no accepted_page_sections; nothing will be injected.",
+                    plugin_name,
+                )
+            app.apply_page_decorator(plugin_instance, allowed_page_sections)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 
@@ -269,6 +291,25 @@ class Engine(Flask):
         Called by the plugin loader; not accessible to plugin code.
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics
+
+    def apply_page_decorator(
+        self,
+        plugin: PageDecoratorPluginBase,
+        allowed_page_sections: "frozenset[PageSection]",
+    ) -> None:
+        """Inject HTML from a page-decorator plugin into the allowed page sections.
+
+        Effective sections are the intersection of what the plugin declares via
+        ``accepted_page_sections`` and what the admin permits via ``allowed_page_sections``.
+        HTML is captured once at startup from ``get_head_html`` / ``get_body_html``;
+        use the plugin's own config for values that vary by environment.
+        Called by ``load_plugin``; not accessible to plugin code.
+        """
+        effective_sections = plugin.accepted_page_sections & allowed_page_sections
+        if "head" in effective_sections:
+            self.add_dynamic_head(plugin.get_head_html())
+        if "body" in effective_sections:
+            self.add_dynamic_body(plugin.get_body_html())
 
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""

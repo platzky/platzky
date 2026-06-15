@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from platzky.content_types import ContentType
 from platzky.notification_topics import NotificationTopic
+from platzky.page_sections import PageSection
 
 
 class PluginConfigBase(BaseModel):
@@ -26,3 +27,9 @@ class ContentTransformerPluginConfig(PluginConfigBase):
     """Plugin config for ContentTransformerPluginBase — carries the content-type allowlist."""
 
     allowed_content_types: frozenset[ContentType] = frozenset()
+
+
+class PageDecoratorPluginConfig(PluginConfigBase):
+    """Plugin config for PageDecoratorPluginBase — carries the page-section allowlist."""
+
+    allowed_page_sections: frozenset[PageSection] = frozenset()
