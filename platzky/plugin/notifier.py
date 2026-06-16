@@ -1,14 +1,11 @@
 """Notifier plugin base class and Notification payload."""
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from platzky.attachment import Attachment
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import PluginBase
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -30,15 +27,6 @@ class NotifierPluginBase(PluginBase, ABC):
     """
 
     accepted_topics: frozenset[NotificationTopic] = frozenset()
-
-    def _warn_if_no_capabilities(self, plugin_name: str) -> None:
-        """Log if accepted_topics is empty, then delegate to super()."""
-        super()._warn_if_no_capabilities(plugin_name)
-        if not self.accepted_topics:
-            logger.debug(
-                "Plugin %s declares no accepted_topics; it will receive no notifications.",
-                plugin_name,
-            )
 
     @abstractmethod
     def notify(self, notification: Notification) -> None:

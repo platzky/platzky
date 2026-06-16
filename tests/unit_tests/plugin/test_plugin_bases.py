@@ -606,7 +606,7 @@ class TestPageDecoratorPluginBase:
     ) -> None:
         import logging
 
-        with caplog.at_level(logging.DEBUG, logger="platzky.plugin"):
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
             app.load_plugin(
                 UndeclaredDecorator, {}, "undeclared", allowed_page_sections=frozenset({"head"})
             )
@@ -625,7 +625,7 @@ class TestPageDecoratorPluginBase:
             def notify(self, notification: Notification) -> None:
                 pass
 
-        with caplog.at_level(logging.DEBUG, logger="platzky.plugin"):
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
             app.load_plugin(EmptyNotifier, {}, "empty_notifier")
 
         assert any("accepted_topics" in r.message for r in caplog.records)
@@ -638,7 +638,7 @@ class TestPageDecoratorPluginBase:
         class EmptyTransformer(ContentTransformerPluginBase):
             """Transformer that forgets to declare accepted_content_types."""
 
-        with caplog.at_level(logging.DEBUG, logger="platzky.plugin"):
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
             app.load_plugin(EmptyTransformer, {}, "empty_transformer")
 
         assert any("accepted_content_types" in r.message for r in caplog.records)

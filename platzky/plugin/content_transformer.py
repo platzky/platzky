@@ -65,15 +65,6 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     accepted_content_types: frozenset[ContentType] = frozenset()
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
-    def _warn_if_no_capabilities(self, plugin_name: str) -> None:
-        """Log if accepted_content_types is empty, then delegate to super()."""
-        super()._warn_if_no_capabilities(plugin_name)
-        if not self.accepted_content_types:
-            logger.debug(
-                "Plugin %s declares no accepted_content_types; it will transform no content.",
-                plugin_name,
-            )
-
     @final
     def transform_content(self, content: str) -> str:
         """Split content on shortcode tags, transform plain-text segments, then apply shortcodes.
