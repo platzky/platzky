@@ -623,7 +623,7 @@ class TestPageDecoratorPluginBase:
             """Notifier that forgets to declare accepted_topics."""
 
             def notify(self, notification: Notification) -> None:
-                pass
+                pass  # no-op: test stub
 
         with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
             app.load_plugin(EmptyNotifier, {}, "empty_notifier")
