@@ -15,7 +15,8 @@ class PageDecoratorPluginBase(PluginBase, ABC):
     controls injection.
 
     ``get_head_html`` / ``get_body_html`` are called once at app startup; use the
-    plugin's own config for environment-specific values (API keys, feature flags).
+    plugin's own config for environment-specific values (for example public IDs or
+    feature flags). Never embed secrets/credentials in injected HTML.
 
     Override ``get_head_html`` to inject HTML into ``<head>``.
     Override ``get_body_html`` to inject HTML at the start of ``<body>``.
