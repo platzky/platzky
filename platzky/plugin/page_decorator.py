@@ -1,9 +1,12 @@
 """PageDecoratorPluginBase capability — plugins that inject HTML into page sections."""
 
+import logging
 from abc import ABC
 
 from platzky.page_sections import PageSection
 from platzky.plugin.plugin import PluginBase
+
+logger = logging.getLogger(__name__)
 
 
 class PageDecoratorPluginBase(PluginBase, ABC):
@@ -22,6 +25,15 @@ class PageDecoratorPluginBase(PluginBase, ABC):
     """
 
     accepted_page_sections: frozenset[PageSection] = frozenset()
+
+    def _warn_if_no_capabilities(self, plugin_name: str) -> None:
+        """Log if accepted_page_sections is empty, then delegate to super()."""
+        super()._warn_if_no_capabilities(plugin_name)
+        if not self.accepted_page_sections:
+            logger.debug(
+                "Plugin %s declares no accepted_page_sections; nothing will be injected.",
+                plugin_name,
+            )
 
     def get_head_html(self) -> str:
         """Return HTML to inject into the page ``<head>``.

@@ -258,26 +258,12 @@ class Engine(Flask):
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin(plugin_instance, plugin_name)
+        plugin_instance._warn_if_no_capabilities(plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):
-            if not plugin_instance.accepted_topics:
-                logger.debug(
-                    "Plugin %s declares no accepted_topics; it will receive no notifications.",
-                    plugin_name,
-                )
             app.set_notifier_allowlist(plugin_instance, allowed_topics)
         if isinstance(plugin_instance, ContentTransformerPluginBase):
-            if not plugin_instance.accepted_content_types:
-                logger.debug(
-                    "Plugin %s declares no accepted_content_types; it will transform no content.",
-                    plugin_name,
-                )
             app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
         if isinstance(plugin_instance, PageDecoratorPluginBase):
-            if not plugin_instance.accepted_page_sections:
-                logger.debug(
-                    "Plugin %s declares no accepted_page_sections; nothing will be injected.",
-                    plugin_name,
-                )
             app.apply_page_decorator(plugin_instance, allowed_page_sections)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app

@@ -84,3 +84,13 @@ class PluginBase(ABC):
             return None
 
         return self.get_locale_dir_from_module(module)
+
+    def _warn_if_no_capabilities(self, plugin_name: str) -> None:
+        """Log a debug message for each capability type this plugin declares but leaves empty.
+
+        Capability base classes override this and call ``super()`` so that
+        multi-capability plugins fire all checks in MRO order.
+
+        Args:
+            plugin_name: Human-readable plugin name used in log messages.
+        """
