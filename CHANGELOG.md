@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.4](https://github.com/platzky/platzky/compare/v2.0.0-alpha.3...v2.0.0-alpha.4) (2026-06-17)
+
+
+### Features
+
+* add HTML injector plugin base for page head/body injection ([#244](https://github.com/platzky/platzky/issues/244)) ([ad1de48](https://github.com/platzky/platzky/commit/ad1de48782407f0168ec7eda78a25b0f2daba4d4))
+
 ## [2.0.0-alpha.3](https://github.com/platzky/platzky/compare/v2.0.0-alpha.2...v2.0.0-alpha.3) (2026-06-13)
 
 
