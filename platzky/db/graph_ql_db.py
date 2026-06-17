@@ -433,6 +433,7 @@ class GraphQL(DB):
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
                 name
+                is_active: isActive
                 config
               }
             }

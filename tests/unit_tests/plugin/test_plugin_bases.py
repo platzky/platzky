@@ -19,6 +19,7 @@ from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.page_decorator import PageDecoratorPluginBase, PageSection
 from platzky.plugin.plugin import PluginBase
+from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
 # ---------------------------------------------------------------------------
@@ -608,9 +609,8 @@ class TestPageDecoratorPluginBase:
         with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
             app.load_plugin(
                 UndeclaredDecorator,
-                {},
                 "undeclared",
-                {"allowed_page_sections": ["head"]},
+                PluginConfigBase.model_validate({"allowed_page_sections": ["head"]}),
             )
 
         assert any("accepted_page_sections" in r.message for r in caplog.records)
@@ -628,7 +628,7 @@ class TestPageDecoratorPluginBase:
                 pass  # no-op: test stub
 
         with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
-            app.load_plugin(EmptyNotifier, {}, "empty_notifier", {})
+            app.load_plugin(EmptyNotifier, "empty_notifier", PluginConfigBase())
 
         assert any("accepted_topics" in r.message for r in caplog.records)
 
@@ -641,6 +641,6 @@ class TestPageDecoratorPluginBase:
             """Transformer that forgets to declare accepted_content_types."""
 
         with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
-            app.load_plugin(EmptyTransformer, {}, "empty_transformer", {})
+            app.load_plugin(EmptyTransformer, "empty_transformer", PluginConfigBase())
 
         assert any("accepted_content_types" in r.message for r in caplog.records)

@@ -12,7 +12,6 @@ from platzky.config import Config
 from platzky.platzky import create_app_from_config
 from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError, PluginBase, PluginError
-from platzky.plugin.plugin_loader import discover_plugins
 from tests.unit_tests.plugin import fake_plugin
 
 
@@ -419,65 +418,6 @@ class TestLocaleDirectorySecurity:
 
         assert "path validation failed" in caplog.text
 
-
-class TestDiscoverPlugins:
-    def _make_entry_point(self, name: str, plugin_class: type) -> MagicMock:
-        ep = MagicMock()
-        ep.name = name
-        ep.load.return_value = plugin_class
-        return ep
-
-    def test_returns_empty_dict_when_no_entry_points(self) -> None:
-        with mock.patch("importlib.metadata.entry_points", return_value=[]):
-            result = discover_plugins()
-        assert result == {}
-
-    def test_discovers_valid_plugin(self) -> None:
-        class MyPlugin(PluginBase):
-            pass
-
-        ep = self._make_entry_point("myplugin", MyPlugin)
-        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
-            result = discover_plugins()
-
-        assert result == {"myplugin": MyPlugin}
-
-    def test_discovers_multiple_plugins(self) -> None:
-        class PluginA(PluginBase):
-            pass
-
-        class PluginB(PluginBase):
-            pass
-
-        eps = [
-            self._make_entry_point("plugin_a", PluginA),
-            self._make_entry_point("plugin_b", PluginB),
-        ]
-        with mock.patch("importlib.metadata.entry_points", return_value=eps):
-            result = discover_plugins()
-
-        assert result == {"plugin_a": PluginA, "plugin_b": PluginB}
-
-    def test_skips_non_plugin_base_entry_point(self) -> None:
-        class NotAPlugin:
-            pass
-
-        ep = self._make_entry_point("bad", NotAPlugin)
-        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
-            result = discover_plugins()
-
-        assert result == {}
-
-    def test_skips_failed_entry_point_load(self) -> None:
-        ep = MagicMock()
-        ep.name = "broken"
-        ep.load.side_effect = ImportError("missing dependency")
-
-        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
-            result = discover_plugins()
-
-        assert result == {}
-
     def test_plugify_uses_entry_point_when_available(
         self, base_config_data: dict[str, Any]
     ) -> None:
@@ -491,7 +431,7 @@ class TestDiscoverPlugins:
         base_config_data["DB"]["DATA"]["plugins"] = {"myplugin": {"is_active": True, "config": {}}}
         config = Config.model_validate(base_config_data)
 
-        ep = self._make_entry_point("myplugin", EntryPointPlugin)
+        ep = _make_entry_point("myplugin", EntryPointPlugin)
         with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
             app = create_app_from_config(config)
 

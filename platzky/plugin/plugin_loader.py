@@ -49,25 +49,6 @@ def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exc
     return discovered, failed
 
 
-def discover_plugins() -> dict[str, type[PluginBase]]:
-    """Return all installed platzky plugins declared via entry points.
-
-    Plugin packages advertise themselves by declaring a ``platzky.plugins``
-    entry point in their package metadata, e.g. in ``pyproject.toml``::
-
-        [tool.poetry.plugins."platzky.plugins"]
-        sendmail = "platzky_sendmail.entrypoint:SendMailPlugin"
-
-    Only plugins installed in the current environment are returned.
-    Configured (active) plugins are a subset determined by the database.
-
-    Returns:
-        Mapping of plugin name to plugin class for every installed plugin.
-    """
-    discovered, _ = _discover_entry_points()
-    return discovered
-
-
 def plugify(app: Engine) -> Engine:
     """Load and initialise plugins configured in the database.
 
@@ -89,14 +70,14 @@ def plugify(app: Engine) -> Engine:
 
     discovered, failed_entry_points = _discover_entry_points()
 
-    for plugin_name, pc in plugins_data.items():
-        if not pc.is_active:
+    for plugin_name, plugin_config in plugins_data.items():
+        if not plugin_config.is_active:
             logger.debug("Plugin '%s' is inactive, skipping.", plugin_name)
             continue
         try:
             if plugin_name in discovered:
                 plugin_class = discovered[plugin_name]
-                app = app.load_plugin(plugin_class, pc.config, plugin_name, pc.model_dump())
+                app = app.load_plugin(plugin_class, plugin_name, plugin_config)
             elif plugin_name in failed_entry_points:
                 raise PluginError(
                     f"Plugin '{plugin_name}' failed to load via its entry point. "

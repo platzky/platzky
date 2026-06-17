@@ -22,4 +22,3 @@ from platzky.plugin.page_decorator import PageSection as PageSection
 from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
 from platzky.plugin.plugin import PluginBase as PluginBase
 from platzky.plugin.plugin import PluginError as PluginError
-from platzky.plugin.plugin_loader import discover_plugins as discover_plugins

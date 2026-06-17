@@ -38,6 +38,7 @@ from platzky.plugin.content_transformer import (
 )
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.page_decorator import PageDecoratorPluginBase, PageDecoratorPluginConfig
+from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -234,24 +235,22 @@ class Engine(Flask):
     def load_plugin(
         self,
         plugin_class: "type[PluginBase]",
-        plugin_config: dict[str, Any],
         plugin_name: str,
-        raw_config: dict[str, Any],
+        plugin_config_base: PluginConfigBase,
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
         Args:
             plugin_class: The plugin class to instantiate.
-            plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            raw_config: Full DB record dict used to extract per-capability allowlists.
-                Omit when loading a plugin with no allowlist config.
+            plugin_config_base: Validated DB record. ``config`` is passed to the plugin
+                constructor; capability allowlists are read from the remaining fields.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
         """
-        raw = raw_config
-        plugin_instance = plugin_class(plugin_config)
+        raw = plugin_config_base.model_dump()
+        plugin_instance = plugin_class(plugin_config_base.config)
         app = self
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
