@@ -6,6 +6,13 @@ from dataclasses import dataclass, field
 from platzky.attachment import Attachment
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import PluginBase
+from platzky.plugin.plugin_config import PluginConfigBase
+
+
+class NotifyPluginConfig(PluginConfigBase):
+    """Plugin config for NotifierPluginBase plugins — carries the topic allowlist."""
+
+    allowed_topics: frozenset[NotificationTopic] = frozenset()
 
 
 @dataclass(frozen=True)

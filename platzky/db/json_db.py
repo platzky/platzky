@@ -226,9 +226,12 @@ class Json(DB):
             raise ValueError(f"Post with slug {post_slug} not found")
         post["comments"].append(comment_data)
 
-    def get_plugins_data(self) -> list[PluginConfigBase]:
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        return [PluginConfigBase.model_validate(d) for d in self.data.get("plugins") or []]
+        return {
+            name: PluginConfigBase.model_validate(cfg)
+            for name, cfg in (self.data.get("plugins") or {}).items()
+        }
 
     def health_check(self) -> None:
         """Perform a health check on the JSON database.

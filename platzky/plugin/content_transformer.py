@@ -12,7 +12,15 @@ import jinja2.ext
 
 from platzky.content_types import ContentType
 from platzky.plugin.plugin import PluginBase
+from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
+
+
+class ContentTransformerPluginConfig(PluginConfigBase):
+    """Plugin config for ContentTransformerPluginBase — carries the content-type allowlist."""
+
+    allowed_content_types: frozenset[ContentType] = frozenset()
+
 
 logger = logging.getLogger(__name__)
 

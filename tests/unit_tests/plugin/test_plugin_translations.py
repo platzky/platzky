@@ -22,7 +22,7 @@ def base_config_data():
         "TRANSLATION_DIRECTORIES": [],
         "DB": {
             "TYPE": "json",
-            "DATA": {"plugins": []},
+            "DATA": {"plugins": {}},
         },
     }
 
@@ -69,7 +69,9 @@ class TestPlugin(NotifierPluginBase):
                 spec.loader.exec_module(plugin_module)
 
                 ep = _make_entry_point("test_plugin", plugin_module.TestPlugin)
-                base_config_data["DB"]["DATA"]["plugins"] = [{"name": "test_plugin", "config": {}}]
+                base_config_data["DB"]["DATA"]["plugins"] = {
+                    "test_plugin": {"is_active": True, "config": {}}
+                }
                 config = Config.model_validate(base_config_data)
 
                 with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
@@ -109,7 +111,9 @@ class TestPlugin(NotifierPluginBase):
             mock_module.__file__ = str(plugin_dir / "__init__.py")
             mock_module.__name__ = MaliciousPlugin.__module__
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "malicious_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "malicious_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with (
@@ -165,9 +169,9 @@ class SymlinkPlugin(NotifierPluginBase):
                 spec.loader.exec_module(plugin_module)
 
                 ep = _make_entry_point("symlink_plugin", plugin_module.SymlinkPlugin)
-                base_config_data["DB"]["DATA"]["plugins"] = [
-                    {"name": "symlink_plugin", "config": {}}
-                ]
+                base_config_data["DB"]["DATA"]["plugins"] = {
+                    "symlink_plugin": {"is_active": True, "config": {}}
+                }
                 config = Config.model_validate(base_config_data)
 
                 with mock.patch("importlib.metadata.entry_points", return_value=[ep]):

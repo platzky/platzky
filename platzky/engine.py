@@ -10,7 +10,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from platzky.page_sections import PageSection
+    from platzky.plugin.page_decorator import PageSection
     from platzky.plugin.plugin import PluginBase
 
 from flask import (
@@ -32,9 +32,12 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import Notification, NotifierPluginBase
-from platzky.plugin.page_decorator import PageDecoratorPluginBase
+from platzky.plugin.content_transformer import (
+    ContentTransformerPluginBase,
+    ContentTransformerPluginConfig,
+)
+from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
+from platzky.plugin.page_decorator import PageDecoratorPluginBase, PageDecoratorPluginConfig
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -233,9 +236,7 @@ class Engine(Flask):
         plugin_class: "type[PluginBase]",
         plugin_config: dict[str, Any],
         plugin_name: str,
-        allowed_topics: frozenset[NotificationTopic] = frozenset(),
-        allowed_content_types: frozenset[ContentType] = frozenset(),
-        allowed_page_sections: "frozenset[PageSection]" = frozenset(),
+        raw_config: dict[str, Any],
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
@@ -243,16 +244,13 @@ class Engine(Flask):
             plugin_class: The plugin class to instantiate.
             plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            allowed_topics: Topic allowlist for notifier plugins. Empty frozenset blocks all
-                topics; a non-empty frozenset restricts to those topics.
-            allowed_content_types: Content-type allowlist for transformer plugins.
-                Empty frozenset blocks all types; a non-empty frozenset restricts.
-            allowed_page_sections: Page-section allowlist for page-decorator plugins.
-                Empty frozenset blocks all sections; a non-empty frozenset restricts.
+            raw_config: Full DB record dict used to extract per-capability allowlists.
+                Omit when loading a plugin with no allowlist config.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
         """
+        raw = raw_config
         plugin_instance = plugin_class(plugin_config)
         app = self
         app.loaded_plugins.append(plugin_instance)
@@ -264,21 +262,29 @@ class Engine(Flask):
                     "Plugin %s declares no accepted_topics; it will receive no notifications.",
                     plugin_name,
                 )
-            app.set_notifier_allowlist(plugin_instance, allowed_topics)
+            app.set_notifier_allowlist(
+                plugin_instance, NotifyPluginConfig.model_validate(raw).allowed_topics
+            )
         if isinstance(plugin_instance, ContentTransformerPluginBase):
             if not plugin_instance.accepted_content_types:
                 logger.debug(
                     "Plugin %s declares no accepted_content_types; it will transform no content.",
                     plugin_name,
                 )
-            app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
+            app.set_content_transformer_allowlist(
+                plugin_instance,
+                ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
+            )
         if isinstance(plugin_instance, PageDecoratorPluginBase):
             if not plugin_instance.accepted_page_sections:
                 logger.debug(
                     "Plugin %s declares no accepted_page_sections; nothing will be injected.",
                     plugin_name,
                 )
-            app.apply_page_decorator(plugin_instance, allowed_page_sections)
+            app.apply_page_decorator(
+                plugin_instance,
+                PageDecoratorPluginConfig.model_validate(raw).allowed_page_sections,
+            )
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 

@@ -283,8 +283,8 @@ def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
     plugins_data = graph_ql_db.get_plugins_data()
 
     assert len(plugins_data) == 1
-    assert plugins_data[0].name == "plugin1"
-    assert plugins_data[0].config == {"key": "value"}
+    assert "plugin1" in plugins_data
+    assert plugins_data["plugin1"].config == {"key": "value"}
     mock_client.execute.assert_called_once()
 
 

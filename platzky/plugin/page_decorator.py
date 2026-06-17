@@ -1,9 +1,19 @@
 """PageDecoratorPluginBase capability — plugins that inject HTML into page sections."""
 
 from abc import ABC
+from typing import Literal, get_args
 
-from platzky.page_sections import PageSection
 from platzky.plugin.plugin import PluginBase
+from platzky.plugin.plugin_config import PluginConfigBase
+
+PageSection = Literal["head", "body"]
+ALL_PAGE_SECTIONS: frozenset[PageSection] = frozenset(get_args(PageSection))
+
+
+class PageDecoratorPluginConfig(PluginConfigBase):
+    """Plugin config for PageDecoratorPluginBase — carries the page-section allowlist."""
+
+    allowed_page_sections: frozenset[PageSection] = frozenset()
 
 
 class PageDecoratorPluginBase(PluginBase, ABC):

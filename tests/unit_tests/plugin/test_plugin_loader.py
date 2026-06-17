@@ -37,7 +37,7 @@ def base_config_data() -> dict[str, Any]:
         "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
         "DB": {
             "TYPE": "json",
-            "DATA": {"plugins": []},
+            "DATA": {"plugins": {}},
         },
     }
 
@@ -51,14 +51,18 @@ def _make_entry_point(name: str, plugin_class: type) -> MagicMock:
 
 class TestPluginErrors:
     def test_invalid_plugin_config(self, base_config_data: dict[str, Any]):
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "redirections", "config": None}]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "redirections": {"is_active": True, "config": None}
+        }
         config = Config.model_validate(base_config_data)
 
         with pytest.raises(PluginError):
             create_app_from_config(config)
 
     def test_non_existent_plugin(self, base_config_data: dict[str, Any]):
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "non_existent_plugin", "config": {}}]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "non_existent_plugin": {"is_active": True, "config": {}}
+        }
         config = Config.model_validate(base_config_data)
 
         with pytest.raises(PluginError):
@@ -70,7 +74,9 @@ class TestPluginErrors:
                 super().__init__(config)
                 raise RuntimeError("Plugin execution failed")
 
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "error_plugin", "config": {}}]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "error_plugin": {"is_active": True, "config": {}}
+        }
         config = Config.model_validate(base_config_data)
 
         ep = _make_entry_point("error_plugin", ErrorPlugin)
@@ -107,9 +113,9 @@ class TestPluginLoading:
             def notify(self, notification: Notification) -> None:
                 pass  # no-op: test stub
 
-        base_config_data["DB"]["DATA"]["plugins"] = [
-            {"name": "test_plugin", "config": {"setting": "value"}}
-        ]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "test_plugin": {"is_active": True, "config": {"setting": "value"}}
+        }
         config = Config.model_validate(base_config_data)
 
         ep = _make_entry_point("test_plugin", MockPlugin)
@@ -133,10 +139,10 @@ class TestPluginLoading:
             def notify(self, notification: Notification) -> None:
                 pass  # no-op: test stub
 
-        base_config_data["DB"]["DATA"]["plugins"] = [
-            {"name": "first_plugin", "config": {}},
-            {"name": "second_plugin", "config": {}},
-        ]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "first_plugin": {"is_active": True, "config": {}},
+            "second_plugin": {"is_active": True, "config": {}},
+        }
         config = Config.model_validate(base_config_data)
 
         eps = [
@@ -152,9 +158,9 @@ class TestPluginLoading:
     def test_real_fake_plugin_loading(self, base_config_data: dict[str, Any]):
         ep = _make_entry_point("fake-plugin", fake_plugin.FakePlugin)
 
-        base_config_data["DB"]["DATA"]["plugins"] = [
-            {"name": "fake-plugin", "config": {"test_value": "custom_value"}}
-        ]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "fake-plugin": {"is_active": True, "config": {"test_value": "custom_value"}}
+        }
         config = Config.model_validate(base_config_data)
         with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
             app = create_app_from_config(config)
@@ -224,7 +230,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "test_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "test_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             app = create_app_from_config(config)
@@ -252,7 +260,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "malicious_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "malicious_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with caplog.at_level("WARNING"):
@@ -283,7 +293,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "traversal_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "traversal_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with caplog.at_level("WARNING"):
@@ -320,7 +332,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "symlink_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "symlink_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with caplog.at_level("WARNING"):
@@ -349,9 +363,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [
-                {"name": "nonexistent_plugin", "config": {}}
-            ]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "nonexistent_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with caplog.at_level("WARNING"):
@@ -374,7 +388,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = str(plugin_file)
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "no_locale_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "no_locale_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             app = create_app_from_config(config)
@@ -393,7 +409,9 @@ class TestLocaleDirectorySecurity:
             mock_module.__file__ = None
             mock_getmodule.return_value = mock_module
 
-            base_config_data["DB"]["DATA"]["plugins"] = [{"name": "no_file_plugin", "config": {}}]
+            base_config_data["DB"]["DATA"]["plugins"] = {
+                "no_file_plugin": {"is_active": True, "config": {}}
+            }
             config = Config.model_validate(base_config_data)
 
             with caplog.at_level("WARNING"):
@@ -470,7 +488,7 @@ class TestDiscoverPlugins:
             def notify(self, notification: Notification) -> None:
                 pass  # no-op: test stub
 
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "myplugin", "config": {}}]
+        base_config_data["DB"]["DATA"]["plugins"] = {"myplugin": {"is_active": True, "config": {}}}
         config = Config.model_validate(base_config_data)
 
         ep = self._make_entry_point("myplugin", EntryPointPlugin)
@@ -480,7 +498,9 @@ class TestDiscoverPlugins:
         assert any(isinstance(p, EntryPointPlugin) for p in app.loaded_plugins)
 
     def test_plugify_raises_when_no_entry_point(self, base_config_data: dict[str, Any]) -> None:
-        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "missing_plugin", "config": {}}]
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "missing_plugin": {"is_active": True, "config": {}}
+        }
         config = Config.model_validate(base_config_data)
 
         with (

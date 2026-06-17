@@ -86,7 +86,7 @@ class TestJsonDb:
                 "primary_color": "blue",
                 "secondary_color": "green",
             },
-            "plugins": [{"name": "plugin1", "config": {}}],
+            "plugins": {"plugin1": {"config": {}}},
         }
 
     @pytest.fixture
@@ -295,14 +295,14 @@ class TestJsonDbComments:
 
 class TestJsonDbPlugins:
     def test_get_plugins_data(self):
-        db = Json({"plugins": [{"name": "plugin1", "config": {}}]})
+        db = Json({"plugins": {"plugin1": {"config": {}}}})
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert plugins[0].name == "plugin1"
+        assert "plugin1" in plugins
 
     def test_get_plugins_data_empty(self):
         db = Json({})
-        assert db.get_plugins_data() == []
+        assert db.get_plugins_data() == {}
 
 
 class TestJsonDbHealthCheck:
