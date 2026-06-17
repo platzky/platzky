@@ -252,9 +252,6 @@ class Engine(Flask):
         raw = plugin_config_base.model_dump()
         plugin_instance = plugin_class(plugin_config_base.config)
         app = self
-        app.loaded_plugins.append(plugin_instance)
-        app.register_plugin_locale(plugin_instance, plugin_name)
-        app.register_plugin(plugin_instance, plugin_name)
         if isinstance(plugin_instance, NotifierPluginBase):
             if not plugin_instance.accepted_topics:
                 logger.debug(
@@ -284,6 +281,9 @@ class Engine(Flask):
                 plugin_instance,
                 HtmlInjectorPluginConfig.model_validate(raw).allowed_page_sections,
             )
+        app.loaded_plugins.append(plugin_instance)
+        app.register_plugin_locale(plugin_instance, plugin_name)
+        app.register_plugin(plugin_instance, plugin_name)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 
