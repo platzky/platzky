@@ -10,7 +10,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from platzky.plugin.page_decorator import PageSection
+    from platzky.plugin.html_injector import PageSection
     from platzky.plugin.plugin import PluginBase
 
 from flask import (
@@ -36,8 +36,8 @@ from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerPluginConfig,
 )
+from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPluginConfig
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
-from platzky.plugin.page_decorator import PageDecoratorPluginBase, PageDecoratorPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
 
@@ -274,15 +274,15 @@ class Engine(Flask):
                 plugin_instance,
                 ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
             )
-        if isinstance(plugin_instance, PageDecoratorPluginBase):
+        if isinstance(plugin_instance, HtmlInjectorPluginBase):
             if not plugin_instance.accepted_page_sections:
                 logger.debug(
                     "Plugin %s declares no accepted_page_sections; nothing will be injected.",
                     plugin_name,
                 )
-            app.apply_page_decorator(
+            app.apply_html_injector(
                 plugin_instance,
-                PageDecoratorPluginConfig.model_validate(raw).allowed_page_sections,
+                HtmlInjectorPluginConfig.model_validate(raw).allowed_page_sections,
             )
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
@@ -297,9 +297,9 @@ class Engine(Flask):
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics
 
-    def apply_page_decorator(
+    def apply_html_injector(
         self,
-        plugin: PageDecoratorPluginBase,
+        plugin: HtmlInjectorPluginBase,
         allowed_page_sections: "frozenset[PageSection]",
     ) -> None:
         """Inject HTML from a page-decorator plugin into the allowed page sections.

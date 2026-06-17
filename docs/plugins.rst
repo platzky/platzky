@@ -222,6 +222,41 @@ which dispatches to the matching plugin.
             # exchange code for token, fetch user info …
             return {"username": "example-user"}
 
+HTML Injector Plugins
+----------------------
+
+.. versionadded:: 2.0.0
+
+Page decorator plugins inject static HTML into the ``<head>`` or ``<body>`` of
+every page. The HTML is captured once at startup — use the plugin's own config
+for environment-specific values such as tracking IDs or public keys. Never embed
+secrets or credentials in injected HTML.
+
+.. code-block:: python
+
+    from typing import Any
+    from platzky import HtmlInjectorPluginBase, PageSection
+
+    class AnalyticsPlugin(HtmlInjectorPluginBase):
+        """Inject a Google Analytics snippet into the page head."""
+
+        accepted_page_sections: frozenset[PageSection] = frozenset({"head"})
+
+        def __init__(self, config: dict[str, Any]) -> None:
+            super().__init__(config)
+            self._tracking_id = config.get("tracking_id", "")
+
+        def get_head_html(self) -> str:
+            return (
+                f'<script async src="https://www.googletagmanager.com/gtag/js'
+                f'?id={self._tracking_id}"></script>'
+            )
+
+Override ``get_head_html`` to inject into ``<head>`` and/or ``get_body_html`` to
+inject at the start of ``<body>``. Only sections declared in ``accepted_page_sections``
+**and** permitted by ``allowed_page_sections`` in the database config are injected —
+neither side alone controls what gets rendered.
+
 Packaging a Plugin
 ------------------
 
@@ -241,29 +276,34 @@ Plugin Configuration
 --------------------
 
 After the package is installed, activate the plugin by adding it to the ``plugins``
-list in your database:
+dict in your database. The key is the entry-point name declared in ``pyproject.toml``:
 
 .. code-block:: json
 
     {
-        "plugins": [
-            {
-                "name": "my_plugin",
+        "plugins": {
+            "my_plugin": {
+                "is_active": true,
                 "config": { "api_key": "abc123" }
             }
-        ]
+        }
     }
 
 The ``config`` object is passed as a ``dict[str, Any]`` to the plugin's ``__init__``.
+Plugins with ``is_active`` absent or ``false`` are skipped at startup.
 
 For notifier plugins you can restrict which topics the plugin receives:
 
 .. code-block:: json
 
     {
-        "name": "slack_notifier",
-        "config": { "webhook_url": "https://hooks.slack.com/…" },
-        "allowed_topics": ["security", "general"]
+        "plugins": {
+            "slack_notifier": {
+                "is_active": true,
+                "config": { "webhook_url": "https://hooks.slack.com/…" },
+                "allowed_topics": ["security", "general"]
+            }
+        }
     }
 
 For content transformer plugins you can restrict which content types are processed.
@@ -273,9 +313,28 @@ rendering by host applications:
 .. code-block:: json
 
     {
-        "name": "alert_plugin",
-        "config": {},
-        "allowed_content_types": ["post", "page", "field"]
+        "plugins": {
+            "alert_plugin": {
+                "is_active": true,
+                "config": {},
+                "allowed_content_types": ["post", "page", "field"]
+            }
+        }
+    }
+
+For page decorator plugins you can restrict which page sections the plugin may
+inject into:
+
+.. code-block:: json
+
+    {
+        "plugins": {
+            "analytics_plugin": {
+                "is_active": true,
+                "config": { "tracking_id": "UA-XXXXX-Y" },
+                "allowed_page_sections": ["head"]
+            }
+        }
     }
 
 Admin Help Page
@@ -292,19 +351,6 @@ description:
     class MyPlugin(PluginBase):
         def get_info(self) -> PluginInfo:
             return PluginInfo(name="My Plugin", description="Does something useful.")
-
-Listing Installed Plugins
---------------------------
-
-``discover_plugins()`` returns all plugins installed in the current environment,
-regardless of which ones are active in the database:
-
-.. code-block:: python
-
-    from platzky import discover_plugins
-
-    for name, cls in discover_plugins().items():
-        print(name, cls)
 
 Translation Support
 -------------------

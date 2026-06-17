@@ -16,8 +16,8 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.html_injector import HtmlInjectorPluginBase, PageSection
 from platzky.plugin.notifier import Notification, NotifierPluginBase
-from platzky.plugin.page_decorator import PageDecoratorPluginBase, PageSection
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
@@ -498,11 +498,11 @@ class TestFieldContentType:
 
 
 # ---------------------------------------------------------------------------
-# PageDecoratorPluginBase
+# HtmlInjectorPluginBase
 # ---------------------------------------------------------------------------
 
 
-class HeadDecorator(PageDecoratorPluginBase):
+class HeadDecorator(HtmlInjectorPluginBase):
     """Injects a fixed snippet into <head>."""
 
     accepted_page_sections: frozenset[PageSection] = frozenset({"head"})
@@ -512,7 +512,7 @@ class HeadDecorator(PageDecoratorPluginBase):
         return "<meta name='test'/>"
 
 
-class BodyDecorator(PageDecoratorPluginBase):
+class BodyDecorator(HtmlInjectorPluginBase):
     """Injects a fixed snippet at the start of <body>."""
 
     accepted_page_sections: frozenset[PageSection] = frozenset({"body"})
@@ -522,7 +522,7 @@ class BodyDecorator(PageDecoratorPluginBase):
         return "<div id='banner'></div>"
 
 
-class HeadAndBodyDecorator(PageDecoratorPluginBase):
+class HeadAndBodyDecorator(HtmlInjectorPluginBase):
     """Injects into both <head> and <body>."""
 
     accepted_page_sections: frozenset[PageSection] = frozenset({"head", "body"})
@@ -536,7 +536,7 @@ class HeadAndBodyDecorator(PageDecoratorPluginBase):
         return "<script>/*body*/</script>"
 
 
-class UndeclaredDecorator(PageDecoratorPluginBase):
+class UndeclaredDecorator(HtmlInjectorPluginBase):
     """Page decorator that forgets to declare accepted_page_sections."""
 
     def get_head_html(self) -> str:
@@ -544,49 +544,49 @@ class UndeclaredDecorator(PageDecoratorPluginBase):
         return "<meta name='undeclared'/>"
 
 
-class TestPageDecoratorPluginBase:
+class TestHtmlInjectorPluginBase:
     def test_head_injected_when_both_sides_declare_head(self, app: Engine) -> None:
         plugin = HeadDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset({"head"}))
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head"}))
 
         assert "<meta name='test'/>" in app.dynamic_head
 
     def test_body_injected_when_both_sides_declare_body(self, app: Engine) -> None:
         plugin = BodyDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset({"body"}))
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"body"}))
 
         assert "<div id='banner'></div>" in app.dynamic_body
 
     def test_admin_cannot_inject_into_section_plugin_did_not_declare(self, app: Engine) -> None:
         plugin = HeadDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset({"head", "body"}))
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head", "body"}))
 
         assert "<meta name='test'/>" in app.dynamic_head
         assert app.dynamic_body == ""
 
     def test_plugin_cannot_inject_into_section_admin_did_not_allow(self, app: Engine) -> None:
         plugin = HeadAndBodyDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset({"head"}))
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head"}))
 
         assert "<script>/*head*/</script>" in app.dynamic_head
         assert app.dynamic_body == ""
 
     def test_nothing_injected_when_allowlists_do_not_intersect(self, app: Engine) -> None:
         plugin = HeadDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset({"body"}))
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"body"}))
 
         assert app.dynamic_head == ""
         assert app.dynamic_body == ""
 
     def test_nothing_injected_when_admin_allowlist_empty(self, app: Engine) -> None:
         plugin = HeadAndBodyDecorator({})
-        app.plugins[PageDecoratorPluginBase].append(plugin)
-        app.apply_page_decorator(plugin, frozenset())
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset())
 
         assert app.dynamic_head == ""
         assert app.dynamic_body == ""
@@ -595,13 +595,13 @@ class TestPageDecoratorPluginBase:
         head = HeadDecorator({})
         body = BodyDecorator({})
         for plugin in (head, body):
-            app.plugins[PageDecoratorPluginBase].append(plugin)
-            app.apply_page_decorator(plugin, frozenset({"head", "body"}))
+            app.plugins[HtmlInjectorPluginBase].append(plugin)
+            app.apply_html_injector(plugin, frozenset({"head", "body"}))
 
         assert "<meta name='test'/>" in app.dynamic_head
         assert "<div id='banner'></div>" in app.dynamic_body
 
-    def test_debug_logged_for_page_decorator_with_no_accepted_sections(
+    def test_debug_logged_for_html_injector_with_no_accepted_sections(
         self, app: Engine, caplog: pytest.LogCaptureFixture
     ) -> None:
         import logging

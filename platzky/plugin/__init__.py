@@ -1,9 +1,9 @@
 """Plugin base classes for the Platzky plugin system."""
 
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.html_injector import HtmlInjectorPluginBase
 from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.notifier import NotifierPluginBase
-from platzky.plugin.page_decorator import PageDecoratorPluginBase
 from platzky.plugin.plugin import PluginBase
 
 # Kept as an explicit tuple rather than auto-discovered via __init_subclass__ so
@@ -14,5 +14,5 @@ PLUGIN_BASES: tuple[type[PluginBase], ...] = (
     NotifierPluginBase,
     ContentTransformerPluginBase,
     LoginPluginBase,
-    PageDecoratorPluginBase,
+    HtmlInjectorPluginBase,
 )

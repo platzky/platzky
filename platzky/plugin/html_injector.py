@@ -1,4 +1,4 @@
-"""PageDecoratorPluginBase capability — plugins that inject HTML into page sections."""
+"""HtmlInjectorPluginBase capability — plugins that inject HTML into page sections."""
 
 from abc import ABC
 from typing import Literal, get_args
@@ -10,14 +10,14 @@ PageSection = Literal["head", "body"]
 ALL_PAGE_SECTIONS: frozenset[PageSection] = frozenset(get_args(PageSection))
 
 
-class PageDecoratorPluginConfig(PluginConfigBase):
-    """Plugin config for PageDecoratorPluginBase — carries the page-section allowlist."""
+class HtmlInjectorPluginConfig(PluginConfigBase):
+    """Plugin config for HtmlInjectorPluginBase — carries the page-section allowlist."""
 
     allowed_page_sections: frozenset[PageSection] = frozenset()
 
 
-class PageDecoratorPluginBase(PluginBase, ABC):
-    """Base class for page-decorator plugins.
+class HtmlInjectorPluginBase(PluginBase, ABC):
+    """Base class for HTML-injector plugins.
 
     Subclasses declare which page sections they produce content for via
     ``accepted_page_sections``. The engine injects only the intersection of that
