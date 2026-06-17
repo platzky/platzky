@@ -427,18 +427,19 @@ class GraphQL(DB):
         """Return the secondary brand colour."""
         return "navy"  # Default color as string
 
-    def get_plugins_data(self) -> list[PluginConfigBase]:
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
                 name
+                is_active: isActive
                 config
               }
             }
             """)
         raw = self.client.execute(plugins_data)["pluginConfigs"]
-        return [PluginConfigBase.model_validate(d) for d in raw]
+        return {d["name"]: PluginConfigBase.model_validate(d) for d in raw}
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.

@@ -215,11 +215,11 @@ class MongoDB(DB):
         site_config = self._get_site_config()
         return site_config.get("secondary_color", "navy") if site_config else "navy"
 
-    def get_plugins_data(self) -> list[PluginConfigBase]:
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         plugins_doc = self.plugins.find_one({"_id": "config"})
-        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else []
-        return [PluginConfigBase.model_validate(d) for d in raw or []]
+        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else {}
+        return {name: PluginConfigBase.model_validate(cfg) for name, cfg in (raw or {}).items()}
 
     def get_font(self) -> str:
         """Get the font configuration for the application.

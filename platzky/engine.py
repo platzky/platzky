@@ -10,6 +10,7 @@ from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from platzky.plugin.html_injector import PageSection
     from platzky.plugin.plugin import PluginBase
 
 from flask import (
@@ -31,8 +32,13 @@ from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import Notification, NotifierPluginBase
+from platzky.plugin.content_transformer import (
+    ContentTransformerPluginBase,
+    ContentTransformerPluginConfig,
+)
+from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPluginConfig
+from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
+from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -229,34 +235,55 @@ class Engine(Flask):
     def load_plugin(
         self,
         plugin_class: "type[PluginBase]",
-        plugin_config: dict[str, Any],
         plugin_name: str,
-        allowed_topics: frozenset[NotificationTopic] = frozenset(),
-        allowed_content_types: frozenset[ContentType] = frozenset(),
+        plugin_config_base: PluginConfigBase,
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
         Args:
             plugin_class: The plugin class to instantiate.
-            plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            allowed_topics: Topic allowlist for notifier plugins. Empty frozenset blocks all
-                topics; a non-empty frozenset restricts to those topics.
-            allowed_content_types: Content-type allowlist for transformer plugins.
-                Empty frozenset blocks all types; a non-empty frozenset restricts.
+            plugin_config_base: Validated DB record. ``config`` is passed to the plugin
+                constructor; capability allowlists are read from the remaining fields.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
         """
-        plugin_instance = plugin_class(plugin_config)
+        raw = plugin_config_base.model_dump()
+        plugin_instance = plugin_class(plugin_config_base.config)
         app = self
+        if isinstance(plugin_instance, NotifierPluginBase):
+            if not plugin_instance.accepted_topics:
+                logger.debug(
+                    "Plugin %s declares no accepted_topics; it will receive no notifications.",
+                    plugin_name,
+                )
+            app.set_notifier_allowlist(
+                plugin_instance, NotifyPluginConfig.model_validate(raw).allowed_topics
+            )
+        if isinstance(plugin_instance, ContentTransformerPluginBase):
+            if not plugin_instance.accepted_content_types:
+                logger.debug(
+                    "Plugin %s declares no accepted_content_types; it will transform no content.",
+                    plugin_name,
+                )
+            app.set_content_transformer_allowlist(
+                plugin_instance,
+                ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
+            )
+        if isinstance(plugin_instance, HtmlInjectorPluginBase):
+            if not plugin_instance.accepted_page_sections:
+                logger.debug(
+                    "Plugin %s declares no accepted_page_sections; nothing will be injected.",
+                    plugin_name,
+                )
+            app.apply_html_injector(
+                plugin_instance,
+                HtmlInjectorPluginConfig.model_validate(raw).allowed_page_sections,
+            )
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
         app.register_plugin(plugin_instance, plugin_name)
-        if isinstance(plugin_instance, NotifierPluginBase):
-            app.set_notifier_allowlist(plugin_instance, allowed_topics)
-        if isinstance(plugin_instance, ContentTransformerPluginBase):
-            app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 
@@ -269,6 +296,25 @@ class Engine(Flask):
         Called by the plugin loader; not accessible to plugin code.
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics
+
+    def apply_html_injector(
+        self,
+        plugin: HtmlInjectorPluginBase,
+        allowed_page_sections: "frozenset[PageSection]",
+    ) -> None:
+        """Inject HTML from a page-decorator plugin into the allowed page sections.
+
+        Effective sections are the intersection of what the plugin declares via
+        ``accepted_page_sections`` and what the admin permits via ``allowed_page_sections``.
+        HTML is captured once at startup from ``get_head_html`` / ``get_body_html``;
+        use the plugin's own config for values that vary by environment.
+        Called by ``load_plugin``; not accessible to plugin code.
+        """
+        effective_sections = plugin.accepted_page_sections & allowed_page_sections
+        if "head" in effective_sections:
+            self.add_dynamic_head(plugin.get_head_html())
+        if "body" in effective_sections:
+            self.add_dynamic_body(plugin.get_body_html())
 
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""

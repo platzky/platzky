@@ -13,10 +13,12 @@ from platzky.platzky import create_engine as create_engine
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase as ContentTransformerPluginBase,
 )
+from platzky.plugin.html_injector import ALL_PAGE_SECTIONS as ALL_PAGE_SECTIONS
+from platzky.plugin.html_injector import HtmlInjectorPluginBase as HtmlInjectorPluginBase
+from platzky.plugin.html_injector import PageSection as PageSection
 from platzky.plugin.login import LoginPluginBase as LoginPluginBase
 from platzky.plugin.notifier import Notification as Notification
 from platzky.plugin.notifier import NotifierPluginBase as NotifierPluginBase
 from platzky.plugin.plugin import ConfigPluginError as ConfigPluginError
 from platzky.plugin.plugin import PluginBase as PluginBase
 from platzky.plugin.plugin import PluginError as PluginError
-from platzky.plugin.plugin_loader import discover_plugins as discover_plugins

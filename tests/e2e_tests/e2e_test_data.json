@@ -175,16 +175,16 @@
       ]
     }
   },
-  "plugins": [
-    {
-      "name": "log_notifier",
+  "plugins": {
+    "log_notifier": {
+      "is_active": true,
       "config": {},
       "allowed_topics": ["general", "content", "security"]
     },
-    {
-      "name": "red_letter",
+    "red_letter": {
+      "is_active": true,
       "config": {},
       "allowed_content_types": ["post", "page"]
     }
-  ]
+  }
 }

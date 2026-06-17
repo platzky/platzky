@@ -9,16 +9,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from platzky.content_types import ContentType
-from platzky.notification_topics import NotificationTopic
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.notifier import NotifierPluginBase
 from platzky.plugin.plugin import PluginBase, PluginError
-from platzky.plugin.plugin_config import (
-    ContentTransformerPluginConfig,
-    NotifyPluginConfig,
-    PluginConfigBase,
-)
 
 if TYPE_CHECKING:
     from platzky.engine import Engine
@@ -26,23 +17,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "platzky.plugins"
-
-
-def _extract_allowlists(
-    pc: PluginConfigBase, plugin_class: type
-) -> tuple[frozenset[NotificationTopic], frozenset[ContentType]]:
-    raw = pc.model_dump()
-    allowed_topics = (
-        NotifyPluginConfig.model_validate(raw).allowed_topics
-        if issubclass(plugin_class, NotifierPluginBase)
-        else frozenset()
-    )
-    allowed_content_types = (
-        ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
-        if issubclass(plugin_class, ContentTransformerPluginBase)
-        else frozenset()
-    )
-    return allowed_topics, allowed_content_types
 
 
 def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
@@ -75,25 +49,6 @@ def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exc
     return discovered, failed
 
 
-def discover_plugins() -> dict[str, type[PluginBase]]:
-    """Return all installed platzky plugins declared via entry points.
-
-    Plugin packages advertise themselves by declaring a ``platzky.plugins``
-    entry point in their package metadata, e.g. in ``pyproject.toml``::
-
-        [tool.poetry.plugins."platzky.plugins"]
-        sendmail = "platzky_sendmail.entrypoint:SendMailPlugin"
-
-    Only plugins installed in the current environment are returned.
-    Configured (active) plugins are a subset determined by the database.
-
-    Returns:
-        Mapping of plugin name to plugin class for every installed plugin.
-    """
-    discovered, _ = _discover_entry_points()
-    return discovered
-
-
 def plugify(app: Engine) -> Engine:
     """Load and initialise plugins configured in the database.
 
@@ -115,31 +70,31 @@ def plugify(app: Engine) -> Engine:
 
     discovered, failed_entry_points = _discover_entry_points()
 
-    for pc in plugins_data:
+    for plugin_name, plugin_config in plugins_data.items():
+        if not plugin_config.is_active:
+            logger.debug("Plugin '%s' is inactive, skipping.", plugin_name)
+            continue
         try:
-            if pc.name in discovered:
-                plugin_class = discovered[pc.name]
-                allowed_topics, allowed_content_types = _extract_allowlists(pc, plugin_class)
-                app = app.load_plugin(
-                    plugin_class, pc.config, pc.name, allowed_topics, allowed_content_types
-                )
-            elif pc.name in failed_entry_points:
+            if plugin_name in discovered:
+                plugin_class = discovered[plugin_name]
+                app = app.load_plugin(plugin_class, plugin_name, plugin_config)
+            elif plugin_name in failed_entry_points:
                 raise PluginError(
-                    f"Plugin '{pc.name}' failed to load via its entry point. "
-                    f"Original error: {failed_entry_points[pc.name]}"
-                ) from failed_entry_points[pc.name]
+                    f"Plugin '{plugin_name}' failed to load via its entry point. "
+                    f"Original error: {failed_entry_points[plugin_name]}"
+                ) from failed_entry_points[plugin_name]
             else:
                 raise PluginError(
-                    f"Plugin '{pc.name}' not found. "
+                    f"Plugin '{plugin_name}' not found. "
                     "Ensure it is installed and declares a 'platzky.plugins' entry point."
                 )
 
         except PluginError:
             raise
         except ValidationError as e:
-            raise PluginError(f"Invalid config for plugin {pc.name}: {e}") from e
+            raise PluginError(f"Invalid config for plugin {plugin_name}: {e}") from e
         except Exception as e:
-            logger.exception("Error processing plugin %s", pc.name)
-            raise PluginError(f"Error processing plugin {pc.name}: {e}") from e
+            logger.exception("Error processing plugin %s", plugin_name)
+            raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
     return app

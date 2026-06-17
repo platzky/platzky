@@ -277,14 +277,17 @@ def test_get_secondary_color(graph_ql_db: GraphQL):
 
 
 def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"pluginConfigs": [{"name": "plugin1", "config": {"key": "value"}}]}
+    mock_response = {
+        "pluginConfigs": [{"name": "plugin1", "is_active": True, "config": {"key": "value"}}]
+    }
     mock_client.execute.return_value = mock_response
 
     plugins_data = graph_ql_db.get_plugins_data()
 
     assert len(plugins_data) == 1
-    assert plugins_data[0].name == "plugin1"
-    assert plugins_data[0].config == {"key": "value"}
+    assert "plugin1" in plugins_data
+    assert plugins_data["plugin1"].config == {"key": "value"}
+    assert plugins_data["plugin1"].is_active is True
     mock_client.execute.assert_called_once()
 
 

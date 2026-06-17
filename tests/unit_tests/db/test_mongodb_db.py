@@ -291,16 +291,16 @@ class TestMongoDB:
     def test_get_plugins_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = {
             "_id": "config",
-            "data": [{"name": "plugin1"}],
+            "data": {"plugin1": {}},
         }
 
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert plugins[0].name == "plugin1"
+        assert "plugin1" in plugins
 
     def test_get_plugins_data_no_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = None
-        assert db.get_plugins_data() == []
+        assert db.get_plugins_data() == {}
 
     def test_get_font(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = {"_id": "config", "font": "Arial"}

@@ -16,8 +16,10 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.html_injector import HtmlInjectorPluginBase, PageSection
 from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
+from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
 # ---------------------------------------------------------------------------
@@ -33,7 +35,7 @@ def base_config_data() -> dict[str, Any]:
         "USE_WWW": False,
         "BLOG_PREFIX": "/",
         "TRANSLATION_DIRECTORIES": [],
-        "DB": {"TYPE": "json", "DATA": {"plugins": []}},
+        "DB": {"TYPE": "json", "DATA": {"plugins": {}}},
     }
 
 
@@ -51,14 +53,14 @@ def app(base_config_data: dict[str, Any]) -> Engine:
 
 def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: type) -> Engine:
     """Load a single plugin via a mocked entry point and return the fully configured app."""
-    base_config_data["DB"]["DATA"]["plugins"] = [
-        {
-            "name": name,
+    base_config_data["DB"]["DATA"]["plugins"] = {
+        name: {
+            "is_active": True,
             "config": {},
             "allowed_content_types": list(ALL_CONTENT_TYPES),
             "allowed_topics": ["general", "content", "security"],
         }
-    ]
+    }
     config = Config.model_validate(base_config_data)
     ep = mock.MagicMock()
     ep.name = name
@@ -493,3 +495,152 @@ class TestFieldContentType:
 
         app = _app_with_plugin(base_config_data, "postonlyfilter", PostOnlyFilter)
         assert app.transform_content("x", "field") == "x"
+
+
+# ---------------------------------------------------------------------------
+# HtmlInjectorPluginBase
+# ---------------------------------------------------------------------------
+
+
+class HeadDecorator(HtmlInjectorPluginBase):
+    """Injects a fixed snippet into <head>."""
+
+    accepted_page_sections: frozenset[PageSection] = frozenset({"head"})
+
+    def get_head_html(self) -> str:
+        """Return head HTML snippet."""
+        return "<meta name='test'/>"
+
+
+class BodyDecorator(HtmlInjectorPluginBase):
+    """Injects a fixed snippet at the start of <body>."""
+
+    accepted_page_sections: frozenset[PageSection] = frozenset({"body"})
+
+    def get_body_html(self) -> str:
+        """Return body HTML snippet."""
+        return "<div id='banner'></div>"
+
+
+class HeadAndBodyDecorator(HtmlInjectorPluginBase):
+    """Injects into both <head> and <body>."""
+
+    accepted_page_sections: frozenset[PageSection] = frozenset({"head", "body"})
+
+    def get_head_html(self) -> str:
+        """Return head HTML snippet."""
+        return "<script>/*head*/</script>"
+
+    def get_body_html(self) -> str:
+        """Return body HTML snippet."""
+        return "<script>/*body*/</script>"
+
+
+class UndeclaredDecorator(HtmlInjectorPluginBase):
+    """Page decorator that forgets to declare accepted_page_sections."""
+
+    def get_head_html(self) -> str:
+        """Return head HTML snippet."""
+        return "<meta name='undeclared'/>"
+
+
+class TestHtmlInjectorPluginBase:
+    def test_head_injected_when_both_sides_declare_head(self, app: Engine) -> None:
+        plugin = HeadDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head"}))
+
+        assert "<meta name='test'/>" in app.dynamic_head
+
+    def test_body_injected_when_both_sides_declare_body(self, app: Engine) -> None:
+        plugin = BodyDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"body"}))
+
+        assert "<div id='banner'></div>" in app.dynamic_body
+
+    def test_admin_cannot_inject_into_section_plugin_did_not_declare(self, app: Engine) -> None:
+        plugin = HeadDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head", "body"}))
+
+        assert "<meta name='test'/>" in app.dynamic_head
+        assert app.dynamic_body == ""
+
+    def test_plugin_cannot_inject_into_section_admin_did_not_allow(self, app: Engine) -> None:
+        plugin = HeadAndBodyDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"head"}))
+
+        assert "<script>/*head*/</script>" in app.dynamic_head
+        assert app.dynamic_body == ""
+
+    def test_nothing_injected_when_allowlists_do_not_intersect(self, app: Engine) -> None:
+        plugin = HeadDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset({"body"}))
+
+        assert app.dynamic_head == ""
+        assert app.dynamic_body == ""
+
+    def test_nothing_injected_when_admin_allowlist_empty(self, app: Engine) -> None:
+        plugin = HeadAndBodyDecorator({})
+        app.plugins[HtmlInjectorPluginBase].append(plugin)
+        app.apply_html_injector(plugin, frozenset())
+
+        assert app.dynamic_head == ""
+        assert app.dynamic_body == ""
+
+    def test_multiple_decorators_accumulate(self, app: Engine) -> None:
+        head = HeadDecorator({})
+        body = BodyDecorator({})
+        for plugin in (head, body):
+            app.plugins[HtmlInjectorPluginBase].append(plugin)
+            app.apply_html_injector(plugin, frozenset({"head", "body"}))
+
+        assert "<meta name='test'/>" in app.dynamic_head
+        assert "<div id='banner'></div>" in app.dynamic_body
+
+    def test_debug_logged_for_html_injector_with_no_accepted_sections(
+        self, app: Engine, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
+            app.load_plugin(
+                UndeclaredDecorator,
+                "undeclared",
+                PluginConfigBase.model_validate({"allowed_page_sections": ["head"]}),
+            )
+
+        assert any("accepted_page_sections" in r.message for r in caplog.records)
+        assert app.dynamic_head == ""
+
+    def test_debug_logged_for_notifier_with_no_accepted_topics(
+        self, app: Engine, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        class EmptyNotifier(NotifierPluginBase):
+            """Notifier that forgets to declare accepted_topics."""
+
+            def notify(self, notification: Notification) -> None:
+                pass  # no-op: test stub
+
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
+            app.load_plugin(EmptyNotifier, "empty_notifier", PluginConfigBase())
+
+        assert any("accepted_topics" in r.message for r in caplog.records)
+
+    def test_debug_logged_for_transformer_with_no_accepted_content_types(
+        self, app: Engine, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        class EmptyTransformer(ContentTransformerPluginBase):
+            """Transformer that forgets to declare accepted_content_types."""
+
+        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
+            app.load_plugin(EmptyTransformer, "empty_transformer", PluginConfigBase())
+
+        assert any("accepted_content_types" in r.message for r in caplog.records)

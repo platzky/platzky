@@ -137,7 +137,7 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_plugins_data(self) -> list[PluginConfigBase]:
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         pass
 
