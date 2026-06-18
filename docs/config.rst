@@ -212,13 +212,48 @@ URL prefix for SEO-related routes like sitemaps and robots.txt.
 ^^^^^^^^^^^^^^^
 
 :Type: ``str``
-:Default: ``"/"``
+:Default: ``"/blog"``
 
-URL prefix for blog routes.
+URL prefix for blog routes. Cannot be set to ``"/"`` — the root path is reserved for
+the homepage route (see `Homepage`_ below).
 
 .. code-block:: yaml
 
     BLOG_PREFIX: /blog
+
+Homepage
+~~~~~~~~
+
+The root path (``/``) renders a configurable homepage instead of a fixed template.
+Platzky resolves the configured path against the application's own routes, so it can
+point at a page, a post, or any other registered route.
+
+The homepage path isn't set in ``config.yml`` — it lives in your site content,
+alongside posts and pages, so it can be changed without redeploying:
+
+* **JSON file / Google Cloud Storage**: set ``home_page_path`` in the
+  ``site_content`` object of your data file.
+
+  .. code-block:: json
+
+      {
+        "site_content": {
+          "home_page_path": "/blog/page/about"
+        }
+      }
+
+* **MongoDB**: set ``home_page_path`` on the site config document.
+
+* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``ApplicationSetup`` model.
+
+Behavior:
+
+* If no homepage path is configured, ``/`` falls back to the blog index at
+  ``BLOG_PREFIX``.
+* If the configured path doesn't resolve to a registered route, ``/`` renders the
+  404 page.
+* If the configured path resolves back to ``/`` itself, Platzky falls back to the
+  blog index instead of recursing.
 
 Feature Flags
 ~~~~~~~~~~~~~
