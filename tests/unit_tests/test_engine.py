@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -106,7 +106,7 @@ def test_www_redirects(use_www: bool):
     assert response.location == expected_redirect
 
 
-def _build_home_page_test_app(site_content: dict):
+def _build_home_page_test_app(site_content: dict[str, Any]):
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
