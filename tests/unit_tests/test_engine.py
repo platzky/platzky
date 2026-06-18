@@ -191,6 +191,30 @@ def test_home_page_404s_when_configured_path_does_not_resolve():
     assert response.status_code == 404
 
 
+def test_home_page_falls_back_when_configured_path_is_root():
+    app = _build_home_page_test_app(
+        {
+            "home_page_path": "/",
+            "posts": [
+                {
+                    "title": "Latest post",
+                    "slug": "latest-post",
+                    "language": "en",
+                    "excerpt": "excerpt",
+                    "author": "author",
+                    "tags": [],
+                    "contentInMarkdown": "content",
+                    "date": "2021-02-19",
+                    "comments": [],
+                }
+            ],
+        }
+    )
+    response = app.test_client().get("/")
+    assert response.status_code == 200
+    assert b"Latest post" in response.data
+
+
 def test_that_default_page_title_is_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")

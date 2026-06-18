@@ -269,18 +269,18 @@ class Config(BaseModel):
 
     @field_validator("blog_prefix")
     @classmethod
-    def validate_blog_prefix(cls, v: str) -> str:
+    def validate_blog_prefix(cls, prefix: str) -> str:
         """Reject mounting the blog blueprint at the site root.
 
         The root path is reserved for the homepage route, which dispatches to
         either the configured homepage content or the blog index as a fallback.
         """
-        if v == "/":
+        if prefix == "/":
             raise ValueError(
                 'BLOG_PREFIX cannot be "/" — the root path is reserved for the homepage route. '
                 'Use a prefix such as "/blog" instead.'
             )
-        return v
+        return prefix
 
     @field_validator("feature_flags", mode="before")
     @classmethod

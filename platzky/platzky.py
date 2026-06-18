@@ -192,10 +192,17 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Rendered HTML of the resolved destination, or the 404 page.
         """
-        target_path = app.db.get_home_page_path() or f"{config.blog_prefix.rstrip('/')}/"
+        configured_home = app.db.get_home_page_path()
+        target_path = (
+            configured_home
+            if isinstance(configured_home, str) and configured_home not in {"", "/"}
+            else f"{config.blog_prefix.rstrip('/')}/"
+        )
         try:
             endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
         except (NotFound, MethodNotAllowed):
+            return render_template("404.html", title="404"), 404
+        if endpoint == request.endpoint:
             return render_template("404.html", title="404"), 404
         result = app.view_functions[endpoint](**view_args)
         if isinstance(result, Awaitable):
