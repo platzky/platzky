@@ -217,7 +217,7 @@ class GraphQL(DB):
               }
             }
             """)
-        menu_items = self.client.execute(menu_items_query, variable_values={"language": lang})
+        menu_items = self.client.execute(menu_items_query, variable_values={"lang": lang})
         return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
 
     def get_post(self, slug: str) -> Post:
