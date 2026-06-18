@@ -3,13 +3,14 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Iterable
+from collections.abc import Awaitable, Iterable
 
 import jinja2.ext
 from flask import redirect, render_template, request, session
+from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -179,6 +180,27 @@ def create_engine(config: Config, db: DB) -> Engine:
         session["language"] = lang
         redirect_url = _get_safe_redirect_url(request.referrer, request.host)
         return redirect(redirect_url)
+
+    @app.route("/", methods=["GET"])
+    def home_page() -> ResponseReturnValue:
+        """Render the configured homepage, falling back to the blog index.
+
+        Resolves db.get_home_page_path() through the app's own URL map, so it
+        can point at a page, a post, or any other registered route. Falls back
+        to the blog index if no homepage is configured.
+
+        Returns:
+            Rendered HTML of the resolved destination, or the 404 page.
+        """
+        target_path = app.db.get_home_page_path() or f"{config.blog_prefix.rstrip('/')}/"
+        try:
+            endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
+        except (NotFound, MethodNotAllowed):
+            return render_template("404.html", title="404"), 404
+        result = app.view_functions[endpoint](**view_args)
+        if isinstance(result, Awaitable):
+            raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
+        return result
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:

@@ -33,7 +33,7 @@ def base_config_data() -> dict[str, Any]:
         "APP_NAME": "testApp",
         "SECRET_KEY": "secret",
         "USE_WWW": False,
-        "BLOG_PREFIX": "/",
+        "BLOG_PREFIX": "/blog",
         "TRANSLATION_DIRECTORIES": [],
         "DB": {"TYPE": "json", "DATA": {"plugins": {}}},
     }

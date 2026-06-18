@@ -200,6 +200,14 @@ class Json(DB):
         """
         return self._get_site_content().get("secondary_color", "navy")
 
+    def get_home_page_path(self) -> str | None:
+        """Retrieve the site-relative path configured as the site's homepage.
+
+        Returns:
+            Homepage path, or None if no homepage override is configured.
+        """
+        return self._get_site_content().get("home_page_path")
+
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 

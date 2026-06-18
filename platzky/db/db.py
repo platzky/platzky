@@ -147,6 +147,16 @@ class DB(ABC):
         pass
 
     @abstractmethod
+    def get_home_page_path(self) -> str | None:
+        """Retrieve the site-relative path to render as the site's homepage.
+
+        Returns:
+            A path such as "/blog/page/about" or "/blog/some-post", resolved
+            against the app's own routes. None if no homepage override is configured.
+        """
+        pass
+
+    @abstractmethod
     def health_check(self) -> None:
         """Perform a health check on the database.
 

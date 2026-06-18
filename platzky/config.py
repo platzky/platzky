@@ -248,7 +248,7 @@ class Config(BaseModel):
     db: DBConfig = Field(alias="DB")
     use_www: bool = Field(default=True, alias="USE_WWW")
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
-    blog_prefix: str = Field(default="/", alias="BLOG_PREFIX")
+    blog_prefix: str = Field(default="/blog", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")
     translation_directories: list[str] = Field(
         default_factory=list,
@@ -266,6 +266,21 @@ class Config(BaseModel):
         default_factory=list,
         alias="SITEMAP_EXCLUDED_PREFIXES",
     )
+
+    @field_validator("blog_prefix")
+    @classmethod
+    def validate_blog_prefix(cls, v: str) -> str:
+        """Reject mounting the blog blueprint at the site root.
+
+        The root path is reserved for the homepage route, which dispatches to
+        either the configured homepage content or the blog index as a fallback.
+        """
+        if v == "/":
+            raise ValueError(
+                'BLOG_PREFIX cannot be "/" — the root path is reserved for the homepage route. '
+                'Use a prefix such as "/blog" instead.'
+            )
+        return v
 
     @field_validator("feature_flags", mode="before")
     @classmethod
