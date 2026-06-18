@@ -6,7 +6,7 @@ import urllib.parse
 from collections.abc import Awaitable, Iterable
 
 import jinja2.ext
-from flask import redirect, render_template, request, session
+from flask import make_response, redirect, render_template, request, session
 from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
@@ -145,7 +145,7 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
     return redirect_www_to_nonwww()
 
 
-def _change_language_response(config: Config, lang: str) -> Response | tuple[str, int]:
+def _change_language_response(config: Config, lang: str) -> Response:
     """Change the user's language preference.
 
     If the language has a dedicated domain, redirects to that domain.
@@ -160,7 +160,7 @@ def _change_language_response(config: Config, lang: str) -> Response | tuple[str
     """
     # Only allow configured languages
     if lang not in config.languages:
-        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+        return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
 
     if new_domain := _get_language_domain(config, lang):
         return redirect(f"{request.scheme}://{new_domain}", code=302)
@@ -230,7 +230,7 @@ def create_engine(config: Config, db: DB) -> Engine:
         return _www_redirection_response(config)
 
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang: str) -> Response | tuple[str, int]:
+    def change_language(lang: str) -> Response:
         """Change the user's language preference.
 
         If the language has a dedicated domain, redirects to that domain.
