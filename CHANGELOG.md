@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.6](https://github.com/platzky/platzky/compare/v2.0.0-alpha.5...v2.0.0-alpha.6) (2026-06-18)
+
+
+### Features
+
+* add configurable homepage path with blog prefix validation ([#248](https://github.com/platzky/platzky/issues/248)) ([05dc786](https://github.com/platzky/platzky/commit/05dc786206b1fa8e0a6143fc131283747e5c76e9))
+
 ## [2.0.0-alpha.5](https://github.com/platzky/platzky/compare/v2.0.0-alpha.4...v2.0.0-alpha.5) (2026-06-18)
 
 
