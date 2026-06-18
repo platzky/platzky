@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.7](https://github.com/platzky/platzky/compare/v2.0.0-alpha.6...v2.0.0-alpha.7) (2026-06-18)
+
+
+### Bug Fixes
+
+* coverImage in graphql is now optional ([#250](https://github.com/platzky/platzky/issues/250)) ([574c29d](https://github.com/platzky/platzky/commit/574c29d7ddc7fcfa034b2d0fbe72d8e614261a97))
+
 ## [2.0.0-alpha.6](https://github.com/platzky/platzky/compare/v2.0.0-alpha.5...v2.0.0-alpha.6) (2026-06-18)
 
 
