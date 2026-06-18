@@ -43,7 +43,7 @@ describe('Blog test', () => {
       .then(resp=> expect(resp.status).to.eq(404))
 
     cy.visit(url404test, {failOnStatusCode: false})
-    cy.contains('No such page')
+    cy.contains('Page not found')
   })
 
   it('loads page with minimal fields (no comments, tags, language, date)', () => {

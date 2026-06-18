@@ -215,11 +215,11 @@ def test_home_page_falls_back_when_configured_path_is_root():
     assert b"Latest post" in response.data
 
 
-def test_that_default_page_title_is_app_name(test_app: Engine):
+def test_that_404_page_title_includes_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
-    assert soup.title.string == "testing App Name"
+    assert soup.title.string == "Page not found – testing App Name"  # noqa: RUF001
 
 
 @pytest.mark.parametrize(
