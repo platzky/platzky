@@ -219,6 +219,7 @@ def test_that_404_page_title_includes_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
+    # En dash matches 404.html's actual rendered title, not a typo for a hyphen.
     assert soup.title.string == "Page not found – testing App Name"  # noqa: RUF001
 
 
