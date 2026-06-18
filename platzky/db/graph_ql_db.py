@@ -78,7 +78,7 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
         "tags": post["tags"],
         "language": post["language"],
         "coverImage": {
-            "url": post["coverImage"]["image"]["url"],
+            "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
     }
@@ -106,7 +106,7 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
         "tags": page.get("tags", []),
         "language": page.get("language", "en"),
         "coverImage": {
-            "url": page.get("coverImage", {}).get("url", ""),
+            "url": (page.get("coverImage") or {}).get("url", ""),
         },
         "date": page.get("date"),
     }
@@ -134,7 +134,7 @@ def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
         "tags": post["tags"],
         "language": post.get("language", "en"),
         "coverImage": {
-            "url": post["coverImage"]["image"]["url"],
+            "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
     }
