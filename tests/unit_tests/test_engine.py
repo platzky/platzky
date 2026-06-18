@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -106,11 +106,121 @@ def test_www_redirects(use_www: bool):
     assert response.location == expected_redirect
 
 
-def test_that_default_page_title_is_app_name(test_app: Engine):
+def _build_home_page_test_app(site_content: dict[str, Any]):
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+        "USE_WWW": False,
+        "BLOG_PREFIX": "/blog",
+        "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
+    }
+    config = Config.model_validate(config_data)
+    return create_app_from_config(config)
+
+
+def test_home_page_renders_configured_page():
+    app = _build_home_page_test_app(
+        {
+            "home_page_path": "/blog/page/about",
+            "pages": [
+                {
+                    "title": "About us",
+                    "slug": "about",
+                    "contentInMarkdown": "Hello there",
+                    "author": "author",
+                    "excerpt": "excerpt",
+                }
+            ],
+        }
+    )
+    response = app.test_client().get("/")
+    assert response.status_code == 200
+    assert b"Hello there" in response.data
+
+
+def test_home_page_renders_configured_post():
+    app = _build_home_page_test_app(
+        {
+            "home_page_path": "/blog/welcome-post",
+            "posts": [
+                {
+                    "title": "Welcome",
+                    "slug": "welcome-post",
+                    "language": "en",
+                    "excerpt": "excerpt",
+                    "author": "author",
+                    "tags": [],
+                    "contentInMarkdown": "Welcome to the site",
+                    "date": "2021-02-19",
+                    "comments": [],
+                }
+            ],
+        }
+    )
+    response = app.test_client().get("/")
+    assert response.status_code == 200
+    assert b"Welcome to the site" in response.data
+
+
+def test_home_page_falls_back_to_blog_index_when_not_configured():
+    app = _build_home_page_test_app(
+        {
+            "posts": [
+                {
+                    "title": "Latest post",
+                    "slug": "latest-post",
+                    "language": "en",
+                    "excerpt": "excerpt",
+                    "author": "author",
+                    "tags": [],
+                    "contentInMarkdown": "content",
+                    "date": "2021-02-19",
+                    "comments": [],
+                }
+            ],
+        }
+    )
+    response = app.test_client().get("/")
+    assert response.status_code == 200
+    assert b"Latest post" in response.data
+
+
+def test_home_page_404s_when_configured_path_does_not_resolve():
+    app = _build_home_page_test_app({"home_page_path": "/blog/page/does-not-exist"})
+    response = app.test_client().get("/")
+    assert response.status_code == 404
+
+
+def test_home_page_falls_back_when_configured_path_is_root():
+    app = _build_home_page_test_app(
+        {
+            "home_page_path": "/",
+            "posts": [
+                {
+                    "title": "Latest post",
+                    "slug": "latest-post",
+                    "language": "en",
+                    "excerpt": "excerpt",
+                    "author": "author",
+                    "tags": [],
+                    "contentInMarkdown": "content",
+                    "date": "2021-02-19",
+                    "comments": [],
+                }
+            ],
+        }
+    )
+    response = app.test_client().get("/")
+    assert response.status_code == 200
+    assert b"Latest post" in response.data
+
+
+def test_that_404_page_title_includes_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
-    assert soup.title.string == "testing App Name"
+    # En dash matches 404.html's actual rendered title, not a typo for a hyphen.
+    assert soup.title.string == "Page not found – testing App Name"  # noqa: RUF001
 
 
 @pytest.mark.parametrize(

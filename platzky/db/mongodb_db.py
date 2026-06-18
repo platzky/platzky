@@ -230,6 +230,15 @@ class MongoDB(DB):
         site_config = self._get_site_config()
         return site_config.get("font", "") if site_config else ""
 
+    def get_home_page_path(self) -> str | None:
+        """Retrieve the site-relative path configured as the site's homepage.
+
+        Returns:
+            Homepage path, or None if no homepage override is configured.
+        """
+        site_config = self._get_site_config()
+        return site_config.get("home_page_path") if site_config else None
+
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.
 

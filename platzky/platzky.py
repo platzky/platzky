@@ -3,13 +3,14 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Iterable
+from collections.abc import Awaitable, Iterable
 
 import jinja2.ext
-from flask import redirect, render_template, request, session
+from flask import make_response, redirect, render_template, request, session
+from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -39,6 +40,8 @@ _MISSING_OTEL_MSG = (
     "poetry add opentelemetry-api opentelemetry-sdk "
     "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
 )
+
+_NOT_FOUND_TEMPLATE = "404.html"
 
 
 def _gather_shortcodes_and_extensions(
@@ -128,6 +131,78 @@ def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
     return "/"
 
 
+def _www_redirection_response(config: Config) -> t.Optional[Response]:
+    """Handle WWW subdomain redirection based on configuration.
+
+    Args:
+        config: Application configuration object
+
+    Returns:
+        Redirect response if redirection is needed, None otherwise
+    """
+    if config.use_www:
+        return redirect_nonwww_to_www()
+    return redirect_www_to_nonwww()
+
+
+def _change_language_response(config: Config, lang: str) -> Response:
+    """Change the user's language preference.
+
+    If the language has a dedicated domain, redirects to that domain.
+    Otherwise, sets the language in the session and returns to the referrer.
+
+    Args:
+        config: Application configuration object
+        lang: Language code to switch to
+
+    Returns:
+        Redirect response to the language domain or referrer page, or 404 if invalid
+    """
+    # Only allow configured languages
+    if lang not in config.languages:
+        return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
+
+    if new_domain := _get_language_domain(config, lang):
+        return redirect(f"{request.scheme}://{new_domain}", code=302)
+
+    session["language"] = lang
+    redirect_url = _get_safe_redirect_url(request.referrer, request.host)
+    return redirect(redirect_url)
+
+
+def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
+    """Render the configured homepage, falling back to the blog index.
+
+    Resolves db.get_home_page_path() through the app's own URL map, so it
+    can point at a page, a post, or any other registered route. Falls back
+    to the blog index if no homepage is configured, or if the configured
+    path resolves back to this same route (which would otherwise recurse).
+
+    Args:
+        app: Platzky Engine instance
+        config: Application configuration object
+
+    Returns:
+        Rendered HTML of the resolved destination, or the 404 page.
+    """
+    configured_home = app.db.get_home_page_path()
+    target_path = (
+        configured_home
+        if isinstance(configured_home, str) and configured_home not in {"", "/"}
+        else f"{config.blog_prefix.rstrip('/')}/"
+    )
+    try:
+        endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
+    except (NotFound, MethodNotAllowed):
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    if endpoint == request.endpoint:
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    result = app.view_functions[endpoint](**view_args)
+    if isinstance(result, Awaitable):
+        raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
+    return result
+
+
 def create_engine(config: Config, db: DB) -> Engine:
     """Create and configure a Platzky Engine instance.
 
@@ -152,12 +227,10 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Redirect response if redirection is needed, None otherwise
         """
-        if config.use_www:
-            return redirect_nonwww_to_www()
-        return redirect_www_to_nonwww()
+        return _www_redirection_response(config)
 
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang: str) -> Response | tuple[str, int]:
+    def change_language(lang: str) -> Response:
         """Change the user's language preference.
 
         If the language has a dedicated domain, redirects to that domain.
@@ -169,16 +242,16 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Redirect response to the language domain or referrer page, or 404 if invalid
         """
-        # Only allow configured languages
-        if lang not in config.languages:
-            return render_template("404.html", title="404"), 404
+        return _change_language_response(config, lang)
 
-        if new_domain := _get_language_domain(config, lang):
-            return redirect(f"{request.scheme}://{new_domain}", code=302)
+    @app.route("/", methods=["GET"])
+    def home_page() -> ResponseReturnValue:
+        """Render the configured homepage, falling back to the blog index.
 
-        session["language"] = lang
-        redirect_url = _get_safe_redirect_url(request.referrer, request.host)
-        return redirect(redirect_url)
+        Returns:
+            Rendered HTML of the resolved destination, or the 404 page.
+        """
+        return _home_page_response(app, config)
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -236,7 +309,7 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
         """
-        return render_template("404.html", title="404"), 404
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
 
     return plugify(app)
 

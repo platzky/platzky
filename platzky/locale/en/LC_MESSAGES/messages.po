@@ -16,14 +16,40 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.16.0\n"
+"Generated-By: Babel 2.18.0\n"
 
-#: platzky/templates/base.html:119
-msgid "Link to home page"
+#: platzky/admin/templates/admin.html:4
+msgid "This is the admin page. You can manage your posts here."
 msgstr ""
 
-#: platzky/templates/base.html:136
+#: platzky/login/templates/login.html:4
+msgid "This is the login page. You can log in here."
+msgstr ""
+
+#: platzky/templates/404.html:3
+msgid "Page not found"
+msgstr ""
+
+#: platzky/templates/404.html:13
+msgid "This page doesn't exist"
+msgstr ""
+
+#: platzky/templates/404.html:24
+msgid ""
+"The page you were looking for may have been moved, renamed, or never "
+"existed."
+msgstr ""
+
+#: platzky/templates/404.html:25
+msgid "Back to homepage"
+msgstr ""
+
+#: platzky/templates/base.html:75
 msgid "Language switch icon, used to change the language of the website"
+msgstr ""
+
+#: platzky/templates/base.html:98
+msgid "Close left panel"
 msgstr ""
 
 #: platzky/templates/blog.html:5
@@ -40,15 +66,19 @@ msgstr ""
 msgid "We're here to serve you:"
 msgstr ""
 
-#: platzky/templates/post.html:36
+#: platzky/templates/post.html:46
 msgid "Leave your comment here:"
 msgstr ""
 
-#: platzky/templates/post.html:53
+#: platzky/templates/post.html:63
 msgid "Your comment has been sent for moderation"
 msgstr ""
 
-#: platzky/templates/post.html:63
+#: platzky/templates/post.html:71
+msgid "Comments"
+msgstr ""
+
+#: platzky/templates/post.html:79
 msgid "said"
 msgstr ""
 

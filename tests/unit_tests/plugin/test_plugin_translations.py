@@ -18,7 +18,7 @@ def base_config_data():
         "APP_NAME": "testingApp",
         "SECRET_KEY": "test_secret",
         "USE_WWW": False,
-        "BLOG_PREFIX": "/",
+        "BLOG_PREFIX": "/blog",
         "TRANSLATION_DIRECTORIES": [],
         "DB": {
             "TYPE": "json",

@@ -419,6 +419,26 @@ class GraphQL(DB):
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
+    def get_home_page_path(self) -> str | None:
+        """Retrieve the site-relative path configured as the site's homepage.
+
+        Returns:
+            Homepage path, or None if no homepage override is configured.
+        """
+        home_page_path_query = gql("""
+            query MyQuery {
+              applicationSetups(stage: PUBLISHED) {
+                homePagePath
+              }
+            }
+            """)
+        try:
+            return self.client.execute(home_page_path_query)["applicationSetups"][0].get(
+                "homePagePath"
+            )
+        except IndexError:
+            return None
+
     def get_primary_color(self) -> str:
         """Return the primary brand colour."""
         return "white"  # Default color as string

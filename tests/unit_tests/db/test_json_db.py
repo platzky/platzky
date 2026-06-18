@@ -246,6 +246,13 @@ class TestJsonDbSiteSettings:
     def test_get_secondary_color_default(self, db_minimal: Json):
         assert db_minimal.get_secondary_color() == "navy"
 
+    def test_get_home_page_path_default(self, db_minimal: Json):
+        assert db_minimal.get_home_page_path() is None
+
+    def test_get_home_page_path(self):
+        db = Json({"site_content": {"home_page_path": "/blog/page/about"}})
+        assert db.get_home_page_path() == "/blog/page/about"
+
 
 class TestJsonDbComments:
     @pytest.fixture
