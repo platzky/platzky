@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.5](https://github.com/platzky/platzky/compare/v2.0.0-alpha.4...v2.0.0-alpha.5) (2026-06-18)
+
+
+### Bug Fixes
+
+* language handling of menu items in graphql is working now ([#246](https://github.com/platzky/platzky/issues/246)) ([6768c06](https://github.com/platzky/platzky/commit/6768c06e18eff6bd88711cc161e7210cb4d85d49))
+
 ## [2.0.0-alpha.4](https://github.com/platzky/platzky/compare/v2.0.0-alpha.3...v2.0.0-alpha.4) (2026-06-17)
 
 
