@@ -203,7 +203,7 @@ def test_post_renders_css_field(test_app: FlaskClient):
     assert b"<style>.masthead { background: teal; }</style>" in response.data
 
 
-def test_page_with_style_breakout_css_returns_404(test_app: FlaskClient):
+def _mock_get_page_with_bad_css(test_app: FlaskClient) -> None:
     def get_page_with_bad_css(_slug: str) -> Post:
         return Post.model_validate(
             {**mocked_post_json, "css": "</style><script>alert(1)</script><style>"}
@@ -212,8 +212,39 @@ def test_page_with_style_breakout_css_returns_404(test_app: FlaskClient):
     cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = (
         get_page_with_bad_css
     )
+
+
+def test_page_with_style_breakout_css_returns_404(test_app: FlaskClient):
+    _mock_get_page_with_bad_css(test_app)
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 404
+
+
+def test_validation_failure_404_has_no_admin_hint_for_anonymous_visitor(
+    test_app: FlaskClient,
+):
+    _mock_get_page_with_bad_css(test_app)
+    response = test_app.get("/prefix/page/blabla")
+    assert b"Admin notice" not in response.data
+
+
+def test_validation_failure_404_has_admin_hint_for_logged_in_admin(test_app: FlaskClient):
+    _mock_get_page_with_bad_css(test_app)
+    with test_app.session_transaction() as sess:
+        sess["user"] = {"name": "admin"}
+    response = test_app.get("/prefix/page/blabla")
+    assert b"Admin notice" in response.data
+
+
+def test_not_found_404_has_no_admin_hint_even_for_logged_in_admin(test_app: FlaskClient):
+    cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = ValueError(
+        "Page not found"
+    )
+    with test_app.session_transaction() as sess:
+        sess["user"] = {"name": "admin"}
+    response = test_app.get("/prefix/page/not-existing-page")
+    assert response.status_code == 404
+    assert b"Admin notice" not in response.data
 
 
 # TODO create those tests
