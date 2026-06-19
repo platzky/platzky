@@ -351,8 +351,10 @@ class Engine(Flask):
         fresh visitor (no session yet) landing directly on that domain sees the
         language it represents, rather than whatever their browser prefers.
         """
+        normalized_host = host.split(":", 1)[0].rstrip(".").lower()
         for lang, cfg in languages.items():
-            if cfg.get("domain") == host:
+            domain = cfg.get("domain")
+            if isinstance(domain, str) and domain.rstrip(".").lower() == normalized_host:
                 return lang
         return None
 
