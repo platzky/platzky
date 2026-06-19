@@ -352,13 +352,18 @@ class Engine(Flask):
         fresh visitor (no session yet) landing directly on that domain sees the
         language it represents, rather than whatever their browser prefers.
         """
-        normalized_host = host.split(":", 1)[0].rstrip(".").lower()
+        host_without_port = host.split(":", 1)[0].rstrip(".").lower()
+        host_with_port = host.rstrip(".").lower()
         for lang, cfg in languages.items():
             domain = cfg.get("domain")
-            normalized_domain = (
-                domain.split(":", 1)[0].rstrip(".").lower() if isinstance(domain, str) else None
-            )
-            if normalized_domain == normalized_host:
+            if not isinstance(domain, str):
+                continue
+            normalized_domain = domain.rstrip(".").lower()
+            # A domain with an explicit port must match the host's port exactly; a
+            # domain without one matches regardless of port (e.g. behind a proxy
+            # that forwards on a non-standard port).
+            host_to_compare = host_with_port if ":" in normalized_domain else host_without_port
+            if normalized_domain == host_to_compare:
                 return lang
         return None
 

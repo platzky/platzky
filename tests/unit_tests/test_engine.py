@@ -319,6 +319,36 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
     assert language_menu.get_text() == "pl"
 
 
+def test_locale_does_not_match_domain_on_a_different_port():
+    # Regression test: a domain with an explicit port must not match a request on a
+    # different port, even though the hostname is identical.
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+        "USE_WWW": False,
+        "BLOG_PREFIX": "/blog",
+        "LANGUAGES": {
+            "en": {"name": "English", "flag": "gb", "country": "GB"},
+            "pl": {
+                "name": "polski",
+                "flag": "pl",
+                "country": "PL",
+                "domain": "pl.example.com:5000",
+            },
+        },
+        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+    }
+    config = Config.model_validate(config_data)
+    app = create_app_from_config(config)
+    response = app.test_client().get(
+        "/", headers={"Host": "pl.example.com:6000", "Accept-Language": "en"}
+    )
+    soup = BeautifulSoup(response.data, "html.parser")
+    language_menu = soup.find("span", class_="language-indicator-text")
+    assert isinstance(language_menu, Tag)
+    assert language_menu.get_text() == "en"
+
+
 def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
