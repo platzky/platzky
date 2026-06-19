@@ -2,6 +2,7 @@
 
 # TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
 
+import threading
 from typing import Any
 
 from gql import Client, gql
@@ -152,10 +153,29 @@ class GraphQL(DB):
         """
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"
-        full_token = "bearer " + token
-        transport = AIOHTTPTransport(url=endpoint, headers={"Authorization": full_token})
-        self.client = Client(transport=transport)
+        self._endpoint = endpoint
+        self._headers = {"Authorization": "bearer " + token}
+        self._local = threading.local()
         super().__init__()
+
+    def __getattr__(self, name: str) -> Client:
+        """Lazily build this thread's GraphQL client on first access to ``client``.
+
+        AIOHTTPTransport's connect/close cycle tracks a single session flag per
+        transport instance; sharing one Client across threads lets a second
+        thread's connect() race a first thread's still-open session, raising
+        TransportAlreadyConnected. A client per thread avoids that. Implemented via
+        __getattr__ rather than a property because DB.__init_subclass__ forbids
+        subclasses from adding public class-level names not in the DB interface.
+        """
+        if name != "client":
+            raise AttributeError(name)
+        client = getattr(self._local, "client", None)
+        if client is None:
+            transport = AIOHTTPTransport(url=self._endpoint, headers=self._headers)
+            client = Client(transport=transport)
+            self._local.client = client
+        return client
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.
@@ -272,6 +292,9 @@ class GraphQL(DB):
 
         Returns:
             Page object
+
+        Raises:
+            ValueError: If no page exists for the given slug.
         """
         page_query = gql("""
             query MyQuery ($slug: String!){
@@ -287,6 +310,8 @@ class GraphQL(DB):
             }
             """)
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        if page_raw is None:
+            raise ValueError(f"Page not found: {slug}")
         return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
@@ -448,7 +473,15 @@ class GraphQL(DB):
         return "navy"  # Default color as string
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
-        """Retrieve configuration data for all plugins."""
+        """Retrieve configuration data for all plugins.
+
+        Hygraph's PluginConfig schema only exposes ``name``, ``isActive``, and
+        ``config`` (a JSON scalar) — there's no room for a sibling field like
+        ``allowed_content_types``. Authors put permission fields directly
+        inside the ``config`` JSON instead; this spreads ``config``'s keys to
+        the top level so the engine's capability-specific config classes
+        (``ContentTransformerPluginConfig``, etc.) can find them by name.
+        """
         plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
@@ -459,7 +492,10 @@ class GraphQL(DB):
             }
             """)
         raw = self.client.execute(plugins_data)["pluginConfigs"]
-        return {d["name"]: PluginConfigBase.model_validate(d) for d in raw}
+        return {
+            d["name"]: PluginConfigBase.model_validate({**(d.get("config") or {}), **d})
+            for d in raw
+        }
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.

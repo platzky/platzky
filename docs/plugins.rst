@@ -257,6 +257,23 @@ inject at the start of ``<body>``. Only sections declared in ``accepted_page_sec
 **and** permitted by ``allowed_page_sections`` in the database config are injected —
 neither side alone controls what gets rendered.
 
+Accessing the Engine from Request Handlers
+-------------------------------------------
+
+Flask's own ``current_app`` proxy is typed as plain ``Flask``, so it doesn't expose
+Engine-specific methods like ``notify`` or ``is_enabled`` to a type checker. If a
+plugin registers its own routes and needs the Engine from inside a view function
+(where ``app`` isn't otherwise in scope), use :func:`platzky.current_engine` instead:
+
+.. code-block:: python
+
+    from platzky import current_engine
+
+    @blueprint.route("/webhook", methods=["POST"])
+    def handle_webhook():
+        current_engine().notify("Webhook received", topic="general")
+        return "", 204
+
 Packaging a Plugin
 ------------------
 

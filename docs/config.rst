@@ -166,6 +166,14 @@ Each language configuration includes:
         country: DE
         domain: example.de  # Optional: language-specific domain for redirects
 
+When a language has a ``domain``, a fresh visitor (no language chosen yet) landing
+directly on that domain sees that language, taking priority over Accept-Language
+guessing. Matching ignores port, case, and a trailing dot, so ``domain: example.de``
+matches requests to ``example.de``, ``EXAMPLE.DE``, ``example.de:8443``, or
+``example.de.``. Include a port in ``domain`` (e.g. ``domain: example.de:5000``) if
+the language's domain is only reachable on a non-standard port, such as in local or
+staging setups.
+
 ``TRANSLATION_DIRECTORIES``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

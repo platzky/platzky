@@ -7,7 +7,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
     from platzky.plugin.html_injector import PageSection
@@ -17,6 +17,7 @@ from flask import (
     Blueprint,
     Flask,
     Response,
+    current_app,
     jsonify,
     make_response,
     request,
@@ -329,17 +330,42 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the current locale based on session or browser preferences."""
-        languages = self.config.get("LANGUAGES", {}).keys()
+        """Return the current locale based on session, host domain, or browser preferences."""
+        languages = self.config.get("LANGUAGES", {})
 
         session_lang = session.get("language")
         if isinstance(session_lang, str) and session_lang in languages:
             lang = session_lang
         else:
-            lang = request.accept_languages.best_match(languages) or "en"
+            lang = self._language_for_host(languages, request.host) or (
+                request.accept_languages.best_match(languages.keys()) or "en"
+            )
 
         session["language"] = lang
         return lang
+
+    @staticmethod
+    def _language_for_host(languages: dict[str, Any], host: str) -> Optional[str]:
+        """Return the language code whose dedicated domain matches host, if any.
+
+        A language's own domain takes priority over Accept-Language guessing so a
+        fresh visitor (no session yet) landing directly on that domain sees the
+        language it represents, rather than whatever their browser prefers.
+        """
+        host_without_port = host.split(":", 1)[0].rstrip(".").lower()
+        host_with_port = host.rstrip(".").lower()
+        for lang, cfg in languages.items():
+            domain = cfg.get("domain")
+            if not isinstance(domain, str):
+                continue
+            normalized_domain = domain.rstrip(".").lower()
+            # A domain with an explicit port must match the host's port exactly; a
+            # domain without one matches regardless of port (e.g. behind a proxy
+            # that forwards on a non-standard port).
+            host_to_compare = host_with_port if ":" in normalized_domain else host_without_port
+            if normalized_domain == host_to_compare:
+                return lang
+        return None
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.
@@ -426,3 +452,13 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
+
+
+def current_engine() -> Engine:
+    """Return Flask's current_app typed as Engine.
+
+    Returns:
+        The active application, which is always an Engine instance since
+        create_app() is the only entry point that constructs it.
+    """
+    return cast(Engine, current_app)
