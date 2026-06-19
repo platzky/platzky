@@ -74,12 +74,12 @@ def test_graph_ql_client_is_per_thread():
     )  # NOSONAR - hardcoded token acceptable in tests
 
     main_thread_client = db.client
-    other_thread_client: list[Client | BaseException] = []
+    other_thread_client: list[Client | Exception] = []
 
     def get_client_in_thread():
         try:
             other_thread_client.append(db.client)
-        except BaseException as e:
+        except Exception as e:
             other_thread_client.append(e)
 
     thread = threading.Thread(target=get_client_in_thread)
@@ -87,7 +87,7 @@ def test_graph_ql_client_is_per_thread():
     thread.join()
 
     assert len(other_thread_client) == 1, "Thread did not complete"
-    if isinstance(other_thread_client[0], BaseException):
+    if isinstance(other_thread_client[0], Exception):
         raise other_thread_client[0]
     assert db.client is main_thread_client
     assert other_thread_client[0] is not main_thread_client
