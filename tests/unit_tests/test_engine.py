@@ -258,6 +258,34 @@ def test_that_language_menu_has_proper_code(test_app: Engine):
     assert language_menu.get_text() == "en"
 
 
+def _build_dedicated_domain_test_app() -> Engine:
+    config_data = {
+        "APP_NAME": "testingApp",
+        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+        "USE_WWW": False,
+        "BLOG_PREFIX": "/blog",
+        "LANGUAGES": {
+            "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
+            "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
+        },
+        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+    }
+    config = Config.model_validate(config_data)
+    return create_app_from_config(config)
+
+
+def test_locale_defaults_to_the_language_whose_domain_is_being_visited():
+    # Regression test: a fresh visitor (no session yet) landing directly on a
+    # language's dedicated domain should see that language, not "en" via the
+    # Accept-Language fallback.
+    app = _build_dedicated_domain_test_app()
+    response = app.test_client().get("/", headers={"Host": "pl.example.com"})
+    soup = BeautifulSoup(response.data, "html.parser")
+    language_menu = soup.find("span", class_="language-indicator-text")
+    assert isinstance(language_menu, Tag)
+    assert language_menu.get_text() == "pl"
+
+
 def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")

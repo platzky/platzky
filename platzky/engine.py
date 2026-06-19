@@ -7,7 +7,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from platzky.plugin.html_injector import PageSection
@@ -329,17 +329,32 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the current locale based on session or browser preferences."""
-        languages = self.config.get("LANGUAGES", {}).keys()
+        """Return the current locale based on session, host domain, or browser preferences."""
+        languages = self.config.get("LANGUAGES", {})
 
         session_lang = session.get("language")
         if isinstance(session_lang, str) and session_lang in languages:
             lang = session_lang
         else:
-            lang = request.accept_languages.best_match(languages) or "en"
+            lang = self._language_for_host(languages, request.host) or (
+                request.accept_languages.best_match(languages.keys()) or "en"
+            )
 
         session["language"] = lang
         return lang
+
+    @staticmethod
+    def _language_for_host(languages: dict[str, Any], host: str) -> Optional[str]:
+        """Return the language code whose dedicated domain matches host, if any.
+
+        A language's own domain takes priority over Accept-Language guessing so a
+        fresh visitor (no session yet) landing directly on that domain sees the
+        language it represents, rather than whatever their browser prefers.
+        """
+        for lang, cfg in languages.items():
+            if cfg.get("domain") == host:
+                return lang
+        return None
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.

@@ -57,7 +57,6 @@ describe('Blog test', () => {
 
 // TODO add tests:
 //   - post and page without image
-//   - translations
 //
 
 })
