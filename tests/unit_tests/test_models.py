@@ -131,3 +131,22 @@ class TestPostWithMinimalFields:
         assert page.comments == []
         assert page.tags == []
         assert page.date is None
+
+
+class TestCssField:
+    def test_default_is_empty(self):
+        post = make_post()
+        assert post.css == ""
+
+    def test_legitimate_css_passes_through_unchanged(self):
+        css = ".masthead { background: teal; } .a > .b { color: red; }"
+        post = make_post(css=css)
+        assert post.css == css
+
+    def test_style_breakout_is_rejected(self):
+        with pytest.raises(ValidationError):
+            make_post(css="</style><script>alert(1)</script><style>")
+
+    def test_style_breakout_is_rejected_case_and_whitespace_insensitive(self):
+        with pytest.raises(ValidationError):
+            make_post(css="</STYLE  ><script>alert(1)</script>")

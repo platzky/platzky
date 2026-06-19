@@ -401,3 +401,14 @@ footer .copyright {
 {
     max-width: 100%;
 }
+
+/* Default look for the [hero] shortcode; override by targeting .hero
+   in a site/plugin stylesheet loaded after this one. */
+.hero {
+    padding: 3rem 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    background: #f7f8fa;
+    border-radius: 8px;
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}

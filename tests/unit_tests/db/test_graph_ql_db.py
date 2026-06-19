@@ -305,7 +305,7 @@ def test_get_home_page_path(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
     mock_client.execute.return_value = mock_response
 
-    assert graph_ql_db.get_home_page_path() == "/blog/page/about"
+    assert graph_ql_db.get_home_page_path("en") == "/blog/page/about"
     mock_client.execute.assert_called_once()
 
 
@@ -313,13 +313,13 @@ def test_get_home_page_path_missing(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{}]}
     mock_client.execute.return_value = mock_response
 
-    assert graph_ql_db.get_home_page_path() is None
+    assert graph_ql_db.get_home_page_path("en") is None
 
 
 def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
     mock_client.execute.return_value = {"applicationSetups": []}
 
-    assert graph_ql_db.get_home_page_path() is None
+    assert graph_ql_db.get_home_page_path("en") is None
 
 
 def test_get_primary_color(graph_ql_db: GraphQL):

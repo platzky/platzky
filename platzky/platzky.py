@@ -173,10 +173,11 @@ def _change_language_response(config: Config, lang: str) -> Response:
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     """Render the configured homepage, falling back to the blog index.
 
-    Resolves db.get_home_page_path() through the app's own URL map, so it
-    can point at a page, a post, or any other registered route. Falls back
-    to the blog index if no homepage is configured, or if the configured
-    path resolves back to this same route (which would otherwise recurse).
+    Resolves db.get_home_page_path() for the current request's locale through
+    the app's own URL map, so it can point at a page, a post, or any other
+    registered route. Falls back to the blog index if no homepage is
+    configured for that locale, or if the configured path resolves back to
+    this same route (which would otherwise recurse).
 
     Args:
         app: Platzky Engine instance
@@ -185,7 +186,7 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     Returns:
         Rendered HTML of the resolved destination, or the 404 page.
     """
-    configured_home = app.db.get_home_page_path()
+    configured_home = app.db.get_home_page_path(app.get_locale())
     target_path = (
         configured_home
         if isinstance(configured_home, str) and configured_home not in {"", "/"}

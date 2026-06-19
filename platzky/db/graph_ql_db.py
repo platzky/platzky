@@ -444,23 +444,30 @@ class GraphQL(DB):
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
-    def get_home_page_path(self) -> str | None:
+    def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
 
+        Each language has its own ``applicationSetups`` entry in the CMS, so the
+        homepage path is looked up for the current locale's entry directly.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
+
         Returns:
-            Homepage path, or None if no homepage override is configured.
+            Homepage path, or None if no homepage override is configured for
+            this locale.
         """
         home_page_path_query = gql("""
-            query MyQuery {
-              applicationSetups(stage: PUBLISHED) {
+            query MyQuery($lang: Lang!) {
+              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
                 homePagePath
               }
             }
             """)
         try:
-            return self.client.execute(home_page_path_query)["applicationSetups"][0].get(
-                "homePagePath"
-            )
+            return self.client.execute(home_page_path_query, variable_values={"lang": locale})[
+                "applicationSetups"
+            ][0].get("homePagePath")
         except IndexError:
             return None
 

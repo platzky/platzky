@@ -189,6 +189,33 @@ def test_page_without_cover_image(test_app: FlaskClient):
     assert response.status_code == 200
 
 
+def test_page_renders_css_field(test_app: FlaskClient):
+    page = Post.model_validate({**mocked_post_json, "css": ".masthead { background: teal; }"})
+    cast(MagicMock, cast(Engine, test_app.application).db.get_page).return_value = page
+    response = test_app.get("/prefix/page/blabla")
+    assert b"<style>.masthead { background: teal; }</style>" in response.data
+
+
+def test_post_renders_css_field(test_app: FlaskClient):
+    post = Post.model_validate({**mocked_post_json, "css": ".masthead { background: teal; }"})
+    cast(MagicMock, cast(Engine, test_app.application).db.get_post).return_value = post
+    response = test_app.get("/prefix/slug")
+    assert b"<style>.masthead { background: teal; }</style>" in response.data
+
+
+def test_page_with_style_breakout_css_returns_404(test_app: FlaskClient):
+    def get_page_with_bad_css(_slug: str) -> Post:
+        return Post.model_validate(
+            {**mocked_post_json, "css": "</style><script>alert(1)</script><style>"}
+        )
+
+    cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = (
+        get_page_with_bad_css
+    )
+    response = test_app.get("/prefix/page/blabla")
+    assert response.status_code == 404
+
+
 # TODO create those tests
 # def test_post_without_cover_image(test_app: FlaskClient):
 

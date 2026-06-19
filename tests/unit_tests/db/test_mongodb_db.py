@@ -316,11 +316,26 @@ class TestMongoDB:
             "_id": "config",
             "home_page_path": "/blog/page/about",
         }
-        assert db.get_home_page_path() == "/blog/page/about"
+        assert db.get_home_page_path("en") == "/blog/page/about"
 
     def test_get_home_page_path_default(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_home_page_path() is None
+        assert db.get_home_page_path("en") is None
+
+    def test_get_home_page_path_per_locale(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = {
+            "_id": "config",
+            "home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"},
+        }
+        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
+        assert db.get_home_page_path("en") == "/blog/"
+
+    def test_get_home_page_path_per_locale_no_default(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = {
+            "_id": "config",
+            "home_page_path": {"pl": "/blog/page/o-nas"},
+        }
+        assert db.get_home_page_path("en") is None
 
     def test_close_connection(self, db: MongoDB):
         db._close_connection()  # type: ignore[reportPrivateUsage] - Testing private method

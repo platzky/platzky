@@ -230,14 +230,24 @@ class MongoDB(DB):
         site_config = self._get_site_config()
         return site_config.get("font", "") if site_config else ""
 
-    def get_home_page_path(self) -> str | None:
+    def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
+
+        ``home_page_path`` may be a single string (applies to every locale) or a
+        dict mapping locale codes to paths, with an optional "default" key used
+        when the current locale has no entry of its own.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
 
         Returns:
             Homepage path, or None if no homepage override is configured.
         """
         site_config = self._get_site_config()
-        return site_config.get("home_page_path") if site_config else None
+        home_page_path = site_config.get("home_page_path") if site_config else None
+        if isinstance(home_page_path, dict):
+            return home_page_path.get(locale) or home_page_path.get("default")
+        return home_page_path
 
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.

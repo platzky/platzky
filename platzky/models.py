@@ -2,6 +2,7 @@
 
 import datetime
 import functools
+import re
 from typing import Annotated
 
 import humanize
@@ -16,6 +17,27 @@ def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
 
 
 DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
+
+_STYLE_CLOSE_RE = re.compile(r"</\s*style\b", re.IGNORECASE)
+
+
+def _reject_style_breakout(css: str) -> str:
+    """Reject CSS containing `</style`, which could break out of its wrapping tag.
+
+    Content inside a <style> element is HTML "raw text" — browsers don't parse
+    markup there except the literal closing tag. The `css` field is rendered with
+    the `safe` filter (to preserve real CSS like `.a > .b`), so this guards the one
+    sequence that could let stored content inject arbitrary HTML/script via the
+    page's <head>. Raising here (rather than silently stripping it) means content
+    with this pattern fails to load — see blog.py's handling of ValidationError for
+    why that's preferable to rendering mutated content unexpectedly.
+    """
+    if _STYLE_CLOSE_RE.search(css):
+        raise ValueError("css must not contain a '</style' sequence")
+    return css
+
+
+CssField = Annotated[str, AfterValidator(_reject_style_breakout)]
 
 
 class CmsModule(BaseModel):
@@ -101,6 +123,9 @@ class Post(BaseModel):
         comments: Optional list of comments on this post
         tags: Optional list of tags for categorization
         date: Optional datetime when the post was published (timezone-aware recommended)
+        css: Optional CSS rendered inline in this post/page's own <head>, scoped to
+            this content only — can target the masthead, hero blocks, paragraphs,
+            or anything else on the page
     """
 
     author: str
@@ -113,6 +138,7 @@ class Post(BaseModel):
     comments: list[Comment] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     date: DateTimeField | None = None
+    css: CssField = ""
 
     def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.

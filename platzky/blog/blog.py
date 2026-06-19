@@ -7,6 +7,7 @@ from typing import TypeVar
 
 from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
+from pydantic import ValidationError
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
@@ -131,6 +132,15 @@ def create_blog_blueprint(
         """
         try:
             return getter_func(slug)
+        except ValidationError as e:
+            logger.warning(
+                "Content for slug '%s' failed validation and will 404 for visitors. "
+                "If you're an admin: check this content's fields (e.g. css) for "
+                "unexpected data — %s",
+                slug,
+                e,
+            )
+            abort(404)
         except ValueError as e:
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
@@ -170,6 +180,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             title=page.title,
+            css=page.css,
             content=content_transformer(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )
