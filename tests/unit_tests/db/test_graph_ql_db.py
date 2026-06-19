@@ -80,6 +80,7 @@ def test_graph_ql_client_is_per_thread():
     thread.join()
 
     assert db.client is main_thread_client
+    assert len(other_thread_client) == 1
     assert other_thread_client[0] is not main_thread_client
 
 
