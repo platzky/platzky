@@ -2,6 +2,7 @@
 
 # TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
 
+import threading
 from typing import Any
 
 from gql import Client, gql
@@ -152,10 +153,29 @@ class GraphQL(DB):
         """
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"
-        full_token = "bearer " + token
-        transport = AIOHTTPTransport(url=endpoint, headers={"Authorization": full_token})
-        self.client = Client(transport=transport)
+        self._endpoint = endpoint
+        self._headers = {"Authorization": "bearer " + token}
+        self._local = threading.local()
         super().__init__()
+
+    def __getattr__(self, name: str) -> Client:
+        """Lazily build this thread's GraphQL client on first access to ``client``.
+
+        AIOHTTPTransport's connect/close cycle tracks a single session flag per
+        transport instance; sharing one Client across threads lets a second
+        thread's connect() race a first thread's still-open session, raising
+        TransportAlreadyConnected. A client per thread avoids that. Implemented via
+        __getattr__ rather than a property because DB.__init_subclass__ forbids
+        subclasses from adding public class-level names not in the DB interface.
+        """
+        if name != "client":
+            raise AttributeError(name)
+        client = getattr(self._local, "client", None)
+        if client is None:
+            transport = AIOHTTPTransport(url=self._endpoint, headers=self._headers)
+            client = Client(transport=transport)
+            self._local.client = client
+        return client
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.

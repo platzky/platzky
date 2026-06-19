@@ -1,6 +1,8 @@
+import threading
 from unittest.mock import Mock, patch
 
 import pytest
+from gql import Client
 
 from platzky.db.graph_ql_db import (
     GraphQL,
@@ -23,7 +25,8 @@ def graph_ql_db(mock_client: Mock):
         db = GraphQL(
             "https://test.endpoint", "test_token"
         )  # NOSONAR - hardcoded token acceptable in tests
-        return db
+        db.client  # trigger lazy construction now, while Client is patched
+    return db
 
 
 def test_db_config_type():
@@ -56,13 +59,28 @@ def test_graph_ql_init(mock_client: Mock):
             "https://test.endpoint", "test_token"
         )  # NOSONAR - hardcoded token acceptable in tests
 
+        assert db.client == mock_client  # client is built lazily, on first access
         mock_transport.assert_called_once_with(
             url="https://test.endpoint", headers={"Authorization": "bearer test_token"}
         )
         mock_client_class.assert_called_once()
-        assert db.client == mock_client
         assert db.module_name == "graph_ql_db"
         assert db.db_name == "GraphQLDb"
+
+
+def test_graph_ql_client_is_per_thread():
+    db = GraphQL(
+        "https://test.endpoint", "test_token"
+    )  # NOSONAR - hardcoded token acceptable in tests
+
+    main_thread_client = db.client
+    other_thread_client: list[Client] = []
+    thread = threading.Thread(target=lambda: other_thread_client.append(db.client))
+    thread.start()
+    thread.join()
+
+    assert db.client is main_thread_client
+    assert other_thread_client[0] is not main_thread_client
 
 
 def test_get_all_posts(graph_ql_db: GraphQL, mock_client: Mock):
