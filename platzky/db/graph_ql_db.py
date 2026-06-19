@@ -272,6 +272,9 @@ class GraphQL(DB):
 
         Returns:
             Page object
+
+        Raises:
+            ValueError: If no page exists for the given slug.
         """
         page_query = gql("""
             query MyQuery ($slug: String!){
@@ -287,6 +290,8 @@ class GraphQL(DB):
             }
             """)
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        if page_raw is None:
+            raise ValueError(f"Page not found: {slug}")
         return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
@@ -448,7 +453,15 @@ class GraphQL(DB):
         return "navy"  # Default color as string
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
-        """Retrieve configuration data for all plugins."""
+        """Retrieve configuration data for all plugins.
+
+        Hygraph's PluginConfig schema only exposes ``name``, ``isActive``, and
+        ``config`` (a JSON scalar) — there's no room for a sibling field like
+        ``allowed_content_types``. Authors put permission fields directly
+        inside the ``config`` JSON instead; this spreads ``config``'s keys to
+        the top level so the engine's capability-specific config classes
+        (``ContentTransformerPluginConfig``, etc.) can find them by name.
+        """
         plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
@@ -459,7 +472,10 @@ class GraphQL(DB):
             }
             """)
         raw = self.client.execute(plugins_data)["pluginConfigs"]
-        return {d["name"]: PluginConfigBase.model_validate(d) for d in raw}
+        return {
+            d["name"]: PluginConfigBase.model_validate({**(d.get("config") or {}), **d})
+            for d in raw
+        }
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.

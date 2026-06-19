@@ -162,6 +162,13 @@ def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
     mock_client.execute.assert_called_once()
 
 
+def test_get_page_not_found(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"page": None}
+
+    with pytest.raises(ValueError, match="missing"):
+        graph_ql_db.get_page("missing")
+
+
 def test_get_posts_by_tag(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "posts": [
