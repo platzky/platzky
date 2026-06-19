@@ -7,7 +7,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
     from platzky.plugin.html_injector import PageSection
@@ -17,6 +17,7 @@ from flask import (
     Blueprint,
     Flask,
     Response,
+    current_app,
     jsonify,
     make_response,
     request,
@@ -354,7 +355,10 @@ class Engine(Flask):
         normalized_host = host.split(":", 1)[0].rstrip(".").lower()
         for lang, cfg in languages.items():
             domain = cfg.get("domain")
-            if isinstance(domain, str) and domain.rstrip(".").lower() == normalized_host:
+            normalized_domain = (
+                domain.split(":", 1)[0].rstrip(".").lower() if isinstance(domain, str) else None
+            )
+            if normalized_domain == normalized_host:
                 return lang
         return None
 
@@ -443,3 +447,13 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
+
+
+def current_engine() -> Engine:
+    """Return Flask's current_app typed as Engine.
+
+    Returns:
+        The active application, which is always an Engine instance since
+        create_app() is the only entry point that constructs it.
+    """
+    return cast(Engine, current_app)
