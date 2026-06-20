@@ -62,14 +62,15 @@ describe('Blog test', () => {
     // even if the breakout worked. Model validation rejects this css outright,
     // so the page 404s rather than rendering a live <script> tag.
     const url = '/blog/page/style-breakout'
+    cy.on('window:alert', () => {
+      throw new Error('script from css breakout executed')
+    })
+
     cy.request({url: url, failOnStatusCode: false})
       .then(resp => expect(resp.status).to.eq(404))
 
     cy.visit(url, {failOnStatusCode: false})
     cy.contains("This page doesn't exist")
-    cy.on('window:alert', () => {
-      throw new Error('script from css breakout executed')
-    })
   })
 
 // TODO add tests:

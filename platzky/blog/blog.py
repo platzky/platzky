@@ -141,13 +141,12 @@ def create_blog_blueprint(
         """
         try:
             return getter_func(slug)
-        except ValidationError as e:
-            logger.error(
+        except ValidationError:
+            logger.exception(
                 "Content for slug '%s' failed validation and will 404 for visitors. "
                 "If you're an admin: check this content's fields (e.g. css) for "
-                "unexpected data — %s",
+                "unexpected data",
                 slug,
-                e,
             )
             abort(404, description=_VALIDATION_FAILED_MARKER)
         except ValueError as e:

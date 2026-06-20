@@ -215,7 +215,7 @@ class Json(DB):
         """
         home_page_path = self._get_site_content().get("home_page_path")
         if isinstance(home_page_path, dict):
-            return home_page_path.get(locale) or home_page_path.get("default")
+            return home_page_path.get(locale, home_page_path.get("default"))
         return home_page_path
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:

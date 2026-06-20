@@ -337,6 +337,16 @@ class TestMongoDB:
         }
         assert db.get_home_page_path("en") is None
 
+    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(
+        self, db: MongoDB
+    ):
+        """Only an absent key falls back to "default" — a present key returns its value as-is."""
+        cast(Mock, db.site_content.find_one).return_value = {
+            "_id": "config",
+            "home_page_path": {"default": "/blog/", "pl": ""},
+        }
+        assert db.get_home_page_path("pl") == ""
+
     def test_close_connection(self, db: MongoDB):
         db._close_connection()  # type: ignore[reportPrivateUsage] - Testing private method
         cast(Mock, db.client.close).assert_called_once()

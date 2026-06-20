@@ -264,6 +264,11 @@ class TestJsonDbSiteSettings:
         db = Json({"site_content": {"home_page_path": {"pl": "/blog/page/o-nas"}}})
         assert db.get_home_page_path("en") is None
 
+    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(self):
+        """Only an absent key falls back to "default" — a present key returns its value as-is."""
+        db = Json({"site_content": {"home_page_path": {"default": "/blog/", "pl": ""}}})
+        assert db.get_home_page_path("pl") == ""
+
 
 class TestJsonDbComments:
     @pytest.fixture

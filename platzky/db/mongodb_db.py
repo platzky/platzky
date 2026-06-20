@@ -246,7 +246,7 @@ class MongoDB(DB):
         site_config = self._get_site_config()
         home_page_path = site_config.get("home_page_path") if site_config else None
         if isinstance(home_page_path, dict):
-            return home_page_path.get(locale) or home_page_path.get("default")
+            return home_page_path.get(locale, home_page_path.get("default"))
         return home_page_path
 
     def health_check(self) -> None:
