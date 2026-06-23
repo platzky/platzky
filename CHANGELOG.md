@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.8](https://github.com/platzky/platzky/compare/v2.0.0-alpha.7...v2.0.0-alpha.8) (2026-06-23)
+
+
+### Features
+
+* add custom CSS support and hero shortcode ([#253](https://github.com/platzky/platzky/issues/253)) ([9e13f81](https://github.com/platzky/platzky/commit/9e13f81cffdc1e29c7f7850e99928f67052aba18))
+
 ## [2.0.0-alpha.7](https://github.com/platzky/platzky/compare/v2.0.0-alpha.6...v2.0.0-alpha.7) (2026-06-18)
 
 
