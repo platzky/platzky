@@ -369,7 +369,7 @@ def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_cli
 
 
 def test_get_primary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{"primaryColor": "#0085A1"}]}
+    mock_client.execute.return_value = {"themes": [{"primaryColor": "#0085A1"}]}
 
     color = graph_ql_db.get_primary_color()
 
@@ -378,19 +378,19 @@ def test_get_primary_color(graph_ql_db: GraphQL, mock_client: Mock):
 
 
 def test_get_primary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{}]}
+    mock_client.execute.return_value = {"themes": [{}]}
 
     assert graph_ql_db.get_primary_color() == "white"
 
 
-def test_get_primary_color_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": []}
+def test_get_primary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": []}
 
     assert graph_ql_db.get_primary_color() == "white"
 
 
 def test_get_secondary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{"secondaryColor": "#006073"}]}
+    mock_client.execute.return_value = {"themes": [{"secondaryColor": "#006073"}]}
 
     color = graph_ql_db.get_secondary_color()
 
@@ -399,13 +399,13 @@ def test_get_secondary_color(graph_ql_db: GraphQL, mock_client: Mock):
 
 
 def test_get_secondary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{}]}
+    mock_client.execute.return_value = {"themes": [{}]}
 
     assert graph_ql_db.get_secondary_color() == "navy"
 
 
-def test_get_secondary_color_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": []}
+def test_get_secondary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": []}
 
     assert graph_ql_db.get_secondary_color() == "navy"
 

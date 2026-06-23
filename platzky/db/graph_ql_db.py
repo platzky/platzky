@@ -478,20 +478,23 @@ class GraphQL(DB):
     def get_primary_color(self) -> str:
         """Retrieve the primary brand colour configured in the CMS.
 
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
         Returns:
             Primary colour value, or "white" if not configured.
         """
         primary_color_query = gql("""
             query MyQuery {
-              applicationSetups(stage: PUBLISHED) {
+              themes(stage: PUBLISHED) {
                 primaryColor
               }
             }
             """)
         try:
             return (
-                self.client.execute(primary_color_query)["applicationSetups"][0].get("primaryColor")
-                or "white"
+                self.client.execute(primary_color_query)["themes"][0].get("primaryColor") or "white"
             )
         except IndexError:
             return "white"
@@ -499,21 +502,23 @@ class GraphQL(DB):
     def get_secondary_color(self) -> str:
         """Retrieve the secondary brand colour configured in the CMS.
 
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
         Returns:
             Secondary colour value, or "navy" if not configured.
         """
         secondary_color_query = gql("""
             query MyQuery {
-              applicationSetups(stage: PUBLISHED) {
+              themes(stage: PUBLISHED) {
                 secondaryColor
               }
             }
             """)
         try:
             return (
-                self.client.execute(secondary_color_query)["applicationSetups"][0].get(
-                    "secondaryColor"
-                )
+                self.client.execute(secondary_color_query)["themes"][0].get("secondaryColor")
                 or "navy"
             )
         except IndexError:
