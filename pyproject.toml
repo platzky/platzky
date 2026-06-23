@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "platzky"
-version = "2.0.0-alpha.7"
+version = "2.0.0-alpha.8"
 description = "Not only blog engine"
 authors = []
 license = "MIT"
