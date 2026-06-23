@@ -3,11 +3,10 @@
 import logging
 from collections.abc import Callable
 from os.path import dirname
-from typing import Final, TypeVar
+from typing import TypeVar
 
-from flask import Blueprint, abort, make_response, render_template, request, session
+from flask import Blueprint, abort, make_response, render_template, request
 from markupsafe import Markup
-from pydantic import ValidationError
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
@@ -20,8 +19,6 @@ from . import comment_form
 _ContentT = TypeVar("_ContentT", Post, Page)
 
 logger = logging.getLogger(__name__)
-
-_VALIDATION_FAILED_MARKER: Final[str] = "content_validation_failed"
 
 
 def create_blog_blueprint(
@@ -61,23 +58,16 @@ def create_blog_blueprint(
         return Markup(text)
 
     @blog.errorhandler(404)
-    def page_not_found(e: HTTPException) -> tuple[str, int]:
+    def page_not_found(_e: HTTPException) -> tuple[str, int]:
         """Handle 404 Not Found errors in blog routes.
 
-        Shows an extra hint on the 404 page, but only to a logged-in admin and
-        only when the 404 was caused by content failing validation (e.g. a
-        css field rejected for a `</style` breakout attempt) rather than the
-        content genuinely not existing — regular visitors always see the
-        plain 404 so the failure reason isn't exposed publicly.
-
         Args:
-            e: HTTPException object containing error details
+            _e: HTTPException object containing error details (unused)
 
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
         """
-        show_admin_hint = e.description == _VALIDATION_FAILED_MARKER and bool(session.get("user"))
-        return render_template("404.html", title="404", admin_hint=show_admin_hint), 404
+        return render_template("404.html", title="404"), 404
 
     @blog.route("/", methods=["GET"])
     def all_posts() -> str:
@@ -141,14 +131,6 @@ def create_blog_blueprint(
         """
         try:
             return getter_func(slug)
-        except ValidationError:
-            logger.exception(
-                "Content for slug '%s' failed validation and will 404 for visitors. "
-                "If you're an admin: check this content's fields (e.g. css) for "
-                "unexpected data",
-                slug,
-            )
-            abort(404, description=_VALIDATION_FAILED_MARKER)
         except ValueError as e:
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
