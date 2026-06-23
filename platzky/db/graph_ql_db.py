@@ -82,6 +82,7 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
             "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
+        "css": post.get("css") or "",
     }
 
 
@@ -110,6 +111,7 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
             "url": (page.get("coverImage") or {}).get("url", ""),
         },
         "date": page.get("date"),
+        "css": page.get("css") or "",
     }
 
 
@@ -265,6 +267,7 @@ class GraphQL(DB):
                 }
                 excerpt
                 tags
+                css
                 coverImage {
                   alternateText
                   image {
@@ -302,6 +305,7 @@ class GraphQL(DB):
                 slug
                 title
                 contentInMarkdown
+                css
                 coverImage
                 {
                     url
@@ -472,12 +476,48 @@ class GraphQL(DB):
             return None
 
     def get_primary_color(self) -> str:
-        """Return the primary brand colour."""
-        return "white"  # Default color as string
+        """Retrieve the primary brand colour configured in the CMS.
+
+        Returns:
+            Primary colour value, or "white" if not configured.
+        """
+        primary_color_query = gql("""
+            query MyQuery {
+              applicationSetups(stage: PUBLISHED) {
+                primaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(primary_color_query)["applicationSetups"][0].get("primaryColor")
+                or "white"
+            )
+        except IndexError:
+            return "white"
 
     def get_secondary_color(self) -> str:
-        """Return the secondary brand colour."""
-        return "navy"  # Default color as string
+        """Retrieve the secondary brand colour configured in the CMS.
+
+        Returns:
+            Secondary colour value, or "navy" if not configured.
+        """
+        secondary_color_query = gql("""
+            query MyQuery {
+              applicationSetups(stage: PUBLISHED) {
+                secondaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(secondary_color_query)["applicationSetups"][0].get(
+                    "secondaryColor"
+                )
+                or "navy"
+            )
+        except IndexError:
+            return "navy"
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins.
