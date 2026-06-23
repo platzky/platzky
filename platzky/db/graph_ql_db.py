@@ -82,6 +82,7 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
             "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
+        "css": post.get("css") or "",
     }
 
 
@@ -110,6 +111,7 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
             "url": (page.get("coverImage") or {}).get("url", ""),
         },
         "date": page.get("date"),
+        "css": page.get("css") or "",
     }
 
 
@@ -265,6 +267,7 @@ class GraphQL(DB):
                 }
                 excerpt
                 tags
+                css
                 coverImage {
                   alternateText
                   image {
@@ -302,6 +305,7 @@ class GraphQL(DB):
                 slug
                 title
                 contentInMarkdown
+                css
                 coverImage
                 {
                     url
@@ -444,33 +448,81 @@ class GraphQL(DB):
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
-    def get_home_page_path(self) -> str | None:
+    def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
 
+        Each language has its own ``applicationSetups`` entry in the CMS, so the
+        homepage path is looked up for the current locale's entry directly.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
+
         Returns:
-            Homepage path, or None if no homepage override is configured.
+            Homepage path, or None if no homepage override is configured for
+            this locale.
         """
         home_page_path_query = gql("""
-            query MyQuery {
-              applicationSetups(stage: PUBLISHED) {
+            query MyQuery($lang: Lang!) {
+              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
                 homePagePath
               }
             }
             """)
         try:
-            return self.client.execute(home_page_path_query)["applicationSetups"][0].get(
-                "homePagePath"
-            )
+            return self.client.execute(home_page_path_query, variable_values={"lang": locale})[
+                "applicationSetups"
+            ][0].get("homePagePath")
         except IndexError:
             return None
 
     def get_primary_color(self) -> str:
-        """Return the primary brand colour."""
-        return "white"  # Default color as string
+        """Retrieve the primary brand colour configured in the CMS.
+
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
+        Returns:
+            Primary colour value, or "white" if not configured.
+        """
+        primary_color_query = gql("""
+            query MyQuery {
+              themes(stage: PUBLISHED) {
+                primaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(primary_color_query)["themes"][0].get("primaryColor") or "white"
+            )
+        except IndexError:
+            return "white"
 
     def get_secondary_color(self) -> str:
-        """Return the secondary brand colour."""
-        return "navy"  # Default color as string
+        """Retrieve the secondary brand colour configured in the CMS.
+
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
+        Returns:
+            Secondary colour value, or "navy" if not configured.
+        """
+        secondary_color_query = gql("""
+            query MyQuery {
+              themes(stage: PUBLISHED) {
+                secondaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(secondary_color_query)["themes"][0].get("secondaryColor")
+                or "navy"
+            )
+        except IndexError:
+            return "navy"
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins.

@@ -106,12 +106,15 @@ def test_www_redirects(use_www: bool):
     assert response.location == expected_redirect
 
 
-def _build_home_page_test_app(site_content: dict[str, Any]):
+def _build_home_page_test_app(
+    site_content: dict[str, Any], languages: dict[str, Any] | None = None
+):
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "LANGUAGES": languages or {},
         "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
     }
     config = Config.model_validate(config_data)
@@ -183,6 +186,43 @@ def test_home_page_falls_back_to_blog_index_when_not_configured():
     response = app.test_client().get("/")
     assert response.status_code == 200
     assert b"Latest post" in response.data
+
+
+def test_home_page_resolves_per_locale_path():
+    app = _build_home_page_test_app(
+        {
+            "home_page_path": {"default": "/blog/page/about", "pl": "/blog/page/o-nas"},
+            "pages": [
+                {
+                    "title": "About us",
+                    "slug": "about",
+                    "contentInMarkdown": "Hello there",
+                    "author": "author",
+                    "excerpt": "excerpt",
+                },
+                {
+                    "title": "O nas",
+                    "slug": "o-nas",
+                    "contentInMarkdown": "Witaj",
+                    "author": "author",
+                    "excerpt": "excerpt",
+                },
+            ],
+        },
+        languages={
+            "en": {"name": "English", "flag": "us", "country": "US"},
+            "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
+        },
+    )
+    # Separate clients avoid the language session cookie from one request
+    # leaking into the other and masking the per-locale resolution.
+    default_response = app.test_client().get("/", headers={"Accept-Language": "en"})
+    assert default_response.status_code == 200
+    assert b"Hello there" in default_response.data
+
+    pl_response = app.test_client().get("/", headers={"Accept-Language": "pl"})
+    assert pl_response.status_code == 200
+    assert b"Witaj" in pl_response.data
 
 
 def test_home_page_404s_when_configured_path_does_not_resolve():

@@ -13,6 +13,7 @@
 {% elif logo_url %}
 <meta name="twitter:image" content="{{ logo_url }}">
 {% endif %}{% endblock %}
+{% block head_meta %}{% if post.css %}<style>{{ post.css | safe }}</style>{% endif %}{% endblock %}
 
 {% block content %}
 <header class="masthead" style="background-image: url({{post.coverImage.url}})">

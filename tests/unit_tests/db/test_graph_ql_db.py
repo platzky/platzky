@@ -159,6 +159,7 @@ def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):
             "comments": [
                 {"author": "Jane Doe", "comment": "Great post!", "createdAt": "2023-01-01"}
             ],
+            "css": ".masthead { background: teal; }",
         }
     }
     mock_client.execute.return_value = mock_response
@@ -168,10 +169,58 @@ def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):
     assert isinstance(post, Post)
     assert post.title == "Test Post"
     assert post.slug == "test-post"
+    assert post.css == ".masthead { background: teal; }"
     mock_client.execute.assert_called_once()
 
 
+def test_get_post_without_css(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_response = {
+        "post": {
+            "date": "2023-01-01",
+            "language": "en",
+            "title": "Test Post",
+            "slug": "test-post",
+            "author": {"name": "John Doe"},
+            "contentInRichText": {"markdown": "Test content", "html": "<p>Test content</p>"},
+            "excerpt": "Test excerpt",
+            "tags": ["test", "example"],
+            "coverImage": {
+                "alternateText": "Alt text",
+                "image": {"url": "https://example.com/image.jpg"},
+            },
+            "comments": [],
+            "css": None,
+        }
+    }
+    mock_client.execute.return_value = mock_response
+
+    post = graph_ql_db.get_post("test-post")
+
+    assert post.css == ""
+
+
 def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_response = {
+        "page": {
+            "slug": "about",
+            "title": "About",
+            "contentInMarkdown": "About page content",
+            "coverImage": {"url": "https://example.com/image.jpg"},
+            "css": ".masthead { background: teal; }",
+        }
+    }
+    mock_client.execute.return_value = mock_response
+
+    page = graph_ql_db.get_page("about")
+
+    assert isinstance(page, Post)  # Page is an alias for Post
+    assert page.title == "About"
+    assert page.contentInMarkdown == "About page content"
+    assert page.css == ".masthead { background: teal; }"
+    mock_client.execute.assert_called_once()
+
+
+def test_get_page_without_css(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "page": {
             "slug": "about",
@@ -184,10 +233,7 @@ def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
 
     page = graph_ql_db.get_page("about")
 
-    assert isinstance(page, Post)  # Page is an alias for Post
-    assert page.title == "About"
-    assert page.contentInMarkdown == "About page content"
-    mock_client.execute.assert_called_once()
+    assert page.css == ""
 
 
 def test_get_page_not_found(graph_ql_db: GraphQL, mock_client: Mock):
@@ -305,7 +351,7 @@ def test_get_home_page_path(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
     mock_client.execute.return_value = mock_response
 
-    assert graph_ql_db.get_home_page_path() == "/blog/page/about"
+    assert graph_ql_db.get_home_page_path("en") == "/blog/page/about"
     mock_client.execute.assert_called_once()
 
 
@@ -313,23 +359,55 @@ def test_get_home_page_path_missing(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"applicationSetups": [{}]}
     mock_client.execute.return_value = mock_response
 
-    assert graph_ql_db.get_home_page_path() is None
+    assert graph_ql_db.get_home_page_path("en") is None
 
 
 def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
     mock_client.execute.return_value = {"applicationSetups": []}
 
-    assert graph_ql_db.get_home_page_path() is None
+    assert graph_ql_db.get_home_page_path("en") is None
 
 
-def test_get_primary_color(graph_ql_db: GraphQL):
+def test_get_primary_color(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": [{"primaryColor": "#0085A1"}]}
+
     color = graph_ql_db.get_primary_color()
-    assert color == "white"
+
+    assert color == "#0085A1"
+    mock_client.execute.assert_called_once()
 
 
-def test_get_secondary_color(graph_ql_db: GraphQL):
+def test_get_primary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": [{}]}
+
+    assert graph_ql_db.get_primary_color() == "white"
+
+
+def test_get_primary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": []}
+
+    assert graph_ql_db.get_primary_color() == "white"
+
+
+def test_get_secondary_color(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": [{"secondaryColor": "#006073"}]}
+
     color = graph_ql_db.get_secondary_color()
-    assert color == "navy"
+
+    assert color == "#006073"
+    mock_client.execute.assert_called_once()
+
+
+def test_get_secondary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": [{}]}
+
+    assert graph_ql_db.get_secondary_color() == "navy"
+
+
+def test_get_secondary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"themes": []}
+
+    assert graph_ql_db.get_secondary_color() == "navy"
 
 
 def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):

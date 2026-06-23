@@ -170,6 +170,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             title=page.title,
+            css=page.css,
             content=content_transformer(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )

@@ -147,12 +147,16 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_home_page_path(self) -> str | None:
+    def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path to render as the site's homepage.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
 
         Returns:
             A path such as "/blog/page/about" or "/blog/some-post", resolved
-            against the app's own routes. None if no homepage override is configured.
+            against the app's own routes. None if no homepage override is configured
+            for this locale (or globally).
         """
         pass
 

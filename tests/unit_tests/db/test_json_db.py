@@ -247,11 +247,27 @@ class TestJsonDbSiteSettings:
         assert db_minimal.get_secondary_color() == "navy"
 
     def test_get_home_page_path_default(self, db_minimal: Json):
-        assert db_minimal.get_home_page_path() is None
+        assert db_minimal.get_home_page_path("en") is None
 
     def test_get_home_page_path(self):
         db = Json({"site_content": {"home_page_path": "/blog/page/about"}})
-        assert db.get_home_page_path() == "/blog/page/about"
+        assert db.get_home_page_path("en") == "/blog/page/about"
+
+    def test_get_home_page_path_per_locale(self):
+        db = Json(
+            {"site_content": {"home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"}}}
+        )
+        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
+        assert db.get_home_page_path("en") == "/blog/"
+
+    def test_get_home_page_path_per_locale_no_default(self):
+        db = Json({"site_content": {"home_page_path": {"pl": "/blog/page/o-nas"}}})
+        assert db.get_home_page_path("en") is None
+
+    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(self):
+        """Only an absent key falls back to "default" — a present key returns its value as-is."""
+        db = Json({"site_content": {"home_page_path": {"default": "/blog/", "pl": ""}}})
+        assert db.get_home_page_path("pl") == ""
 
 
 class TestJsonDbComments:
