@@ -257,6 +257,48 @@ inject at the start of ``<body>``. Only sections declared in ``accepted_page_sec
 **and** permitted by ``allowed_page_sections`` in the database config are injected —
 neither side alone controls what gets rendered.
 
+Host-Defined Capabilities
+-------------------------
+
+.. versionadded:: 2.0.0
+
+The capability base classes above are platzky's built-in contract. Plugin
+*discovery* never injects new capability bases: an installed package cannot add a
+capability simply by being present, because each built-in capability carries an
+engine-enforced allowlist (notifier topics, content types, page sections) and
+auto-injection would let a dependency sidestep it.
+
+An application that *composes* the engine via
+:func:`platzky.create_app_from_config` owns its own plugin ecosystem, and may
+extend the system for it by passing two arguments:
+
+``extra_plugin_bases``
+    Additional capability base classes (``PluginBase`` subclasses) the engine will
+    recognise when registering plugins, on top of the built-in ones.
+
+``extra_plugins_entrypoints``
+    Additional entry-point groups to discover plugins from, on top of
+    ``platzky.plugins``.
+
+.. code-block:: python
+
+    from platzky import create_app_from_config
+    from platzky.plugin.plugin import PluginBase
+
+    class MyAppCapabilityBase(PluginBase):
+        """A capability owned by the application embedding platzky."""
+
+    app = create_app_from_config(
+        config,
+        extra_plugin_bases=[MyAppCapabilityBase],
+        extra_plugins_entrypoints=["myapp.plugins"],
+    )
+
+Plugins that subclass ``MyAppCapabilityBase`` and declare a ``myapp.plugins`` entry
+point are then discovered, config-gated (``is_active``), and loaded through the same
+loader as platzky's own plugins. The extension is explicit and owned by the embedding
+application, not granted to arbitrary installed packages via discovery.
+
 Accessing the Engine from Request Handlers
 -------------------------------------------
 

@@ -3,7 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Awaitable, Iterable
+from collections.abc import Awaitable, Iterable, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request, session
@@ -27,6 +27,7 @@ from platzky.feature_flags import FakeLogin
 from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
+from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -204,7 +205,12 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     return result
 
 
-def create_engine(config: Config, db: DB) -> Engine:
+def create_engine(
+    config: Config,
+    db: DB,
+    extra_plugin_bases: Sequence[type[PluginBase]] = (),
+    extra_plugins_entrypoints: Sequence[str] = (),
+) -> Engine:
     """Create and configure a Platzky Engine instance.
 
     Sets up the core application with database connection, request handlers,
@@ -213,11 +219,13 @@ def create_engine(config: Config, db: DB) -> Engine:
     Args:
         config: Application configuration object
         db: Database instance for data persistence
+        extra_plugin_bases: Host-registered capability base classes (see ``Engine``).
+        extra_plugins_entrypoints: Host-registered entry-point groups (see ``Engine``).
 
     Returns:
         Configured Engine instance with plugins loaded
     """
-    app = Engine(config, db, __name__)
+    app = Engine(config, db, __name__, extra_plugin_bases, extra_plugins_entrypoints)
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -315,7 +323,11 @@ def create_engine(config: Config, db: DB) -> Engine:
     return plugify(app)
 
 
-def create_app_from_config(config: Config) -> Engine:
+def create_app_from_config(
+    config: Config,
+    extra_plugin_bases: Sequence[type[PluginBase]] = (),
+    extra_plugins_entrypoints: Sequence[str] = (),
+) -> Engine:
     """Create a fully configured Platzky application from a Config object.
 
     Initializes the database, creates the engine, sets up telemetry (if enabled),
@@ -324,6 +336,11 @@ def create_app_from_config(config: Config) -> Engine:
 
     Args:
         config: Application configuration object
+        extra_plugin_bases: Capability base classes a host application registers for its
+            own plugin ecosystem, in addition to platzky's built-in ``PLUGIN_BASES``.
+            Plugins cannot register capabilities; only the host composing the app can.
+        extra_plugins_entrypoints: Entry-point groups a host application registers for
+            plugin discovery, in addition to ``platzky.plugins``.
 
     Returns:
         Fully configured Engine instance ready to serve requests
@@ -333,7 +350,7 @@ def create_app_from_config(config: Config) -> Engine:
         ValueError: If telemetry configuration is invalid
     """
     db = get_db(config.db)
-    engine = create_engine(config, db)
+    engine = create_engine(config, db, extra_plugin_bases, extra_plugins_entrypoints)
 
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:

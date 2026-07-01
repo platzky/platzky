@@ -19,10 +19,13 @@ logger = logging.getLogger(__name__)
 _ENTRY_POINT_GROUP = "platzky.plugins"
 
 
-def _discover_entry_points() -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
+def _discover_entry_points(
+    groups: tuple[str, ...] = (_ENTRY_POINT_GROUP,),
+) -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
     discovered: dict[str, type[PluginBase]] = {}
     failed: dict[str, Exception] = {}
-    for entry_point in importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP):
+    entry_points = [ep for group in groups for ep in importlib.metadata.entry_points(group=group)]
+    for entry_point in entry_points:
         try:
             plugin_class = entry_point.load()
         except Exception as e:
@@ -68,7 +71,8 @@ def plugify(app: Engine) -> Engine:
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
 
-    discovered, failed_entry_points = _discover_entry_points()
+    groups = (_ENTRY_POINT_GROUP, *app.extra_plugins_entrypoints)
+    discovered, failed_entry_points = _discover_entry_points(groups)
 
     for plugin_name, plugin_config in plugins_data.items():
         if not plugin_config.is_active:
@@ -84,9 +88,10 @@ def plugify(app: Engine) -> Engine:
                     f"Original error: {failed_entry_points[plugin_name]}"
                 ) from failed_entry_points[plugin_name]
             else:
+                groups_list = ", ".join(repr(g) for g in groups)
                 raise PluginError(
-                    f"Plugin '{plugin_name}' not found. "
-                    "Ensure it is installed and declares a 'platzky.plugins' entry point."
+                    f"Plugin '{plugin_name}' not found. Ensure it is installed and declares "
+                    f"an entry point in one of these groups: {groups_list}."
                 )
 
         except PluginError:
