@@ -188,9 +188,7 @@ class TestEntryPointDiscovery:
 
         ep = _make_entry_point("dup_plugin", DupPlugin)
         with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
-            app = create_app_from_config(
-                config, extra_plugins_entrypoints=["platzky.plugins"]
-            )
+            app = create_app_from_config(config, extra_plugins_entrypoints=["platzky.plugins"])
 
         assert any(isinstance(p, DupPlugin) for p in app.loaded_plugins)
 
