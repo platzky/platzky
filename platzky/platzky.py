@@ -219,8 +219,8 @@ def create_engine(
     Args:
         config: Application configuration object
         db: Database instance for data persistence
-        extra_plugin_bases: Host-registered capability base classes (see ``Engine``).
-        extra_plugins_entrypoints: Host-registered entry-point groups (see ``Engine``).
+        extra_plugin_bases: App specific registered capability base classes (see ``Engine``).
+        extra_plugins_entrypoints: App specific registered entry-point groups (see ``Engine``).
 
     Returns:
         Configured Engine instance with plugins loaded
