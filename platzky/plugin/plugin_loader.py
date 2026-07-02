@@ -22,6 +22,7 @@ _ENTRY_POINT_GROUP = "platzky.plugins"
 def _discover_entry_points(
     groups: tuple[str, ...] = (_ENTRY_POINT_GROUP,),
 ) -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
+    groups = tuple(dict.fromkeys(groups))
     discovered: dict[str, type[PluginBase]] = {}
     failed: dict[str, Exception] = {}
     entry_points = [ep for group in groups for ep in importlib.metadata.entry_points(group=group)]

@@ -170,6 +170,31 @@ class TestPluginLoading:
         )
 
 
+class TestEntryPointDiscovery:
+    def test_duplicate_entry_point_groups_do_not_cause_self_collision(
+        self, base_config_data: dict[str, Any]
+    ):
+        class DupPlugin(NotifierPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+
+            def notify(self, notification: Notification) -> None:
+                pass  # no-op: test stub
+
+        base_config_data["DB"]["DATA"]["plugins"] = {
+            "dup_plugin": {"is_active": True, "config": {}}
+        }
+        config = Config.model_validate(base_config_data)
+
+        ep = _make_entry_point("dup_plugin", DupPlugin)
+        with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
+            app = create_app_from_config(
+                config, extra_plugins_entrypoints=["platzky.plugins"]
+            )
+
+        assert any(isinstance(p, DupPlugin) for p in app.loaded_plugins)
+
+
 class TestLocaleDirectorySecurity:
     """Test security validation of plugin locale directories through public API."""
 
