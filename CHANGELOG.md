@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.9](https://github.com/platzky/platzky/compare/v2.0.0-alpha.8...v2.0.0-alpha.9) (2026-07-03)
+
+
+### Features
+
+* apps can add their own capabilities ([#259](https://github.com/platzky/platzky/issues/259)) ([18ad645](https://github.com/platzky/platzky/commit/18ad6453cd886e6254c4fbd20c7ce6febf9fc16e))
+
 ## [2.0.0-alpha.8](https://github.com/platzky/platzky/compare/v2.0.0-alpha.7...v2.0.0-alpha.8) (2026-06-23)
 
 
