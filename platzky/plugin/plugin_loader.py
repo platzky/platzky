@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import inspect
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from pydantic import ValidationError
 
@@ -19,9 +19,35 @@ logger = logging.getLogger(__name__)
 _ENTRY_POINT_GROUP = "platzky.plugins"
 
 
+class EntryPointDiscoveryResult(NamedTuple):
+    """Result of scanning entry-point groups for plugins.
+
+    Attributes:
+        loaded: Successfully loaded ``PluginBase`` subclasses, keyed by entry-point name.
+        failed: Exceptions raised while loading an entry point, keyed by entry-point name.
+    """
+
+    loaded: dict[str, type[PluginBase]]
+    failed: dict[str, Exception]
+
+
 def _discover_entry_points(
     groups: tuple[str, ...] = (_ENTRY_POINT_GROUP,),
-) -> tuple[dict[str, type[PluginBase]], dict[str, Exception]]:
+) -> EntryPointDiscoveryResult:
+    """Load plugin classes from the given entry-point groups.
+
+    Duplicate groups are ignored so a host that re-registers the default group does not
+    cause a plugin to collide with itself.
+
+    Args:
+        groups: Entry-point group names to scan for plugins.
+
+    Returns:
+        Plugins that loaded successfully and the load errors, keyed by entry-point name.
+
+    Raises:
+        ValueError: If two distinct entry points share the same name.
+    """
     groups = tuple(dict.fromkeys(groups))
     discovered: dict[str, type[PluginBase]] = {}
     failed: dict[str, Exception] = {}
@@ -50,7 +76,7 @@ def _discover_entry_points(
         discovered[entry_point.name] = plugin_class
         logger.debug("Discovered plugin '%s' via entry points", entry_point.name)
 
-    return discovered, failed
+    return EntryPointDiscoveryResult(discovered, failed)
 
 
 def plugify(app: Engine) -> Engine:
