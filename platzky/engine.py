@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -80,6 +80,8 @@ class Engine(Flask):
         config: Config,
         db: DB,
         import_name: str,
+        extra_plugin_bases: Sequence[type["PluginBase"]] = (),
+        extra_plugins_entrypoints: Sequence[str] = (),
     ) -> None:
         """Initialize the Engine.
 
@@ -87,8 +89,16 @@ class Engine(Flask):
             config: Application configuration.
             db: Database instance.
             import_name: Name of the application module.
+            extra_plugin_bases: Host-registered capability base classes, in addition
+                to platzky's built-in ``PLUGIN_BASES``. A host application (e.g. one
+                that wraps ``create_app_from_config``) may define capabilities for its
+                own plugin ecosystem; plugins themselves cannot register capabilities.
+            extra_plugins_entrypoints: Host-registered entry-point groups to discover
+                plugins from, in addition to ``platzky.plugins``.
         """
         super().__init__(import_name)
+        self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
+        self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
@@ -199,8 +209,9 @@ class Engine(Flask):
         Raises:
             TypeError: If the plugin does not implement any recognised capability.
         """
+        recognised_bases = (*PLUGIN_BASES, *self.extra_plugin_bases)
         matched = False
-        for base in PLUGIN_BASES:
+        for base in recognised_bases:
             if isinstance(instance, base):
                 self.plugins[base].append(instance)
                 matched = True
@@ -211,7 +222,7 @@ class Engine(Flask):
             raise TypeError(
                 f"Plugin '{plugin_name}' ({type(instance).__name__}) does not implement "
                 f"any recognised capability. Must subclass one of: "
-                f"{', '.join(b.__name__ for b in PLUGIN_BASES)}"
+                f"{', '.join(b.__name__ for b in recognised_bases)}"
             )
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
