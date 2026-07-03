@@ -320,11 +320,19 @@ Packaging a Plugin
 ------------------
 
 Plugins are discovered via the ``platzky.plugins`` entry-point group. Declare your
-plugin class in ``pyproject.toml``:
+plugin class in ``pyproject.toml``. With Poetry:
 
 .. code-block:: toml
 
     [tool.poetry.plugins."platzky.plugins"]
+    my_plugin = "platzky_my_plugin:MyPlugin"
+
+Or, using the standard PEP 621 table (setuptools, hatch, and other PEP 621 build
+backends):
+
+.. code-block:: toml
+
+    [project.entry-points."platzky.plugins"]
     my_plugin = "platzky_my_plugin:MyPlugin"
 
 The key (``my_plugin``) is the name used in the database configuration.
