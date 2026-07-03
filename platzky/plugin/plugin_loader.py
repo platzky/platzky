@@ -32,15 +32,13 @@ class EntryPointDiscoveryResult(NamedTuple):
 
 
 def _discover_entry_points(
-    groups: tuple[str, ...] = (_ENTRY_POINT_GROUP,),
+    entry_point_groups: tuple[str, ...] = (_ENTRY_POINT_GROUP,),
 ) -> EntryPointDiscoveryResult:
     """Load plugin classes from the given entry-point groups.
 
-    Duplicate groups are ignored so a host that re-registers the default group does not
-    cause a plugin to collide with itself.
-
     Args:
-        groups: Entry-point group names to scan for plugins.
+        entry_point_groups: Entry-point group names to scan for plugins. Must be unique; a
+            repeated group would rediscover the same plugin and raise a duplicate-name error.
 
     Returns:
         Plugins that loaded successfully and the load errors, keyed by entry-point name.
@@ -48,10 +46,11 @@ def _discover_entry_points(
     Raises:
         ValueError: If two distinct entry points share the same name.
     """
-    groups = tuple(dict.fromkeys(groups))
     discovered: dict[str, type[PluginBase]] = {}
     failed: dict[str, Exception] = {}
-    entry_points = [ep for group in groups for ep in importlib.metadata.entry_points(group=group)]
+    entry_points = [
+        ep for group in entry_point_groups for ep in importlib.metadata.entry_points(group=group)
+    ]
     for entry_point in entry_points:
         try:
             plugin_class = entry_point.load()
@@ -98,8 +97,9 @@ def plugify(app: Engine) -> Engine:
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
 
-    groups = (_ENTRY_POINT_GROUP, *app.extra_plugins_entrypoints)
-    discovered, failed_entry_points = _discover_entry_points(groups)
+    # Dedupe so a host re-registering the default group does not collide with itself.
+    entry_point_groups = tuple(dict.fromkeys((_ENTRY_POINT_GROUP, *app.extra_plugins_entrypoints)))
+    discovered, failed_entry_points = _discover_entry_points(entry_point_groups)
 
     for plugin_name, plugin_config in plugins_data.items():
         if not plugin_config.is_active:
@@ -115,7 +115,7 @@ def plugify(app: Engine) -> Engine:
                     f"Original error: {failed_entry_points[plugin_name]}"
                 ) from failed_entry_points[plugin_name]
             else:
-                groups_list = ", ".join(repr(g) for g in groups)
+                groups_list = ", ".join(repr(g) for g in entry_point_groups)
                 raise PluginError(
                     f"Plugin '{plugin_name}' not found. Ensure it is installed and declares "
                     f"an entry point in one of these groups: {groups_list}."
