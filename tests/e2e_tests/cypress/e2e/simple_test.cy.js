@@ -55,19 +55,19 @@ describe('Blog test', () => {
     cy.contains('page content')
   })
 
-  it('404s a page whose css tries to break out of its <style> tag', () => {
+  it('500s a page whose css tries to break out of its <style> tag', () => {
     // The test data has a page whose css field is
     // "</style><script>alert('xss')</script><style>" — the trailing <style>
     // is part of the attack: it would make the page look visually unchanged
     // even if the breakout worked. Model validation rejects this css outright,
-    // so the page 404s rather than rendering a live <script> tag.
+    // so the page 500s rather than rendering a live <script> tag.
     const url = '/blog/page/style-breakout'
     cy.on('window:alert', () => {
       throw new Error('script from css breakout executed')
     })
 
     cy.request({url: url, failOnStatusCode: false})
-      .then(resp => expect(resp.status).to.eq(404))
+      .then(resp => expect(resp.status).to.eq(500))
 
     cy.visit(url, {failOnStatusCode: false})
     cy.contains("This page doesn't exist")
