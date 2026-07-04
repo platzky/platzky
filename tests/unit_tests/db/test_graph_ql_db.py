@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from gql import Client
 
+from platzky.db.exceptions import NotFoundError
 from platzky.db.graph_ql_db import (
     GraphQL,
     GraphQlDbConfig,
@@ -239,8 +240,15 @@ def test_get_page_without_css(graph_ql_db: GraphQL, mock_client: Mock):
 def test_get_page_not_found(graph_ql_db: GraphQL, mock_client: Mock):
     mock_client.execute.return_value = {"page": None}
 
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(NotFoundError, match="missing"):
         graph_ql_db.get_page("missing")
+
+
+def test_get_post_not_found(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {"post": None}
+
+    with pytest.raises(NotFoundError, match="missing"):
+        graph_ql_db.get_post("missing")
 
 
 def test_get_posts_by_tag(graph_ql_db: GraphQL, mock_client: Mock):

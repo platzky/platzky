@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from platzky.db.exceptions import NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
 from platzky.models import MenuItem, Post
 
@@ -165,7 +166,7 @@ class TestMongoDB:
     def test_get_post_not_found(self, db: MongoDB):
         cast(Mock, db.posts.find_one).return_value = None
 
-        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
     def test_get_page(self, db: MongoDB):
@@ -197,7 +198,7 @@ class TestMongoDB:
     def test_get_page_not_found(self, db: MongoDB):
         cast(Mock, db.pages.find_one).return_value = None
 
-        with pytest.raises(ValueError, match="Page with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
     def test_get_posts_by_tag(self, db: MongoDB):
