@@ -10,10 +10,12 @@ from unittest.mock import MagicMock
 import pytest
 from flask.testing import FlaskClient
 from freezegun import freeze_time
+from pydantic import ValidationError
 from werkzeug.test import TestResponse
 
 from platzky.blog import blog
 from platzky.config import Config
+from platzky.db.exceptions import NotFoundError
 from platzky.engine import Engine
 from platzky.models import Comment, Image, Post
 from platzky.platzky import create_engine
@@ -91,11 +93,20 @@ def test_usual_post(test_app: FlaskClient):
 
 
 def test_not_existing_post(test_app: FlaskClient):
-    cast(MagicMock, cast(Engine, test_app.application).db.get_post).side_effect = ValueError(
+    cast(MagicMock, cast(Engine, test_app.application).db.get_post).side_effect = NotFoundError(
         "Post not found"
     )
     response = test_app.get("/prefix/slughorn")
     assert response.status_code == 404
+
+
+def test_corrupt_post_is_not_masked_as_404(test_app: FlaskClient):
+    def get_corrupt_post(_slug: str) -> Post:
+        return Post.model_validate({"slug": "broken"})
+
+    cast(MagicMock, cast(Engine, test_app.application).db.get_post).side_effect = get_corrupt_post
+    with pytest.raises(ValidationError):
+        test_app.get("/prefix/broken")
 
 
 def test_rss_feed(test_app: FlaskClient):
@@ -166,7 +177,7 @@ def test_posting_new_comment(test_app: FlaskClient):
 
 
 def test_not_existing_page(test_app: FlaskClient):
-    cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = ValueError(
+    cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = NotFoundError(
         "Page not found"
     )
     response = test_app.get("/prefix/page/not-existing-page")
@@ -214,10 +225,10 @@ def _mock_get_page_with_bad_css(test_app: FlaskClient) -> None:
     )
 
 
-def test_page_with_style_breakout_css_returns_404(test_app: FlaskClient):
+def test_page_with_style_breakout_css_is_never_rendered(test_app: FlaskClient):
     _mock_get_page_with_bad_css(test_app)
-    response = test_app.get("/prefix/page/blabla")
-    assert response.status_code == 404
+    with pytest.raises(ValidationError, match="css"):
+        test_app.get("/prefix/page/blabla")
 
 
 # TODO create those tests

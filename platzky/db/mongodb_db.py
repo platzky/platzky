@@ -9,6 +9,7 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -120,11 +121,11 @@ class MongoDB(DB):
             Post object
 
         Raises:
-            ValueError: If post not found
+            NotFoundError: If post not found
         """
         post_doc = self.posts.find_one({"slug": slug})
         if post_doc is None:
-            raise ValueError(f"Post with slug {slug} not found")
+            raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(post_doc)
 
     def get_page(self, slug: str) -> Page:
@@ -137,11 +138,11 @@ class MongoDB(DB):
             Page object
 
         Raises:
-            ValueError: If page not found
+            NotFoundError: If page not found
         """
         page_doc = self.pages.find_one({"slug": slug})
         if page_doc is None:
-            raise ValueError(f"Page with slug {slug} not found")
+            raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(page_doc)
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
@@ -166,7 +167,7 @@ class MongoDB(DB):
             post_slug: URL-friendly identifier of the post
 
         Raises:
-            ValueError: If post not found
+            NotFoundError: If post not found
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         comment_doc = {
@@ -177,7 +178,7 @@ class MongoDB(DB):
 
         result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
         if result.matched_count == 0:
-            raise ValueError(f"Post with slug {post_slug} not found")
+            raise NotFoundError(f"Post with slug {post_slug} not found")
 
     def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.

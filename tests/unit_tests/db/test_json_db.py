@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from platzky.db.exceptions import DBError, NotFoundError
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.models import MenuItem, Page, Post
 
@@ -116,12 +117,12 @@ class TestJsonDb:
         assert post.slug == "post-1"
 
     def test_get_post_not_found(self, db: Json):
-        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
     def test_get_post_missing_data(self):
         db_without_posts = Json({"site_content": {}})
-        with pytest.raises(ValueError, match="Posts data is missing"):
+        with pytest.raises(NotFoundError, match="Posts data is missing"):
             db_without_posts.get_post("any-slug")
 
     def test_get_post_with_missing_required_field(self, db: Json):
@@ -145,7 +146,7 @@ class TestJsonDb:
         assert page.slug == "page-1"
 
     def test_get_page_not_found(self, db: Json):
-        with pytest.raises(ValueError, match="Page with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
     def test_get_page_with_minimal_fields(self):
@@ -312,7 +313,7 @@ class TestJsonDbComments:
         assert comment["date"] == "2023-01-01T12:00:00"
 
     def test_add_comment_to_nonexistent_post(self, db: Json):
-        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.add_comment("Test User", "Comment", "non-existent")
 
 
@@ -335,7 +336,7 @@ class TestJsonDbHealthCheck:
 
     def test_health_check_failure_no_site_content(self):
         db = Json({"other_data": "value"})
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.health_check()
 
 
@@ -343,11 +344,11 @@ class TestJsonDbEmptyDb:
     def test_empty_db_raises_exception_on_operations(self):
         db = Json({})
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_all_posts("en")
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_logo_url()
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")

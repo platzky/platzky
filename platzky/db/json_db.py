@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import DBError, NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -91,14 +92,14 @@ class Json(DB):
             Post object
 
         Raises:
-            ValueError: If posts data is missing or post not found
+            NotFoundError: If posts data is missing or post not found
         """
         all_posts = self._get_site_content().get("posts")
         if all_posts is None:
-            raise ValueError("Posts data is missing")
+            raise NotFoundError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
         if wanted_post is None:
-            raise ValueError(f"Post with slug {slug} not found")
+            raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
 
     # TODO: Add test for non-existing page
@@ -112,14 +113,14 @@ class Json(DB):
             Page object
 
         Raises:
-            ValueError: If pages data is missing or page not found
+            NotFoundError: If pages data is missing or page not found
         """
         pages = self._get_site_content().get("pages")
         if pages is None:
-            raise ValueError("Pages data is missing")
+            raise NotFoundError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
         if wanted_page is None:
-            raise ValueError(f"Page with slug {slug} not found")
+            raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(wanted_page)
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
@@ -153,11 +154,11 @@ class Json(DB):
             Site content dictionary
 
         Raises:
-            ValueError: If site content is not found
+            DBError: If the site_content section is missing from the database
         """
         content = self.data.get("site_content")
         if content is None:
-            raise ValueError("Content should not be None")
+            raise DBError("site_content section is missing from database")
         return content
 
     def get_logo_url(self) -> str:
@@ -229,6 +230,9 @@ class Json(DB):
             author_name: Name of the comment author
             comment: Comment text content
             post_slug: URL-friendly identifier of the post
+
+        Raises:
+            NotFoundError: If post not found
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
@@ -241,7 +245,7 @@ class Json(DB):
         posts = self._get_site_content()["posts"]
         post = next((p for p in posts if p["slug"] == post_slug), None)
         if post is None:
-            raise ValueError(f"Post with slug {post_slug} not found")
+            raise NotFoundError(f"Post with slug {post_slug} not found")
         post["comments"].append(comment_data)
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:

@@ -117,20 +117,20 @@ class Shortcode(ABC):
 
         Called when a content entry has a field mapped to this shortcode — for example
         the string ``"SUMMER24"`` for a promocode field.  The base implementation
-        adds ``"scope": self.name`` and, if *value* is a dict, merges its keys in.
-        Override to unpack the value, merge rendering defaults, encode sensitive data,
-        or otherwise produce the full frontend payload.
+        adds ``"type": self.name`` (the key the frontend routes on) and, if *value* is a
+        dict, merges its keys in. Override to unpack the value, merge rendering defaults,
+        encode sensitive data, or otherwise produce the full frontend payload.
 
         Args:
             value: Raw field value from the content data.
 
         Returns:
-            Dict with at least ``"scope"`` present.
+            Dict with at least ``"type"`` present.
         """
         if isinstance(value, dict):
             # isinstance narrows to dict[Unknown, Unknown]; cast supplies the key type pyright needs
-            return {**cast(dict[str, object], value), "scope": self.name}
-        return {"scope": self.name}
+            return {**cast(dict[str, object], value), "type": self.name}
+        return {"type": self.name}
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:

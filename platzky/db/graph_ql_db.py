@@ -10,6 +10,7 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -250,6 +251,9 @@ class GraphQL(DB):
 
         Returns:
             Post object
+
+        Raises:
+            NotFoundError: If no post exists for the given slug.
         """
         post = gql("""
             query MyQuery($slug: String!) {
@@ -284,6 +288,8 @@ class GraphQL(DB):
             """)
 
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
+        if post_raw is None:
+            raise NotFoundError(f"Post not found: {slug}")
         return Post.model_validate(_standardize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
@@ -297,7 +303,7 @@ class GraphQL(DB):
             Page object
 
         Raises:
-            ValueError: If no page exists for the given slug.
+            NotFoundError: If no page exists for the given slug.
         """
         page_query = gql("""
             query MyQuery ($slug: String!){
@@ -315,7 +321,7 @@ class GraphQL(DB):
             """)
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
         if page_raw is None:
-            raise ValueError(f"Page not found: {slug}")
+            raise NotFoundError(f"Page not found: {slug}")
         return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:

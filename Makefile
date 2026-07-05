@@ -28,7 +28,10 @@ coverage:
 html-cov: coverage
 	poetry run coverage html
 
-run-e2e-instance:
+e2e-test-data:
+	cp tests/e2e_tests/e2e_test_data.template.json tests/e2e_tests/e2e_test_data.json
+
+run-e2e-instance: e2e-test-data
 	poetry run flask --app "platzky.platzky:create_app(config_path='tests/e2e_tests/e2e_test_config.yml')" run --debug
 
 extract-translations:
