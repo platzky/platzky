@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import DBError, NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -154,11 +154,11 @@ class Json(DB):
             Site content dictionary
 
         Raises:
-            ValueError: If site content is not found
+            DBError: If the site_content section is missing from the database
         """
         content = self.data.get("site_content")
         if content is None:
-            raise ValueError("Content should not be None")
+            raise DBError("site_content section is missing from database")
         return content
 
     def get_logo_url(self) -> str:

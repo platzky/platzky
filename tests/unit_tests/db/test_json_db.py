@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import DBError, NotFoundError
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.models import MenuItem, Page, Post
 
@@ -336,7 +336,7 @@ class TestJsonDbHealthCheck:
 
     def test_health_check_failure_no_site_content(self):
         db = Json({"other_data": "value"})
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.health_check()
 
 
@@ -344,11 +344,11 @@ class TestJsonDbEmptyDb:
     def test_empty_db_raises_exception_on_operations(self):
         db = Json({})
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_all_posts("en")
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_logo_url()
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")

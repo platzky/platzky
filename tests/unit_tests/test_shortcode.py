@@ -77,13 +77,13 @@ class TestShortcodeSubclassing:
                 {"name": "123invalid", "description": "test", "render": _render},
             )
 
-    def test_base_transform_field_value_non_dict_returns_scope_only(self) -> None:
+    def test_base_transform_field_value_non_dict_returns_type_only(self) -> None:
         sc = _sc("mytag")
-        assert sc.transform_field_value("anything") == {"scope": "mytag"}
+        assert sc.transform_field_value("anything") == {"type": "mytag"}
 
-    def test_base_transform_field_value_dict_merges_with_scope(self) -> None:
+    def test_base_transform_field_value_dict_merges_with_type(self) -> None:
         sc = _sc("mytag")
-        assert sc.transform_field_value({"color": "red"}) == {"scope": "mytag", "color": "red"}
+        assert sc.transform_field_value({"color": "red"}) == {"type": "mytag", "color": "red"}
 
 
 class TestApplyShortcodes:

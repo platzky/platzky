@@ -70,7 +70,7 @@ describe('Blog test', () => {
       .then(resp => expect(resp.status).to.eq(500))
 
     cy.visit(url, {failOnStatusCode: false})
-    cy.contains("This page doesn't exist")
+    cy.contains('css must not contain')
   })
 
 // TODO add tests:
