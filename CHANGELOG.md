@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.10](https://github.com/platzky/platzky/compare/v2.0.0-alpha.9...v2.0.0-alpha.10) (2026-07-05)
+
+
+### Bug Fixes
+
+* more accurate exceptions on nonexisting content ([#261](https://github.com/platzky/platzky/issues/261)) ([7d15ba3](https://github.com/platzky/platzky/commit/7d15ba37fbd54f653a82f4b2bb3dacfc4b76a6dc))
+
 ## [2.0.0-alpha.9](https://github.com/platzky/platzky/compare/v2.0.0-alpha.8...v2.0.0-alpha.9) (2026-07-03)
 
 
