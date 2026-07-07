@@ -12,8 +12,8 @@
 
   <div class="row align-items-center">
 
-{% for plugin in login_plugins %}
-        {{ plugin.render_login_button() }}
+{% for method in login_methods %}
+        {{ method() }}
 
 {% endfor %}
 

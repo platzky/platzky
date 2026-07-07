@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -51,6 +51,18 @@ def test_favicon_is_applied(test_app: Engine):
     assert isinstance(found_ico, Tag)
     assert found_ico.get("href") is not None
     assert found_ico.get("href") == "https://example.com/favicon.ico"
+
+
+def test_notifier(test_app: Engine):
+    engine = test_app
+    messages: list[str] = []
+
+    def notifier(message: str) -> None:
+        messages.append(message)
+
+    engine.add_notifier(notifier)
+    engine.notify("test")
+    assert messages == ["test"]
 
 
 @pytest.mark.parametrize("content_type", ["body", "head"])
@@ -106,161 +118,11 @@ def test_www_redirects(use_www: bool):
     assert response.location == expected_redirect
 
 
-def _build_home_page_test_app(
-    site_content: dict[str, Any], languages: dict[str, Any] | None = None
-):
-    config_data = {
-        "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
-        "USE_WWW": False,
-        "BLOG_PREFIX": "/blog",
-        "LANGUAGES": languages or {},
-        "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
-    }
-    config = Config.model_validate(config_data)
-    return create_app_from_config(config)
-
-
-def test_home_page_renders_configured_page():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": "/blog/page/about",
-            "pages": [
-                {
-                    "title": "About us",
-                    "slug": "about",
-                    "contentInMarkdown": "Hello there",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                }
-            ],
-        }
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Hello there" in response.data
-
-
-def test_home_page_renders_configured_post():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": "/blog/welcome-post",
-            "posts": [
-                {
-                    "title": "Welcome",
-                    "slug": "welcome-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "Welcome to the site",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        }
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Welcome to the site" in response.data
-
-
-def test_home_page_falls_back_to_blog_index_when_not_configured():
-    app = _build_home_page_test_app(
-        {
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        }
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
-
-
-def test_home_page_resolves_per_locale_path():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": {"default": "/blog/page/about", "pl": "/blog/page/o-nas"},
-            "pages": [
-                {
-                    "title": "About us",
-                    "slug": "about",
-                    "contentInMarkdown": "Hello there",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-                {
-                    "title": "O nas",
-                    "slug": "o-nas",
-                    "contentInMarkdown": "Witaj",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-            ],
-        },
-        languages={
-            "en": {"name": "English", "flag": "us", "country": "US"},
-            "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
-        },
-    )
-    # Separate clients avoid the language session cookie from one request
-    # leaking into the other and masking the per-locale resolution.
-    default_response = app.test_client().get("/", headers={"Accept-Language": "en"})
-    assert default_response.status_code == 200
-    assert b"Hello there" in default_response.data
-
-    pl_response = app.test_client().get("/", headers={"Accept-Language": "pl"})
-    assert pl_response.status_code == 200
-    assert b"Witaj" in pl_response.data
-
-
-def test_home_page_404s_when_configured_path_does_not_resolve():
-    app = _build_home_page_test_app({"home_page_path": "/blog/page/does-not-exist"})
-    response = app.test_client().get("/")
-    assert response.status_code == 404
-
-
-def test_home_page_falls_back_when_configured_path_is_root():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": "/",
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        }
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
-
-
-def test_that_404_page_title_includes_app_name(test_app: Engine):
+def test_that_default_page_title_is_app_name(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.title is not None
-    # En dash matches 404.html's actual rendered title, not a typo for a hyphen.
-    assert soup.title.string == "Page not found – testing App Name"  # noqa: RUF001
+    assert soup.title.string == "testing App Name"
 
 
 @pytest.mark.parametrize(
@@ -298,97 +160,6 @@ def test_that_language_menu_has_proper_code(test_app: Engine):
     assert language_menu.get_text() == "en"
 
 
-def _build_dedicated_domain_test_app() -> Engine:
-    config_data = {
-        "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
-        "USE_WWW": False,
-        "BLOG_PREFIX": "/blog",
-        "LANGUAGES": {
-            "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
-            "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
-        },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
-    }
-    config = Config.model_validate(config_data)
-    return create_app_from_config(config)
-
-
-def test_locale_defaults_to_the_language_whose_domain_is_being_visited():
-    # Regression test: a fresh visitor (no session yet) landing directly on a
-    # language's dedicated domain should see that language, not "en" via the
-    # Accept-Language fallback.
-    app = _build_dedicated_domain_test_app()
-    response = app.test_client().get("/", headers={"Host": "pl.example.com"})
-    soup = BeautifulSoup(response.data, "html.parser")
-    language_menu = soup.find("span", class_="language-indicator-text")
-    assert isinstance(language_menu, Tag)
-    assert language_menu.get_text() == "pl"
-
-
-def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
-    # Regression test: domain configs that include an explicit port (e.g. local/staging
-    # setups like "pl.example.com:5000") must still match the request host's port.
-    config_data = {
-        "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
-        "USE_WWW": False,
-        "BLOG_PREFIX": "/blog",
-        "LANGUAGES": {
-            "en": {
-                "name": "English",
-                "flag": "gb",
-                "country": "GB",
-                "domain": "en.example.com:5000",
-            },
-            "pl": {
-                "name": "polski",
-                "flag": "pl",
-                "country": "PL",
-                "domain": "pl.example.com:5000",
-            },
-        },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
-    }
-    config = Config.model_validate(config_data)
-    app = create_app_from_config(config)
-    response = app.test_client().get("/", headers={"Host": "pl.example.com:5000"})
-    soup = BeautifulSoup(response.data, "html.parser")
-    language_menu = soup.find("span", class_="language-indicator-text")
-    assert isinstance(language_menu, Tag)
-    assert language_menu.get_text() == "pl"
-
-
-def test_locale_does_not_match_domain_on_a_different_port():
-    # Regression test: a domain with an explicit port must not match a request on a
-    # different port, even though the hostname is identical.
-    config_data = {
-        "APP_NAME": "testingApp",
-        "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
-        "USE_WWW": False,
-        "BLOG_PREFIX": "/blog",
-        "LANGUAGES": {
-            "en": {"name": "English", "flag": "gb", "country": "GB"},
-            "pl": {
-                "name": "polski",
-                "flag": "pl",
-                "country": "PL",
-                "domain": "pl.example.com:5000",
-            },
-        },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
-    }
-    config = Config.model_validate(config_data)
-    app = create_app_from_config(config)
-    response = app.test_client().get(
-        "/", headers={"Host": "pl.example.com:6000", "Accept-Language": "en"}
-    )
-    soup = BeautifulSoup(response.data, "html.parser")
-    language_menu = soup.find("span", class_="language-indicator-text")
-    assert isinstance(language_menu, Tag)
-    assert language_menu.get_text() == "en"
-
-
 def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
     response = test_app.test_client().get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -405,6 +176,20 @@ def test_that_page_has_proper_html_lang_attribute(test_app: Engine):
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.html is not None
     assert soup.html.get("lang") == "en-GB"
+
+
+def test_add_login_method(test_app: Engine):
+    def sample_login_method():
+        return "Login Method"
+
+    test_app.add_login_method(sample_login_method)
+    assert sample_login_method in test_app.login_methods
+
+    app = test_app.test_client()
+    response = app.get("/admin/", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert b"Login Method" in response.data
 
 
 def test_add_cms_module(test_app: Engine):
@@ -606,7 +391,6 @@ def test_is_enabled_with_flag_on():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "BLOG_PREFIX": "/blog",
         "TESTING": True,
-        "DEBUG": True,
         "FEATURE_FLAGS": {"FAKE_LOGIN": True},
         "DB": {
             "TYPE": "json",

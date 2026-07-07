@@ -3,8 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from platzky.db.exceptions import NotFoundError
-from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
+from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config, get_db
 from platzky.models import MenuItem, Post
 
 
@@ -21,6 +20,17 @@ class TestMongoDbConfig:
 
 
 class TestFactoryFunctions:
+    @patch("platzky.db.mongodb_db.MongoClient")
+    def test_get_db(self, mock_client: Mock):
+        config_data = {
+            "TYPE": "mongodb",
+            "CONNECTION_STRING": "mongodb://localhost:27017",
+            "DATABASE_NAME": "test_db",
+        }
+        db = get_db(config_data)
+        assert isinstance(db, MongoDB)
+        mock_client.assert_called_once_with("mongodb://localhost:27017")
+
     @patch("platzky.db.mongodb_db.MongoClient")
     def test_db_from_config(self, mock_client: Mock):
         config = MongoDbConfig.model_validate(
@@ -166,7 +176,7 @@ class TestMongoDB:
     def test_get_post_not_found(self, db: MongoDB):
         cast(Mock, db.posts.find_one).return_value = None
 
-        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
+        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
     def test_get_page(self, db: MongoDB):
@@ -198,7 +208,7 @@ class TestMongoDB:
     def test_get_page_not_found(self, db: MongoDB):
         cast(Mock, db.pages.find_one).return_value = None
 
-        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
+        with pytest.raises(ValueError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
     def test_get_posts_by_tag(self, db: MongoDB):
@@ -292,16 +302,16 @@ class TestMongoDB:
     def test_get_plugins_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = {
             "_id": "config",
-            "data": {"plugin1": {}},
+            "data": [{"name": "plugin1"}],
         }
 
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert "plugin1" in plugins
+        assert plugins[0].name == "plugin1"
 
     def test_get_plugins_data_no_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = None
-        assert db.get_plugins_data() == {}
+        assert db.get_plugins_data() == []
 
     def test_get_font(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = {"_id": "config", "font": "Arial"}
@@ -311,42 +321,6 @@ class TestMongoDB:
     def test_get_font_default(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = None
         assert db.get_font() == ""
-
-    def test_get_home_page_path(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": "/blog/page/about",
-        }
-        assert db.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_per_locale(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"},
-        }
-        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
-        assert db.get_home_page_path("en") == "/blog/"
-
-    def test_get_home_page_path_per_locale_no_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"pl": "/blog/page/o-nas"},
-        }
-        assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(
-        self, db: MongoDB
-    ):
-        """Only an absent key falls back to "default" — a present key returns its value as-is."""
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"default": "/blog/", "pl": ""},
-        }
-        assert db.get_home_page_path("pl") == ""
 
     def test_close_connection(self, db: MongoDB):
         db._close_connection()  # type: ignore[reportPrivateUsage] - Testing private method

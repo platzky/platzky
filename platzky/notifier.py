@@ -1,0 +1,44 @@
+"""Notification system types and protocols.
+
+This module provides notifier protocols for the platzky notification system.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from platzky.attachment import AttachmentProtocol
+
+
+class Notifier(Protocol):
+    """Protocol for simple notification handlers (message only).
+
+    Example:
+        def slack_notifier(message: str) -> None:
+            slack.post(message)
+
+        engine.add_notifier(slack_notifier)
+    """
+
+    def __call__(self, message: str) -> None:
+        """Protocol stub — implementations provided by conforming callables."""
+
+
+class NotifierWithAttachments(Protocol):
+    """Protocol for notification handlers that support attachments.
+
+    SECURITY: Archive attachments (zip, gzip, tar) are validated but never
+    extracted by platzky. Notifier implementations MUST NOT auto-extract
+    archives to avoid zip bomb attacks.
+
+    Example:
+        def email_notifier(message: str, attachments: Sequence[AttachmentProtocol] = ()) -> None:
+            send_email(message, attachments=attachments)
+
+        engine.add_notifier_with_attachments(email_notifier)
+    """
+
+    def __call__(self, message: str, attachments: Sequence[AttachmentProtocol] = ()) -> None:
+        """Protocol stub — implementations provided by conforming callables."""

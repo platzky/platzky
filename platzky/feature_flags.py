@@ -15,6 +15,13 @@ Example::
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import deprecation
+
+if TYPE_CHECKING:
+    from platzky.feature_flags_wrapper import FeatureFlagSet
+
 
 class FeatureFlag:
     """A feature flag.
@@ -74,3 +81,62 @@ FakeLogin = FeatureFlag(
 )
 
 BUILTIN_FLAGS: tuple[FeatureFlag, ...] = (FakeLogin,)
+
+
+# ---------------------------------------------------------------------------
+# Deprecated shims — will be removed in 2.0.0
+# ---------------------------------------------------------------------------
+
+
+@deprecation.deprecated(
+    deprecated_in="1.5.0",
+    removed_in="2.0.0",
+    details="Use BUILTIN_FLAGS instead.",
+)
+def all_flags() -> frozenset[FeatureFlag]:
+    """Return all built-in feature flags."""
+    return frozenset(BUILTIN_FLAGS)
+
+
+@deprecation.deprecated(
+    deprecated_in="1.5.0",
+    removed_in="2.0.0",
+    details="Use FeatureFlagSet(raw_data) and check membership with 'flag in flag_set' instead.",
+)
+def parse_flags(
+    raw_data: dict[str, bool] | None = None,
+) -> frozenset[FeatureFlag]:
+    """Build a frozenset of enabled flags from raw config data."""
+    if raw_data is None:
+        raw_data = {}
+    return frozenset(flag for flag in BUILTIN_FLAGS if raw_data.get(flag.alias, flag.default))
+
+
+@deprecation.deprecated(
+    deprecated_in="1.5.0",
+    removed_in="2.0.0",
+    details="Use FeatureFlagSet(raw_data) directly.",
+)
+def build_flag_set(raw_data: dict[str, bool] | None = None) -> FeatureFlagSet:
+    """Build a FeatureFlagSet from raw config data."""
+    from platzky.feature_flags_wrapper import FeatureFlagSet
+
+    return FeatureFlagSet(raw_data or {})
+
+
+@deprecation.deprecated(
+    deprecated_in="1.5.0",
+    removed_in="2.0.0",
+    details="No replacement needed — the global registry has been removed.",
+)
+def unregister(_flag: FeatureFlag) -> None:
+    """No-op. The global registry has been removed."""
+
+
+@deprecation.deprecated(
+    deprecated_in="1.5.0",
+    removed_in="2.0.0",
+    details="No replacement needed — the global registry has been removed.",
+)
+def clear_registry() -> None:
+    """No-op. The global registry has been removed."""

@@ -23,4 +23,3 @@ docs/_build
 *.pot
 
 .playwright-mcp
-tests/e2e_tests/e2e_test_data.json

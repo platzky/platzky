@@ -52,7 +52,7 @@ def test_loading_google_json_db_dynamically():
 
     expected_data = {"site_content": {}}
 
-    with patch("platzky.db.google_json_db.Client") as mock_client:
+    with patch("google.cloud.storage.Client") as mock_client:
         client_mock = MagicMock()
         mock_bucket = MagicMock()
         mock_blob = MagicMock()

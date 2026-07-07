@@ -1,6 +1,7 @@
 """Local file-based JSON database implementation."""
 
 import json
+from typing import Any
 
 from pydantic import Field
 
@@ -21,6 +22,18 @@ class JsonFileDbConfig(DBConfig):
     """Configuration for JSON file database."""
 
     path: str = Field(alias="PATH")
+
+
+def get_db(config: dict[str, Any]) -> "JsonFile":
+    """Get a JSON file database instance from raw configuration.
+
+    Args:
+        config: Raw configuration dictionary
+
+    Returns:
+        Configured JSON file database instance
+    """
+    return db_from_config(JsonFileDbConfig.model_validate(config))
 
 
 def db_from_config(config: JsonFileDbConfig) -> "JsonFile":

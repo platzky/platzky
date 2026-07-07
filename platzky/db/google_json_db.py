@@ -41,6 +41,18 @@ def db_from_config(config: GoogleJsonDbConfig) -> "GoogleJsonDb":
     return GoogleJsonDb(config.bucket_name, config.source_blob_name)
 
 
+def get_db(config: dict[str, Any]) -> "GoogleJsonDb":
+    """Get a Google Cloud Storage JSON database instance from raw configuration.
+
+    Args:
+        config: Raw configuration dictionary
+
+    Returns:
+        Configured Google Cloud Storage JSON database instance
+    """
+    return db_from_config(GoogleJsonDbConfig.model_validate(config))
+
+
 def get_blob(bucket_name: str, source_blob_name: str) -> "Blob":
     """Retrieve a blob from Google Cloud Storage.
 
