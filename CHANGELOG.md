@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.11](https://github.com/platzky/platzky/compare/v2.0.0-alpha.10...v2.0.0-alpha.11) (2026-07-07)
+
+
+### Bug Fixes
+
+* corrected path for locale ([#264](https://github.com/platzky/platzky/issues/264)) ([6ad23c4](https://github.com/platzky/platzky/commit/6ad23c4211469b09608d940ab9e77922422c338d))
+
 ## [2.0.0-alpha.10](https://github.com/platzky/platzky/compare/v2.0.0-alpha.9...v2.0.0-alpha.10) (2026-07-05)
 
 
