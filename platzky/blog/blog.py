@@ -12,6 +12,7 @@ from werkzeug.wrappers import Response
 
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
+from platzky.db.exceptions import NotFoundError
 from platzky.models import Page, Post
 
 from . import comment_form
@@ -131,7 +132,7 @@ def create_blog_blueprint(
         """
         try:
             return getter_func(slug)
-        except ValueError as e:
+        except NotFoundError as e:
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
@@ -170,6 +171,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             title=page.title,
+            css=page.css,
             content=content_transformer(page.contentInMarkdown, "page"),
             cover_image=cover_image_url,
         )

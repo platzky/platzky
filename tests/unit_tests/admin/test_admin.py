@@ -4,9 +4,8 @@ import pytest
 from flask import Flask
 
 from platzky.admin.admin import create_admin_blueprint
+from platzky.login.login import create_login_blueprint
 from platzky.models import CmsModule
-
-mock_login_methods = Mock()
 
 CMS_MODULE = CmsModule(
     slug="module1",
@@ -20,20 +19,19 @@ CMS_MODULE = CmsModule(
 def admin_blueprint():
     app = Flask(__name__)
     app.config.update({"WTF_CSRF_ENABLED": False})
-    blueprint = create_admin_blueprint(
-        mock_login_methods, [CMS_MODULE], shortcodes=[], plugin_infos=[]
+    app.register_blueprint(create_login_blueprint(login_plugins=[]))
+    app.register_blueprint(
+        create_admin_blueprint(cms_modules=[CMS_MODULE], shortcodes=[], plugin_infos=[])
     )
-    app.register_blueprint(blueprint)
     app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
     return app
 
 
-@patch("platzky.admin.admin.render_template")
-def test_admin_panel_renders_login_when_no_user(mock_render_template: Mock, admin_blueprint: Flask):
-    mock_render_template.return_value = "login"
+def test_admin_panel_redirects_to_login_when_no_user(admin_blueprint: Flask):
     with admin_blueprint.test_client() as client:
-        client.get("/admin/")
-        mock_render_template.assert_called_with("login.html", login_methods=mock_login_methods)
+        response = client.get("/admin/")
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
 
 
 @patch("platzky.admin.admin.render_template")

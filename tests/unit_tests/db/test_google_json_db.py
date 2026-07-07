@@ -1,9 +1,8 @@
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from platzky.db.google_json_db import GoogleJsonDb, get_blob, get_db
+from platzky.db.google_json_db import get_blob
 
 
 class TestGoogleJsonDb:
@@ -11,32 +10,6 @@ class TestGoogleJsonDb:
     def mock_client(self):
         with patch("platzky.db.google_json_db.Client") as mock_client:
             yield mock_client
-
-    def test_get_db_function(self):
-        """Test the get_db function that creates a GoogleJsonDb instance from config."""
-        # Create a config dict with the correct format
-        config_dict = {
-            "TYPE": "google_json_db",
-            "BUCKET_NAME": "test-bucket",
-            "SOURCE_BLOB_NAME": "test-blob.json",
-        }
-
-        # Mock the blob data
-        mock_blob = MagicMock()
-        mock_blob.download_as_text.return_value = json.dumps({"test": "data"})
-
-        # Mock the get_blob function
-        with patch("platzky.db.google_json_db.get_blob") as mock_get_blob:
-            mock_get_blob.return_value = mock_blob
-
-            # Test that get_db returns a GoogleJsonDb instance
-            db = get_db(config_dict)
-            assert isinstance(db, GoogleJsonDb)
-            assert db.bucket_name == "test-bucket"
-            assert db.source_blob_name == "test-blob.json"
-
-            # Verify that the data was loaded correctly
-            assert db.data == {"test": "data"}
 
     def test_get_blob(self, mock_client: MagicMock):
         """Test the get_blob function that retrieves a blob from Google Cloud Storage."""

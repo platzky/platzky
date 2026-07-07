@@ -2,14 +2,15 @@
 
 # TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
 
+import threading
 from typing import Any
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
-from gql.transport.exceptions import TransportQueryError
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -40,10 +41,6 @@ def db_from_config(config: GraphQlDbConfig) -> "GraphQL":
         Configured GraphQL database instance
     """
     return GraphQL(config.endpoint, config.token)
-
-
-# Legacy alias retained for backward compatibility
-get_db = db_from_config
 
 
 def _standardize_comment(
@@ -83,9 +80,10 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
         "tags": post["tags"],
         "language": post["language"],
         "coverImage": {
-            "url": post["coverImage"]["image"]["url"],
+            "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
+        "css": post.get("css") or "",
     }
 
 
@@ -111,9 +109,10 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
         "tags": page.get("tags", []),
         "language": page.get("language", "en"),
         "coverImage": {
-            "url": page.get("coverImage", {}).get("url", ""),
+            "url": (page.get("coverImage") or {}).get("url", ""),
         },
-        "date": page.get("date", "1970-01-01"),
+        "date": page.get("date"),
+        "css": page.get("css") or "",
     }
 
 
@@ -139,7 +138,7 @@ def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
         "tags": post["tags"],
         "language": post.get("language", "en"),
         "coverImage": {
-            "url": post["coverImage"]["image"]["url"],
+            "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
         },
         "date": post["date"],
     }
@@ -157,10 +156,29 @@ class GraphQL(DB):
         """
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"
-        full_token = "bearer " + token
-        transport = AIOHTTPTransport(url=endpoint, headers={"Authorization": full_token})
-        self.client = Client(transport=transport)
+        self._endpoint = endpoint
+        self._headers = {"Authorization": "bearer " + token}
+        self._local = threading.local()
         super().__init__()
+
+    def __getattr__(self, name: str) -> Client:
+        """Lazily build this thread's GraphQL client on first access to ``client``.
+
+        AIOHTTPTransport's connect/close cycle tracks a single session flag per
+        transport instance; sharing one Client across threads lets a second
+        thread's connect() race a first thread's still-open session, raising
+        TransportAlreadyConnected. A client per thread avoids that. Implemented via
+        __getattr__ rather than a property because DB.__init_subclass__ forbids
+        subclasses from adding public class-level names not in the DB interface.
+        """
+        if name != "client":
+            raise AttributeError(name)
+        client = getattr(self._local, "client", None)
+        if client is None:
+            transport = AIOHTTPTransport(url=self._endpoint, headers=self._headers)
+            client = Client(transport=transport)
+            self._local.client = client
+        return client
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.
@@ -214,33 +232,15 @@ class GraphQL(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items = []
-        try:
-            menu_items_with_lang = gql("""
-                query MyQuery($lang: Lang!) {
-                  menuItems(where: {language: $lang}, stage: PUBLISHED){
-                    name
-                    url
-                  }
-                }
-                """)
-            menu_items = self.client.execute(
-                menu_items_with_lang, variable_values={"language": lang}
-            )
-
-        # TODO remove try except block after bumping up version
-        # now it's backwards compatible with older versions
-        except TransportQueryError:
-            menu_items_without_lang = gql("""
-                query MyQuery {
-                  menuItems(stage: PUBLISHED){
-                    name
-                    url
-                  }
-                }
-                """)
-            menu_items = self.client.execute(menu_items_without_lang)
-
+        menu_items_query = gql("""
+            query MyQuery($lang: Lang!) {
+              menuItems(where: {language: $lang}, stage: PUBLISHED){
+                name
+                url
+              }
+            }
+            """)
+        menu_items = self.client.execute(menu_items_query, variable_values={"lang": lang})
         return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
 
     def get_post(self, slug: str) -> Post:
@@ -251,6 +251,9 @@ class GraphQL(DB):
 
         Returns:
             Post object
+
+        Raises:
+            NotFoundError: If no post exists for the given slug.
         """
         post = gql("""
             query MyQuery($slug: String!) {
@@ -268,6 +271,7 @@ class GraphQL(DB):
                 }
                 excerpt
                 tags
+                css
                 coverImage {
                   alternateText
                   image {
@@ -284,6 +288,8 @@ class GraphQL(DB):
             """)
 
         post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
+        if post_raw is None:
+            raise NotFoundError(f"Post not found: {slug}")
         return Post.model_validate(_standardize_post(post_raw))
 
     # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
@@ -295,6 +301,9 @@ class GraphQL(DB):
 
         Returns:
             Page object
+
+        Raises:
+            NotFoundError: If no page exists for the given slug.
         """
         page_query = gql("""
             query MyQuery ($slug: String!){
@@ -302,6 +311,7 @@ class GraphQL(DB):
                 slug
                 title
                 contentInMarkdown
+                css
                 coverImage
                 {
                     url
@@ -310,6 +320,8 @@ class GraphQL(DB):
             }
             """)
         page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        if page_raw is None:
+            raise NotFoundError(f"Page not found: {slug}")
         return Page.model_validate(_standardize_page(page_raw))
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
@@ -442,26 +454,106 @@ class GraphQL(DB):
 
         return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
 
+    def get_home_page_path(self, locale: str) -> str | None:
+        """Retrieve the site-relative path configured as the site's homepage.
+
+        Each language has its own ``applicationSetups`` entry in the CMS, so the
+        homepage path is looked up for the current locale's entry directly.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
+
+        Returns:
+            Homepage path, or None if no homepage override is configured for
+            this locale.
+        """
+        home_page_path_query = gql("""
+            query MyQuery($lang: Lang!) {
+              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
+                homePagePath
+              }
+            }
+            """)
+        try:
+            return self.client.execute(home_page_path_query, variable_values={"lang": locale})[
+                "applicationSetups"
+            ][0].get("homePagePath")
+        except IndexError:
+            return None
+
     def get_primary_color(self) -> str:
-        """Return the primary brand colour."""
-        return "white"  # Default color as string
+        """Retrieve the primary brand colour configured in the CMS.
+
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
+        Returns:
+            Primary colour value, or "white" if not configured.
+        """
+        primary_color_query = gql("""
+            query MyQuery {
+              themes(stage: PUBLISHED) {
+                primaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(primary_color_query)["themes"][0].get("primaryColor") or "white"
+            )
+        except IndexError:
+            return "white"
 
     def get_secondary_color(self) -> str:
-        """Return the secondary brand colour."""
-        return "navy"  # Default color as string
+        """Retrieve the secondary brand colour configured in the CMS.
 
-    def get_plugins_data(self) -> list[PluginConfigBase]:
-        """Retrieve configuration data for all plugins."""
+        Queries the global ``themes`` singleton rather than ``applicationSetups``,
+        since brand colours are site-wide and not language-specific (unlike
+        ``applicationSetups``, which holds one entry per language).
+
+        Returns:
+            Secondary colour value, or "navy" if not configured.
+        """
+        secondary_color_query = gql("""
+            query MyQuery {
+              themes(stage: PUBLISHED) {
+                secondaryColor
+              }
+            }
+            """)
+        try:
+            return (
+                self.client.execute(secondary_color_query)["themes"][0].get("secondaryColor")
+                or "navy"
+            )
+        except IndexError:
+            return "navy"
+
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
+        """Retrieve configuration data for all plugins.
+
+        Hygraph's PluginConfig schema only exposes ``name``, ``isActive``, and
+        ``config`` (a JSON scalar) — there's no room for a sibling field like
+        ``allowed_content_types``. Authors put permission fields directly
+        inside the ``config`` JSON instead; this spreads ``config``'s keys to
+        the top level so the engine's capability-specific config classes
+        (``ContentTransformerPluginConfig``, etc.) can find them by name.
+        """
         plugins_data = gql("""
             query MyQuery {
               pluginConfigs(stage: PUBLISHED) {
                 name
+                is_active: isActive
                 config
               }
             }
             """)
         raw = self.client.execute(plugins_data)["pluginConfigs"]
-        return [PluginConfigBase.model_validate(d) for d in raw]
+        return {
+            d["name"]: PluginConfigBase.model_validate({**(d.get("config") or {}), **d})
+            for d in raw
+        }
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.

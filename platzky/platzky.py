@@ -3,13 +3,14 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Iterable
+from collections.abc import Awaitable, Iterable, Sequence
 
 import jinja2.ext
-from flask import redirect, render_template, request, session
+from flask import make_response, redirect, render_template, request, session
+from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -23,7 +24,10 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.login import LoginPluginBase
+from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode
@@ -37,6 +41,8 @@ _MISSING_OTEL_MSG = (
     "poetry add opentelemetry-api opentelemetry-sdk "
     "opentelemetry-instrumentation-flask opentelemetry-exporter-otlp-proto-grpc"
 )
+
+_NOT_FOUND_TEMPLATE = "404.html"
 
 
 def _gather_shortcodes_and_extensions(
@@ -126,7 +132,85 @@ def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
     return "/"
 
 
-def create_engine(config: Config, db: DB) -> Engine:
+def _www_redirection_response(config: Config) -> t.Optional[Response]:
+    """Handle WWW subdomain redirection based on configuration.
+
+    Args:
+        config: Application configuration object
+
+    Returns:
+        Redirect response if redirection is needed, None otherwise
+    """
+    if config.use_www:
+        return redirect_nonwww_to_www()
+    return redirect_www_to_nonwww()
+
+
+def _change_language_response(config: Config, lang: str) -> Response:
+    """Change the user's language preference.
+
+    If the language has a dedicated domain, redirects to that domain.
+    Otherwise, sets the language in the session and returns to the referrer.
+
+    Args:
+        config: Application configuration object
+        lang: Language code to switch to
+
+    Returns:
+        Redirect response to the language domain or referrer page, or 404 if invalid
+    """
+    # Only allow configured languages
+    if lang not in config.languages:
+        return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
+
+    if new_domain := _get_language_domain(config, lang):
+        return redirect(f"{request.scheme}://{new_domain}", code=302)
+
+    session["language"] = lang
+    redirect_url = _get_safe_redirect_url(request.referrer, request.host)
+    return redirect(redirect_url)
+
+
+def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
+    """Render the configured homepage, falling back to the blog index.
+
+    Resolves db.get_home_page_path() for the current request's locale through
+    the app's own URL map, so it can point at a page, a post, or any other
+    registered route. Falls back to the blog index if no homepage is
+    configured for that locale, or if the configured path resolves back to
+    this same route (which would otherwise recurse).
+
+    Args:
+        app: Platzky Engine instance
+        config: Application configuration object
+
+    Returns:
+        Rendered HTML of the resolved destination, or the 404 page.
+    """
+    configured_home = app.db.get_home_page_path(app.get_locale())
+    target_path = (
+        configured_home
+        if isinstance(configured_home, str) and configured_home not in {"", "/"}
+        else f"{config.blog_prefix.rstrip('/')}/"
+    )
+    try:
+        endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
+    except (NotFound, MethodNotAllowed):
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    if endpoint == request.endpoint:
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    result = app.view_functions[endpoint](**view_args)
+    if isinstance(result, Awaitable):
+        raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
+    return result
+
+
+def create_engine(
+    config: Config,
+    db: DB,
+    extra_plugin_bases: Sequence[type[PluginBase]] = (),
+    extra_plugins_entrypoints: Sequence[str] = (),
+) -> Engine:
     """Create and configure a Platzky Engine instance.
 
     Sets up the core application with database connection, request handlers,
@@ -135,11 +219,13 @@ def create_engine(config: Config, db: DB) -> Engine:
     Args:
         config: Application configuration object
         db: Database instance for data persistence
+        extra_plugin_bases: App specific registered capability base classes (see ``Engine``).
+        extra_plugins_entrypoints: App specific registered entry-point groups (see ``Engine``).
 
     Returns:
         Configured Engine instance with plugins loaded
     """
-    app = Engine(config, db, __name__)
+    app = Engine(config, db, __name__, extra_plugin_bases, extra_plugins_entrypoints)
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -150,12 +236,10 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Redirect response if redirection is needed, None otherwise
         """
-        if config.use_www:
-            return redirect_nonwww_to_www()
-        return redirect_www_to_nonwww()
+        return _www_redirection_response(config)
 
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang: str) -> Response | tuple[str, int]:
+    def change_language(lang: str) -> Response:
         """Change the user's language preference.
 
         If the language has a dedicated domain, redirects to that domain.
@@ -167,16 +251,16 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Redirect response to the language domain or referrer page, or 404 if invalid
         """
-        # Only allow configured languages
-        if lang not in config.languages:
-            return render_template("404.html", title="404"), 404
+        return _change_language_response(config, lang)
 
-        if new_domain := _get_language_domain(config, lang):
-            return redirect(f"{request.scheme}://{new_domain}", code=302)
+    @app.route("/", methods=["GET"])
+    def home_page() -> ResponseReturnValue:
+        """Render the configured homepage, falling back to the blog index.
 
-        session["language"] = lang
-        redirect_url = _get_safe_redirect_url(request.referrer, request.host)
-        return redirect(redirect_url)
+        Returns:
+            Rendered HTML of the resolved destination, or the 404 page.
+        """
+        return _home_page_response(app, config)
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -234,12 +318,16 @@ def create_engine(config: Config, db: DB) -> Engine:
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
         """
-        return render_template("404.html", title="404"), 404
+        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
 
     return plugify(app)
 
 
-def create_app_from_config(config: Config) -> Engine:
+def create_app_from_config(
+    config: Config,
+    extra_plugin_bases: Sequence[type[PluginBase]] = (),
+    extra_plugins_entrypoints: Sequence[str] = (),
+) -> Engine:
     """Create a fully configured Platzky application from a Config object.
 
     Initializes the database, creates the engine, sets up telemetry (if enabled),
@@ -248,6 +336,11 @@ def create_app_from_config(config: Config) -> Engine:
 
     Args:
         config: Application configuration object
+        extra_plugin_bases: Capability base classes a host application registers for its
+            own plugin ecosystem, in addition to platzky's built-in ``PLUGIN_BASES``.
+            Plugins cannot register capabilities; only the host composing the app can.
+        extra_plugins_entrypoints: Entry-point groups a host application registers for
+            plugin discovery, in addition to ``platzky.plugins``.
 
     Returns:
         Fully configured Engine instance ready to serve requests
@@ -257,7 +350,7 @@ def create_app_from_config(config: Config) -> Engine:
         ValueError: If telemetry configuration is invalid
     """
     db = get_db(config.db)
-    engine = create_engine(config, db)
+    engine = create_engine(config, db, extra_plugin_bases, extra_plugins_entrypoints)
 
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:
@@ -292,21 +385,24 @@ def create_app_from_config(config: Config) -> Engine:
     for _ext in _new_extensions:
         engine.jinja_env.add_extension(_ext)
 
+    if engine.is_enabled(FakeLogin):
+        if not (config.testing and config.debug):
+            raise RuntimeError(
+                "SECURITY ERROR: Cannot register FakeLoginPlugin in production. "
+                "Set TESTING: true and DEBUG: true in your config."
+            )
+        from platzky.debug.fake_login import FakeLoginPlugin
+
+        engine.register_plugin(FakeLoginPlugin({}), "fake_login")
+
+    login_blueprint = login.create_login_blueprint(
+        login_plugins=engine.get_plugins(LoginPluginBase),
+    )
     admin_blueprint = admin.create_admin_blueprint(
-        login_methods=engine.login_methods,
         cms_modules=engine.cms_modules,
         shortcodes=list(engine.shortcodes.values()),
         plugin_infos=engine.get_plugin_infos(),
     )
-
-    # Two-layer defense: is_enabled() gates the feature flag, and
-    # DebugBlueprint.register() independently blocks registration
-    # unless the app is in debug or testing mode.
-    if engine.is_enabled(FakeLogin):
-        from platzky.debug.fake_login import create_fake_login_blueprint, get_fake_login_html
-
-        engine.login_methods.append(get_fake_login_html())
-        engine.register_blueprint(create_fake_login_blueprint())
 
     blog_blueprint = blog.create_blog_blueprint(
         db=engine.db,
@@ -317,6 +413,7 @@ def create_app_from_config(config: Config) -> Engine:
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db, config=engine.config, locale_func=engine.get_locale
     )
+    engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)

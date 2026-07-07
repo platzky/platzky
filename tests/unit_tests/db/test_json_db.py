@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.json_db import Json, JsonDbConfig, db_from_config, get_db
+from platzky.db.exceptions import DBError, NotFoundError
+from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.models import MenuItem, Page, Post
 
 
@@ -20,12 +21,6 @@ class TestJsonDbConfig:
 
 
 class TestFactoryFunctions:
-    def test_get_db(self):
-        config_data = {"TYPE": "json_db", "DATA": {"test": "data"}}
-        db = get_db(config_data)
-        assert isinstance(db, Json)
-        assert db.data == {"test": "data"}
-
     def test_db_from_config(self):
         config = JsonDbConfig(TYPE="json_db", DATA={"test": "data"})
         db = db_from_config(config)
@@ -92,7 +87,7 @@ class TestJsonDb:
                 "primary_color": "blue",
                 "secondary_color": "green",
             },
-            "plugins": [{"name": "plugin1", "config": {}}],
+            "plugins": {"plugin1": {"config": {}}},
         }
 
     @pytest.fixture
@@ -122,12 +117,12 @@ class TestJsonDb:
         assert post.slug == "post-1"
 
     def test_get_post_not_found(self, db: Json):
-        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
     def test_get_post_missing_data(self):
         db_without_posts = Json({"site_content": {}})
-        with pytest.raises(ValueError, match="Posts data is missing"):
+        with pytest.raises(NotFoundError, match="Posts data is missing"):
             db_without_posts.get_post("any-slug")
 
     def test_get_post_with_missing_required_field(self, db: Json):
@@ -151,7 +146,7 @@ class TestJsonDb:
         assert page.slug == "page-1"
 
     def test_get_page_not_found(self, db: Json):
-        with pytest.raises(ValueError, match="Page with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
     def test_get_page_with_minimal_fields(self):
@@ -252,6 +247,29 @@ class TestJsonDbSiteSettings:
     def test_get_secondary_color_default(self, db_minimal: Json):
         assert db_minimal.get_secondary_color() == "navy"
 
+    def test_get_home_page_path_default(self, db_minimal: Json):
+        assert db_minimal.get_home_page_path("en") is None
+
+    def test_get_home_page_path(self):
+        db = Json({"site_content": {"home_page_path": "/blog/page/about"}})
+        assert db.get_home_page_path("en") == "/blog/page/about"
+
+    def test_get_home_page_path_per_locale(self):
+        db = Json(
+            {"site_content": {"home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"}}}
+        )
+        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
+        assert db.get_home_page_path("en") == "/blog/"
+
+    def test_get_home_page_path_per_locale_no_default(self):
+        db = Json({"site_content": {"home_page_path": {"pl": "/blog/page/o-nas"}}})
+        assert db.get_home_page_path("en") is None
+
+    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(self):
+        """Only an absent key falls back to "default" — a present key returns its value as-is."""
+        db = Json({"site_content": {"home_page_path": {"default": "/blog/", "pl": ""}}})
+        assert db.get_home_page_path("pl") == ""
+
 
 class TestJsonDbComments:
     @pytest.fixture
@@ -295,20 +313,20 @@ class TestJsonDbComments:
         assert comment["date"] == "2023-01-01T12:00:00"
 
     def test_add_comment_to_nonexistent_post(self, db: Json):
-        with pytest.raises(ValueError, match="Post with slug non-existent not found"):
+        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.add_comment("Test User", "Comment", "non-existent")
 
 
 class TestJsonDbPlugins:
     def test_get_plugins_data(self):
-        db = Json({"plugins": [{"name": "plugin1", "config": {}}]})
+        db = Json({"plugins": {"plugin1": {"config": {}}}})
         plugins = db.get_plugins_data()
         assert len(plugins) == 1
-        assert plugins[0].name == "plugin1"
+        assert "plugin1" in plugins
 
     def test_get_plugins_data_empty(self):
         db = Json({})
-        assert db.get_plugins_data() == []
+        assert db.get_plugins_data() == {}
 
 
 class TestJsonDbHealthCheck:
@@ -318,7 +336,7 @@ class TestJsonDbHealthCheck:
 
     def test_health_check_failure_no_site_content(self):
         db = Json({"other_data": "value"})
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.health_check()
 
 
@@ -326,11 +344,11 @@ class TestJsonDbEmptyDb:
     def test_empty_db_raises_exception_on_operations(self):
         db = Json({})
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_all_posts("en")
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_logo_url()
 
-        with pytest.raises(Exception, match="Content should not be None"):
+        with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")

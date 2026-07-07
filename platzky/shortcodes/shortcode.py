@@ -14,7 +14,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, cast
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
@@ -111,6 +111,26 @@ class Shortcode(ABC):
             raise ValueError(
                 f"Shortcode subclass {cls.__name__!r} must declare a valid `name`; got {name!r}."
             )
+
+    def transform_field_value(self, value: object) -> dict[str, object]:
+        """Transform a raw field value into a frontend-ready dict.
+
+        Called when a content entry has a field mapped to this shortcode — for example
+        the string ``"SUMMER24"`` for a promocode field.  The base implementation
+        adds ``"type": self.name`` (the key the frontend routes on) and, if *value* is a
+        dict, merges its keys in. Override to unpack the value, merge rendering defaults,
+        encode sensitive data, or otherwise produce the full frontend payload.
+
+        Args:
+            value: Raw field value from the content data.
+
+        Returns:
+            Dict with at least ``"type"`` present.
+        """
+        if isinstance(value, dict):
+            # isinstance narrows to dict[Unknown, Unknown]; cast supplies the key type pyright needs
+            return {**cast(dict[str, object], value), "type": self.name}
+        return {"type": self.name}
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:

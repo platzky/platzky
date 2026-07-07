@@ -2,89 +2,42 @@
 
 import datetime
 import functools
-import warnings
+import re
 from typing import Annotated
 
 import humanize
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 
-def _parse_date_string(v: str | datetime.datetime) -> datetime.datetime:
-    """Parse date string to datetime for backward compatibility.
+def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
+    """Ensure a datetime is UTC-aware, converting naive datetimes to UTC."""
+    if v.tzinfo is None:
+        return v.replace(tzinfo=datetime.timezone.utc)
+    return v
 
-    Handles string dates in various ISO 8601 formats for backward compatibility.
-    Emits deprecation warning when parsing strings.
 
-    In version 2.0.0, only datetime objects will be accepted.
+DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
 
-    Args:
-        v: Either a datetime object or an ISO 8601 date string
+_STYLE_CLOSE_RE = re.compile(r"</\s*style\b", re.IGNORECASE)
 
-    Returns:
-        Timezone-aware datetime object
 
-    Raises:
-        ValueError: If the date string cannot be parsed
+def _reject_style_breakout(css: str) -> str:
+    """Reject CSS containing `</style`, which could break out of its wrapping tag.
+
+    Content inside a <style> element is HTML "raw text" — browsers don't parse
+    markup there except the literal closing tag. The `css` field is rendered with
+    the `safe` filter (to preserve real CSS like `.a > .b`), so this guards the one
+    sequence that could let stored content inject arbitrary HTML/script via the
+    page's <head>. Raising here (rather than silently stripping it) means content
+    with this pattern fails to load — see blog.py's handling of ValidationError for
+    why that's preferable to rendering mutated content unexpectedly.
     """
-    if isinstance(v, datetime.datetime):
-        # If already a datetime object, ensure it's timezone-aware
-        if v.tzinfo is None:
-            # Naive datetime - make timezone-aware using UTC
-            return v.replace(tzinfo=datetime.timezone.utc)
-        return v
-
-    # v must be a string (based on type annotation)
-    # Emit deprecation warning for string dates
-    warnings.warn(
-        f"Passing date as string ('{v}') is deprecated. "
-        "Please use datetime objects instead. "
-        "String support will be removed in version 2.0.0.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    # Check for timezone in the original string (before any manipulation)
-    # Check for: +HH:MM, -HH:MM, or Z suffix
-    time_part = v.split("T")[-1] if "T" in v else ""
-    has_timezone = (
-        v.endswith("Z")
-        or "+" in time_part
-        or ("-" in time_part and ":" in time_part.split("-")[-1])
-    )
-
-    # Normalize 'Z' suffix to '+00:00' for fromisoformat
-    normalized = v.replace("Z", "+00:00") if v.endswith("Z") else v
-
-    if has_timezone:
-        # Parse timezone-aware datetime (handles microseconds automatically)
-        return datetime.datetime.fromisoformat(normalized)
-    else:
-        # Legacy format: naive datetime - make timezone-aware using UTC
-        warnings.warn(
-            f"Naive datetime '{v}' interpreted as UTC. "
-            "Explicitly specify timezone in future versions for clarity.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        try:
-            parsed = datetime.datetime.fromisoformat(normalized)
-            return parsed.replace(tzinfo=datetime.timezone.utc)
-        except ValueError:
-            # Fallback: date-only format
-            parsed_date = datetime.date.fromisoformat(normalized)
-            return datetime.datetime.combine(
-                parsed_date, datetime.time.min, tzinfo=datetime.timezone.utc
-            )
+    if _STYLE_CLOSE_RE.search(css):
+        raise ValueError("css must not contain a '</style' sequence")
+    return css
 
 
-# Type alias for datetime fields that accept strings for backward compatibility
-# Input: str | datetime.datetime
-# Output (after validation): datetime.datetime
-DateTimeField = Annotated[
-    datetime.datetime,
-    BeforeValidator(_parse_date_string),
-    # This allows str at the type-checker level while ensuring datetime after validation
-]
+CssField = Annotated[str, AfterValidator(_reject_style_breakout)]
 
 
 class CmsModule(BaseModel):
@@ -170,6 +123,9 @@ class Post(BaseModel):
         comments: Optional list of comments on this post
         tags: Optional list of tags for categorization
         date: Optional datetime when the post was published (timezone-aware recommended)
+        css: Optional CSS rendered inline in this post/page's own <head>, scoped to
+            this content only — can target the masthead, hero blocks, paragraphs,
+            or anything else on the page
     """
 
     author: str
@@ -182,6 +138,7 @@ class Post(BaseModel):
     comments: list[Comment] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     date: DateTimeField | None = None
+    css: CssField = ""
 
     def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.

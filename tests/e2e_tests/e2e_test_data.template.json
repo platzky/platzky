@@ -142,6 +142,14 @@
           "alternateText": "alternate text",
           "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo"
         }
+      },
+      {
+        "title": "style breakout page",
+        "author": "autor",
+        "slug": "style-breakout",
+        "contentInMarkdown": "page content",
+        "excerpt": "page excerpt",
+        "css": "</style><script>alert('xss')</script><style>"
       }
     ],
     "menu_items": {
@@ -175,16 +183,16 @@
       ]
     }
   },
-  "plugins": [
-    {
-      "name": "log_notifier",
+  "plugins": {
+    "log_notifier": {
+      "is_active": true,
       "config": {},
       "allowed_topics": ["general", "content", "security"]
     },
-    {
-      "name": "red_letter",
+    "red_letter": {
+      "is_active": true,
       "config": {},
       "allowed_content_types": ["post", "page"]
     }
-  ]
+  }
 }

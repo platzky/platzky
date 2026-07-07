@@ -4,7 +4,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from platzky.db.json_file_db import JsonFile, JsonFileDbConfig, db_from_config, get_db
+from platzky.db.json_file_db import JsonFile, JsonFileDbConfig, db_from_config
 
 
 class TestJsonFileDb:
@@ -95,14 +95,6 @@ class TestJsonFileDb:
         config = JsonFileDbConfig.model_validate(config_dict)
         assert config.path == "/path/to/data.json"
         assert config.type == "json_file"
-
-    def test_get_db(self, sample_data: dict[str, object], mock_file_path: str):
-        json_str = json.dumps(sample_data)
-        with patch("builtins.open", mock_open(read_data=json_str)):
-            config = {"PATH": mock_file_path, "TYPE": "json_file"}
-            db = get_db(config)
-            assert isinstance(db, JsonFile)
-            assert db.data_file_path == mock_file_path
 
     def test_db_from_config(self, sample_data: dict[str, object], mock_file_path: str):
         json_str = json.dumps(sample_data)

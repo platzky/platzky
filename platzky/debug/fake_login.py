@@ -1,105 +1,53 @@
 """
-Fake login functionality for development environments only.
+Fake login plugin for development environments only.
 
-WARNING: This module provides fake login functionality and should NEVER be used in production
-environments as it bypasses proper authentication and authorization controls.
+WARNING: Never use in production — bypasses real authentication.
 """
 
-from collections.abc import Callable
+from importlib.resources import files
 
-from flask import flash, redirect, render_template_string, session, url_for
-from flask_wtf import FlaskForm
+from flask import Request, current_app, render_template_string
 from markupsafe import Markup
-from werkzeug.wrappers import Response
 
-from platzky.debug.blueprint import DebugBlueprint
+from platzky.auth import AuthenticationError, User
+from platzky.plugin.login import LoginPluginBase
 
 ROLE_ADMIN = "admin"
 ROLE_NONADMIN = "nonadmin"
-VALID_ROLES = [ROLE_ADMIN, ROLE_NONADMIN]
+
+_BUTTON_TEMPLATE = files("platzky.debug").joinpath("templates/fake_login_button.html").read_text()
 
 
-class FakeLoginForm(FlaskForm):
-    """
-    Empty form class that inherits CSRF protection from FlaskForm.
+class FakeLoginPlugin(LoginPluginBase):
+    """Dev-only login provider that exercises the full verify_login callback flow."""
 
-    Used specifically for the fake login functionality to enable
-    CSRF token validation on form submissions.
-    """
+    provider_name = "fake"
 
-    pass
+    def render_login_button(self) -> Markup:
+        """Render the dev login buttons with CSRF tokens.
 
+        Returns:
+            Safe HTML markup for the development login buttons.
+        """
+        return Markup(render_template_string(_BUTTON_TEMPLATE))
 
-def get_fake_login_html() -> Callable[[], str]:
-    """Return a callable that generates HTML for fake login buttons."""
+    def authenticate(self, request: Request) -> User:
+        """Authenticate from a form POST, mapping role to a User.
 
-    def generate_html() -> str:
-        """Render the fake login buttons HTML with CSRF tokens."""
-        admin_url = url_for("fake_login.handle_fake_login", role="admin")
-        nonadmin_url = url_for("fake_login.handle_fake_login", role="nonadmin")
+        Args:
+            request: The Flask request containing ``role`` in ``request.form``.
 
-        # Create a form instance to get the CSRF token
-        form = FakeLoginForm()
+        Returns:
+            Authenticated user for recognised roles.
 
-        html = render_template_string(
-            """
-        <div class="col-md-6 mb-4">
-          <div class="card">
-            <div class="card-header">
-              Development Login
-            </div>
-            <div class="card-body">
-              <p class="text-danger"><strong>Warning:</strong> For development only</p>
-              <div class="d-flex justify-content-around">
-                <form method="post" action="{{ admin_url }}" style="display: inline;">
-                  {{ form.csrf_token }}
-                  <button type="submit" class="btn btn-primary">Login as Admin</button>
-                </form>
-                <form method="post" action="{{ nonadmin_url }}" style="display: inline;">
-                  {{ form.csrf_token }}
-                  <button type="submit" class="btn btn-secondary">Login as Non-Admin</button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-        """,
-            form=form,
-            admin_url=admin_url,
-            nonadmin_url=nonadmin_url,
-        )
-
-        return Markup(html)
-
-    return generate_html
-
-
-def create_fake_login_blueprint() -> DebugBlueprint:
-    """Create a DebugBlueprint with fake login routes.
-
-    The returned blueprint will raise RuntimeError if registered on an app
-    that is not in debug or testing mode.
-
-    Returns:
-        DebugBlueprint with fake login routes at /admin/fake-login/<role>.
-    """
-    bp = DebugBlueprint("fake_login", __name__, url_prefix="/admin")
-
-    @bp.route("/fake-login/<role>", methods=["POST"])
-    def handle_fake_login(role: str) -> Response:
-        """Process a fake login request for the given *role* (admin or nonadmin)."""
-        form = FakeLoginForm()
-        if form.validate_on_submit() and role in VALID_ROLES:
-            if role == ROLE_ADMIN:
-                session["user"] = {"username": ROLE_ADMIN, "role": ROLE_ADMIN}
-            else:
-                session["user"] = {"username": "user", "role": ROLE_NONADMIN}
-            next_url = session.pop("next", None)
-            if not next_url or not next_url.startswith("/"):
-                next_url = url_for("admin.admin_panel_home")
-            return redirect(next_url)
-
-        flash(f"Invalid role: {role}. Must be one of: {', '.join(VALID_ROLES)}", "error")
-        return redirect(url_for("admin.admin_panel_home"))
-
-    return bp
+        Raises:
+            AuthenticationError: If the role value is missing or unrecognised.
+        """
+        if not current_app.debug and not current_app.testing:
+            raise RuntimeError("FakeLoginPlugin must not be used in production")
+        role = request.form.get("role")
+        if role == ROLE_ADMIN:
+            return User(username=ROLE_ADMIN, role=ROLE_ADMIN)
+        if role == ROLE_NONADMIN:
+            return User(username="user", role=ROLE_NONADMIN)
+        raise AuthenticationError(f"Unrecognised role: {role!r}")

@@ -9,6 +9,7 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -27,18 +28,6 @@ class MongoDbConfig(DBConfig):
 
     connection_string: str = Field(alias="CONNECTION_STRING")
     database_name: str = Field(alias="DATABASE_NAME")
-
-
-def get_db(config: dict[str, Any]) -> "MongoDB":
-    """Get a MongoDB database instance from raw configuration.
-
-    Args:
-        config: Raw configuration dictionary
-
-    Returns:
-        Configured MongoDB database instance
-    """
-    return db_from_config(MongoDbConfig.model_validate(config))
 
 
 def db_from_config(config: MongoDbConfig) -> "MongoDB":
@@ -132,11 +121,11 @@ class MongoDB(DB):
             Post object
 
         Raises:
-            ValueError: If post not found
+            NotFoundError: If post not found
         """
         post_doc = self.posts.find_one({"slug": slug})
         if post_doc is None:
-            raise ValueError(f"Post with slug {slug} not found")
+            raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(post_doc)
 
     def get_page(self, slug: str) -> Page:
@@ -149,11 +138,11 @@ class MongoDB(DB):
             Page object
 
         Raises:
-            ValueError: If page not found
+            NotFoundError: If page not found
         """
         page_doc = self.pages.find_one({"slug": slug})
         if page_doc is None:
-            raise ValueError(f"Page with slug {slug} not found")
+            raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(page_doc)
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
@@ -178,7 +167,7 @@ class MongoDB(DB):
             post_slug: URL-friendly identifier of the post
 
         Raises:
-            ValueError: If post not found
+            NotFoundError: If post not found
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         comment_doc = {
@@ -189,7 +178,7 @@ class MongoDB(DB):
 
         result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
         if result.matched_count == 0:
-            raise ValueError(f"Post with slug {post_slug} not found")
+            raise NotFoundError(f"Post with slug {post_slug} not found")
 
     def get_logo_url(self) -> str:
         """Retrieve the URL of the application logo.
@@ -227,11 +216,11 @@ class MongoDB(DB):
         site_config = self._get_site_config()
         return site_config.get("secondary_color", "navy") if site_config else "navy"
 
-    def get_plugins_data(self) -> list[PluginConfigBase]:
+    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         plugins_doc = self.plugins.find_one({"_id": "config"})
-        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else []
-        return [PluginConfigBase.model_validate(d) for d in raw or []]
+        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else {}
+        return {name: PluginConfigBase.model_validate(cfg) for name, cfg in (raw or {}).items()}
 
     def get_font(self) -> str:
         """Get the font configuration for the application.
@@ -241,6 +230,25 @@ class MongoDB(DB):
         """
         site_config = self._get_site_config()
         return site_config.get("font", "") if site_config else ""
+
+    def get_home_page_path(self, locale: str) -> str | None:
+        """Retrieve the site-relative path configured as the site's homepage.
+
+        ``home_page_path`` may be a single string (applies to every locale) or a
+        dict mapping locale codes to paths, with an optional "default" key used
+        when the current locale has no entry of its own.
+
+        Args:
+            locale: Language code (e.g., 'en', 'pl') of the current request.
+
+        Returns:
+            Homepage path, or None if no homepage override is configured.
+        """
+        site_config = self._get_site_config()
+        home_page_path = site_config.get("home_page_path") if site_config else None
+        if isinstance(home_page_path, dict):
+            return home_page_path.get(locale, home_page_path.get("default"))
+        return home_page_path
 
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.

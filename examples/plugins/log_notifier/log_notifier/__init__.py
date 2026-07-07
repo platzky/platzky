@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from platzky.notification_topics import NotificationTopic
-from platzky.plugin.notifier import NotifierPluginBase
+from platzky.plugin.notifier import Notification, NotifierPluginBase
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,13 @@ class LogNotifier(NotifierPluginBase):
             {"general", "content", "security"}
         )
 
-    def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+    def notify(self, notification: Notification) -> None:
         """Log the notification.
 
         Args:
-            message: Notification message.
-            topic: Notification topic.
-            receiver: Optional recipient; logged when non-empty.
+            notification: The notification payload to log.
         """
-        extra = f" → {receiver}" if receiver else ""
-        logger.info("[%s%s] %s", topic, extra, message)
+        receivers = (
+            f" → {len(notification.receivers)} receiver(s)" if notification.receivers else ""
+        )
+        logger.info("[%s%s] %s", notification.topic, receivers, notification.message)

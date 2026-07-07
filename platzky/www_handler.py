@@ -1,5 +1,9 @@
 """WWW subdomain redirection helpers."""
 
+# TODO: This is usually handled at the infrastructure layer (DNS, reverse proxy, CDN,
+# hosting platform domain settings) rather than in the app. Revisit whether platzky
+# should keep owning this at all, and remove it entirely if not needed.
+
 import urllib.parse
 
 from flask import redirect, request
