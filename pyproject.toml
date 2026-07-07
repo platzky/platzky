@@ -5,6 +5,9 @@ description = "Not only blog engine"
 authors = []
 license = "MIT"
 readme = "README.md"
+include = [
+    { path = "platzky/locale/**/LC_MESSAGES/*.mo", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
