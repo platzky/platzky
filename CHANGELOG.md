@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## [2.0.0](https://github.com/platzky/platzky/compare/v1.5.1...v2.0.0) (2026-07-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215))
+
+### Features
+
+* add configurable homepage path with blog prefix validation ([#248](https://github.com/platzky/platzky/issues/248)) ([05dc786](https://github.com/platzky/platzky/commit/05dc786206b1fa8e0a6143fc131283747e5c76e9))
+* add custom CSS support and hero shortcode ([#253](https://github.com/platzky/platzky/issues/253)) ([9e13f81](https://github.com/platzky/platzky/commit/9e13f81cffdc1e29c7f7850e99928f67052aba18))
+* add HTML injector plugin base for page head/body injection ([#244](https://github.com/platzky/platzky/issues/244)) ([ad1de48](https://github.com/platzky/platzky/commit/ad1de48782407f0168ec7eda78a25b0f2daba4d4))
+* add login plugins ([#227](https://github.com/platzky/platzky/issues/227)) ([a4fec9f](https://github.com/platzky/platzky/commit/a4fec9fe4f5f916b53f209c9c47d79f0d578df2c))
+* added field as contenttype ([#240](https://github.com/platzky/platzky/issues/240)) ([45fb65c](https://github.com/platzky/platzky/commit/45fb65c5acaf8c34c03ed161900a192866210c07))
+* apps can add their own capabilities ([#259](https://github.com/platzky/platzky/issues/259)) ([18ad645](https://github.com/platzky/platzky/commit/18ad6453cd886e6254c4fbd20c7ce6febf9fc16e))
+
+
+### Bug Fixes
+
+* Add sitemap filtering and improve SEO meta tag ([#241](https://github.com/platzky/platzky/issues/241)) ([be5ce91](https://github.com/platzky/platzky/commit/be5ce917dcc1f45d04eac7db18cfab5c63540397))
+* add versioning prerelease strategy for alpha releases ([#224](https://github.com/platzky/platzky/issues/224)) ([ffed46e](https://github.com/platzky/platzky/commit/ffed46ec50a9f5695475e1df3545d7293ca109a8))
+* added v prefix for releases ([#219](https://github.com/platzky/platzky/issues/219)) ([79bbe92](https://github.com/platzky/platzky/commit/79bbe9250fc087cd5d2a073d3c59491b83a91567))
+* corrected path for locale ([#264](https://github.com/platzky/platzky/issues/264)) ([6ad23c4](https://github.com/platzky/platzky/commit/6ad23c4211469b09608d940ab9e77922422c338d))
+* coverImage in graphql is now optional ([#250](https://github.com/platzky/platzky/issues/250)) ([574c29d](https://github.com/platzky/platzky/commit/574c29d7ddc7fcfa034b2d0fbe72d8e614261a97))
+* language handling of menu items in graphql is working now ([#246](https://github.com/platzky/platzky/issues/246)) ([6768c06](https://github.com/platzky/platzky/commit/6768c06e18eff6bd88711cc161e7210cb4d85d49))
+* more accurate exceptions on nonexisting content ([#261](https://github.com/platzky/platzky/issues/261)) ([7d15ba3](https://github.com/platzky/platzky/commit/7d15ba37fbd54f653a82f4b2bb3dacfc4b76a6dc))
+* should fix release problem ([#217](https://github.com/platzky/platzky/issues/217)) ([d79fe4d](https://github.com/platzky/platzky/commit/d79fe4d7eaea3b0ca45a67b093515450a843b067))
+* transforming fields method added ([#236](https://github.com/platzky/platzky/issues/236)) ([514bd92](https://github.com/platzky/platzky/commit/514bd92b6c0046c9266d44b0d866b51d5f86bd45))
+
+
+### Code Refactoring
+
+* drop deprecated functionality ([#215](https://github.com/platzky/platzky/issues/215)) ([6a8ddbc](https://github.com/platzky/platzky/commit/6a8ddbc51f1c1f2277c205fde514b96475b3140c))
+
 ## [1.5.1](https://github.com/platzky/platzky/compare/v1.5.0...v1.5.1) (2026-05-12)
 
 
