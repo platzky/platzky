@@ -1,28 +1,13 @@
-"""Notifier plugin base class and Notification payload."""
+"""Notifier plugin base classes."""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from collections.abc import Sequence
 
-from platzky.attachment import Attachment
+from platzky.attachment import AttachmentProtocol
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin.plugin import PluginBase
-from platzky.plugin.plugin_config import PluginConfigBase
-
-
-class NotifyPluginConfig(PluginConfigBase):
-    """Plugin config for NotifierPluginBase plugins — carries the topic allowlist."""
-
-    allowed_topics: frozenset[NotificationTopic] = frozenset()
-
-
-@dataclass(frozen=True)
-class Notification:
-    """Immutable notification payload passed to notifier plugins."""
-
-    message: str
-    topic: NotificationTopic
-    attachments: frozenset[Attachment] = field(default_factory=frozenset)
-    receivers: frozenset[str] = field(default_factory=frozenset)
 
 
 class NotifierPluginBase(PluginBase, ABC):
@@ -36,10 +21,43 @@ class NotifierPluginBase(PluginBase, ABC):
     accepted_topics: frozenset[NotificationTopic] = frozenset()
 
     @abstractmethod
-    def notify(self, notification: Notification) -> None:
+    def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
         """Send a notification.
 
         Args:
-            notification: The notification payload.
+            message: The notification message.
+            topic: The notification topic.
+            receiver: Target recipient identifier; empty string means broadcast.
+        """
+        raise NotImplementedError
+
+
+class AttachmentNotifierPluginBase(NotifierPluginBase, ABC):
+    """Notifier plugin that handles file attachments.
+
+    Subclasses implement ``notify_with_attachments``; the engine calls it when
+    attachments are present. ``notify`` delegates to it with an empty tuple so
+    the plugin also works when no attachments are sent.
+    """
+
+    def notify(self, message: str, topic: NotificationTopic, receiver: str = "") -> None:
+        """Delegate to notify_with_attachments with no attachments."""
+        self.notify_with_attachments(message, topic, (), receiver)
+
+    @abstractmethod
+    def notify_with_attachments(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        attachments: Sequence[AttachmentProtocol],
+        receiver: str = "",
+    ) -> None:
+        """Send a notification with attachments.
+
+        Args:
+            message: The notification message.
+            topic: The notification topic.
+            attachments: Attachments to include.
+            receiver: Target recipient identifier; empty string means broadcast.
         """
         raise NotImplementedError

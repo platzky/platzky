@@ -6,7 +6,6 @@ from typing import Any
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import DBError, NotFoundError
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -24,6 +23,18 @@ class JsonDbConfig(DBConfig):
     """Configuration for in-memory JSON database."""
 
     data: dict[str, Any] = Field(alias="DATA")
+
+
+def get_db(config: dict[str, Any]) -> "Json":
+    """Get a JSON database instance from raw configuration.
+
+    Args:
+        config: Raw configuration dictionary
+
+    Returns:
+        Configured JSON database instance
+    """
+    return db_from_config(JsonDbConfig.model_validate(config))
 
 
 def db_from_config(config: JsonDbConfig) -> "Json":
@@ -92,14 +103,14 @@ class Json(DB):
             Post object
 
         Raises:
-            NotFoundError: If posts data is missing or post not found
+            ValueError: If posts data is missing or post not found
         """
         all_posts = self._get_site_content().get("posts")
         if all_posts is None:
-            raise NotFoundError("Posts data is missing")
+            raise ValueError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
         if wanted_post is None:
-            raise NotFoundError(f"Post with slug {slug} not found")
+            raise ValueError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
 
     # TODO: Add test for non-existing page
@@ -113,14 +124,14 @@ class Json(DB):
             Page object
 
         Raises:
-            NotFoundError: If pages data is missing or page not found
+            ValueError: If pages data is missing or page not found
         """
         pages = self._get_site_content().get("pages")
         if pages is None:
-            raise NotFoundError("Pages data is missing")
+            raise ValueError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
         if wanted_page is None:
-            raise NotFoundError(f"Page with slug {slug} not found")
+            raise ValueError(f"Page with slug {slug} not found")
         return Page.model_validate(wanted_page)
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
@@ -154,11 +165,11 @@ class Json(DB):
             Site content dictionary
 
         Raises:
-            DBError: If the site_content section is missing from the database
+            ValueError: If site content is not found
         """
         content = self.data.get("site_content")
         if content is None:
-            raise DBError("site_content section is missing from database")
+            raise ValueError("Content should not be None")
         return content
 
     def get_logo_url(self) -> str:
@@ -201,24 +212,6 @@ class Json(DB):
         """
         return self._get_site_content().get("secondary_color", "navy")
 
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        ``home_page_path`` may be a single string (applies to every locale) or a
-        dict mapping locale codes to paths, with an optional "default" key used
-        when the current locale has no entry of its own.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured.
-        """
-        home_page_path = self._get_site_content().get("home_page_path")
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
-
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
 
@@ -230,9 +223,6 @@ class Json(DB):
             author_name: Name of the comment author
             comment: Comment text content
             post_slug: URL-friendly identifier of the post
-
-        Raises:
-            NotFoundError: If post not found
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
@@ -245,15 +235,12 @@ class Json(DB):
         posts = self._get_site_content()["posts"]
         post = next((p for p in posts if p["slug"] == post_slug), None)
         if post is None:
-            raise NotFoundError(f"Post with slug {post_slug} not found")
+            raise ValueError(f"Post with slug {post_slug} not found")
         post["comments"].append(comment_data)
 
-    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
+    def get_plugins_data(self) -> list[PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        return {
-            name: PluginConfigBase.model_validate(cfg)
-            for name, cfg in (self.data.get("plugins") or {}).items()
-        }
+        return [PluginConfigBase.model_validate(d) for d in self.data.get("plugins") or []]
 
     def health_check(self) -> None:
         """Perform a health check on the JSON database.

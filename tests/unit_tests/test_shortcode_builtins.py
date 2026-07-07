@@ -66,13 +66,3 @@ class TestLinkShortcode:
     def test_data_url_rejected(self) -> None:
         result = _apply('[link url="data:text/html,<h1>x</h1>"]x[/link]')
         assert "<a" not in result
-
-
-class TestHeroShortcode:
-    def test_wraps_content_in_hero_div(self) -> None:
-        result = _apply("[hero]<h1>Headline</h1><p>Subheading text</p>[/hero]")
-        assert result == '<div class="hero"><h1>Headline</h1><p>Subheading text</p></div>'
-
-    def test_plain_text_content(self) -> None:
-        result = _apply("[hero]Just some text[/hero]")
-        assert result == '<div class="hero">Just some text</div>'

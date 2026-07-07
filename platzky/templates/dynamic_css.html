@@ -29,10 +29,7 @@ body {
 
 .header-row {
   z-index: 1;
-  /* Fallback to Bootstrap's light surface when no primary_color is configured.
-     (Previously the .bg-light utility class won via !important and primary_color
-     never actually applied.) */
-  background-color: {{ primary_color or '#f8f9fa' }};
+  background-color: {{ primary_color }};
   height: min-content;
   display: flex;
   justify-content: center;

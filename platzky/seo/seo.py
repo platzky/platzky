@@ -5,23 +5,8 @@ import urllib.parse
 from os.path import dirname
 
 from flask import Blueprint, Response, current_app, make_response, render_template, request
-from werkzeug.routing import Rule
 
 from platzky.db.db import DB
-
-INTERNAL_NAMESPACES = frozenset({"static", "seo", "admin", "login", "health", "api"})
-INTERNAL_PATH_PREFIXES = ("/lang/",)
-
-
-def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
-    """Return True if the route should be included in the sitemap."""
-    if not rule.methods or "GET" not in rule.methods or rule.arguments:
-        return False
-    namespace = rule.endpoint.split(".")[0]
-    if namespace in INTERNAL_NAMESPACES:
-        return False
-    path = str(rule)
-    return not any(path.startswith(p) for p in INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
 
 
 def create_seo_blueprint(
@@ -95,13 +80,11 @@ def create_seo_blueprint(
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc
 
-        extra_excluded = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
-
         # Static routes with static content
         static_urls = [
             {"loc": f"{host_base}{rule!s}"}
             for rule in current_app.url_map.iter_rules()
-            if _is_public_route(rule, extra_excluded)
+            if rule.methods is not None and "GET" in rule.methods and len(rule.arguments) == 0
         ]
 
         dynamic_urls = get_blog_entries(host_base, lang, db, config["BLOG_PREFIX"])

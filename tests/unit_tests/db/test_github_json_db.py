@@ -7,6 +7,7 @@ from platzky.db.github_json_db import (
     GithubJsonDbConfig,
     db_config_type,
     db_from_config,
+    get_db,
 )
 
 
@@ -31,6 +32,29 @@ def test_creates_github_json_db_from_config():
             BRANCH_NAME="main",
         )
         db = db_from_config(config)
+        assert isinstance(db, GithubJsonDb)
+        assert db.branch_name == "main"
+        assert db.file_path == "path/to/file.json"
+        assert db.data == {"key": "value"}
+
+
+def test_creates_github_json_db_with_validated_config():
+    with patch("platzky.db.github_json_db.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_file = MagicMock()
+        mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="
+        mock_file.decoded_content = b'{"key": "value"}'
+        MockGithub.return_value.get_repo.return_value = mock_repo
+        mock_repo.get_contents.return_value = mock_file
+
+        config = {
+            "TYPE": "github_json_db",
+            "GITHUB_TOKEN": "fake_token",
+            "REPO_NAME": "fake_repo",
+            "PATH_TO_FILE": "path/to/file.json",
+            "BRANCH_NAME": "main",
+        }
+        db = get_db(config)
         assert isinstance(db, GithubJsonDb)
         assert db.branch_name == "main"
         assert db.file_path == "path/to/file.json"

@@ -26,7 +26,6 @@ def test_app():
                         {
                             "title": "test",
                             "slug": "test",
-                            "excerpt": "excerpt",
                             "contentInMarkdown": "",
                             "contentInRichText": "test",
                             "comments": [],
@@ -42,7 +41,6 @@ def test_app():
                         {
                             "title": "test",
                             "slug": "test",
-                            "excerpt": "excerpt",
                             "contentInMarkdown": "",
                             "contentInRichText": "test pl",
                             "comments": [],

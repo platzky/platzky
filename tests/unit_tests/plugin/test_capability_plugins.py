@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, ClassVar
 from unittest import mock
 
 import jinja2.ext
 import pytest
 
-from platzky.attachment import Attachment
+from platzky.attachment import AttachmentProtocol
 from platzky.config import Config
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
@@ -16,10 +17,8 @@ from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.plugin.html_injector import HtmlInjectorPluginBase, PageSection
-from platzky.plugin.notifier import Notification, NotifierPluginBase
+from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
-from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
 
 # ---------------------------------------------------------------------------
@@ -33,9 +32,9 @@ def base_config_data() -> dict[str, Any]:
         "APP_NAME": "testApp",
         "SECRET_KEY": "secret",
         "USE_WWW": False,
-        "BLOG_PREFIX": "/blog",
+        "BLOG_PREFIX": "/",
         "TRANSLATION_DIRECTORIES": [],
-        "DB": {"TYPE": "json", "DATA": {"plugins": {}}},
+        "DB": {"TYPE": "json", "DATA": {"plugins": []}},
     }
 
 
@@ -53,14 +52,14 @@ def app(base_config_data: dict[str, Any]) -> Engine:
 
 def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: type) -> Engine:
     """Load a single plugin via a mocked entry point and return the fully configured app."""
-    base_config_data["DB"]["DATA"]["plugins"] = {
-        name: {
-            "is_active": True,
+    base_config_data["DB"]["DATA"]["plugins"] = [
+        {
+            "name": name,
             "config": {},
             "allowed_content_types": list(ALL_CONTENT_TYPES),
             "allowed_topics": ["general", "content", "security"],
         }
-    }
+    ]
     config = Config.model_validate(base_config_data)
     ep = mock.MagicMock()
     ep.name = name
@@ -84,20 +83,31 @@ class SimpleNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
         self.received: list[tuple[str, str]] = []
 
-    def notify(self, notification: Notification) -> None:
-        self.received.append((notification.message, notification.topic))
+    def notify(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        receiver: str = "",  # noqa: ARG002
+    ) -> None:
+        self.received.append((message, topic))
 
 
-class SimpleAttachmentNotifier(NotifierPluginBase):
-    """Notifier that records received messages and attachments."""
+class SimpleAttachmentNotifier(AttachmentNotifierPluginBase):
+    """Attachment-aware notifier that records received messages and attachments."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self.accepted_topics = frozenset(config.get("accepted_topics", _ALL_TOPICS))
-        self.received: list[tuple[str, str, frozenset[Attachment]]] = []
+        self.received: list[tuple[str, str, Sequence[AttachmentProtocol]]] = []
 
-    def notify(self, notification: Notification) -> None:
-        self.received.append((notification.message, notification.topic, notification.attachments))
+    def notify_with_attachments(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        attachments: Sequence[AttachmentProtocol],
+        receiver: str = "",  # noqa: ARG002
+    ) -> None:
+        self.received.append((message, topic, attachments))
 
 
 class TopicFilteredNotifier(NotifierPluginBase):
@@ -108,8 +118,13 @@ class TopicFilteredNotifier(NotifierPluginBase):
         self.accepted_topics = frozenset(config.get("accepted_topics", frozenset()))
         self.received: list[tuple[str, str]] = []
 
-    def notify(self, notification: Notification) -> None:
-        self.received.append((notification.message, notification.topic))
+    def notify(
+        self,
+        message: str,
+        topic: NotificationTopic,
+        receiver: str = "",  # noqa: ARG002
+    ) -> None:
+        self.received.append((message, topic))
 
 
 class TestNotifierPluginBase:
@@ -183,9 +198,9 @@ class TestNotifierPluginBase:
         app.set_notifier_allowlist(notifier, frozenset(_ALL_TOPICS))
         fake_attachment = object()
 
-        app.notify("msg", topic="general", attachments=frozenset({fake_attachment}))  # type: ignore[arg-type]
+        app.notify("msg", topic="general", attachments=[fake_attachment])  # type: ignore[list-item]
 
-        assert notifier.received[0][2] == frozenset({fake_attachment})
+        assert notifier.received[0][2] == [fake_attachment]
 
     def test_accepted_topics_from_config_list(self) -> None:
         notifier = TopicFilteredNotifier({"accepted_topics": ["security", "content"]})
@@ -271,19 +286,25 @@ class TestContentTransformerPluginBase:
 
 
 # ---------------------------------------------------------------------------
-# Plugin base registration
+# Plugin capability registration
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterPluginBases:
-    def test_uncategorised_plugin_raises_type_error(self, base_config_data: dict[str, Any]) -> None:
+class TestRegisterPluginCapabilities:
+    def test_uncategorised_plugin_stored_under_pluginbase(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
         class GenericPlugin(PluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
 
-        app = create_app_from_config(Config.model_validate(base_config_data))
-        with pytest.raises(TypeError, match="does not implement any recognised capability"):
-            app.register_plugin(GenericPlugin({}), "generic")
+        app = _app_with_plugin(base_config_data, "generic", GenericPlugin)
+        assert any(isinstance(p, GenericPlugin) for p in app.get_plugins(PluginBase))
+        assert not any(isinstance(p, GenericPlugin) for p in app.get_plugins(NotifierPluginBase))
+
+    def test_plugin_stored_under_concrete_type(self, base_config_data: dict[str, Any]) -> None:
+        app = _app_with_plugin(base_config_data, "simple", SimpleNotifier)
+        assert any(isinstance(p, SimpleNotifier) for p in app.get_plugins(SimpleNotifier))
 
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
@@ -294,8 +315,14 @@ class TestRegisterPluginBases:
                 self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
                 self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
 
-            def notify(self, notification: Notification) -> None:
-                pass  # no-op: test stub
+            def notify(
+                self,
+                message: str,
+                topic: NotificationTopic,
+                receiver: str = "",
+            ) -> None:
+                # No-op: only verifies capability registration, not notification delivery.
+                pass
 
         app = _app_with_plugin(base_config_data, "multi", MultiPlugin)
         assert any(isinstance(p, MultiPlugin) for p in app.get_plugins(NotifierPluginBase))
@@ -338,6 +365,64 @@ class TestGetInfo:
         assert len(infos) == 1
         assert infos[0].name == "SimpleNotifier"
         assert infos[0].description == (SimpleNotifier.__doc__ or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# Backward compatibility: process() still called when overridden
+# ---------------------------------------------------------------------------
+
+
+class TestBackwardCompatProcess:
+    def test_legacy_process_called_on_class_plugin(self, base_config_data: dict[str, Any]) -> None:
+        class LegacyPlugin(PluginBase):
+            processed = False
+
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+
+            def process(self, app: Engine) -> Engine:
+                LegacyPlugin.processed = True
+                return app
+
+        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "legacy", "config": {}}]
+        config = Config.model_validate(base_config_data)
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin"),
+            mock.patch("platzky.plugin.plugin_loader._is_class_plugin", return_value=LegacyPlugin),
+        ):
+            create_app_from_config(config)
+
+        assert LegacyPlugin.processed
+
+    def test_new_capability_plugin_process_not_called(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        class NewPlugin(NotifierPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
+
+            def notify(
+                self,
+                message: str,
+                topic: NotificationTopic,
+                receiver: str = "",
+            ) -> None:
+                # No-op: only verifies that process() is not called, not notification delivery.
+                pass
+
+        base_config_data["DB"]["DATA"]["plugins"] = [{"name": "new", "config": {}}]
+        config = Config.model_validate(base_config_data)
+
+        with (
+            mock.patch("platzky.plugin.plugin_loader.find_plugin"),
+            mock.patch("platzky.plugin.plugin_loader._is_class_plugin", return_value=NewPlugin),
+            mock.patch.object(PluginBase, "process", wraps=PluginBase.process) as mock_process,
+        ):
+            create_app_from_config(config)
+
+        mock_process.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -457,190 +542,3 @@ class TestContentTransformerWiring:
         """get_jinja_extensions() classes must appear in engine.jinja_env.extensions."""
         app = _app_with_plugin(base_config_data, "jinjaext", JinjaExtPlugin)
         assert any("_DummyJinjaExtension" in k for k in app.jinja_env.extensions)
-
-
-# ---------------------------------------------------------------------------
-# ContentType "field" — field-rendering opt-in
-# ---------------------------------------------------------------------------
-
-
-class TestFieldContentType:
-    def test_field_in_all_content_types(self) -> None:
-        assert "field" in ALL_CONTENT_TYPES
-
-    def test_plugin_with_field_processes_field_content(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        class FieldReadyFilter(ContentTransformerPluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
-
-            def transform_text(self, text: str) -> str:
-                return text + "[field]"
-
-        app = _app_with_plugin(base_config_data, "fieldready", FieldReadyFilter)
-        assert app.transform_content("x", "field") == "x[field]"
-
-    def test_plugin_without_field_skips_field_content(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        class PostOnlyFilter(ContentTransformerPluginBase):
-            def __init__(self, config: dict[str, Any]) -> None:
-                super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
-
-            def transform_text(self, text: str) -> str:
-                return text + "[post]"
-
-        app = _app_with_plugin(base_config_data, "postonlyfilter", PostOnlyFilter)
-        assert app.transform_content("x", "field") == "x"
-
-
-# ---------------------------------------------------------------------------
-# HtmlInjectorPluginBase
-# ---------------------------------------------------------------------------
-
-
-class HeadDecorator(HtmlInjectorPluginBase):
-    """Injects a fixed snippet into <head>."""
-
-    accepted_page_sections: frozenset[PageSection] = frozenset({"head"})
-
-    def get_head_html(self) -> str:
-        """Return head HTML snippet."""
-        return "<meta name='test'/>"
-
-
-class BodyDecorator(HtmlInjectorPluginBase):
-    """Injects a fixed snippet at the start of <body>."""
-
-    accepted_page_sections: frozenset[PageSection] = frozenset({"body"})
-
-    def get_body_html(self) -> str:
-        """Return body HTML snippet."""
-        return "<div id='banner'></div>"
-
-
-class HeadAndBodyDecorator(HtmlInjectorPluginBase):
-    """Injects into both <head> and <body>."""
-
-    accepted_page_sections: frozenset[PageSection] = frozenset({"head", "body"})
-
-    def get_head_html(self) -> str:
-        """Return head HTML snippet."""
-        return "<script>/*head*/</script>"
-
-    def get_body_html(self) -> str:
-        """Return body HTML snippet."""
-        return "<script>/*body*/</script>"
-
-
-class UndeclaredDecorator(HtmlInjectorPluginBase):
-    """Page decorator that forgets to declare accepted_page_sections."""
-
-    def get_head_html(self) -> str:
-        """Return head HTML snippet."""
-        return "<meta name='undeclared'/>"
-
-
-class TestHtmlInjectorPluginBase:
-    def test_head_injected_when_both_sides_declare_head(self, app: Engine) -> None:
-        plugin = HeadDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset({"head"}))
-
-        assert "<meta name='test'/>" in app.dynamic_head
-
-    def test_body_injected_when_both_sides_declare_body(self, app: Engine) -> None:
-        plugin = BodyDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset({"body"}))
-
-        assert "<div id='banner'></div>" in app.dynamic_body
-
-    def test_admin_cannot_inject_into_section_plugin_did_not_declare(self, app: Engine) -> None:
-        plugin = HeadDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset({"head", "body"}))
-
-        assert "<meta name='test'/>" in app.dynamic_head
-        assert app.dynamic_body == ""
-
-    def test_plugin_cannot_inject_into_section_admin_did_not_allow(self, app: Engine) -> None:
-        plugin = HeadAndBodyDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset({"head"}))
-
-        assert "<script>/*head*/</script>" in app.dynamic_head
-        assert app.dynamic_body == ""
-
-    def test_nothing_injected_when_allowlists_do_not_intersect(self, app: Engine) -> None:
-        plugin = HeadDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset({"body"}))
-
-        assert app.dynamic_head == ""
-        assert app.dynamic_body == ""
-
-    def test_nothing_injected_when_admin_allowlist_empty(self, app: Engine) -> None:
-        plugin = HeadAndBodyDecorator({})
-        app.plugins[HtmlInjectorPluginBase].append(plugin)
-        app.apply_html_injector(plugin, frozenset())
-
-        assert app.dynamic_head == ""
-        assert app.dynamic_body == ""
-
-    def test_multiple_decorators_accumulate(self, app: Engine) -> None:
-        head = HeadDecorator({})
-        body = BodyDecorator({})
-        for plugin in (head, body):
-            app.plugins[HtmlInjectorPluginBase].append(plugin)
-            app.apply_html_injector(plugin, frozenset({"head", "body"}))
-
-        assert "<meta name='test'/>" in app.dynamic_head
-        assert "<div id='banner'></div>" in app.dynamic_body
-
-    def test_debug_logged_for_html_injector_with_no_accepted_sections(
-        self, app: Engine, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        import logging
-
-        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
-            app.load_plugin(
-                UndeclaredDecorator,
-                "undeclared",
-                PluginConfigBase.model_validate({"allowed_page_sections": ["head"]}),
-            )
-
-        assert any("accepted_page_sections" in r.message for r in caplog.records)
-        assert app.dynamic_head == ""
-
-    def test_debug_logged_for_notifier_with_no_accepted_topics(
-        self, app: Engine, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        import logging
-
-        class EmptyNotifier(NotifierPluginBase):
-            """Notifier that forgets to declare accepted_topics."""
-
-            def notify(self, notification: Notification) -> None:
-                pass  # no-op: test stub
-
-        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
-            app.load_plugin(EmptyNotifier, "empty_notifier", PluginConfigBase())
-
-        assert any("accepted_topics" in r.message for r in caplog.records)
-
-    def test_debug_logged_for_transformer_with_no_accepted_content_types(
-        self, app: Engine, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        import logging
-
-        class EmptyTransformer(ContentTransformerPluginBase):
-            """Transformer that forgets to declare accepted_content_types."""
-
-        with caplog.at_level(logging.DEBUG, logger="platzky.engine"):
-            app.load_plugin(EmptyTransformer, "empty_transformer", PluginConfigBase())
-
-        assert any("accepted_content_types" in r.message for r in caplog.records)

@@ -7,17 +7,16 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from platzky.plugin.html_injector import PageSection
     from platzky.plugin.plugin import PluginBase
 
+import deprecation
 from flask import (
     Blueprint,
     Flask,
     Response,
-    current_app,
     jsonify,
     make_response,
     request,
@@ -25,21 +24,16 @@ from flask import (
 )
 from flask_babel import Babel
 
-from platzky.attachment import Attachment, create_attachment
+from platzky.attachment import AttachmentProtocol, create_attachment_class
 from platzky.config import Config
 from platzky.content_types import ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
-from platzky.plugin import PLUGIN_BASES
-from platzky.plugin.content_transformer import (
-    ContentTransformerPluginBase,
-    ContentTransformerPluginConfig,
-)
-from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPluginConfig
-from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
-from platzky.plugin.plugin_config import PluginConfigBase
+from platzky.notifier import Notifier, NotifierWithAttachments
+from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.notifier import AttachmentNotifierPluginBase, NotifierPluginBase
 from platzky.shortcodes import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -72,6 +66,9 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
+_PLUGIN_CAPABILITY_BASES: tuple[type, ...] = (NotifierPluginBase, ContentTransformerPluginBase)
+
+
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
 
@@ -80,8 +77,6 @@ class Engine(Flask):
         config: Config,
         db: DB,
         import_name: str,
-        extra_plugin_bases: Sequence[type["PluginBase"]] = (),
-        extra_plugins_entrypoints: Sequence[str] = (),
     ) -> None:
         """Initialize the Engine.
 
@@ -89,29 +84,25 @@ class Engine(Flask):
             config: Application configuration.
             db: Database instance.
             import_name: Name of the application module.
-            extra_plugin_bases: Host-registered capability base classes, in addition
-                to platzky's built-in ``PLUGIN_BASES``. A host application (e.g. one
-                that wraps ``create_app_from_config``) may define capabilities for its
-                own plugin ecosystem; plugins themselves cannot register capabilities.
-            extra_plugins_entrypoints: Host-registered entry-point groups to discover
-                plugins from, in addition to ``platzky.plugins``.
         """
         super().__init__(import_name)
-        self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
-        self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
-        self._attachment_config = config.attachment
+        self.Attachment: type[AttachmentProtocol] = create_attachment_class(config.attachment)
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
         self.loaded_plugins: list[Any] = []
-        self._notifier_topic_allowlist: defaultdict[
-            NotifierPluginBase, frozenset[NotificationTopic]
-        ] = defaultdict(frozenset)
+        self._notifier_topic_allowlist: dict[NotifierPluginBase, frozenset[NotificationTopic]] = {}
         self._content_transformer_allowlist: dict[
             ContentTransformerPluginBase, frozenset[ContentType]
         ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
+
+        # Deprecated — kept for backward compatibility until v2.0
+        self._notifiers: list[Notifier] = []
+        self._notifiers_with_attachments: list[NotifierWithAttachments] = []
+
+        self.login_methods: list[Callable[[], str]] = []
         self.dynamic_body = ""
         self.dynamic_head = ""
         self.health_checks: list[tuple[str, Callable[[], None]]] = []
@@ -137,41 +128,61 @@ class Engine(Flask):
         """Return PluginInfo metadata for all loaded plugins."""
         return [plugin.get_info() for plugin in self.loaded_plugins]
 
-    def create_attachment(self, filename: str, content: bytes, mime_type: str) -> Attachment:
-        """Validate and construct an Attachment using the engine's configured rules.
-
-        Args:
-            filename: Name of the file; path components are stripped automatically.
-            content: Binary content of the file.
-            mime_type: MIME type of the file.
-
-        Returns:
-            A validated, immutable Attachment instance.
-        """
-        return create_attachment(filename, content, mime_type, self._attachment_config)
-
     def notify(
         self,
         message: str,
         topic: NotificationTopic = "general",
-        attachments: frozenset[Attachment] = frozenset(),
-        receivers: frozenset[str] = frozenset(),
+        attachments: Sequence[AttachmentProtocol] = (),
+        receiver: str = "",
     ) -> None:
         """Send a notification to all registered notifiers.
 
         Args:
             message: The notification message text.
             topic: Notification topic for routing (default ``"general"``).
-            attachments: Attachments to include; empty frozenset if none.
-            receivers: Target recipients; empty frozenset means send to no one.
+            attachments: Attachments to include; empty sequence if none.
+            receiver: Target recipient identifier; empty string means broadcast.
         """
-        notification = Notification(message, topic, attachments, receivers)
+        # Legacy path — TODO(2.0.0): remove both lists and merge into NotifierPluginBase only
+        for notifier in self._notifiers:
+            notifier(message)
+        for notifier in self._notifiers_with_attachments:
+            notifier(message, attachments=attachments)
+
+        # New capability-based path
         for plugin in self.get_plugins(NotifierPluginBase):
-            if notification.topic not in plugin.accepted_topics:
+            if topic not in plugin.accepted_topics:
                 continue
-            if notification.topic not in self._notifier_topic_allowlist[plugin]:
+            if topic not in self._notifier_topic_allowlist.get(plugin, frozenset()):
                 continue
-            plugin.notify(notification)
+            if isinstance(plugin, AttachmentNotifierPluginBase):
+                plugin.notify_with_attachments(message, topic, attachments, receiver)
+            else:
+                plugin.notify(message, topic, receiver)
+
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details="Use NotifierPluginBase subclass instead.",
+    )
+    def add_notifier(self, notifier: Notifier) -> None:
+        """Register a simple notifier (message only).
+
+        Deprecated: implement NotifierPluginBase instead.
+        """
+        self._notifiers.append(notifier)
+
+    @deprecation.deprecated(
+        deprecated_in="1.5.0",
+        removed_in="2.0.0",
+        details="Use NotifierPluginBase subclass instead.",
+    )
+    def add_notifier_with_attachments(self, notifier: NotifierWithAttachments) -> None:
+        """Register a notifier that supports attachments.
+
+        Deprecated: implement NotifierPluginBase instead.
+        """
+        self._notifiers_with_attachments.append(notifier)
 
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
@@ -199,31 +210,28 @@ class Engine(Flask):
         """
         self._content_transformer_allowlist[plugin] = allowed_types
 
-    def register_plugin(self, instance: "PluginBase", plugin_name: str) -> None:
+    def register_plugin_capabilities(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
 
-        Args:
-            instance: Plugin instance to register.
-            plugin_name: Human-readable name used in log messages.
-
-        Raises:
-            TypeError: If the plugin does not implement any recognised capability.
+        Each recognised capability base class becomes a key in ``self.plugins`` so the
+        engine can look up e.g. all NotifierPluginBase plugins without knowing concrete types.
+        Plugins that don't match any capability are stored under PluginBase.
         """
-        recognised_bases = (*PLUGIN_BASES, *self.extra_plugin_bases)
-        matched = False
-        for base in recognised_bases:
+        from platzky.plugin.plugin import PluginBase
+
+        registered = False
+        for base in _PLUGIN_CAPABILITY_BASES:
             if isinstance(instance, base):
                 self.plugins[base].append(instance)
-                matched = True
+                registered = True
                 logger.debug(
                     "Registered plugin '%s' under capability %s", plugin_name, base.__name__
                 )
-        if not matched:
-            raise TypeError(
-                f"Plugin '{plugin_name}' ({type(instance).__name__}) does not implement "
-                f"any recognised capability. Must subclass one of: "
-                f"{', '.join(b.__name__ for b in recognised_bases)}"
-            )
+
+        self.plugins[type(instance)].append(instance)
+
+        if not registered:
+            self.plugins[PluginBase].append(instance)
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
         """Register plugin's locale directory with Babel if it exists."""
@@ -247,55 +255,44 @@ class Engine(Flask):
     def load_plugin(
         self,
         plugin_class: "type[PluginBase]",
+        plugin_config: dict[str, Any],
         plugin_name: str,
-        plugin_config_base: PluginConfigBase,
+        allowed_topics: frozenset[NotificationTopic] = frozenset(),
+        allowed_content_types: frozenset[ContentType] = frozenset(),
     ) -> "Engine":
         """Instantiate and register a class-based plugin. Returns the (possibly replaced) engine.
 
         Args:
             plugin_class: The plugin class to instantiate.
+            plugin_config: Configuration dict passed to the plugin constructor.
             plugin_name: Human-readable name used in log messages.
-            plugin_config_base: Validated DB record. ``config`` is passed to the plugin
-                constructor; capability allowlists are read from the remaining fields.
+            allowed_topics: Topic allowlist for notifier plugins. Empty frozenset blocks all
+                topics; a non-empty frozenset restricts to those topics.
+            allowed_content_types: Content-type allowlist for transformer plugins.
+                Empty frozenset blocks all types; a non-empty frozenset restricts.
 
         Returns:
             The (possibly replaced) engine after loading the plugin.
         """
-        raw = plugin_config_base.model_dump()
-        plugin_instance = plugin_class(plugin_config_base.config)
-        app = self
-        if isinstance(plugin_instance, NotifierPluginBase):
-            if not plugin_instance.accepted_topics:
-                logger.debug(
-                    "Plugin %s declares no accepted_topics; it will receive no notifications.",
-                    plugin_name,
-                )
-            app.set_notifier_allowlist(
-                plugin_instance, NotifyPluginConfig.model_validate(raw).allowed_topics
-            )
-        if isinstance(plugin_instance, ContentTransformerPluginBase):
-            if not plugin_instance.accepted_content_types:
-                logger.debug(
-                    "Plugin %s declares no accepted_content_types; it will transform no content.",
-                    plugin_name,
-                )
-            app.set_content_transformer_allowlist(
-                plugin_instance,
-                ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
-            )
-        if isinstance(plugin_instance, HtmlInjectorPluginBase):
-            if not plugin_instance.accepted_page_sections:
-                logger.debug(
-                    "Plugin %s declares no accepted_page_sections; nothing will be injected.",
-                    plugin_name,
-                )
-            app.apply_html_injector(
-                plugin_instance,
-                HtmlInjectorPluginConfig.model_validate(raw).allowed_page_sections,
-            )
+        from platzky.plugin.plugin import PluginBase
+
+        plugin_instance = plugin_class(plugin_config)
+        # MRO-based identity check: every class inherits process() from PluginBase so
+        # hasattr() would always return True.  Comparing unbound method objects via `is`
+        # detects a genuine override without invoking the deprecation warning that calling
+        # the base no-op implementation would raise.
+        app = (
+            plugin_instance.process(self)
+            if type(plugin_instance).process is not PluginBase.process
+            else self
+        )
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
-        app.register_plugin(plugin_instance, plugin_name)
+        app.register_plugin_capabilities(plugin_instance, plugin_name)
+        if isinstance(plugin_instance, NotifierPluginBase):
+            app.set_notifier_allowlist(plugin_instance, allowed_topics)
+        if isinstance(plugin_instance, ContentTransformerPluginBase):
+            app.set_content_transformer_allowlist(plugin_instance, allowed_content_types)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 
@@ -309,28 +306,13 @@ class Engine(Flask):
         """
         self._notifier_topic_allowlist[plugin] = allowed_topics
 
-    def apply_html_injector(
-        self,
-        plugin: HtmlInjectorPluginBase,
-        allowed_page_sections: "frozenset[PageSection]",
-    ) -> None:
-        """Inject HTML from a page-decorator plugin into the allowed page sections.
-
-        Effective sections are the intersection of what the plugin declares via
-        ``accepted_page_sections`` and what the admin permits via ``allowed_page_sections``.
-        HTML is captured once at startup from ``get_head_html`` / ``get_body_html``;
-        use the plugin's own config for values that vary by environment.
-        Called by ``load_plugin``; not accessible to plugin code.
-        """
-        effective_sections = plugin.accepted_page_sections & allowed_page_sections
-        if "head" in effective_sections:
-            self.add_dynamic_head(plugin.get_head_html())
-        if "body" in effective_sections:
-            self.add_dynamic_body(plugin.get_body_html())
-
     def add_cms_module(self, module: CmsModule) -> None:
         """Add a CMS module to the modules list."""
         self.cms_modules.append(module)
+
+    def add_login_method(self, login_method: Callable[[], str]) -> None:
+        """Register a login method callable."""
+        self.login_methods.append(login_method)
 
     def add_dynamic_body(self, body: str) -> None:
         """Append HTML to the dynamic body section rendered in templates."""
@@ -341,42 +323,17 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the current locale based on session, host domain, or browser preferences."""
-        languages = self.config.get("LANGUAGES", {})
+        """Return the current locale based on session or browser preferences."""
+        languages = self.config.get("LANGUAGES", {}).keys()
 
         session_lang = session.get("language")
         if isinstance(session_lang, str) and session_lang in languages:
             lang = session_lang
         else:
-            lang = self._language_for_host(languages, request.host) or (
-                request.accept_languages.best_match(languages.keys()) or "en"
-            )
+            lang = request.accept_languages.best_match(languages) or "en"
 
         session["language"] = lang
         return lang
-
-    @staticmethod
-    def _language_for_host(languages: dict[str, Any], host: str) -> Optional[str]:
-        """Return the language code whose dedicated domain matches host, if any.
-
-        A language's own domain takes priority over Accept-Language guessing so a
-        fresh visitor (no session yet) landing directly on that domain sees the
-        language it represents, rather than whatever their browser prefers.
-        """
-        host_without_port = host.split(":", 1)[0].rstrip(".").lower()
-        host_with_port = host.rstrip(".").lower()
-        for lang, cfg in languages.items():
-            domain = cfg.get("domain")
-            if not isinstance(domain, str):
-                continue
-            normalized_domain = domain.rstrip(".").lower()
-            # A domain with an explicit port must match the host's port exactly; a
-            # domain without one matches regardless of port (e.g. behind a proxy
-            # that forwards on a non-standard port).
-            host_to_compare = host_with_port if ":" in normalized_domain else host_without_port
-            if normalized_domain == host_to_compare:
-                return lang
-        return None
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.
@@ -463,13 +420,3 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
-
-
-def current_engine() -> Engine:
-    """Return Flask's current_app typed as Engine.
-
-    Returns:
-        The active application, which is always an Engine instance since
-        create_app() is the only entry point that constructs it.
-    """
-    return cast(Engine, current_app)
