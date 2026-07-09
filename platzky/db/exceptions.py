@@ -14,4 +14,4 @@ class NotFoundError(DBError, ValueError):
 
 
 class ReadOnlyStorageError(DBError):
-    """The backing store does not support writes."""
+    """The storage does not support writes."""
