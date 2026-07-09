@@ -12,6 +12,25 @@ The database layer is built on an abstract base class (DB) that defines a common
 - **GoogleJsonDb**: JSON files stored in Google Cloud Storage
 - **GraphQL**: Content stored in a GraphQL API
 
+### Storage transports
+
+`Json`, `JsonFile`, `GoogleJsonDb`, and `GithubJsonDb` are one data model (a
+JSON document) with different persistence transports, not four independent
+implementations. `Json` holds all the document logic (posts, pages, menu
+items, comments, ...) and delegates *where the bytes live* to a
+`DocumentStore` (see `platzky/db/stores.py`):
+
+- `MemoryStore` — in-memory only, used by the plain `Json` backend.
+- `FileStore` — a local file, written atomically (temp file + rename) so a
+  crash mid-write cannot corrupt the database. Used by `JsonFile`.
+- `ReadOnlyStore` — wraps a document already fetched by the caller (a GCS
+  blob, a GitHub file) and rejects writes with `ReadOnlyStorageError` instead
+  of silently discarding them. Used by `GoogleJsonDb` and `GithubJsonDb`.
+
+Subclassing `Json` with a new transport is a matter of implementing
+`DocumentStore` and passing it via `Json(store=...)`; no document logic needs
+to be duplicated.
+
 
 ## Configuration
 

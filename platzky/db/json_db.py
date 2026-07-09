@@ -7,6 +7,7 @@ from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import DBError, NotFoundError
+from platzky.db.stores import DocumentStore, MemoryStore
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -44,14 +45,24 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 class Json(DB):
     """In-memory JSON database implementation."""
 
-    def __init__(self, data: dict[str, Any]):
-        """Initialize JSON database with data dictionary.
+    def __init__(self, data: dict[str, Any] | None = None, *, store: DocumentStore | None = None):
+        """Initialize JSON database with a data dictionary or a store.
 
         Args:
-            data: Dictionary containing all database content
+            data: Dictionary containing all database content. Mutations are
+                kept in memory only. Ignored if `store` is given.
+            store: Storage transport to load the document from and persist
+                writes to. Subclasses that back onto an external resource
+                (a file, a bucket, ...) pass one; the plain in-memory backend
+                leaves it unset and gets a `MemoryStore` around `data`.
         """
         super().__init__()
-        self.data: dict[str, Any] = data
+        if store is not None:
+            self._store: DocumentStore = store
+            self.data: dict[str, Any] = store.load()
+        else:
+            self.data = data if data is not None else {}
+            self._store = MemoryStore(self.data)
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
@@ -143,7 +154,7 @@ class Json(DB):
         """
         return [
             Post.model_validate(post)
-            for post in self._get_site_content()["posts"]
+            for post in self._get_site_content().get("posts", ())
             if tag in post["tags"] and post["language"] == lang
         ]
 
@@ -246,7 +257,14 @@ class Json(DB):
         post = next((p for p in posts if p["slug"] == post_slug), None)
         if post is None:
             raise NotFoundError(f"Post with slug {post_slug} not found")
-        post["comments"].append(comment_data)
+
+        comments = post.setdefault("comments", [])
+        comments.append(comment_data)
+        try:
+            self._store.save(self.data)
+        except BaseException:
+            comments.remove(comment_data)
+            raise
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""

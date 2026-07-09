@@ -8,6 +8,7 @@ from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json
+from platzky.db.stores import ReadOnlyStore
 
 if TYPE_CHECKING:
     from google.cloud.storage import Blob
@@ -70,7 +71,11 @@ def get_data(blob: "Blob") -> dict[str, Any]:
 
 
 class GoogleJsonDb(Json):
-    """JSON database stored in Google Cloud Storage."""
+    """JSON database stored in Google Cloud Storage.
+
+    Read-only: the blob is fetched once at construction time; writes raise
+    `platzky.db.exceptions.ReadOnlyStorageError`.
+    """
 
     def __init__(self, bucket_name: str, source_blob_name: str) -> None:
         """Initialize Google Cloud Storage JSON database connection.
@@ -84,7 +89,7 @@ class GoogleJsonDb(Json):
 
         self.blob = get_blob(self.bucket_name, self.source_blob_name)
         data = get_data(self.blob)
-        super().__init__(data)
+        super().__init__(store=ReadOnlyStore(data))
 
         self.module_name = "google_json_db"
         self.db_name = "GoogleJsonDb"

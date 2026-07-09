@@ -8,6 +8,7 @@ from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json as JsonDB
+from platzky.db.stores import ReadOnlyStore
 
 
 def db_config_type() -> type["GithubJsonDbConfig"]:
@@ -43,7 +44,11 @@ def db_from_config(config: GithubJsonDbConfig) -> "GithubJsonDb":
 
 
 class GithubJsonDb(JsonDB):
-    """JSON database stored in a GitHub repository."""
+    """JSON database stored in a GitHub repository.
+
+    Read-only: the file is fetched once at construction time; writes raise
+    `platzky.db.exceptions.ReadOnlyStorageError`.
+    """
 
     def __init__(
         self, github_token: str, repo_name: str, branch_name: str, path_to_file: str
@@ -69,7 +74,6 @@ class GithubJsonDb(JsonDB):
             if file_content.content:
                 raw_data = file_content.decoded_content.decode("utf-8")
             else:
-
                 download_url = file_content.download_url
                 response = requests.get(download_url, timeout=40)
                 response.raise_for_status()
@@ -82,7 +86,7 @@ class GithubJsonDb(JsonDB):
         except Exception as e:
             raise ValueError(f"Error retrieving GitHub content: {e}")
 
-        super().__init__(self.data)
+        super().__init__(store=ReadOnlyStore(self.data))
 
         self.module_name = "github_json_db"
         self.db_name = "GithubJsonDb"

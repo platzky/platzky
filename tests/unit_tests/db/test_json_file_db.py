@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -52,22 +53,15 @@ class TestJsonFileDb:
             assert db.get_app_description("de") == "Deutsche Beschreibung"
             assert db.get_app_description("fr") == ""
 
-    def test_add_comment_saves_file(self, sample_data: dict[str, object], mock_file_path: str):
-        json_str = json.dumps(sample_data)
-        mock_file = mock_open(read_data=json_str)
+    def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
+        data_file = tmp_path / "data.json"
+        data_file.write_text(json.dumps(sample_data))
 
         test_date = datetime(2023, 2, 1, 10, 0)
-        with patch("builtins.open", mock_file), patch("datetime.datetime") as mock_datetime:
+        with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
-            db = JsonFile(mock_file_path)
+            db = JsonFile(str(data_file))
             db.add_comment("Test User", "New comment", "post-1")
-
-        # Check that the file was opened for writing
-        mock_file.assert_called_with(mock_file_path, "w")
-
-        # Instead of parsing the written data, check if write was called
-        # and verify the expected data is in the updated db object
-        assert mock_file().write.called
 
         # Verify the comment was added to the db's data structure
         comments = db.data["site_content"]["posts"][0]["comments"]
@@ -75,6 +69,12 @@ class TestJsonFileDb:
         assert comments[0]["author"] == "Test User"
         assert comments[0]["comment"] == "New comment"
         assert comments[0]["date"] == "2023-02-01T10:00:00"
+
+        # Verify it was actually persisted to disk (not just kept in memory)
+        persisted = json.loads(data_file.read_text())
+        persisted_comments = persisted["site_content"]["posts"][0]["comments"]
+        assert len(persisted_comments) == 1
+        assert persisted_comments[0]["author"] == "Test User"
 
     def test_init_file_not_found(self, mock_file_path: str):
         with (
