@@ -36,7 +36,7 @@ def db_from_config(config: JsonDbConfig) -> "Json":
     Returns:
         Configured JSON database instance
     """
-    return Json(config.data)
+    return Json(MemoryStore(config.data))
 
 
 # TODO: Make all language-specific methods available without language parameter.
@@ -45,24 +45,18 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 class Json(DB):
     """In-memory JSON database implementation."""
 
-    def __init__(self, data: dict[str, Any] | None = None, *, store: DocumentStore | None = None):
-        """Initialize JSON database with a data dictionary or a store.
+    def __init__(self, store: DocumentStore) -> None:
+        """Initialize JSON database from a storage transport.
 
         Args:
-            data: Dictionary containing all database content. Mutations are
-                kept in memory only. Ignored if `store` is given.
             store: Storage transport to load the document from and persist
-                writes to. Subclasses that back onto an external resource
-                (a file, a bucket, ...) pass one; the plain in-memory backend
-                leaves it unset and gets a `MemoryStore` around `data`.
+                writes to. The plain in-memory backend uses a `MemoryStore`;
+                subclasses that back onto an external resource (a file, a
+                bucket, ...) pass their own.
         """
         super().__init__()
-        if store is not None:
-            self._store: DocumentStore = store
-            self.data: dict[str, Any] = store.load()
-        else:
-            self.data = data if data is not None else {}
-            self._store = MemoryStore(self.data)
+        self._store: DocumentStore = store
+        self.data: dict[str, Any] = store.load()
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
