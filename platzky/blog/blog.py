@@ -12,7 +12,7 @@ from werkzeug.wrappers import Response
 
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
 
 from . import comment_form
@@ -105,13 +105,20 @@ def create_blog_blueprint(
 
         Returns:
             Rendered HTML template of the blog post with new comment
+
+        Raises:
+            HTTPException: 403 if the database backend does not accept writes
         """
         comment = request.form.to_dict()
-        db.add_comment(
-            post_slug=post_slug,
-            author_name=comment["author_name"],
-            comment=comment["comment"],
-        )
+        try:
+            db.add_comment(
+                post_slug=post_slug,
+                author_name=comment["author_name"],
+                comment=comment["comment"],
+            )
+        except ReadOnlyStorageError as e:
+            logger.warning("Comment rejected for post '%s': %s", post_slug, e)
+            abort(403)
         return get_post(post_slug=post_slug)
 
     def _get_content_or_404(

@@ -5,9 +5,9 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.exceptions import DBError, NotFoundError
+from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
-from platzky.db.stores import MemoryStore
+from platzky.db.stores import MemoryStore, ReadOnlyStore
 from platzky.models import MenuItem, Page, Post
 
 
@@ -328,6 +328,41 @@ class TestJsonDbComments:
     def test_add_comment_to_nonexistent_post(self, db: Json):
         with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.add_comment("Test User", "Comment", "non-existent")
+
+    def test_add_comment_rolls_back_and_logs_on_save_failure(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        db = Json(
+            ReadOnlyStore(
+                {
+                    "site_content": {
+                        "posts": [
+                            {
+                                "title": "Post 1",
+                                "slug": "post-1",
+                                "language": "en",
+                                "tags": [],
+                                "comments": [],
+                                "author": "Test Author",
+                                "contentInMarkdown": "# Post 1",
+                                "excerpt": "Post 1 excerpt",
+                                "date": "2023-01-01T00:00:00",
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        with (
+            caplog.at_level("ERROR"),
+            pytest.raises(ReadOnlyStorageError),
+        ):
+            db.add_comment("Test User", "Comment", "post-1")
+
+        # The in-memory mutation is rolled back, not left dangling.
+        assert db.data["site_content"]["posts"][0]["comments"] == []
+        assert "Failed to persist comment for post 'post-1'" in caplog.text
 
 
 class TestJsonDbPlugins:
