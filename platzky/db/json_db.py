@@ -1,14 +1,19 @@
 """In-memory JSON database implementation."""
 
 import datetime
+import logging
+import threading
 from typing import Any
 
 from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import DBError, NotFoundError
+from platzky.db.stores import JsonStore, MemoryStore
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
+
+logger = logging.getLogger(__name__)
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -35,7 +40,7 @@ def db_from_config(config: JsonDbConfig) -> "Json":
     Returns:
         Configured JSON database instance
     """
-    return Json(config.data)
+    return Json(MemoryStore(config.data))
 
 
 # TODO: Make all language-specific methods available without language parameter.
@@ -44,14 +49,19 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 class Json(DB):
     """In-memory JSON database implementation."""
 
-    def __init__(self, data: dict[str, Any]):
-        """Initialize JSON database with data dictionary.
+    def __init__(self, store: JsonStore) -> None:
+        """Initialize JSON database from a storage transport.
 
         Args:
-            data: Dictionary containing all database content
+            store: Storage transport to load the document from and persist
+                writes to. The plain in-memory backend uses a `MemoryStore`;
+                subclasses that back onto an external resource (a file, a
+                bucket, ...) pass their own.
         """
         super().__init__()
-        self.data: dict[str, Any] = data
+        self._store: JsonStore = store
+        self._write_lock = threading.Lock()
+        self.data: dict[str, Any] = store.load()
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
@@ -79,7 +89,7 @@ class Json(DB):
         return [
             Post.model_validate(post)
             for post in self._get_site_content().get("posts", ())
-            if post["language"] == lang
+            if post.get("language", "en") == lang
         ]
 
     def get_post(self, slug: str) -> Post:
@@ -143,8 +153,8 @@ class Json(DB):
         """
         return [
             Post.model_validate(post)
-            for post in self._get_site_content()["posts"]
-            if tag in post["tags"] and post["language"] == lang
+            for post in self._get_site_content().get("posts", ())
+            if tag in post.get("tags", ()) and post.get("language", "en") == lang
         ]
 
     def _get_site_content(self) -> dict[str, Any]:
@@ -233,6 +243,7 @@ class Json(DB):
 
         Raises:
             NotFoundError: If post not found
+            ReadOnlyStorageError: If the backend does not support writes
         """
         now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
@@ -242,11 +253,24 @@ class Json(DB):
             "date": now_utc,
         }
 
-        posts = self._get_site_content()["posts"]
-        post = next((p for p in posts if p["slug"] == post_slug), None)
-        if post is None:
-            raise NotFoundError(f"Post with slug {post_slug} not found")
-        post["comments"].append(comment_data)
+        with self._write_lock:
+            posts = self._get_site_content()["posts"]
+            post = next((p for p in posts if p["slug"] == post_slug), None)
+            if post is None:
+                raise NotFoundError(f"Post with slug {post_slug} not found")
+
+            had_comments = "comments" in post
+            comments = post.setdefault("comments", [])
+            comments.append(comment_data)
+            try:
+                self._store.save(self.data)
+            except BaseException:
+                if had_comments:
+                    comments.remove(comment_data)
+                else:
+                    del post["comments"]
+                logger.exception("Failed to persist comment for post '%s'", post_slug)
+                raise
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""

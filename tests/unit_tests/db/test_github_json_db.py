@@ -1,7 +1,10 @@
+import base64
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from platzky.db.exceptions import ReadOnlyStorageError
 from platzky.db.github_json_db import (
     GithubJsonDb,
     GithubJsonDbConfig,
@@ -93,3 +96,20 @@ def test_raises_error_for_invalid_json_content():
 
         with pytest.raises(ValueError, match="Error parsing JSON content: Expecting value"):
             GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
+
+
+def test_add_comment_raises_read_only_storage_error():
+    """GithubJsonDb is read-only: writes must fail loudly, not vanish silently."""
+    with patch("platzky.db.github_json_db.Github") as MockGithub:
+        mock_repo = MagicMock()
+        mock_file = MagicMock()
+        content = json.dumps({"site_content": {"posts": [{"slug": "post-1", "comments": []}]}})
+        mock_file.content = base64.b64encode(content.encode()).decode()
+        mock_file.decoded_content = content.encode()
+        MockGithub.return_value.get_repo.return_value = mock_repo
+        mock_repo.get_contents.return_value = mock_file
+
+        db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
+
+        with pytest.raises(ReadOnlyStorageError):
+            db.add_comment("Test User", "New comment", "post-1")

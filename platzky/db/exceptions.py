@@ -11,3 +11,7 @@ class NotFoundError(DBError, ValueError):
     Inherits from ValueError for backward compatibility with code that
     catches ValueError; that base will be dropped in the next major release.
     """
+
+
+class ReadOnlyStorageError(DBError):
+    """The storage does not support writes."""

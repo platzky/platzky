@@ -113,6 +113,10 @@ class DB(ABC):
             author_name: Name of the comment author
             comment: Comment text content
             post_slug: URL-friendly identifier of the post
+
+        Raises:
+            NotFoundError: If the post does not exist.
+            ReadOnlyStorageError: If the backend does not support writes.
         """
         pass
 
