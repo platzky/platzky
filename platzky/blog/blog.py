@@ -1,6 +1,7 @@
 """Blueprint for blog functionality including posts, pages, and comments."""
 
 import logging
+import re
 from collections.abc import Callable
 from os.path import dirname
 from typing import TypeVar
