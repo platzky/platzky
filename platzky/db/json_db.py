@@ -254,7 +254,9 @@ class Json(DB):
         }
 
         with self._write_lock:
-            posts = self._get_site_content()["posts"]
+            posts = self._get_site_content().get("posts")
+            if posts is None:
+                raise NotFoundError("Posts data is missing")
             post = next((p for p in posts if p["slug"] == post_slug), None)
             if post is None:
                 raise NotFoundError(f"Post with slug {post_slug} not found")
