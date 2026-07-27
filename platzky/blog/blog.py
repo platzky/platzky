@@ -117,7 +117,7 @@ def create_blog_blueprint(
                 comment=comment["comment"],
             )
         except ReadOnlyStorageError as e:
-            logger.warning("Comment rejected for post '%s': %s", post_slug, e)
+            logger.warning("Comment rejected for post %r: %s", post_slug, e)
             abort(403)
         return get_post(post_slug=post_slug)
 
