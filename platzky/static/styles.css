@@ -39,6 +39,12 @@ main {
 }
 
 .left-panel-contents {
+  /* .offcanvas-body is a row-direction flex container; without flex-grow
+     this shrinks to its own content's natural width instead of filling the
+     panel, leaving a gap on the right whenever the content (e.g. translated
+     filter labels) happens to be narrower than the panel. */
+  flex: 1;
+  min-width: 0;
   padding: 0 16px 16px 16px;
 }
 
