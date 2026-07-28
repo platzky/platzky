@@ -8,7 +8,7 @@ from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json
-from platzky.db.stores import ReadOnlyStore
+from platzky.db.json_stores import ReadOnlyStore
 
 if TYPE_CHECKING:
     from google.cloud.storage import Blob

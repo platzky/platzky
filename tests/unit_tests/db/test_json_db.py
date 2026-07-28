@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
-from platzky.db.stores import MemoryStore, ReadOnlyStore
+from platzky.db.json_stores import MemoryStore, ReadOnlyStore
 from platzky.models import MenuItem, Page, Post
 
 

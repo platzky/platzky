@@ -4,7 +4,7 @@ from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json
-from platzky.db.stores import FileStore
+from platzky.db.json_stores import FileStore
 
 
 def db_config_type() -> type["JsonFileDbConfig"]:
@@ -37,7 +37,7 @@ def db_from_config(config: JsonFileDbConfig) -> "JsonFile":
 class JsonFile(Json):
     """JSON database stored in a local file with read/write support.
 
-    Writes are atomic (temp file + rename), see `platzky.db.stores.FileStore`.
+    Writes are atomic (temp file + rename), see `platzky.db.json_stores.FileStore`.
     """
 
     def __init__(self, path: str) -> None:

@@ -9,7 +9,7 @@ from pydantic import Field
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import DBError, NotFoundError
-from platzky.db.stores import JsonStore, MemoryStore
+from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 

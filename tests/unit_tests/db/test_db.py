@@ -5,7 +5,7 @@ import pytest
 
 from platzky.db.db import DB
 from platzky.db.json_db import Json
-from platzky.db.stores import MemoryStore
+from platzky.db.json_stores import MemoryStore
 
 
 def dummy_function_taking_one_argument(_: object):

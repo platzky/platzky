@@ -8,7 +8,7 @@ from pydantic import Field
 
 from platzky.db.db import DBConfig
 from platzky.db.json_db import Json as JsonDB
-from platzky.db.stores import ReadOnlyStore
+from platzky.db.json_stores import ReadOnlyStore
 
 
 def db_config_type() -> type["GithubJsonDbConfig"]:
