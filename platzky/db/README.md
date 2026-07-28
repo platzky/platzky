@@ -18,7 +18,7 @@ The database layer is built on an abstract base class (DB) that defines a common
 JSON document) with different persistence transports, not four independent
 implementations. `Json` holds all the document logic (posts, pages, menu
 items, comments, ...) and delegates *where the bytes live* to a
-`JsonStore` (see `platzky/db/stores.py`):
+`JsonStore` (see `platzky/db/json_stores.py`):
 
 - `MemoryStore` — in-memory only, used by the plain `Json` backend.
 - `FileStore` — a local file, written atomically (temp file + rename) so a
