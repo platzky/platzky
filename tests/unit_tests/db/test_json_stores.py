@@ -66,8 +66,10 @@ class TestFileStore:
         class Unserializable:
             pass
 
+        unserializable_data = {"a": Unserializable()}
+
         with pytest.raises(TypeError):
-            store.save({"a": Unserializable()})
+            store.save(unserializable_data)
 
         # Original file is untouched, and no leaked temp file remains.
         assert json.loads(path.read_text()) == original
