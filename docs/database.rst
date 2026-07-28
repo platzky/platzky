@@ -63,13 +63,13 @@ simple storage without running a database server.
 .. code-block:: yaml
 
     DB:
-      TYPE: google_hosted_json_file
+      TYPE: google_json
       BUCKET_NAME: my-bucket
       SOURCE_BLOB_NAME: data.json
 
 **Options:**
 
-* ``TYPE``: Must be ``google_hosted_json_file``
+* ``TYPE``: Must be ``google_json``
 * ``BUCKET_NAME``: Name of the GCS bucket
 * ``SOURCE_BLOB_NAME``: Name of the JSON file in the bucket
 
@@ -89,6 +89,89 @@ simple storage without running a database server.
 * Higher latency than local storage
 * Costs associated with GCS operations
 * Not suitable for high-frequency writes
+* Read-only from Platzky's perspective: writes raise an error rather than
+  being persisted back to the bucket
+
+GitHub JSON
+~~~~~~~~~~~
+
+Stores data as a JSON file in a GitHub repository, fetched via the GitHub API.
+
+**Use case:** Content you want version-controlled and human-reviewable through
+normal GitHub workflows (PRs, history, diffs), without running a database server.
+
+**Configuration:**
+
+.. code-block:: yaml
+
+    DB:
+      TYPE: github_json
+      REPO_NAME: username/repository
+      GITHUB_TOKEN: your_github_token
+      PATH_TO_FILE: data.json
+      BRANCH_NAME: main
+
+**Options:**
+
+* ``TYPE``: Must be ``github_json``
+* ``REPO_NAME``: Repository in ``owner/repo`` form
+* ``GITHUB_TOKEN``: GitHub token with read access to the repository (write
+  access if you need commits back)
+* ``PATH_TO_FILE``: Path to the JSON file within the repository
+* ``BRANCH_NAME``: Branch to read from (defaults to ``main``)
+
+**Prerequisites:**
+
+* A GitHub token with access to the target repository
+
+**Advantages:**
+
+* Full version history and diffs for free, via GitHub
+* Content changes can go through normal PR review
+* No database server to manage
+
+**Limitations:**
+
+* Higher latency than local storage (network call to GitHub's API)
+* Subject to GitHub API rate limits
+* Read-only from Platzky's perspective: writes raise an error rather than
+  being persisted back to the repository
+* Not suitable for high-frequency writes
+
+GraphQL (Headless CMS)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Reads content from a GraphQL API, such as a Hygraph (formerly GraphCMS) endpoint.
+
+**Use case:** Content is managed in an external headless CMS rather than by
+Platzky itself.
+
+**Configuration:**
+
+.. code-block:: yaml
+
+    DB:
+      TYPE: graph_ql
+      CMS_ENDPOINT: https://your-graphql-endpoint.com/api
+      CMS_TOKEN: your_graphql_token
+
+**Options:**
+
+* ``TYPE``: Must be ``graph_ql``
+* ``CMS_ENDPOINT``: URL of the GraphQL API
+* ``CMS_TOKEN``: Access token for the GraphQL API
+
+**Advantages:**
+
+* Content management handled by a dedicated CMS
+* No database server to manage on Platzky's side
+
+**Limitations:**
+
+* Read-only: this backend does not support writes from Platzky
+* Branding/site-settings fields are not sourced from the CMS and are
+  currently hardcoded defaults
+* Requires an external CMS subscription/deployment
 
 MongoDB
 ~~~~~~~
@@ -172,7 +255,7 @@ For Google App Engine, you have two options:
    .. code-block:: yaml
 
        DB:
-         TYPE: google_hosted_json_file
+         TYPE: google_json
          BUCKET_NAME: my-app-data
          SOURCE_BLOB_NAME: data.json
 
