@@ -173,9 +173,9 @@ main {
 }
 
 @media only screen and (min-width: 992px) {
-  /* Above this breakpoint the panel stops being an offcanvas overlay and takes
-     up real width in the layout, which #overlay-root has to skip. Internal to
-     this stylesheet - not part of the documented plugin contract. */
+  /* Only at this breakpoint does the panel occupy layout width (below it,
+     Bootstrap's offcanvas floats over the content at zero width), so only
+     here may --left-panel-width be non-zero. */
   body:has(#left-panel) {
     --left-panel-width: 220px;
   }
