@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.12](https://github.com/platzky/platzky/compare/v2.0.0-alpha.11...v2.0.0-alpha.12) (2026-08-03)
+
+
+### Features
+
+* add #overlay-root portal target to enable showing elements above whole app ([#290](https://github.com/platzky/platzky/issues/290)) ([9cc12d0](https://github.com/platzky/platzky/commit/9cc12d01fe826a754f03c293f52e2154db15183a))
+* introduced storage transports ([#282](https://github.com/platzky/platzky/issues/282)) ([578d9d1](https://github.com/platzky/platzky/commit/578d9d183f6d8b871e870d018199939f6f233486))
+
 ## [2.0.0-alpha.11](https://github.com/platzky/platzky/compare/v2.0.0-alpha.10...v2.0.0-alpha.11) (2026-07-07)
 
 
