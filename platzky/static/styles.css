@@ -1,3 +1,10 @@
+/* Layout width of the left panel: 0 while it is an offcanvas overlay (<992px)
+   or absent; set to its real width on body.has-left-panel below. Offset against
+   the content area with this instead of measuring the DOM. */
+:root {
+  --left-panel-width: 0px;
+}
+
 html {
   height: 100%;
   overflow: hidden;
@@ -22,8 +29,31 @@ body {
 #main-row {
   position: relative;
   flex-grow: 1;
+  /* Contains the content area's z-indexes (e.g. Leaflet panes at 400-800) so
+     they cannot paint over the navbar - do not remove. Overlays that must
+     escape this stacking context portal into #overlay-root instead. */
   z-index: 0;
   overflow: hidden;
+}
+
+/* Portal target for overlays (toasts, dialogs) that must escape #main-row's
+   stacking context. Spans the content area horizontally, but the full viewport
+   vertically (the navbar's height is content-dependent) - so a child sized to
+   the layer covers the navbar and steals its clicks. */
+#overlay-root {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: var(--left-panel-width);
+  inset-inline-end: 0;
+  /* Above Bootstrap's modal (1055) and MUI's Dialog (1300). */
+  z-index: 2000;
+  pointer-events: none;
+}
+
+/* The layer must not swallow clicks on content under it; children opt back in. */
+#overlay-root > * {
+  pointer-events: auto;
 }
 
 /* Main content area scrolling */
@@ -141,11 +171,17 @@ main {
 }
 
 @media only screen and (min-width: 992px) {
+  /* Above this breakpoint the panel stops being an offcanvas overlay and takes
+     up real width in the layout. */
+  body.has-left-panel {
+    --left-panel-width: 220px;
+  }
+
   #left-panel {
     position: relative;
-    inline-size: 220px;
-    max-width: 220px;
-    width: 220px;
+    inline-size: var(--left-panel-width);
+    max-width: var(--left-panel-width);
+    width: var(--left-panel-width);
     display: flex;
     flex-direction: column;
     max-height: 100%;
@@ -167,6 +203,8 @@ main {
   width: auto;
 }
 
+/* Enough for the navbar dropdown, which only competes with #main-row's 0. A
+   dropdown inside #main-row would lose to content z-indexes at this value. */
 .dropdown-menu {
   z-index: 1;
 }

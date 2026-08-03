@@ -257,8 +257,33 @@ inject at the start of ``<body>``. Only sections declared in ``accepted_page_sec
 **and** permitted by ``allowed_page_sections`` in the database config are injected —
 neither side alone controls what gets rendered.
 
-Host-Defined Capabilities
--------------------------
+Frontend Overlays
+-----------------
+
+.. versionadded:: 2.0.0
+
+Platzky's base template contains the page content in ``#main-row``, which
+establishes a stacking context — frontend code rendered inside it (a map, a
+widget) cannot paint above the navbar or above elements portalled to
+``<body>``, regardless of its ``z-index``.
+
+Overlays that must escape this — toasts, dialogs, popovers — should be rendered
+into ``#overlay-root``, a ``position: fixed`` layer that is the first element of
+``<body>`` on every page. It spans the content area horizontally (excluding the
+left panel when one is visible) and the full viewport vertically, and stacks
+above both the content area and Bootstrap/MUI modals. The layer itself ignores
+pointer events; its direct children receive them.
+
+Two CSS conventions apply to children of the layer:
+
+- Position with ``inset-inline: 0`` (or logical equivalents) — the layer already
+  starts at the content area's edge, so no runtime measuring is needed.
+- Avoid sizing a child to the full layer: it spans the viewport vertically, so a
+  full-size child covers the navbar and intercepts its clicks.
+
+The left panel's layout width is also exposed as the ``--left-panel-width``
+custom property (``0px`` when the panel is offcanvas or absent), for frontend
+code that needs to offset against the content area outside the overlay layer.
 
 .. versionadded:: 2.0.0
 

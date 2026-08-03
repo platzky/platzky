@@ -31,7 +31,11 @@
 
   {% block structured_data %}{% endblock %}
 </head>
-<body>
+<body{% if self.left_panel() %} class="has-left-panel"{% endif %}>
+{# Portal target for overlays; see #overlay-root in styles.css. First in body so
+   it exists before any script runs, including plugin markup from body_meta. #}
+<div id="overlay-root"></div>
+
 {% block body_meta %}
 {% include "body_meta.html" %}
 {% endblock %}
