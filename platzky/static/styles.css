@@ -182,9 +182,8 @@ main {
 
   #left-panel {
     position: relative;
-    /* Both needed: they override inline-size/max-width from dynamic_css.html. */
+    /* Overrides the offcanvas sizing (80vw) from dynamic_css.html. */
     inline-size: var(--left-panel-width);
-    max-width: var(--left-panel-width);
     display: flex;
     flex-direction: column;
     max-height: 100%;
