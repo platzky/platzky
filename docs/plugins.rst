@@ -262,33 +262,38 @@ Frontend Overlays
 
 .. versionadded:: 2.0.0
 
-Platzky's base template contains the page content in ``#main-row``, which
-establishes a stacking context — frontend code rendered inside it (a map, a
-widget) cannot paint above the navbar or above elements portalled to
-``<body>``, regardless of its ``z-index``.
+To show a toast, dialog, or popover above the page content, render it into the
+``#overlay-root`` element — present on every page — instead of into your own
+markup. Overlays rendered anywhere else end up below the navbar or below
+modals, regardless of their ``z-index``.
 
-Overlays that must escape this — toasts, dialogs, popovers — should be rendered
-into ``#overlay-root``, a ``position: fixed`` layer that is the first element of
-``<body>`` on every page. It spans the content area horizontally (excluding the
-left panel when one is visible) and the full viewport vertically, and stacks
-above both the content area and Bootstrap/MUI modals. The layer itself ignores
-pointer events; its direct children receive them.
+.. code-block:: javascript
 
-Because the element is first in ``<body>``, scripts injected into the body can
-look it up directly. Scripts injected into ``<head>`` (via ``dynamic_head``)
-execute before ``<body>`` is parsed and must defer the lookup until
-``DOMContentLoaded``.
+    const toast = document.createElement("div");
+    toast.style.cssText = "position: absolute; top: 50%; inset-inline: 0;";
+    document.getElementById("overlay-root").append(toast);
 
-Two CSS conventions apply to children of the layer:
+Position children with ``position: absolute`` and logical insets:
+``inset-inline: 0`` spans exactly the visible content area (the left panel,
+when one is shown, is already excluded), so there is nothing to measure at
+runtime.
 
-- Position with ``inset-inline: 0`` (or logical equivalents) — the layer already
-  starts at the content area's edge, so no runtime measuring is needed.
-- Avoid sizing a child to the full layer: it spans the viewport vertically, so a
+Rules to keep in mind:
+
+- Scripts in ``<body>`` can look the element up directly. Scripts injected into
+  ``<head>`` via ``dynamic_head`` run before ``<body>`` is parsed and must wait
+  for ``DOMContentLoaded``.
+- Don't size a child to the full layer: the layer is viewport-high, so a
   full-size child covers the navbar and intercepts its clicks.
+- Clicks pass through the layer to the page underneath; only your children
+  receive pointer events.
 
-The left panel's layout width is also exposed as the ``--left-panel-width``
-custom property (``0px`` when the panel is offcanvas or absent), for frontend
-code that needs to offset against the content area outside the overlay layer.
+To offset other frontend elements against the content area, use the
+``--left-panel-width`` CSS custom property — the left panel's current layout
+width (``0px`` when it is collapsed to an offcanvas or absent).
+
+Host-Defined Capabilities
+-------------------------
 
 .. versionadded:: 2.0.0
 
