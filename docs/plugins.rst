@@ -257,6 +257,40 @@ inject at the start of ``<body>``. Only sections declared in ``accepted_page_sec
 **and** permitted by ``allowed_page_sections`` in the database config are injected —
 neither side alone controls what gets rendered.
 
+Frontend Overlays
+-----------------
+
+.. versionadded:: 2.0.0
+
+To show a toast, dialog, or popover above the page content, render it into the
+``#overlay-root`` element — present on every page — instead of into your own
+markup. Overlays rendered anywhere else end up below the navbar or below
+modals, regardless of their ``z-index``.
+
+.. code-block:: javascript
+
+    const toast = document.createElement("div");
+    toast.style.cssText = "position: absolute; top: 50%; inset-inline: 0;";
+    document.getElementById("overlay-root").append(toast);
+
+The layer spans exactly the visible content area — the left panel, when one is
+shown, is already excluded — so there is nothing to measure at runtime. Both
+``position: absolute`` and ``position: fixed`` children resolve their insets
+against the layer rather than the viewport, so overlay libraries that default
+to ``fixed`` work unmodified.
+
+Rules to keep in mind:
+
+- Scripts in ``<body>`` can look the element up directly. Scripts injected into
+  ``<head>`` via ``dynamic_head`` run before ``<body>`` is parsed and must wait
+  for ``DOMContentLoaded``.
+- Don't size a child to the full layer: the layer is viewport-high, so a
+  full-size child covers the navbar and intercepts its clicks.
+- Clicks pass through the layer to the page underneath, but each direct child
+  takes them. A child that spans the layer blocks clicks across the whole
+  content area even where it draws nothing, so give it
+  ``pointer-events: none`` and re-enable it on the parts that are visible.
+
 Host-Defined Capabilities
 -------------------------
 

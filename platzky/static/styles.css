@@ -22,8 +22,40 @@ body {
 #main-row {
   position: relative;
   flex-grow: 1;
+  /* Contains the content area's z-indexes (e.g. Leaflet panes at 400-800) so
+     they cannot paint over the navbar - do not remove. Overlays that must
+     escape this stacking context portal into #overlay-root instead. */
   z-index: 0;
   overflow: hidden;
+}
+
+/* Portal target for overlays that must escape #main-row's stacking context.
+   Spans the content area: the left panel is excluded whenever it takes up
+   layout width (--left-panel-width, set below), and the fallback covers the
+   viewport-wide case. Full viewport height because the navbar's height is
+   content-dependent and not expressible here. Consumer contract:
+   docs/plugins.rst, "Frontend Overlays". */
+#overlay-root {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: var(--left-panel-width, 0px);
+  inset-inline-end: 0;
+  /* Above Bootstrap's modal (1055) and MUI's Dialog (1300). */
+  z-index: 2000;
+  pointer-events: none;
+  /* Containing block for position: fixed children, which would otherwise
+     resolve against the viewport and ignore the insets above. Overlay
+     libraries default to fixed because they assume a portal into <body>. */
+  contain: layout;
+}
+
+/* The layer must not swallow clicks on content under it; children opt back in.
+   A child that spans the layer therefore blocks clicks across the whole content
+   area - such children have to set pointer-events: none on themselves and
+   re-enable it on their visible parts. */
+#overlay-root > * {
+  pointer-events: auto;
 }
 
 /* Main content area scrolling */
@@ -141,11 +173,17 @@ main {
 }
 
 @media only screen and (min-width: 992px) {
+  /* Only at this breakpoint does the panel occupy layout width (below it,
+     Bootstrap's offcanvas floats over the content at zero width), so only
+     here may --left-panel-width be non-zero. */
+  body:has(#left-panel) {
+    --left-panel-width: 220px;
+  }
+
   #left-panel {
     position: relative;
-    inline-size: 220px;
-    max-width: 220px;
-    width: 220px;
+    /* Overrides the offcanvas sizing (80vw) from dynamic_css.html. */
+    inline-size: var(--left-panel-width);
     display: flex;
     flex-direction: column;
     max-height: 100%;
@@ -167,6 +205,8 @@ main {
   width: auto;
 }
 
+/* Enough for the navbar dropdown, which only competes with #main-row's 0. A
+   dropdown inside #main-row would lose to content z-indexes at this value. */
 .dropdown-menu {
   z-index: 1;
 }

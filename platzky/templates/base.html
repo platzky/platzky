@@ -32,6 +32,11 @@
   {% block structured_data %}{% endblock %}
 </head>
 <body>
+{# Overlay portal target; keep as the first element of <body> so body scripts,
+   including plugin markup from body_meta, can rely on it existing. Consumer
+   contract: docs/plugins.rst, "Frontend Overlays". #}
+<div id="overlay-root"></div>
+
 {% block body_meta %}
 {% include "body_meta.html" %}
 {% endblock %}
