@@ -273,10 +273,11 @@ modals, regardless of their ``z-index``.
     toast.style.cssText = "position: absolute; top: 50%; inset-inline: 0;";
     document.getElementById("overlay-root").append(toast);
 
-Position children with ``position: absolute`` and logical insets:
-``inset-inline: 0`` spans exactly the visible content area (the left panel,
-when one is shown, is already excluded), so there is nothing to measure at
-runtime.
+The layer spans exactly the visible content area — the left panel, when one is
+shown, is already excluded — so there is nothing to measure at runtime. Both
+``position: absolute`` and ``position: fixed`` children resolve their insets
+against the layer rather than the viewport, so overlay libraries that default
+to ``fixed`` work unmodified.
 
 Rules to keep in mind:
 
@@ -285,12 +286,10 @@ Rules to keep in mind:
   for ``DOMContentLoaded``.
 - Don't size a child to the full layer: the layer is viewport-high, so a
   full-size child covers the navbar and intercepts its clicks.
-- Clicks pass through the layer to the page underneath; only your children
-  receive pointer events.
-
-To offset other frontend elements against the content area, use the
-``--left-panel-width`` CSS custom property — the left panel's current layout
-width (``0px`` when it is collapsed to an offcanvas or absent).
+- Clicks pass through the layer to the page underneath, but each direct child
+  takes them. A child that spans the layer blocks clicks across the whole
+  content area even where it draws nothing, so give it
+  ``pointer-events: none`` and re-enable it on the parts that are visible.
 
 Host-Defined Capabilities
 -------------------------

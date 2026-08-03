@@ -1,10 +1,3 @@
-/* Layout width of the left panel: 0 while it is an offcanvas overlay (<992px)
-   or absent; set to its real width on body.has-left-panel below. Part of the
-   consumer contract in docs/plugins.rst, "Frontend Overlays". */
-:root {
-  --left-panel-width: 0px;
-}
-
 html {
   height: 100%;
   overflow: hidden;
@@ -37,21 +30,30 @@ body {
 }
 
 /* Portal target for overlays that must escape #main-row's stacking context.
-   Full viewport height because the navbar's height is content-dependent and
-   not expressible here. Consumer contract: docs/plugins.rst, "Frontend
-   Overlays". */
+   Spans the content area: the left panel is excluded whenever it takes up
+   layout width (--left-panel-width, set below), and the fallback covers the
+   viewport-wide case. Full viewport height because the navbar's height is
+   content-dependent and not expressible here. Consumer contract:
+   docs/plugins.rst, "Frontend Overlays". */
 #overlay-root {
   position: fixed;
   top: 0;
   bottom: 0;
-  inset-inline-start: var(--left-panel-width);
+  inset-inline-start: var(--left-panel-width, 0px);
   inset-inline-end: 0;
   /* Above Bootstrap's modal (1055) and MUI's Dialog (1300). */
   z-index: 2000;
   pointer-events: none;
+  /* Containing block for position: fixed children, which would otherwise
+     resolve against the viewport and ignore the insets above. Overlay
+     libraries default to fixed because they assume a portal into <body>. */
+  contain: layout;
 }
 
-/* The layer must not swallow clicks on content under it; children opt back in. */
+/* The layer must not swallow clicks on content under it; children opt back in.
+   A child that spans the layer therefore blocks clicks across the whole content
+   area - such children have to set pointer-events: none on themselves and
+   re-enable it on their visible parts. */
 #overlay-root > * {
   pointer-events: auto;
 }
@@ -172,16 +174,17 @@ main {
 
 @media only screen and (min-width: 992px) {
   /* Above this breakpoint the panel stops being an offcanvas overlay and takes
-     up real width in the layout. */
-  body.has-left-panel {
+     up real width in the layout, which #overlay-root has to skip. Internal to
+     this stylesheet - not part of the documented plugin contract. */
+  body:has(#left-panel) {
     --left-panel-width: 220px;
   }
 
   #left-panel {
     position: relative;
+    /* Both needed: they override inline-size/max-width from dynamic_css.html. */
     inline-size: var(--left-panel-width);
     max-width: var(--left-panel-width);
-    width: var(--left-panel-width);
     display: flex;
     flex-direction: column;
     max-height: 100%;
