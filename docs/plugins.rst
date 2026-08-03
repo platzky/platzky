@@ -274,6 +274,11 @@ left panel when one is visible) and the full viewport vertically, and stacks
 above both the content area and Bootstrap/MUI modals. The layer itself ignores
 pointer events; its direct children receive them.
 
+Because the element is first in ``<body>``, scripts injected into the body can
+look it up directly. Scripts injected into ``<head>`` (via ``dynamic_head``)
+execute before ``<body>`` is parsed and must defer the lookup until
+``DOMContentLoaded``.
+
 Two CSS conventions apply to children of the layer:
 
 - Position with ``inset-inline: 0`` (or logical equivalents) — the layer already

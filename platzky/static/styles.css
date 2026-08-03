@@ -1,6 +1,6 @@
 /* Layout width of the left panel: 0 while it is an offcanvas overlay (<992px)
-   or absent; set to its real width on body.has-left-panel below. Offset against
-   the content area with this instead of measuring the DOM. */
+   or absent; set to its real width on body.has-left-panel below. Part of the
+   consumer contract in docs/plugins.rst, "Frontend Overlays". */
 :root {
   --left-panel-width: 0px;
 }
@@ -36,10 +36,10 @@ body {
   overflow: hidden;
 }
 
-/* Portal target for overlays (toasts, dialogs) that must escape #main-row's
-   stacking context. Spans the content area horizontally, but the full viewport
-   vertically (the navbar's height is content-dependent) - so a child sized to
-   the layer covers the navbar and steals its clicks. */
+/* Portal target for overlays that must escape #main-row's stacking context.
+   Full viewport height because the navbar's height is content-dependent and
+   not expressible here. Consumer contract: docs/plugins.rst, "Frontend
+   Overlays". */
 #overlay-root {
   position: fixed;
   top: 0;
