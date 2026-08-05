@@ -4,14 +4,12 @@ from unittest.mock import Mock, patch
 import pytest
 from gql import Client
 
-from platzky.db.exceptions import NotFoundError
 from platzky.db.graph_ql_db import (
     GraphQL,
     GraphQlDbConfig,
     db_config_type,
     db_from_config,
 )
-from platzky.models import Post
 
 
 @pytest.fixture
@@ -94,343 +92,133 @@ def test_graph_ql_client_is_per_thread():
     assert other_thread_client[0] is not main_thread_client
 
 
-def test_get_all_posts(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "posts": [
-            {
-                "createdAt": "2023-01-01",
-                "author": {"name": "John Doe"},
-                "contentInRichText": {"html": "<p>Test content</p>"},
-                "comments": [
-                    {"author": "Jane Doe", "comment": "Great post!", "createdAt": "2023-01-01"}
-                ],
-                "date": "2023-01-01",
-                "title": "Test Post",
-                "excerpt": "Test excerpt",
-                "slug": "test-post",
-                "tags": ["test", "example"],
-                "language": "en",
-                "coverImage": {
-                    "alternateText": "Alt text",
-                    "image": {"url": "https://example.com/image.jpg"},
-                },
-            }
-        ]
-    }
-    mock_client.execute.return_value = mock_response
-
-    posts = graph_ql_db.get_all_posts("en")
-
-    assert len(posts) == 1
-    assert isinstance(posts[0], Post)
-    assert posts[0].title == "Test Post"
-    assert posts[0].slug == "test-post"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_menu_items_in_lang_with_lang(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "menuItems": [{"name": "Home", "url": "/"}, {"name": "About", "url": "/about"}]
-    }
-    mock_client.execute.return_value = mock_response
-
-    menu_items = graph_ql_db.get_menu_items_in_lang("en")
-
-    assert len(menu_items) == 2
-    assert menu_items[0].name == "Home"
-    assert menu_items[1].url == "/about"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_post(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "post": {
-            "date": "2023-01-01",
-            "language": "en",
-            "title": "Test Post",
-            "slug": "test-post",
-            "author": {"name": "John Doe"},
-            "contentInRichText": {"markdown": "Test content", "html": "<p>Test content</p>"},
-            "excerpt": "Test excerpt",
-            "tags": ["test", "example"],
-            "coverImage": {
-                "alternateText": "Alt text",
-                "image": {"url": "https://example.com/image.jpg"},
-            },
-            "comments": [
-                {"author": "Jane Doe", "comment": "Great post!", "createdAt": "2023-01-01"}
-            ],
-            "css": ".masthead { background: teal; }",
-        }
-    }
-    mock_client.execute.return_value = mock_response
-
-    post = graph_ql_db.get_post("test-post")
-
-    assert isinstance(post, Post)
-    assert post.title == "Test Post"
-    assert post.slug == "test-post"
-    assert post.css == ".masthead { background: teal; }"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_post_without_css(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "post": {
-            "date": "2023-01-01",
-            "language": "en",
-            "title": "Test Post",
-            "slug": "test-post",
-            "author": {"name": "John Doe"},
-            "contentInRichText": {"markdown": "Test content", "html": "<p>Test content</p>"},
-            "excerpt": "Test excerpt",
-            "tags": ["test", "example"],
-            "coverImage": {
-                "alternateText": "Alt text",
-                "image": {"url": "https://example.com/image.jpg"},
-            },
-            "comments": [],
-            "css": None,
-        }
-    }
-    mock_client.execute.return_value = mock_response
-
-    post = graph_ql_db.get_post("test-post")
+@pytest.fixture
+def graph_ql_db_with_mocked_repos(mock_client: Mock):
+    """A GraphQL instance built with its blog storage, plugin, and site config
+    repositories mocked out, so delegation can be verified through GraphQL's
+    public API without reaching into its private attributes from the test.
+    """
+    with (
+        patch("platzky.db.graph_ql_db.Client", return_value=mock_client),
+        patch("platzky.db.graph_ql_db.GraphQLBlogStorage") as mock_blog_storage_class,
+        patch("platzky.db.graph_ql_db.GraphQLPluginConfigRepository") as mock_plugins_class,
+        patch("platzky.db.graph_ql_db.GraphQLSiteConfigRepository") as mock_site_config_class,
+    ):
+        db = GraphQL(
+            "https://test.endpoint", "test_token"
+        )  # NOSONAR - hardcoded token acceptable in tests
+    return (
+        db,
+        mock_blog_storage_class.return_value,
+        mock_plugins_class.return_value,
+        mock_site_config_class.return_value,
+    )
 
-    assert post.css == ""
 
+def test_get_all_posts_delegates_to_blog_storage(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, blog_storage, _, _ = graph_ql_db_with_mocked_repos
+    blog_storage.posts.get_all.return_value = ["sentinel"]
 
-def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "page": {
-            "slug": "about",
-            "title": "About",
-            "contentInMarkdown": "About page content",
-            "coverImage": {"url": "https://example.com/image.jpg"},
-            "css": ".masthead { background: teal; }",
-        }
-    }
-    mock_client.execute.return_value = mock_response
+    result = db.get_all_posts("en")
 
-    page = graph_ql_db.get_page("about")
+    blog_storage.posts.get_all.assert_called_once_with("en")
+    assert result == ["sentinel"]
 
-    assert isinstance(page, Post)  # Page is an alias for Post
-    assert page.title == "About"
-    assert page.contentInMarkdown == "About page content"
-    assert page.css == ".masthead { background: teal; }"
-    mock_client.execute.assert_called_once()
 
+def test_get_post_delegates_to_blog_storage(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, blog_storage, _, _ = graph_ql_db_with_mocked_repos
+    blog_storage.posts.get.return_value = "sentinel"
 
-def test_get_page_without_css(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "page": {
-            "slug": "about",
-            "title": "About",
-            "contentInMarkdown": "About page content",
-            "coverImage": {"url": "https://example.com/image.jpg"},
-        }
-    }
-    mock_client.execute.return_value = mock_response
+    result = db.get_post("test-post")
 
-    page = graph_ql_db.get_page("about")
+    blog_storage.posts.get.assert_called_once_with("test-post")
+    assert result == "sentinel"
 
-    assert page.css == ""
 
+def test_get_page_delegates_to_blog_storage(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, blog_storage, _, _ = graph_ql_db_with_mocked_repos
+    blog_storage.pages.get.return_value = "sentinel"
 
-def test_get_page_not_found(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"page": None}
+    result = db.get_page("about")
 
-    with pytest.raises(NotFoundError, match="missing"):
-        graph_ql_db.get_page("missing")
+    blog_storage.pages.get.assert_called_once_with("about")
+    assert result == "sentinel"
 
 
-def test_get_post_not_found(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"post": None}
+def test_get_posts_by_tag_delegates_to_blog_storage(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, blog_storage, _, _ = graph_ql_db_with_mocked_repos
+    blog_storage.posts.get_by_tag.return_value = ["sentinel"]
 
-    with pytest.raises(NotFoundError, match="missing"):
-        graph_ql_db.get_post("missing")
+    result = db.get_posts_by_tag("tag", "en")
 
+    blog_storage.posts.get_by_tag.assert_called_once_with("tag", "en")
+    assert result == ["sentinel"]
 
-def test_get_posts_by_tag(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "posts": [
-            {
-                "tags": ["test", "example"],
-                "title": "Test Post",
-                "slug": "test-post",
-                "excerpt": "Test excerpt",
-                "date": "2023-01-01",
-                "coverImage": {
-                    "alternateText": "Alt text",
-                    "image": {"url": "https://example.com/image.jpg"},
-                },
-            }
-        ]
-    }
-    mock_client.execute.return_value = mock_response
 
-    posts = graph_ql_db.get_posts_by_tag("test", "en")
+def test_add_comment_delegates_to_blog_storage(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, blog_storage, _, _ = graph_ql_db_with_mocked_repos
 
-    assert len(posts) == 1
-    assert isinstance(posts[0], Post)
-    assert posts[0].title == "Test Post"
-    assert posts[0].slug == "test-post"
-    mock_client.execute.assert_called_once()
+    db.add_comment("John Doe", "Great post!", "test-post")
 
+    blog_storage.posts.add_comment.assert_called_once_with("John Doe", "Great post!", "test-post")
 
-def test_add_comment(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"createComment": {"id": "123"}}
-    mock_client.execute.return_value = mock_response
 
-    graph_ql_db.add_comment("John Doe", "Great post!", "test-post")
+def test_get_plugins_data_delegates_to_plugins_repository(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, _, plugins_repository, _ = graph_ql_db_with_mocked_repos
+    plugins_repository.get_all.return_value = {"sentinel": "config"}
 
-    mock_client.execute.assert_called_once()
-    # Check that the variable values were passed correctly
-    call_args = mock_client.execute.call_args[1]["variable_values"]
-    assert call_args["author"] == "John Doe"
-    assert call_args["comment"] == "Great post!"
-    assert call_args["slug"] == "test-post"
+    result = db.get_plugins_data()
 
+    plugins_repository.get_all.assert_called_once()
+    assert result == {"sentinel": "config"}
 
-def test_get_font(graph_ql_db: GraphQL):
-    assert graph_ql_db.get_font() == ""
 
+def test_get_site_settings_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, _, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_site_settings.return_value = "sentinel"
 
-def test_get_logo_url_with_logos(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "logos": [
-            {
-                "logo": {
-                    "alternateText": "Alt text",
-                    "image": {"url": "https://example.com/logo.jpg"},
-                }
-            }
-        ]
-    }
-    mock_client.execute.return_value = mock_response
+    result = db.get_site_settings()
 
-    logo_url = graph_ql_db.get_logo_url()
+    site_config.get_site_settings.assert_called_once()
+    assert result == "sentinel"
 
-    assert logo_url == "https://example.com/logo.jpg"
-    mock_client.execute.assert_called_once()
 
+def test_get_menu_items_in_lang_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, _, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_menu_items_in_lang.return_value = ["sentinel"]
 
-def test_get_logo_url_without_logos(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"logos": []}
-    mock_client.execute.return_value = mock_response
+    result = db.get_menu_items_in_lang("en")
 
-    logo_url = graph_ql_db.get_logo_url()
+    site_config.get_menu_items_in_lang.assert_called_once_with("en")
+    assert result == ["sentinel"]
 
-    assert logo_url == ""
-    mock_client.execute.assert_called_once()
 
+def test_get_home_page_path_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
+):
+    db, _, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_home_page_path.return_value = "/blog/page/about"
 
-def test_get_app_description(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{"applicationDescription": "Test description"}]}
-    mock_client.execute.return_value = mock_response
+    result = db.get_home_page_path("en")
 
-    description = graph_ql_db.get_app_description("en")
-
-    assert description == "Test description"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{}]}
-    mock_client.execute.return_value = mock_response
-
-    description = graph_ql_db.get_app_description("en")
-
-    assert description == ""
-    mock_client.execute.assert_called_once()
-
-
-def test_get_favicon_url(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}]}
-    mock_client.execute.return_value = mock_response
-
-    favicon_url = graph_ql_db.get_favicon_url()
-
-    assert favicon_url == "https://example.com/favicon.ico"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_home_page_path(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
-    mock_client.execute.return_value = mock_response
-
-    assert graph_ql_db.get_home_page_path("en") == "/blog/page/about"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_home_page_path_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{}]}
-    mock_client.execute.return_value = mock_response
-
-    assert graph_ql_db.get_home_page_path("en") is None
-
-
-def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    assert graph_ql_db.get_home_page_path("en") is None
-
-
-def test_get_primary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{"primaryColor": "#0085A1"}]}
-
-    color = graph_ql_db.get_primary_color()
-
-    assert color == "#0085A1"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_primary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{}]}
-
-    assert graph_ql_db.get_primary_color() == "white"
-
-
-def test_get_primary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": []}
-
-    assert graph_ql_db.get_primary_color() == "white"
-
-
-def test_get_secondary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{"secondaryColor": "#006073"}]}
-
-    color = graph_ql_db.get_secondary_color()
-
-    assert color == "#006073"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_secondary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{}]}
-
-    assert graph_ql_db.get_secondary_color() == "navy"
-
-
-def test_get_secondary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": []}
-
-    assert graph_ql_db.get_secondary_color() == "navy"
-
-
-def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "pluginConfigs": [{"name": "plugin1", "is_active": True, "config": {"key": "value"}}]
-    }
-    mock_client.execute.return_value = mock_response
-
-    plugins_data = graph_ql_db.get_plugins_data()
-
-    assert len(plugins_data) == 1
-    assert "plugin1" in plugins_data
-    assert plugins_data["plugin1"].config == {"key": "value"}
-    assert plugins_data["plugin1"].is_active is True
-    mock_client.execute.assert_called_once()
+    site_config.get_home_page_path.assert_called_once_with("en")
+    assert result == "/blog/page/about"
 
 
 def test_health_check_success(graph_ql_db: GraphQL, mock_client: Mock):

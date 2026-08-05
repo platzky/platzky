@@ -45,13 +45,14 @@ class TestJsonFileDb:
             assert db.module_name == "json_file_db"
             assert db.db_name == "JsonFileDb"
 
-    def test_get_app_description(self, sample_data: dict[str, object], mock_file_path: str):
+    def test_get_site_settings(self, sample_data: dict[str, object], mock_file_path: str):
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.get_app_description("en") == "English description"
-            assert db.get_app_description("de") == "Deutsche Beschreibung"
-            assert db.get_app_description("fr") == ""
+            app_description = db.get_site_settings().app_description
+            assert app_description.get("en") == "English description"
+            assert app_description.get("de") == "Deutsche Beschreibung"
+            assert app_description.get("fr", "") == ""
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
         data_file = tmp_path / "data.json"

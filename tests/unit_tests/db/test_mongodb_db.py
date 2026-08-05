@@ -69,24 +69,43 @@ class TestMongoDB:
         assert db.db_name == "MongoDB"
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
 
-    def test_get_app_description(self, db: MongoDB):
-        # Mock the site_content collection
+    def test_get_site_settings(self, db: MongoDB):
         # Note: db.site_content is Collection[Any] at runtime but Mock in tests
         mock_find_one = cast(Mock, db.site_content.find_one)
         mock_find_one.return_value = {
             "_id": "config",
             "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
+            "logo_url": "/logo.png",
+            "favicon_url": "/favicon.ico",
+            "font": "Arial",
+            "primary_color": "blue",
+            "secondary_color": "green",
         }
 
-        assert db.get_app_description("en") == "English description"
-        assert db.get_app_description("de") == "Deutsche Beschreibung"
-        assert db.get_app_description("fr") == ""
+        settings = db.get_site_settings()
 
-        mock_find_one.assert_called_with({"_id": "config"})
+        assert settings.app_description.get("en") == "English description"
+        assert settings.app_description.get("de") == "Deutsche Beschreibung"
+        assert settings.logo is not None
+        assert settings.logo.url == "/logo.png"
+        assert settings.favicon_url == "/favicon.ico"
+        assert settings.font == "Arial"
+        assert settings.primary_color == "blue"
+        assert settings.secondary_color == "green"
+        # One find_one call for all of the above, not one per field.
+        mock_find_one.assert_called_once_with({"_id": "config"})
 
-    def test_get_app_description_no_data(self, db: MongoDB):
+    def test_get_site_settings_defaults(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_app_description("en") == ""
+
+        settings = db.get_site_settings()
+
+        assert settings.app_description == {}
+        assert settings.logo is None
+        assert settings.favicon_url == ""
+        assert settings.font == ""
+        assert settings.primary_color == "white"
+        assert settings.secondary_color == "navy"
 
     def test_get_all_posts(self, db: MongoDB):
         # Mock posts data
@@ -245,50 +264,6 @@ class TestMongoDB:
                 {"slug": "post-1"}, {"$push": {"comments": expected_comment}}
             )
 
-    def test_get_logo_url(self, db: MongoDB):
-        mock_find_one = cast(Mock, db.site_content.find_one)
-        mock_find_one.return_value = {"_id": "config", "logo_url": "/logo.png"}
-
-        assert db.get_logo_url() == "/logo.png"
-        mock_find_one.assert_called_with({"_id": "config"})
-
-    def test_get_logo_url_no_data(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_logo_url() == ""
-
-    def test_get_favicon_url(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "favicon_url": "/favicon.ico",
-        }
-
-        assert db.get_favicon_url() == "/favicon.ico"
-
-    def test_get_primary_color(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "primary_color": "blue",
-        }
-
-        assert db.get_primary_color() == "blue"
-
-    def test_get_primary_color_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {"_id": "config"}
-
-        assert db.get_primary_color() == "white"
-
-    def test_get_secondary_color(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "secondary_color": "green",
-        }
-
-        assert db.get_secondary_color() == "green"
-
-    def test_get_secondary_color_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_secondary_color() == "navy"
-
     def test_get_plugins_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = {
             "_id": "config",
@@ -302,15 +277,6 @@ class TestMongoDB:
     def test_get_plugins_data_no_data(self, db: MongoDB):
         cast(Mock, db.plugins.find_one).return_value = None
         assert db.get_plugins_data() == {}
-
-    def test_get_font(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {"_id": "config", "font": "Arial"}
-
-        assert db.get_font() == "Arial"
-
-    def test_get_font_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_font() == ""
 
     def test_get_home_page_path(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = {

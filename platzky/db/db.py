@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from platzky.db.site_config_repository import SiteSettings
 from platzky.models import MenuItem, Page, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -49,15 +50,6 @@ class DB(ABC):
             setattr(self, function_name, bound_function)
         except Exception as e:
             raise ValueError(f"Failed to extend DB with function {function_name}: {e}")
-
-    @abstractmethod
-    def get_app_description(self, lang: str) -> str:
-        """Retrieve the application description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-        """
-        pass
 
     @abstractmethod
     def get_all_posts(self, lang: str) -> list[Post]:
@@ -121,33 +113,13 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_logo_url(self) -> str:  # TODO: Provide alternative text along with the URL of logo
-        """Retrieve the URL of the application logo."""
-        pass
-
-    @abstractmethod
-    def get_favicon_url(self) -> str:
-        """Retrieve the URL of the application favicon."""
-        pass
-
-    @abstractmethod
-    def get_primary_color(self) -> str:
-        """Retrieve the primary color for the application theme."""
-        pass
-
-    @abstractmethod
-    def get_secondary_color(self) -> str:
-        """Retrieve the secondary color for the application theme."""
+    def get_site_settings(self) -> SiteSettings:
+        """Retrieve branding and description settings for the app."""
         pass
 
     @abstractmethod
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        pass
-
-    @abstractmethod
-    def get_font(self) -> str:
-        """Get the font configuration for the application."""
         pass
 
     @abstractmethod
