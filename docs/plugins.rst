@@ -87,8 +87,8 @@ Content Transformer Plugins
 .. versionadded:: 1.5.0
 
 Platzky's own content types are :data:`platzky.content_types.BUILTIN_CONTENT_TYPES`
-— ``"post"``, ``"page"``, ``"comment"``. A host application built on platzky adds its
-own kinds (see :ref:`host-content-types`), and plugins opt in to those the same way.
+— ``"post"``, ``"page"``, ``"comment"``. An application built on platzky adds its
+own kinds (see :ref:`new-content-types`), and plugins opt in to those the same way.
 
 .. code-block:: python
 
@@ -152,12 +152,12 @@ Declare ``shortcodes`` as a class variable:
 
 **Rendering a stored value**
 
-A shortcode can also render a value a host has stored against a record — rather than
+A shortcode can also render a value the application has stored against a record — rather than
 a tag an author wrote in prose — through
 :meth:`~platzky.shortcodes.Shortcode.render_value`:
 
 :meth:`~platzky.shortcodes.Shortcode.render_value`
-    Renders the value to HTML, so the host needs no per-shortcode frontend
+    Renders the value to HTML, so the application needs no per-shortcode frontend
     code at all. It is ``final``: a shortcode has exactly one rendering, in
     ``render``, and this maps a field value onto that method's arguments — keys
     matching declared ``attributes`` become attributes, ``content_key`` (or
@@ -176,18 +176,18 @@ a tag an author wrote in prose — through
     Anything a stored value should be able to override becomes a ``ShortcodeAttr``,
     which content authors then get as a tag attribute too.
 
-A host wanting the value as *data* rather than markup — to render it natively, index
+An application wanting the value as *data* rather than markup — to render it natively, index
 it, or export it — reads the stored entry directly, using ``content_key`` to know
 which key a bare value belongs under. Platzky does not shape that payload: only the
-host knows what its own wire format needs, and a shortcode describing one would be a
+application knows what its own wire format needs, and a shortcode describing one would be a
 second contract to keep in step with ``render``.
 
 As with a tag written by an author, escaping is ``render``'s responsibility: a stored
-value is data and can be hostile. A host that renders the returned HTML is extending
+value is data and can be hostile. An application that renders the returned HTML is extending
 the plugin the same trust platzky extends it in post content, so a shortcode must not
 interpolate a stored value without escaping or validating it.
 
-.. _host-content-types:
+.. _new-content-types:
 
 New content types
 ~~~~~~~~~~~~~~~~~
@@ -486,7 +486,7 @@ For notifier plugins you can restrict which topics the plugin receives:
 
 For content transformer plugins you can restrict which content types are processed.
 Include ``"field"`` to also allow the plugin's shortcodes to be used for field
-rendering by host applications:
+rendering by the application:
 
 .. code-block:: json
 

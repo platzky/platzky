@@ -90,18 +90,18 @@ class Engine(Flask):
             config: Application configuration.
             db: Database instance.
             import_name: Name of the application module.
-            extra_plugin_bases: Host-registered capability base classes, in addition
-                to platzky's built-in ``PLUGIN_BASES``. A host application (e.g. one
+            extra_plugin_bases: Capability base classes the application registers, in
+                addition to platzky's built-in ``PLUGIN_BASES``. An application (e.g. one
                 that wraps ``create_app_from_config``) may define capabilities for its
                 own plugin ecosystem; plugins themselves cannot register capabilities.
-            extra_plugins_entrypoints: Host-registered entry-point groups to discover
-                plugins from, in addition to ``platzky.plugins``.
-            extra_content_types: Content types this host produces beyond
+            extra_plugins_entrypoints: Entry-point groups the application registers to
+                discover plugins from, in addition to ``platzky.plugins``.
+            extra_content_types: Content types the application produces beyond
                 ``BUILTIN_CONTENT_TYPES`` — a marker field, a catalogue attribute. Plugins
                 opt in to them through ``accepted_content_types`` exactly as they do for a
-                post, and operators grant them the same way. Registered by the host, not by
-                plugins: an operator granting a content type should be choosing from a
-                vocabulary the application defines, not one each installed plugin can grow.
+                post, and operators grant them the same way. Registered by the application,
+                not by plugins: an operator granting a content type should be choosing from
+                a vocabulary the application defines, not one each installed plugin can grow.
         """
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
@@ -208,14 +208,14 @@ class Engine(Flask):
         return content
 
     def report_unknown_content_type_grants(self) -> None:
-        """Warn about granted content types no plugin or host ever registered.
+        """Warn about granted content types no plugin or application ever registered.
 
-        The vocabulary is open, so an unknown type cannot be rejected: a host registers its
-        own, and a plugin may name one this application does not have — a plugin built for
-        another application installs cleanly and stays inert, which is deliberate. A grant
-        naming a type nothing produces is almost always a typo in operator config, though,
-        and silently grants nothing, so say so rather than leaving a transformer
-        mysteriously idle.
+        The vocabulary is open, so an unknown type cannot be rejected: an application
+        registers its own, and a plugin may name one this application does not have — a
+        plugin built for another application installs cleanly and stays inert, which is
+        deliberate. A grant naming a type nothing produces is almost always a typo in
+        operator config, though, and silently grants nothing, so say so rather than
+        leaving a transformer mysteriously idle.
 
         Called by the plugin loader once every plugin is loaded, so that a plugin
         contributing a content type need not load before the plugins granted it.

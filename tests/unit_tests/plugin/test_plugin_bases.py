@@ -64,7 +64,7 @@ def _app_with_plugin(
 ) -> Engine:
     """Load a single plugin via a mocked entry point and return the fully configured app.
 
-    ``extra_content_types`` are registered by the host *and* granted to the plugin;
+    ``extra_content_types`` are registered by the application *and* granted to the plugin;
     ``also_granted`` are granted without being registered, as a typo in operator config
     would be.
     """
@@ -484,7 +484,7 @@ class TestContentTransformerWiring:
 
 
 class TestPluginProvidedContentType:
-    """A plugin can bring its own kind of content, so it needs no host application."""
+    """A plugin can bring its own kind of content, so the application need not declare it."""
 
     def test_plugin_contributes_its_content_type(self, base_config_data: dict[str, Any]) -> None:
         class MarkerPlugin(ContentTransformerPluginBase):
@@ -532,13 +532,13 @@ class TestPluginProvidedContentType:
 
 
 # ---------------------------------------------------------------------------
-# Host-registered content types
+# Application-registered content types
 # ---------------------------------------------------------------------------
 
 
 class TestHostRegisteredContentType:
     def test_host_specific_type_is_not_a_platzky_builtin(self) -> None:
-        """A host's own kind of content is the host's to name, not platzky's."""
+        """An application's own kind of content is its own to name, not platzky's."""
         assert "field" not in BUILTIN_CONTENT_TYPES
 
     def test_plugin_with_field_processes_field_content(
@@ -591,7 +591,7 @@ class TestHostRegisteredContentType:
     def test_unregistered_type_is_inert_rather_than_an_error(
         self, base_config_data: dict[str, Any]
     ) -> None:
-        """A plugin built for another host installs cleanly and simply never fires."""
+        """A plugin built for another application installs cleanly and simply never fires."""
 
         class FieldReadyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:

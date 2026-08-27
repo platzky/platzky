@@ -46,7 +46,8 @@ class PluginBase(ABC):
     #: ``ContentTransformerPluginBase.accepted_content_types``, which names what a plugin
     #: *consumes*. A plugin large enough to bring its own kind of content (a map's marker
     #: fields, a catalogue's attributes) defines it here rather than the application having
-    #: to know about it, so such a plugin needs no host application to install it.
+    #: to know about it: installing the plugin is enough, with no matching
+    #: ``extra_content_types`` entry on the application side.
     #:
     #: Content types are read only when content is transformed, well after loading, so a
     #: plugin may contribute one whatever order it loads in.

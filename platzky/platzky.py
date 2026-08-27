@@ -346,14 +346,14 @@ def create_app_from_config(
 
     Args:
         config: Application configuration object
-        extra_plugin_bases: Capability base classes a host application registers for its
+        extra_plugin_bases: Capability base classes the application registers for its
             own plugin ecosystem, in addition to platzky's built-in ``PLUGIN_BASES``.
-            Plugins cannot register capabilities; only the host composing the app can.
-        extra_plugins_entrypoints: Entry-point groups a host application registers for
+            Plugins cannot register capabilities; only the application composing them can.
+        extra_plugins_entrypoints: Entry-point groups the application registers for
             plugin discovery, in addition to ``platzky.plugins``.
-        extra_content_types: Content types this host produces beyond platzky's own, so its
-            plugins can opt in to them through ``accepted_content_types``. Registered by
-            the host composing the app, not by plugins.
+        extra_content_types: Content types the application produces beyond platzky's own,
+            so its plugins can opt in to them through ``accepted_content_types``.
+            Registered by the application, not by plugins.
 
     Returns:
         Fully configured Engine instance ready to serve requests

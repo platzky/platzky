@@ -105,7 +105,7 @@ class Shortcode(ABC):
     #: Key holding the inner content when a field value is a dict — the field equivalent
     #: of what an author writes between the tags. Declare it when a shortcode names that
     #: key something of its own (``"code"``, ``"url"``); ``"value"`` is always accepted
-    #: as well, so a host storing a bare value needs no declaration.
+    #: as well, so an application storing a bare value needs no declaration.
     content_key: ClassVar[str] = "content"
 
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -122,10 +122,10 @@ class Shortcode(ABC):
     def render_value(self, value: object) -> str:
         """Render a stored value to HTML, the same way the shortcode renders a tag.
 
-        Called when a host has a stored value mapped to this shortcode rather than a tag
-        written in prose — for example the string ``"SUMMER24"`` kept against a record. A
-        host displays the result directly, so it needs no per-shortcode frontend code; a
-        host wanting the value as data instead reads the entry itself, using
+        Called when the application has a stored value mapped to this shortcode rather
+        than a tag written in prose — for example the string ``"SUMMER24"`` kept against a
+        record. The application displays the result directly, so it needs no per-shortcode
+        frontend code; one wanting the value as data instead reads the entry itself, using
         ``content_key`` to know which key a bare value belongs under.
 
         Not overridable, and deliberately: a shortcode has exactly one rendering, in
@@ -140,7 +140,7 @@ class Shortcode(ABC):
         author — a field value is data and can be hostile.
 
         Args:
-            value: The stored value, as the host holds it.
+            value: The stored value, as the application holds it.
 
         Returns:
             HTML for the value.
