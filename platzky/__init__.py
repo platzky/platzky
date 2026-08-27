@@ -1,6 +1,6 @@
 from platzky.auth import AuthenticationError as AuthenticationError
 from platzky.auth import User as User
-from platzky.content_types import ALL_CONTENT_TYPES as ALL_CONTENT_TYPES
+from platzky.content_types import BUILTIN_CONTENT_TYPES as BUILTIN_CONTENT_TYPES
 from platzky.content_types import ContentType as ContentType
 from platzky.engine import Engine as Engine
 from platzky.engine import current_engine as current_engine

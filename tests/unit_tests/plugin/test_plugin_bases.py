@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar
 from unittest import mock
 
@@ -10,7 +11,7 @@ import pytest
 
 from platzky.attachment import Attachment
 from platzky.config import Config
-from platzky.content_types import ALL_CONTENT_TYPES, ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
@@ -25,6 +26,9 @@ from platzky.shortcodes import Shortcode, ShortcodeAttrs
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
 # ---------------------------------------------------------------------------
+
+#: A kind of content platzky does not have, as an application or plugin would name it.
+MARKER_FIELD: ContentType = "field"
 
 
 @pytest.fixture
@@ -51,13 +55,28 @@ def app(base_config_data: dict[str, Any]) -> Engine:
     return create_engine(config, _make_db(config))
 
 
-def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: type) -> Engine:
-    """Load a single plugin via a mocked entry point and return the fully configured app."""
+def _app_with_plugin(
+    base_config_data: dict[str, Any],
+    name: str,
+    plugin_class: type,
+    extra_content_types: tuple[ContentType, ...] = (),
+    also_granted: tuple[str, ...] = (),
+) -> Engine:
+    """Load a single plugin via a mocked entry point and return the fully configured app.
+
+    ``extra_content_types`` are registered by the host *and* granted to the plugin;
+    ``also_granted`` are granted without being registered, as a typo in operator config
+    would be.
+    """
     base_config_data["DB"]["DATA"]["plugins"] = {
         name: {
             "is_active": True,
             "config": {},
-            "allowed_content_types": list(ALL_CONTENT_TYPES),
+            "allowed_content_types": [
+                *BUILTIN_CONTENT_TYPES,
+                *extra_content_types,
+                *also_granted,
+            ],
             "allowed_topics": ["general", "content", "security"],
         }
     }
@@ -66,7 +85,7 @@ def _app_with_plugin(base_config_data: dict[str, Any], name: str, plugin_class: 
     ep.name = name
     ep.load.return_value = plugin_class
     with mock.patch("importlib.metadata.entry_points", return_value=[ep]):
-        return create_app_from_config(config)
+        return create_app_from_config(config, extra_content_types=extra_content_types)
 
 
 # ---------------------------------------------------------------------------
@@ -210,14 +229,14 @@ class _ShoutShortcode(Shortcode):
 class ShoutFilter(ContentTransformerPluginBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
-    accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 class TestContentTransformerPluginBase:
     def test_default_returns_empty_dict(self) -> None:
         class NoOpFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
         f = NoOpFilter({})
         assert f.shortcodes == {}
@@ -253,17 +272,17 @@ class TestContentTransformerPluginBase:
                 return f"B({content})"
 
         class AFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
             shortcodes: ClassVar[dict[str, Shortcode]] = {"atag": _ATagSC()}
 
         class BFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
             shortcodes: ClassVar[dict[str, Shortcode]] = {"btag": _BTagSC()}
 
         combined = {**AFilter.shortcodes, **BFilter.shortcodes}
 
         class _CombinedTestPlugin(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
         _CombinedTestPlugin.shortcodes = combined
         result = _CombinedTestPlugin({}).transform_content("[atag]x[/atag] [btag]y[/btag]")
@@ -292,7 +311,7 @@ class TestRegisterPluginBases:
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
-                self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+                self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
             def notify(self, notification: Notification) -> None:
                 pass  # no-op: test stub
@@ -348,7 +367,7 @@ class TestGetInfo:
 class ShoutTagPlugin(ContentTransformerPluginBase):
     """Registers a [shout] shortcode."""
 
-    accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
@@ -361,7 +380,7 @@ class JinjaExtPlugin(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+        self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         return [_DummyJinjaExtension]
@@ -372,7 +391,7 @@ class AllTypesFilter(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+        self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
     def transform_text(self, text: str) -> str:
         return text + "[filtered]"
@@ -444,7 +463,7 @@ class TestContentTransformerWiring:
         class AToXFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+                self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
             def transform_text(self, text: str) -> str:
                 return text.replace("a", "X")
@@ -460,13 +479,67 @@ class TestContentTransformerWiring:
 
 
 # ---------------------------------------------------------------------------
-# ContentType "field" — field-rendering opt-in
+# Plugin-provided content types
 # ---------------------------------------------------------------------------
 
 
-class TestFieldContentType:
-    def test_field_in_all_content_types(self) -> None:
-        assert "field" in ALL_CONTENT_TYPES
+class TestPluginProvidedContentType:
+    """A plugin can bring its own kind of content, so it needs no host application."""
+
+    def test_plugin_contributes_its_content_type(self, base_config_data: dict[str, Any]) -> None:
+        class MarkerPlugin(ContentTransformerPluginBase):
+            provides_content_types: ClassVar[frozenset[str]] = frozenset({MARKER_FIELD})
+
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+
+            def transform_text(self, text: str) -> str:
+                return text + "[field]"
+
+        app = _app_with_plugin(base_config_data, "marker", MarkerPlugin, also_granted=("field",))
+        assert "field" in app.known_content_types
+        assert app.transform_content("x", "field") == "x[field]"
+
+    def test_a_provided_type_is_not_reported_as_unknown(
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The grant is checked after loading, so the provider need not load first."""
+
+        class MarkerPlugin(ContentTransformerPluginBase):
+            provides_content_types: ClassVar[frozenset[str]] = frozenset({MARKER_FIELD})
+
+        with caplog.at_level(logging.WARNING):
+            _app_with_plugin(base_config_data, "marker", MarkerPlugin, also_granted=("field",))
+        assert "'field'" not in caplog.text
+
+    def test_providing_a_type_does_not_grant_it(self, base_config_data: dict[str, Any]) -> None:
+        """Contributing to the vocabulary is not permission to act on it."""
+
+        class MarkerPlugin(ContentTransformerPluginBase):
+            provides_content_types: ClassVar[frozenset[str]] = frozenset({MARKER_FIELD})
+
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+
+            def transform_text(self, text: str) -> str:
+                return text + "[field]"
+
+        app = _app_with_plugin(base_config_data, "marker", MarkerPlugin)
+        assert "field" in app.known_content_types
+        assert app.transform_content("x", "field") == "x"
+
+
+# ---------------------------------------------------------------------------
+# Host-registered content types
+# ---------------------------------------------------------------------------
+
+
+class TestHostRegisteredContentType:
+    def test_host_specific_type_is_not_a_platzky_builtin(self) -> None:
+        """A host's own kind of content is the host's to name, not platzky's."""
+        assert "field" not in BUILTIN_CONTENT_TYPES
 
     def test_plugin_with_field_processes_field_content(
         self, base_config_data: dict[str, Any]
@@ -479,7 +552,10 @@ class TestFieldContentType:
             def transform_text(self, text: str) -> str:
                 return text + "[field]"
 
-        app = _app_with_plugin(base_config_data, "fieldready", FieldReadyFilter)
+        app = _app_with_plugin(
+            base_config_data, "fieldready", FieldReadyFilter, extra_content_types=(MARKER_FIELD,)
+        )
+        assert "field" in app.known_content_types
         assert app.transform_content("x", "field") == "x[field]"
 
     def test_plugin_without_field_skips_field_content(
@@ -493,8 +569,41 @@ class TestFieldContentType:
             def transform_text(self, text: str) -> str:
                 return text + "[post]"
 
-        app = _app_with_plugin(base_config_data, "postonlyfilter", PostOnlyFilter)
+        app = _app_with_plugin(
+            base_config_data, "postonlyfilter", PostOnlyFilter, extra_content_types=(MARKER_FIELD,)
+        )
         assert app.transform_content("x", "field") == "x"
+
+    def test_granting_an_unknown_type_warns(
+        self, base_config_data: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A grant nothing produces is almost always a typo, and silently does nothing."""
+
+        class PostOnlyFilter(ContentTransformerPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+
+        with caplog.at_level(logging.WARNING):
+            _app_with_plugin(base_config_data, "postonly", PostOnlyFilter, also_granted=("filed",))
+        assert "'filed'" in caplog.text
+
+    def test_unregistered_type_is_inert_rather_than_an_error(
+        self, base_config_data: dict[str, Any]
+    ) -> None:
+        """A plugin built for another host installs cleanly and simply never fires."""
+
+        class FieldReadyFilter(ContentTransformerPluginBase):
+            def __init__(self, config: dict[str, Any]) -> None:
+                super().__init__(config)
+                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+
+            def transform_text(self, text: str) -> str:
+                return text + "[field]"
+
+        app = _app_with_plugin(base_config_data, "fieldready", FieldReadyFilter)
+        assert "field" not in app.known_content_types
+        assert app.transform_content("x", "post") == "x"
 
 
 # ---------------------------------------------------------------------------

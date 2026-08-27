@@ -19,7 +19,7 @@ from platzky.config import (
     Config,
     languages_dict,
 )
-from platzky.content_types import ContentType
+from platzky.content_types import PAGE, POST, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
@@ -78,7 +78,7 @@ def _gather_shortcodes_and_extensions(
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
     """Built-in image and link shortcodes, always registered for posts and pages."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+    accepted_content_types: frozenset[ContentType] = frozenset({POST, PAGE})
     shortcodes = get_builtin_shortcodes()
 
 
@@ -210,6 +210,7 @@ def create_engine(
     db: DB,
     extra_plugin_bases: Sequence[type[PluginBase]] = (),
     extra_plugins_entrypoints: Sequence[str] = (),
+    extra_content_types: Sequence[ContentType] = (),
 ) -> Engine:
     """Create and configure a Platzky Engine instance.
 
@@ -221,11 +222,19 @@ def create_engine(
         db: Database instance for data persistence
         extra_plugin_bases: App specific registered capability base classes (see ``Engine``).
         extra_plugins_entrypoints: App specific registered entry-point groups (see ``Engine``).
+        extra_content_types: App specific content types (see ``Engine``).
 
     Returns:
         Configured Engine instance with plugins loaded
     """
-    app = Engine(config, db, __name__, extra_plugin_bases, extra_plugins_entrypoints)
+    app = Engine(
+        config,
+        db,
+        __name__,
+        extra_plugin_bases,
+        extra_plugins_entrypoints,
+        extra_content_types,
+    )
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -327,6 +336,7 @@ def create_app_from_config(
     config: Config,
     extra_plugin_bases: Sequence[type[PluginBase]] = (),
     extra_plugins_entrypoints: Sequence[str] = (),
+    extra_content_types: Sequence[ContentType] = (),
 ) -> Engine:
     """Create a fully configured Platzky application from a Config object.
 
@@ -341,6 +351,9 @@ def create_app_from_config(
             Plugins cannot register capabilities; only the host composing the app can.
         extra_plugins_entrypoints: Entry-point groups a host application registers for
             plugin discovery, in addition to ``platzky.plugins``.
+        extra_content_types: Content types this host produces beyond platzky's own, so its
+            plugins can opt in to them through ``accepted_content_types``. Registered by
+            the host composing the app, not by plugins.
 
     Returns:
         Fully configured Engine instance ready to serve requests
@@ -350,7 +363,9 @@ def create_app_from_config(
         ValueError: If telemetry configuration is invalid
     """
     db = get_db(config.db)
-    engine = create_engine(config, db, extra_plugin_bases, extra_plugins_entrypoints)
+    engine = create_engine(
+        config, db, extra_plugin_bases, extra_plugins_entrypoints, extra_content_types
+    )
 
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:

@@ -60,8 +60,11 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     """Base class for content-transformer plugins.
 
     Subclasses declare which content types they want to transform via
-    ``accepted_content_types``. The engine enforces final routing — plugins
-    cannot bypass user-configured content-type restrictions.
+    ``accepted_content_types``. A plugin may name a kind of content some other package
+    brings — accepting one never means importing that package — and still install on an
+    application that has no such content, where it is simply never called. To *bring* a
+    content type, see ``PluginBase.provides_content_types``. The engine enforces final
+    routing — plugins cannot bypass user-configured content-type restrictions.
 
     Declare ``shortcodes`` to register shortcode tags; they are applied
     automatically by ``transform_content``. Override ``transform_text`` to

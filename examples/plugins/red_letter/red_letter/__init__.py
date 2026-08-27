@@ -10,7 +10,7 @@ from typing import ClassVar
 
 from markupsafe import Markup
 
-from platzky.content_types import ContentType
+from platzky.content_types import PAGE, POST, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
@@ -41,7 +41,7 @@ class _RedShortcode(Shortcode):
 class RedLetterPlugin(ContentTransformerPluginBase):
     """Colours every 'a' red and adds a [red] shortcode."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+    accepted_content_types: frozenset[ContentType] = frozenset({POST, PAGE})
     shortcodes: ClassVar[dict[str, Shortcode]] = {"red": _RedShortcode()}
 
     def transform_text(self, text: str) -> str:

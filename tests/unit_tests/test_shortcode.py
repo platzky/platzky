@@ -2,14 +2,14 @@
 
 import pytest
 
-from platzky.content_types import ALL_CONTENT_TYPES, ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
 
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
     class _TestPlugin(ContentTransformerPluginBase):
-        accepted_content_types: frozenset[ContentType] = ALL_CONTENT_TYPES
+        accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
 
     _TestPlugin.shortcodes = shortcodes
     return _TestPlugin({}).transform_content(content)
@@ -77,13 +77,79 @@ class TestShortcodeSubclassing:
                 {"name": "123invalid", "description": "test", "render": _render},
             )
 
-    def test_base_transform_field_value_non_dict_returns_type_only(self) -> None:
-        sc = _sc("mytag")
-        assert sc.transform_field_value("anything") == {"type": "mytag"}
 
-    def test_base_transform_field_value_dict_merges_with_type(self) -> None:
-        sc = _sc("mytag")
-        assert sc.transform_field_value({"color": "red"}) == {"type": "mytag", "color": "red"}
+def _echo_sc(tag: str, *attr_names: str) -> Shortcode:
+    """Build a Shortcode whose render echoes the attrs and content it received."""
+
+    class _SC(Shortcode):
+        name = tag
+        description = "test"
+        attributes = ShortcodeAttrs([ShortcodeAttr(n, "desc") for n in attr_names])
+
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            return f"[{sorted(attrs.values.items())}|{content}]"
+
+    return _SC()
+
+
+class TestRenderField:
+    def test_scalar_value_becomes_content(self) -> None:
+        assert _echo_sc("mytag").render_value("SAVE20") == "[[]|SAVE20]"
+
+    def test_dict_content_key_becomes_content(self) -> None:
+        assert _echo_sc("mytag").render_value({"content": "SAVE20"}) == "[[]|SAVE20]"
+
+    def test_dict_value_key_becomes_content(self) -> None:
+        assert _echo_sc("mytag").render_value({"value": "SAVE20"}) == "[[]|SAVE20]"
+
+    def test_declared_keys_become_attributes(self) -> None:
+        sc = _echo_sc("mytag", "color")
+        assert sc.render_value({"color": "red", "value": "X"}) == "[[('color', 'red')]|X]"
+
+    def test_undeclared_keys_are_dropped(self) -> None:
+        sc = _echo_sc("mytag", "color")
+        assert sc.render_value({"unknown": "x", "value": "X"}) == "[[]|X]"
+
+    def test_missing_content_renders_empty(self) -> None:
+        assert _echo_sc("mytag").render_value({}) == "[[]|]"
+
+    def test_none_content_renders_empty(self) -> None:
+        assert _echo_sc("mytag").render_value({"value": None}) == "[[]|]"
+
+    def test_content_key_declares_where_the_content_lives(self) -> None:
+        class _SC(Shortcode):
+            name = "mytag"
+            description = "test"
+            content_key = "code"
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                return f"[{content}]"
+
+        assert _SC().render_value({"code": "SAVE20"}) == "[SAVE20]"
+
+    def test_value_key_still_works_alongside_a_custom_content_key(self) -> None:
+        class _SC(Shortcode):
+            name = "mytag"
+            description = "test"
+            content_key = "code"
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                return f"[{content}]"
+
+        assert _SC().render_value({"value": "SAVE20"}) == "[SAVE20]"
+
+    def test_field_and_tag_rendering_are_the_same_html(self) -> None:
+        sc = _echo_sc("mytag", "color")
+        from_tag = sc.render(_attrs_with(sc, color="red"), "X")
+        from_field = sc.render_value({"color": "red", "value": "X"})
+        assert from_tag == from_field
+
+
+def _attrs_with(sc: Shortcode, **values: str) -> ShortcodeAttrs:
+    """Build the attrs a parsed tag would carry for this shortcode."""
+    attrs = ShortcodeAttrs(list(sc.attributes))
+    attrs.values = dict(values)
+    return attrs
 
 
 class TestApplyShortcodes:

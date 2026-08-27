@@ -86,8 +86,9 @@ Content Transformer Plugins
 
 .. versionadded:: 1.5.0
 
-Available content types are defined in :data:`platzky.content_types.ContentType`.
-See :ref:`field-rendering` below for the meaning of ``"field"``.
+Platzky's own content types are :data:`platzky.content_types.BUILTIN_CONTENT_TYPES`
+— ``"post"``, ``"page"``, ``"comment"``. A host application built on platzky adds its
+own kinds (see :ref:`host-content-types`), and plugins opt in to those the same way.
 
 .. code-block:: python
 
@@ -147,26 +148,102 @@ Declare ``shortcodes`` as a class variable:
         accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
         shortcodes: ClassVar[dict[str, Shortcode]] = {"alert": _AlertShortcode()}
 
-.. _field-rendering:
+.. _value-rendering:
 
-**Field rendering**
+**Rendering a stored value**
 
-A shortcode's :meth:`~platzky.shortcodes.Shortcode.transform_field_value` method
-is called by host applications (such as Goodmap) to transform a structured field
-value into a frontend-ready dict, rather than rendering HTML from post content.
+A shortcode can also render a value a host has stored against a record — rather than
+a tag an author wrote in prose — through
+:meth:`~platzky.shortcodes.Shortcode.render_value`:
 
-To opt a plugin's shortcodes in to field rendering, include ``"field"`` in
-``accepted_content_types``:
+:meth:`~platzky.shortcodes.Shortcode.render_value`
+    Renders the value to HTML, so the host needs no per-shortcode frontend
+    code at all. It is ``final``: a shortcode has exactly one rendering, in
+    ``render``, and this maps a field value onto that method's arguments — keys
+    matching declared ``attributes`` become attributes, ``content_key`` (or
+    ``value``) becomes the inner content, and a scalar value becomes the inner
+    content on its own. So every shortcode gains field rendering without writing
+    any, and the tag and the field cannot drift apart.
+
+    A shortcode adapts by *declaring*, not by overriding. If a stored value keeps
+    the content under its own key, name it::
+
+        class PromocodeShortcode(Shortcode):
+            name = "promocode"
+            content_key = "code"          # {"code": "SAVE20"} -> render(attrs, "SAVE20")
+            attributes = ShortcodeAttrs([ShortcodeAttr("color", "Button colour")])
+
+    Anything a stored value should be able to override becomes a ``ShortcodeAttr``,
+    which content authors then get as a tag attribute too.
+
+A host wanting the value as *data* rather than markup — to render it natively, index
+it, or export it — reads the stored entry directly, using ``content_key`` to know
+which key a bare value belongs under. Platzky does not shape that payload: only the
+host knows what its own wire format needs, and a shortcode describing one would be a
+second contract to keep in step with ``render``.
+
+As with a tag written by an author, escaping is ``render``'s responsibility: a stored
+value is data and can be hostile. A host that renders the returned HTML is extending
+the plugin the same trust platzky extends it in post content, so a shortcode must not
+interpolate a stored value without escaping or validating it.
+
+.. _host-content-types:
+
+New content types
+~~~~~~~~~~~~~~~~~
+
+Platzky produces posts, pages and comments — ``POST``, ``PAGE``, ``COMMENT`` in
+:mod:`platzky.content_types`. An application or plugin with its own kind of content
+names its own and registers it:
+
+.. code-block:: python
+
+    MARKER_FIELD: ContentType = "field"
+
+    create_app_from_config(config, extra_content_types=[MARKER_FIELD])
+
+A plugin opts in exactly as it would for a post:
 
 .. code-block:: python
 
     class MyPlugin(ContentTransformerPluginBase):
-        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page", "field"})
+        accepted_content_types: frozenset[ContentType] = frozenset({"post", "field"})
 
-To opt out — for example a purely cosmetic shortcode that has no meaningful field
-representation — simply omit ``"field"`` from the set. Host applications must
-also grant the plugin permission via ``allowed_content_types`` in the database
-config (see :ref:`plugin-configuration`).
+and the operator grants it through ``allowed_content_types`` in the database config
+(see :ref:`plugin-configuration`); a plugin runs only where both agree. A content type
+is only ever its name, so accepting a kind of content never means importing the package
+that brought it — otherwise every plugin handling marker fields would depend on the
+application that has them.
+
+The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a
+closed ``Literal`` cannot survive extension, since platzky cannot know at type-check time
+what a package it has never heard of will add. A package that knows its own whole
+vocabulary can narrow for its own code::
+
+    GoodmapContentType = Literal["post", "page", "comment", "field"]
+
+A plugin can contribute one too, which is what lets a plugin large enough to bring its
+own kind of content install without an application built around it:
+
+.. code-block:: python
+
+    class MarkerPlugin(ContentTransformerPluginBase):
+        provides_content_types: ClassVar[frozenset[str]] = frozenset({MARKER_FIELD})
+
+``provides_content_types`` is the counterpart to ``accepted_content_types``: what a
+plugin *produces* rather than what it consumes. The two are independent — contributing
+a type to the vocabulary is not permission to act on it, which still takes the plugin's
+own opt-in and the operator's grant.
+
+Content types are read only when content is transformed, well after loading, so a
+plugin may contribute one whatever order it loads in, and the check below runs once
+every plugin is loaded rather than as each one arrives.
+
+A plugin naming a type nothing registered is *inert*, not an error — it installs
+cleanly and is simply never called with one, which is what lets a single plugin serve
+both an application that has the type and a plain platzky blog that does not. Because
+such a grant silently does nothing, platzky logs a warning naming the unknown type,
+which is usually a typo in operator config.
 
 **Built-in shortcodes**
 

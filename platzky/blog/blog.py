@@ -11,6 +11,7 @@ from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
+from platzky.content_types import PAGE, POST
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
@@ -159,7 +160,7 @@ def create_blog_blueprint(
         return render_template(
             "post.html",
             post=post,
-            content=content_transformer(post.contentInMarkdown, "post"),
+            content=content_transformer(post.contentInMarkdown, POST),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -181,7 +182,7 @@ def create_blog_blueprint(
             "page.html",
             title=page.title,
             css=page.css,
-            content=content_transformer(page.contentInMarkdown, "page"),
+            content=content_transformer(page.contentInMarkdown, PAGE),
             cover_image=cover_image_url,
         )
 

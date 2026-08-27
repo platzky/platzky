@@ -27,7 +27,7 @@ from flask_babel import Babel
 
 from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
-from platzky.content_types import ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag
 from platzky.models import CmsModule
@@ -82,6 +82,7 @@ class Engine(Flask):
         import_name: str,
         extra_plugin_bases: Sequence[type["PluginBase"]] = (),
         extra_plugins_entrypoints: Sequence[str] = (),
+        extra_content_types: Sequence[ContentType] = (),
     ) -> None:
         """Initialize the Engine.
 
@@ -95,10 +96,20 @@ class Engine(Flask):
                 own plugin ecosystem; plugins themselves cannot register capabilities.
             extra_plugins_entrypoints: Host-registered entry-point groups to discover
                 plugins from, in addition to ``platzky.plugins``.
+            extra_content_types: Content types this host produces beyond
+                ``BUILTIN_CONTENT_TYPES`` — a marker field, a catalogue attribute. Plugins
+                opt in to them through ``accepted_content_types`` exactly as they do for a
+                post, and operators grant them the same way. Registered by the host, not by
+                plugins: an operator granting a content type should be choosing from a
+                vocabulary the application defines, not one each installed plugin can grow.
         """
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
         self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
+        self.known_content_types: set[ContentType] = set(BUILTIN_CONTENT_TYPES) | set(
+            extra_content_types
+        )
+        self._pending_content_type_grants: list[tuple[str, frozenset[ContentType]]] = []
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
@@ -180,6 +191,13 @@ class Engine(Flask):
         engine-enforced allowlist set via ``set_content_transformer_allowlist``.
         Transformers chain their output, so a failing transformer aborts the chain
         rather than silently passing through partial output to the next stage.
+
+        Args:
+            content: The content to transform.
+            content_type: The kind of content, e.g. ``POST``.
+
+        Returns:
+            The content after every permitted transformer has run.
         """
         for plugin in self.get_plugins(ContentTransformerPluginBase):
             if content_type not in plugin.accepted_content_types:
@@ -188,6 +206,30 @@ class Engine(Flask):
                 continue
             content = plugin.transform_content(content)
         return content
+
+    def report_unknown_content_type_grants(self) -> None:
+        """Warn about granted content types no plugin or host ever registered.
+
+        The vocabulary is open, so an unknown type cannot be rejected: a host registers its
+        own, and a plugin may name one this application does not have — a plugin built for
+        another application installs cleanly and stays inert, which is deliberate. A grant
+        naming a type nothing produces is almost always a typo in operator config, though,
+        and silently grants nothing, so say so rather than leaving a transformer
+        mysteriously idle.
+
+        Called by the plugin loader once every plugin is loaded, so that a plugin
+        contributing a content type need not load before the plugins granted it.
+        """
+        for plugin_name, allowed in self._pending_content_type_grants:
+            for unknown in sorted(allowed - self.known_content_types):
+                logger.warning(
+                    "Plugin %s is granted content type '%s', which this application does not "
+                    "produce; the grant has no effect. Known types: %s",
+                    plugin_name,
+                    unknown,
+                    ", ".join(sorted(self.known_content_types)),
+                )
+        self._pending_content_type_grants.clear()
 
     def set_content_transformer_allowlist(
         self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
@@ -264,6 +306,7 @@ class Engine(Flask):
         raw = plugin_config_base.model_dump()
         plugin_instance = plugin_class(plugin_config_base.config)
         app = self
+        app.known_content_types |= plugin_instance.provides_content_types
         if isinstance(plugin_instance, NotifierPluginBase):
             if not plugin_instance.accepted_topics:
                 logger.debug(
@@ -279,10 +322,12 @@ class Engine(Flask):
                     "Plugin %s declares no accepted_content_types; it will transform no content.",
                     plugin_name,
                 )
-            app.set_content_transformer_allowlist(
-                plugin_instance,
-                ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
-            )
+            allowed = ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
+            # Checked once every plugin has loaded, not here: a plugin may contribute the
+            # very content type another plugin was granted, and which loads first is not
+            # something operator config should have to think about.
+            app._pending_content_type_grants.append((plugin_name, allowed))
+            app.set_content_transformer_allowlist(plugin_instance, allowed)
         if isinstance(plugin_instance, HtmlInjectorPluginBase):
             if not plugin_instance.accepted_page_sections:
                 logger.debug(

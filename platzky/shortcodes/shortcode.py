@@ -14,7 +14,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import ClassVar, cast
+from typing import ClassVar, cast, final
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
@@ -102,6 +102,12 @@ class Shortcode(ABC):
     attributes: ClassVar[ShortcodeAttrs] = ShortcodeAttrs([])
     example: str = ""
 
+    #: Key holding the inner content when a field value is a dict — the field equivalent
+    #: of what an author writes between the tags. Declare it when a shortcode names that
+    #: key something of its own (``"code"``, ``"url"``); ``"value"`` is always accepted
+    #: as well, so a host storing a bare value needs no declaration.
+    content_key: ClassVar[str] = "content"
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         if inspect.isabstract(cls):
@@ -112,25 +118,42 @@ class Shortcode(ABC):
                 f"Shortcode subclass {cls.__name__!r} must declare a valid `name`; got {name!r}."
             )
 
-    def transform_field_value(self, value: object) -> dict[str, object]:
-        """Transform a raw field value into a frontend-ready dict.
+    @final
+    def render_value(self, value: object) -> str:
+        """Render a stored value to HTML, the same way the shortcode renders a tag.
 
-        Called when a content entry has a field mapped to this shortcode — for example
-        the string ``"SUMMER24"`` for a promocode field.  The base implementation
-        adds ``"type": self.name`` (the key the frontend routes on) and, if *value* is a
-        dict, merges its keys in. Override to unpack the value, merge rendering defaults,
-        encode sensitive data, or otherwise produce the full frontend payload.
+        Called when a host has a stored value mapped to this shortcode rather than a tag
+        written in prose — for example the string ``"SUMMER24"`` kept against a record. A
+        host displays the result directly, so it needs no per-shortcode frontend code; a
+        host wanting the value as data instead reads the entry itself, using
+        ``content_key`` to know which key a bare value belongs under.
+
+        Not overridable, and deliberately: a shortcode has exactly one rendering, in
+        ``render``, and this maps a field value onto that method's arguments rather than
+        offering a second place to write one. Keys matching declared ``attributes``
+        become attributes, ``content_key`` (or ``value``) becomes the inner content, and
+        a scalar value becomes the inner content on its own. A shortcode adapts by
+        *declaring* — naming its ``content_key``, adding a ``ShortcodeAttr`` — so the two
+        renderings cannot drift apart.
+
+        Escaping is ``render``'s responsibility, exactly as for a tag written by an
+        author — a field value is data and can be hostile.
 
         Args:
-            value: Raw field value from the content data.
+            value: The stored value, as the host holds it.
 
         Returns:
-            Dict with at least ``"type"`` present.
+            HTML for the value.
         """
+        attrs = ShortcodeAttrs(list(self.attributes))
         if isinstance(value, dict):
-            # isinstance narrows to dict[Unknown, Unknown]; cast supplies the key type pyright needs
-            return {**cast(dict[str, object], value), "type": self.name}
-        return {"type": self.name}
+            d = cast(dict[str, object], value)
+            declared = {a.name for a in self.attributes}
+            attrs.values = {k: str(v) for k, v in d.items() if k in declared and v is not None}
+            content = d.get(self.content_key, d.get("value", ""))
+        else:
+            content = value
+        return self.render(attrs, "" if content is None else str(content))
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
