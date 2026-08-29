@@ -99,9 +99,10 @@ class Engine(Flask):
             extra_content_types: Content types the application produces beyond
                 ``BUILTIN_CONTENT_TYPES`` — a marker field, a catalogue attribute. Plugins
                 opt in to them through ``accepted_content_types`` exactly as they do for a
-                post, and operators grant them the same way. Registered by the application,
-                not by plugins: an operator granting a content type should be choosing from
-                a vocabulary the application defines, not one each installed plugin can grow.
+                post, and operators grant them the same way. This parameter is the
+                application's own contribution; a plugin declares any type it introduces
+                through ``PluginBase.provides_content_types``. Both are added to
+                ``known_content_types``, and an operator grants from that union.
         """
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)

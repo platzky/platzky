@@ -353,7 +353,8 @@ def create_app_from_config(
             plugin discovery, in addition to ``platzky.plugins``.
         extra_content_types: Content types the application produces beyond platzky's own,
             so its plugins can opt in to them through ``accepted_content_types``.
-            Registered by the application, not by plugins.
+            The application's own contribution; a plugin declares any type it introduces
+            through ``PluginBase.provides_content_types``.
 
     Returns:
         Fully configured Engine instance ready to serve requests
