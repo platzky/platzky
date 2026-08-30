@@ -36,6 +36,7 @@ from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerPluginConfig,
+    ContentTransformerRegistry,
 )
 from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPluginConfig
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
@@ -107,10 +108,9 @@ class Engine(Flask):
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
         self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
-        self.known_content_types: set[ContentType] = set(BUILTIN_CONTENT_TYPES) | set(
-            extra_content_types
+        self.content_transformers = ContentTransformerRegistry(
+            set(BUILTIN_CONTENT_TYPES) | set(extra_content_types)
         )
-        self._pending_content_type_grants: list[tuple[str, frozenset[ContentType]]] = []
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
@@ -120,9 +120,6 @@ class Engine(Flask):
         self._notifier_topic_allowlist: defaultdict[
             NotifierPluginBase, frozenset[NotificationTopic]
         ] = defaultdict(frozenset)
-        self._content_transformer_allowlist: dict[
-            ContentTransformerPluginBase, frozenset[ContentType]
-        ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -185,13 +182,13 @@ class Engine(Flask):
                 continue
             plugin.notify(notification)
 
+    @property
+    def known_content_types(self) -> set[ContentType]:
+        """The content-type vocabulary in play: builtins, application's, and plugins'."""
+        return self.content_transformers.known_content_types
+
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
-
-        Checks plugin's declared ``accepted_content_types`` first, then the
-        engine-enforced allowlist set via ``set_content_transformer_allowlist``.
-        Transformers chain their output, so a failing transformer aborts the chain
-        rather than silently passing through partial output to the next stage.
 
         Args:
             content: The content to transform.
@@ -200,47 +197,25 @@ class Engine(Flask):
         Returns:
             The content after every permitted transformer has run.
         """
-        for plugin in self.get_plugins(ContentTransformerPluginBase):
-            if content_type not in plugin.accepted_content_types:
-                continue
-            if content_type not in self._content_transformer_allowlist.get(plugin, frozenset()):
-                continue
-            content = plugin.transform_content(content)
-        return content
+        return self.content_transformers.transform_content(
+            self.get_plugins(ContentTransformerPluginBase), content, content_type
+        )
 
-    def report_unknown_content_type_grants(self) -> None:
-        """Warn about granted content types no plugin or application ever registered.
+    def shortcodes_for(self, content_type: ContentType) -> dict[str, Shortcode]:
+        """Return the shortcodes permitted to render this kind of content.
 
-        The vocabulary is open, so an unknown type cannot be rejected: an application
-        registers its own, and a plugin may name one this application does not have — a
-        plugin built for another application installs cleanly and stays inert, which is
-        deliberate. A grant naming a type nothing produces is almost always a typo in
-        operator config, though, and silently grants nothing, so say so rather than
-        leaving a transformer mysteriously idle.
+        The gate an application needs when it renders a *stored value* through
+        ``Shortcode.render_value``, which does not pass through ``transform_content``.
 
-        Called by the plugin loader once every plugin is loaded, so that a plugin
-        contributing a content type need not load before the plugins granted it.
+        Args:
+            content_type: The kind of content the shortcodes will render.
+
+        Returns:
+            Permitted shortcodes keyed by tag name.
         """
-        for plugin_name, allowed in self._pending_content_type_grants:
-            for unknown in sorted(allowed - self.known_content_types):
-                logger.warning(
-                    "Plugin %s is granted content type '%s', which this application does not "
-                    "produce; the grant has no effect. Known types: %s",
-                    plugin_name,
-                    unknown,
-                    ", ".join(sorted(self.known_content_types)),
-                )
-        self._pending_content_type_grants.clear()
-
-    def set_content_transformer_allowlist(
-        self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
-    ) -> None:
-        """Register engine-enforced content-type allowlist for a content-transformer plugin.
-
-        Empty frozenset blocks all content types. Plugin absent from the allowlist is also blocked.
-        Called by the plugin loader; not intended to be called from plugin code.
-        """
-        self._content_transformer_allowlist[plugin] = allowed_types
+        return self.content_transformers.shortcodes_for(
+            self.get_plugins(ContentTransformerPluginBase), content_type
+        )
 
     def register_plugin(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
@@ -307,7 +282,7 @@ class Engine(Flask):
         raw = plugin_config_base.model_dump()
         plugin_instance = plugin_class(plugin_config_base.config)
         app = self
-        app.known_content_types |= plugin_instance.provides_content_types
+        app.content_transformers.known_content_types |= plugin_instance.provides_content_types
         if isinstance(plugin_instance, NotifierPluginBase):
             if not plugin_instance.accepted_topics:
                 logger.debug(
@@ -327,8 +302,8 @@ class Engine(Flask):
             # Checked once every plugin has loaded, not here: a plugin may contribute the
             # very content type another plugin was granted, and which loads first is not
             # something operator config should have to think about.
-            app._pending_content_type_grants.append((plugin_name, allowed))
-            app.set_content_transformer_allowlist(plugin_instance, allowed)
+            app.content_transformers.record_grant(plugin_name, allowed)
+            app.content_transformers.set_allowlist(plugin_instance, allowed)
         if isinstance(plugin_instance, HtmlInjectorPluginBase):
             if not plugin_instance.accepted_page_sections:
                 logger.debug(

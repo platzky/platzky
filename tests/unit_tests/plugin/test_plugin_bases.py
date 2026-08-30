@@ -434,7 +434,7 @@ class TestContentTransformerWiring:
         """Engine allowlist overrides plugin's declared accepted_content_types."""
         f = AllTypesFilter({})
         app.plugins[ContentTransformerPluginBase].append(f)
-        app.set_content_transformer_allowlist(f, frozenset({"post"}))
+        app.content_transformers.set_allowlist(f, frozenset({"post"}))
 
         assert app.transform_content("x", "post") == "x[filtered]"
         assert app.transform_content("x", "page") == "x"
@@ -447,6 +447,57 @@ class TestContentTransformerWiring:
 
         assert app.transform_content("x", "post") == "x"
         assert app.transform_content("x", "comment") == "x"
+
+    def test_shortcodes_for_returns_permitted_shortcodes(self, app: Engine) -> None:
+        """shortcodes_for exposes a granted plugin's shortcodes for that content type."""
+        p = ShoutTagPlugin({})
+        app.plugins[ContentTransformerPluginBase].append(p)
+        app.content_transformers.set_allowlist(p, frozenset({"post"}))
+
+        assert "shout" in app.shortcodes_for("post")
+
+    def test_shortcodes_for_honours_operator_grant(self, app: Engine) -> None:
+        """A content type the plugin accepts but the operator withheld yields nothing.
+
+        The render_value path would otherwise route around allowed_content_types.
+        """
+        p = ShoutTagPlugin({})
+        app.plugins[ContentTransformerPluginBase].append(p)
+        app.content_transformers.set_allowlist(p, frozenset({"post"}))
+
+        assert app.shortcodes_for("page") == {}
+        assert app.shortcodes_for("comment") == {}
+
+    def test_shortcodes_for_honours_plugin_declaration(self, app: Engine) -> None:
+        """A grant wider than the plugin's own declaration still yields nothing."""
+
+        class PostOnlyShout(ShoutTagPlugin):
+            accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+
+        p = PostOnlyShout({})
+        app.plugins[ContentTransformerPluginBase].append(p)
+        app.content_transformers.set_allowlist(p, BUILTIN_CONTENT_TYPES)
+
+        assert "shout" in app.shortcodes_for("post")
+        assert app.shortcodes_for("page") == {}
+
+    def test_shortcodes_for_blocks_plugin_without_allowlist(self, app: Engine) -> None:
+        """Default-deny: a plugin the loader never granted contributes no shortcodes."""
+        p = ShoutTagPlugin({})
+        app.plugins[ContentTransformerPluginBase].append(p)
+
+        assert app.shortcodes_for("post") == {}
+
+    def test_shortcodes_for_renders_the_same_html_as_a_tag(self, app: Engine) -> None:
+        """The shortcode taken from the gate renders a value as it renders a tag."""
+        p = ShoutTagPlugin({})
+        app.plugins[ContentTransformerPluginBase].append(p)
+        app.content_transformers.set_allowlist(p, frozenset({"post"}))
+
+        shortcode = app.shortcodes_for("post")["shout"]
+        assert shortcode.render_value("hello") == app.transform_content(
+            "[shout]hello[/shout]", "post"
+        )
 
     def test_builtin_shortcodes_applied_by_engine(self, base_config_data: dict[str, Any]) -> None:
         """Builtin [image] shortcode must be resolved by the engine pipeline."""

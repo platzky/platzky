@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC
+from collections.abc import Iterable
 from itertools import zip_longest
 from typing import ClassVar, final
 
@@ -64,10 +65,16 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     brings — accepting one never means importing that package — and still install on an
     application that has no such content, where it is simply never called. To *bring* a
     content type, see ``PluginBase.provides_content_types``. The engine enforces final
-    routing — plugins cannot bypass user-configured content-type restrictions.
+    routing — ``Engine.may_transform`` decides, not the plugin, so widening
+    ``accepted_content_types`` cannot widen the operator's grant.
 
     Declare ``shortcodes`` to register shortcode tags; they are applied
-    automatically by ``transform_content``. Override ``transform_text`` to
+    automatically by ``transform_content``. An application rendering a *stored value*
+    through ``Shortcode.render_value`` bypasses ``transform_content`` entirely, so it
+    must take its shortcodes from ``Engine.shortcodes_for`` to stay behind the same
+    gate rather than reading ``shortcodes`` off loaded plugins itself.
+
+    Override ``transform_text`` to
     apply plain-text transformations — the framework guarantees that
     ``transform_text`` is never called with shortcode tag markup so
     transformations cannot accidentally mangle tags intended for other plugins.
@@ -117,3 +124,156 @@ class ContentTransformerPluginBase(PluginBase, ABC):
             Jinja2 extension classes to register; empty list by default.
         """
         return []
+
+
+class ContentTransformerRegistry:
+    """The gate deciding which content transformers may act on which content.
+
+    Holds the content-type vocabulary transformers route on and each plugin's
+    operator-granted allowlist, and applies both when dispatching. Kept apart from the
+    engine so the routing rules sit beside the capability base they govern and the
+    config model that defines the grant, and so they can be exercised without an app.
+
+    It deliberately does not own the plugins: the engine's capability registry remains
+    the single ordered source of those, and they are passed in on dispatch.
+    """
+
+    def __init__(self, known_content_types: Iterable[ContentType] = ()) -> None:
+        """Initialise the gate.
+
+        Args:
+            known_content_types: The vocabulary in place before any plugin loads —
+                platzky's builtins plus whatever the application registers.
+        """
+        self.known_content_types: set[ContentType] = set(known_content_types)
+        self._allowlist: dict[ContentTransformerPluginBase, frozenset[ContentType]] = {}
+        self._pending_grants: list[tuple[str, frozenset[ContentType]]] = []
+
+    def set_allowlist(
+        self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
+    ) -> None:
+        """Record the operator's grant for a plugin.
+
+        Empty frozenset blocks all content types. A plugin absent from the allowlist is
+        also blocked. Called by the plugin loader; not intended to be called from plugin
+        code.
+
+        Args:
+            plugin: The plugin the grant applies to.
+            allowed_types: Content types the operator granted it.
+        """
+        self._allowlist[plugin] = allowed_types
+
+    def record_grant(self, plugin_name: str, allowed_types: frozenset[ContentType]) -> None:
+        """Hold a grant aside so unknown content types can be reported after loading.
+
+        Args:
+            plugin_name: Name the grant was configured under, for the log message.
+            allowed_types: Content types the operator granted.
+        """
+        self._pending_grants.append((plugin_name, allowed_types))
+
+    def may_transform(
+        self, plugin: ContentTransformerPluginBase, content_type: ContentType
+    ) -> bool:
+        """Return whether this plugin may act on this kind of content.
+
+        Both keys must turn: the plugin's own ``accepted_content_types`` declaration and
+        the operator's grant. The allowlist lives here and a plugin never receives it, so
+        widening ``accepted_content_types`` at runtime opens the first key and not the
+        second. Default-deny: an unlisted plugin is blocked, as is an empty grant.
+
+        Args:
+            plugin: The content-transformer plugin to check.
+            content_type: The kind of content it wants to act on.
+
+        Returns:
+            True if the plugin is both willing and permitted.
+        """
+        if content_type not in plugin.accepted_content_types:
+            return False
+        return content_type in self._allowlist.get(plugin, frozenset())
+
+    def transform_content(
+        self,
+        plugins: Iterable[ContentTransformerPluginBase],
+        content: str,
+        content_type: ContentType,
+    ) -> str:
+        """Run every permitted transformer over the content, in order.
+
+        Transformers chain their output, so a failing transformer aborts the chain rather
+        than silently passing partial output to the next stage.
+
+        Args:
+            plugins: Content transformers in registration order.
+            content: The content to transform.
+            content_type: The kind of content, e.g. ``POST``.
+
+        Returns:
+            The content after every permitted transformer has run.
+        """
+        for plugin in plugins:
+            if not self.may_transform(plugin, content_type):
+                continue
+            content = plugin.transform_content(content)
+        return content
+
+    def shortcodes_for(
+        self, plugins: Iterable[ContentTransformerPluginBase], content_type: ContentType
+    ) -> dict[str, Shortcode]:
+        """Return the shortcodes permitted to render this kind of content.
+
+        The gate an application needs when it renders a *stored value* through
+        ``Shortcode.render_value`` instead of transforming prose. That call does not pass
+        through ``transform_content``, so an application collecting shortcodes off its
+        loaded plugins itself would honour neither the plugin's declaration nor the
+        operator's grant — the grant would silently govern nothing.
+
+        Args:
+            plugins: Content transformers in registration order.
+            content_type: The kind of content the shortcodes will render.
+
+        Returns:
+            Permitted shortcodes keyed by tag name. A name registered by more than one
+            permitted plugin is taken from the last, matching startup registration.
+        """
+        permitted: dict[str, Shortcode] = {}
+        for plugin in plugins:
+            if not self.may_transform(plugin, content_type):
+                continue
+            for tag_name, shortcode in plugin.shortcodes.items():
+                if tag_name in permitted:
+                    logger.warning(
+                        "Plugin %s shortcode %r overrides an existing registration for "
+                        "content type '%s'.",
+                        type(plugin).__name__,
+                        tag_name,
+                        content_type,
+                    )
+                permitted[tag_name] = shortcode
+        return permitted
+
+    def report_unknown_grants(self) -> None:
+        """Warn about granted content types no plugin or application ever registered.
+
+        The vocabulary is open, so an unknown type cannot be rejected: an application
+        registers its own, and a plugin may name one this application does not have — a
+        plugin built for another application installs cleanly and stays inert, which is
+        deliberate. A grant naming a type nothing produces is almost always a typo in
+        operator config, though, and silently grants nothing, so say so rather than
+        leaving a transformer mysteriously idle.
+
+        Called by the plugin loader once every plugin is loaded, so that a plugin
+        contributing a content type need not load before the plugins granted it.
+        """
+        for plugin_name, allowed in self._pending_grants:
+            for unknown in sorted(allowed - self.known_content_types):
+                logger.warning(
+                    "Plugin %s is granted content type '%s', which this application does not "
+                    "produce; the grant has no effect. Known types: %s",
+                    plugin_name,
+                    unknown,
+                    ", ".join(sorted(self.known_content_types)),
+                )
+        self._pending_grants.clear()

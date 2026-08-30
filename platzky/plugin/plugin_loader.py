@@ -132,5 +132,5 @@ def plugify(app: Engine) -> Engine:
 
     # Every plugin has now had its chance to contribute a content type, so a grant still
     # naming an unknown one really is unknown.
-    app.report_unknown_content_type_grants()
+    app.content_transformers.report_unknown_grants()
     return app

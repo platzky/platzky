@@ -176,6 +176,19 @@ a tag an author wrote in prose — through
     Anything a stored value should be able to override becomes a ``ShortcodeAttr``,
     which content authors then get as a tag attribute too.
 
+Take the shortcodes to render with from :meth:`~platzky.engine.Engine.shortcodes_for`, not
+by reading ``shortcodes`` off loaded plugins::
+
+    for name, shortcode in app.shortcodes_for("field").items():
+        ...
+
+``render_value`` is called directly by the application and so does not pass through
+``transform_content``, where routing is normally enforced. ``shortcodes_for`` applies the
+same two keys that pipeline applies — the plugin's own ``accepted_content_types`` and the
+operator's ``allowed_content_types`` grant — so an operator withholding a content type
+withholds it here too. Collecting shortcodes off ``loaded_plugins`` instead would leave
+the grant governing prose but not stored values.
+
 An application wanting the value as *data* rather than markup — to render it natively, index
 it, or export it — reads the stored entry directly, using ``content_key`` to know
 which key a bare value belongs under. Platzky does not shape that payload: only the
