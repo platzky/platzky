@@ -130,7 +130,5 @@ def plugify(app: Engine) -> Engine:
             logger.exception("Error processing plugin %s", plugin_name)
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
-    # Every plugin has now had its chance to contribute a content type, so a grant still
-    # naming an unknown one really is unknown.
     app.content_transformers.report_unknown_grants()
     return app
