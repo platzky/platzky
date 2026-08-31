@@ -532,8 +532,10 @@ Admin Help Page
 ---------------
 
 Loaded plugins and their shortcodes are listed on the admin *Help* page
-(``/admin/help``). Override ``get_info()`` to provide a user-facing name and
-description:
+(``/admin/help``). A plugin is listed under its own ``name`` — the entry-point name it is
+installed and configured under — so an operator reading the page can find it in their
+config. The description comes from the class docstring; override ``get_info()`` to write
+one by hand:
 
 .. code-block:: python
 
@@ -541,7 +543,7 @@ description:
 
     class MyPlugin(PluginBase):
         def get_info(self) -> PluginInfo:
-            return PluginInfo(name="My Plugin", description="Does something useful.")
+            return PluginInfo(name=self.name, description="Does something useful.")
 
 Translation Support
 -------------------

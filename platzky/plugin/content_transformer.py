@@ -149,29 +149,24 @@ class ContentTransformerRegistry:
         self._allowlist: dict[ContentTransformerPluginBase, frozenset[ContentType]] = {}
         self._pending_grants: list[tuple[str, frozenset[ContentType]]] = []
 
-    def set_allowlist(
+    def grant(
         self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
         """Record the operator's grant for a plugin.
 
-        Empty frozenset blocks all content types. A plugin absent from the allowlist is
-        also blocked. Called by the plugin loader; not intended to be called from plugin
-        code.
+        One call because it is one decision: the same grant is what ``may_transform``
+        enforces and what ``warn_unknown_grants`` later checks for typos. An empty
+        frozenset blocks every content type, as does never granting a plugin at all.
+        Called by the plugin loader; not intended to be called from plugin code.
 
         Args:
-            plugin: The plugin the grant applies to.
+            plugin: The plugin the grant applies to. Its ``name`` identifies it in any
+                later warning, so grant it after ``Engine.register_plugin`` has stamped
+                that on.
             allowed_types: Content types the operator granted it.
         """
         self._allowlist[plugin] = allowed_types
-
-    def record_grant(self, plugin_name: str, allowed_types: frozenset[ContentType]) -> None:
-        """Hold a grant aside so unknown content types can be reported after loading.
-
-        Args:
-            plugin_name: Name the grant was configured under, for the log message.
-            allowed_types: Content types the operator granted.
-        """
-        self._pending_grants.append((plugin_name, allowed_types))
+        self._pending_grants.append((plugin.name, allowed_types))
 
     def may_transform(
         self, plugin: ContentTransformerPluginBase, content_type: ContentType
@@ -254,7 +249,7 @@ class ContentTransformerRegistry:
                 permitted[tag_name] = shortcode
         return permitted
 
-    def report_unknown_grants(self) -> None:
+    def warn_unknown_grants(self) -> None:
         """Warn about granted content types no plugin or application ever registered.
 
         The vocabulary is open, so an unknown type cannot be rejected: an application

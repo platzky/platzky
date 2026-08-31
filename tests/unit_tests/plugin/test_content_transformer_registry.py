@@ -45,11 +45,18 @@ def registry() -> ContentTransformerRegistry:
     return ContentTransformerRegistry(BUILTIN_CONTENT_TYPES)
 
 
+def _named_plugin(name: str) -> ShoutPlugin:
+    """A plugin carrying the name the loader would have stamped on it."""
+    plugin = ShoutPlugin({})
+    plugin.name = name
+    return plugin
+
+
 class TestMayTransform:
     def test_both_keys_open(self, registry: ContentTransformerRegistry) -> None:
         """Willing plugin plus operator grant means permitted."""
         plugin = ShoutPlugin({})
-        registry.set_allowlist(plugin, frozenset({"post"}))
+        registry.grant(plugin, frozenset({"post"}))
 
         assert registry.may_transform(plugin, "post")
 
@@ -58,7 +65,7 @@ class TestMayTransform:
     ) -> None:
         """A plugin widening its own declaration does not widen the operator's grant."""
         plugin = PostOnlyPlugin({})
-        registry.set_allowlist(plugin, frozenset({"post"}))
+        registry.grant(plugin, frozenset({"post"}))
         plugin.accepted_content_types = BUILTIN_CONTENT_TYPES
 
         assert not registry.may_transform(plugin, "page")
@@ -68,7 +75,7 @@ class TestMayTransform:
     ) -> None:
         """An operator cannot make a plugin handle content it never declared."""
         plugin = PostOnlyPlugin({})
-        registry.set_allowlist(plugin, BUILTIN_CONTENT_TYPES)
+        registry.grant(plugin, BUILTIN_CONTENT_TYPES)
 
         assert not registry.may_transform(plugin, "page")
 
@@ -79,7 +86,7 @@ class TestMayTransform:
     def test_empty_grant_blocks_everything(self, registry: ContentTransformerRegistry) -> None:
         """An explicit empty grant blocks every content type."""
         plugin = ShoutPlugin({})
-        registry.set_allowlist(plugin, frozenset())
+        registry.grant(plugin, frozenset())
 
         assert not registry.may_transform(plugin, "post")
 
@@ -90,7 +97,7 @@ class TestDispatch:
     ) -> None:
         """Content passes untouched through a plugin that is not permitted."""
         plugin = ShoutPlugin({})
-        registry.set_allowlist(plugin, frozenset({"post"}))
+        registry.grant(plugin, frozenset({"post"}))
 
         assert registry.transform_content([plugin], "[shout]hi[/shout]", "post") == "HI"
         assert (
@@ -102,7 +109,7 @@ class TestDispatch:
     ) -> None:
         """The value-rendering gate agrees with the prose gate."""
         plugin = ShoutPlugin({})
-        registry.set_allowlist(plugin, frozenset({"post"}))
+        registry.grant(plugin, frozenset({"post"}))
 
         assert "shout" in registry.shortcodes_for([plugin], "post")
         assert registry.shortcodes_for([plugin], "page") == {}
@@ -112,8 +119,8 @@ class TestDispatch:
     ) -> None:
         """Two permitted plugins claiming a tag name warn, and the last one wins."""
         first, second = ShoutPlugin({}), PostOnlyPlugin({})
-        registry.set_allowlist(first, frozenset({"post"}))
-        registry.set_allowlist(second, frozenset({"post"}))
+        registry.grant(first, frozenset({"post"}))
+        registry.grant(second, frozenset({"post"}))
 
         with caplog.at_level(logging.WARNING):
             result = registry.shortcodes_for([first, second], "post")
@@ -123,14 +130,14 @@ class TestDispatch:
 
 
 class TestGrantReporting:
-    def test_unknown_grant_is_reported(
+    def test_unknown_grant_is_warned_about(
         self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A grant naming a type nothing registered warns rather than failing silently."""
-        registry.record_grant("mapplugin", frozenset({"field"}))
+        registry.grant(_named_plugin("mapplugin"), frozenset({"field"}))
 
         with caplog.at_level(logging.WARNING):
-            registry.report_unknown_grants()
+            registry.warn_unknown_grants()
 
         assert "field" in caplog.text
         assert "has no effect" in caplog.text
@@ -139,23 +146,23 @@ class TestGrantReporting:
         self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Load order does not matter: the type may arrive after the grant was recorded."""
-        registry.record_grant("mapplugin", frozenset({"field"}))
+        registry.grant(_named_plugin("mapplugin"), frozenset({"field"}))
         registry.known_content_types |= {"field"}
 
         with caplog.at_level(logging.WARNING):
-            registry.report_unknown_grants()
+            registry.warn_unknown_grants()
 
         assert caplog.text == ""
 
-    def test_reporting_clears_pending_grants(
+    def test_warning_is_not_repeated(
         self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A grant is reported once, not again on every later call."""
-        registry.record_grant("mapplugin", frozenset({"field"}))
-        registry.report_unknown_grants()
+        """A grant is warned about once, not again on every later call."""
+        registry.grant(_named_plugin("mapplugin"), frozenset({"field"}))
+        registry.warn_unknown_grants()
         caplog.clear()
 
         with caplog.at_level(logging.WARNING):
-            registry.report_unknown_grants()
+            registry.warn_unknown_grants()
 
         assert caplog.text == ""

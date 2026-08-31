@@ -385,8 +385,10 @@ def create_app_from_config(
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
     _builtin_transformer = _BuiltinShortcodeTransformer({})
+    # Named here rather than by register_plugin, which appends: this one must be first.
+    _builtin_transformer.name = "platzky_builtin_shortcodes"
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
-    engine.content_transformers.set_allowlist(
+    engine.content_transformers.grant(
         _builtin_transformer, _builtin_transformer.accepted_content_types
     )
     engine.shortcodes.update(_builtin_transformer.shortcodes)

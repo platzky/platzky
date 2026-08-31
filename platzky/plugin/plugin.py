@@ -41,6 +41,13 @@ class PluginBase(ABC):
     etc.) rather than overriding process().
     """
 
+    #: The plugin's name: its entry-point name, which is also the key it is configured
+    #: under — the loader looks the config key up among entry-point names, so a plugin
+    #: whose two differ never loads at all. Stamped by ``Engine.register_plugin``, so it
+    #: is empty while the plugin's own ``__init__`` runs. Per-instance, not a
+    #: ``ClassVar``: two entry points may point at the same class under two names.
+    name: str = ""
+
     #: Content types this plugin *defines*, added to the application's vocabulary so other
     #: plugins can accept them and operators can grant them — the counterpart to
     #: ``ContentTransformerPluginBase.accepted_content_types``, which names what a plugin
@@ -77,11 +84,14 @@ class PluginBase(ABC):
     def get_info(self) -> PluginInfo:
         """Return a metadata snapshot describing this plugin.
 
-        Override to provide a user-facing name or description.
+        The name is the plugin's own ``name`` — the one it is configured and installed
+        under, so the admin page names it as an operator would look it up. It falls back
+        to the class name for a plugin never registered with an engine. Override to
+        provide a description; the docstring is used when you do not.
         """
         doc = type(self).__doc__
         return PluginInfo(
-            name=type(self).__name__,
+            name=self.name or type(self).__name__,
             description=inspect.cleandoc(doc) if doc else "",
         )
 
