@@ -168,6 +168,19 @@ class ContentTransformerRegistry:
         self._allowlist[plugin] = allowed_types
         self._pending_grants.append((plugin.name, allowed_types))
 
+    def grant_declared(self, plugin: ContentTransformerPluginBase) -> None:
+        """Grant a plugin exactly what it declares it accepts.
+
+        For a transformer the application owns rather than one an operator installed —
+        platzky's builtin shortcodes are not opt-in, so there is no operator grant to
+        read and the plugin's own declaration is the whole answer. It still goes through
+        the same gate as everything else; only where the second key comes from differs.
+
+        Args:
+            plugin: The application-owned plugin to grant.
+        """
+        self.grant(plugin, plugin.accepted_content_types)
+
     def may_transform(
         self, plugin: ContentTransformerPluginBase, content_type: ContentType
     ) -> bool:

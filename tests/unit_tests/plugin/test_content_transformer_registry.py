@@ -91,6 +91,18 @@ class TestMayTransform:
         assert not registry.may_transform(plugin, "post")
 
 
+class TestGrantDeclared:
+    def test_grants_exactly_what_the_plugin_accepts(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """An application-owned plugin needs no operator grant: its declaration is the grant."""
+        plugin = PostOnlyPlugin({})
+        registry.grant_declared(plugin)
+
+        assert registry.may_transform(plugin, "post")
+        assert not registry.may_transform(plugin, "page")
+
+
 class TestDispatch:
     def test_transform_content_runs_only_permitted_plugins(
         self, registry: ContentTransformerRegistry

@@ -388,9 +388,7 @@ def create_app_from_config(
     # Named here rather than by register_plugin, which appends: this one must be first.
     _builtin_transformer.name = "platzky_builtin_shortcodes"
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
-    engine.content_transformers.grant(
-        _builtin_transformer, _builtin_transformer.accepted_content_types
-    )
+    engine.content_transformers.grant_declared(_builtin_transformer)
     engine.shortcodes.update(_builtin_transformer.shortcodes)
 
     _other_transformers = [
