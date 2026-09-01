@@ -6,6 +6,7 @@ import logging
 import re
 from abc import ABC
 from collections.abc import Iterable, Mapping
+from html.parser import HTMLParser
 from itertools import zip_longest
 from typing import ClassVar, cast, final
 
@@ -15,7 +16,7 @@ from markupsafe import Markup, escape
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
-from platzky.shortcodes import Shortcode, ShortcodeAttrs
+from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeError
 
 
 class ContentTransformerPluginConfig(PluginConfigBase):
@@ -46,17 +47,15 @@ _MAX_ATTR_VALUE_LEN = 2048
 _ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
 
 
-#: One frame of the parse stack: tag name, its raw attribute text, and the rendered
-#: pieces collected inside it so far. The outermost frame is the document itself and
+#: One frame of the parse stack: tag name, its raw attribute text, the rendered pieces
+#: collected inside it so far, and where the opening tag was written — kept so an
+#: unclosed tag can say which one it was. The outermost frame is the document itself and
 #: carries ``""`` as its name, which no shortcode can have.
-_Frame = tuple[str, str, list[str]]
+_Frame = tuple[str, str, list[str], int]
 
 
 def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     """Build the token pattern matching an opening or closing tag of a known shortcode.
-
-    Names are alternated longest-first so a shortcode never shadows a longer one that
-    starts with the same letters.
 
     Args:
         shortcodes: Registered shortcodes, keyed by tag name.
@@ -64,7 +63,7 @@ def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     Returns:
         A pattern whose groups are (closing name, opening name, opening attributes).
     """
-    names = "|".join(re.escape(n) for n in sorted(shortcodes, key=len, reverse=True))
+    names = "|".join(re.escape(n) for n in shortcodes)
     return re.compile(rf"\[/({names})\]" rf"|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
 
 
@@ -89,23 +88,121 @@ def _render_tag(shortcode: Shortcode, raw_attrs: str, inner: str) -> str:
     return shortcode.render(attrs, Markup(inner))
 
 
-def _close_unclosed_above(
-    stack: list[_Frame], depth: int, shortcodes: dict[str, Shortcode]
-) -> None:
-    """Discharge frames left open above ``depth``, treating each as a void tag.
+class _MarkupStripper(HTMLParser):
+    """Collect the text of a document, discarding its tags.
 
-    An opening tag that is never closed renders with empty content, and the text that
-    followed it stays outside — the same shape ``[image url="…"]`` relies on, so a tag
-    that takes no closing tag and one whose author forgot it are handled alike. Telling
-    them apart needs shortcodes to declare a kind, which they do not yet.
+    A real parser rather than a regex over ``<[^>]*>``, because ``>`` is legal inside a
+    quoted attribute: ``<img alt="a > b" src="/a.png">`` ends at the first ``>`` as far as
+    a regex is concerned, which would leave the rest of the tag behind as visible text.
+    """
+
+    def __init__(self) -> None:
+        """Start with no text collected and nothing removed."""
+        super().__init__(convert_charrefs=False)
+        self.text: list[str] = []
+        self.removed: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: object) -> None:  # noqa: ARG002
+        """Drop an opening tag, recording that it was there."""
+        self.removed.append(tag)
+
+    def handle_startendtag(self, tag: str, attrs: object) -> None:  # noqa: ARG002
+        """Drop a self-closing tag, recording that it was there."""
+        self.removed.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        """Drop a closing tag without recording it; its opener already counted."""
+
+    def handle_comment(self, data: str) -> None:  # noqa: ARG002
+        """Drop a comment, recording it under a name an operator will recognise."""
+        self.removed.append("<!--")
+
+    def handle_data(self, data: str) -> None:
+        """Keep ordinary text, which includes any shortcode tags written in it."""
+        self.text.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        """Keep a named entity as written, rather than resolving it."""
+        self.text.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        """Keep a numeric entity as written, rather than resolving it."""
+        self.text.append(f"&#{name};")
+
+
+def _strip_markup(text: str) -> tuple[str, list[str]]:
+    """Remove HTML tags from content, keeping the text they wrapped.
+
+    Shortcode syntax is untouched: brackets are ordinary characters to an HTML parser, so
+    ``[image url="/a.png"]`` survives to be rendered by the pipeline afterwards.
+
+    Args:
+        text: Content to strip.
+
+    Returns:
+        The text without its tags, and the names of the tags removed, in document order.
+    """
+    stripper = _MarkupStripper()
+    stripper.feed(text)
+    stripper.close()
+    return "".join(stripper.text), stripper.removed
+
+
+def _never_closed(name: str) -> str:
+    """Phrase the complaint about an opening tag that is never closed.
+
+    Args:
+        name: The tag name.
+
+    Returns:
+        A message naming the closing tag the author owes.
+    """
+    return f"[{name}] is never closed; add [/{name}]"
+
+
+def _closes_nothing(shortcode: Shortcode) -> str:
+    """Phrase the complaint about a closing tag that matches no opening one.
+
+    A void shortcode gets its own wording, since the author's mistake there is not a
+    missing opening tag but the belief that this tag takes a closing one at all.
+
+    Args:
+        shortcode: The shortcode the closing tag named.
+
+    Returns:
+        A message describing what is wrong.
+    """
+    if shortcode.kind == "void":
+        return f"[/{shortcode.name}] is not valid; [{shortcode.name}] takes no closing tag"
+    return f"[/{shortcode.name}] closes nothing; no [{shortcode.name}] is open here"
+
+
+def _reject_unclosed_above(
+    stack: list[_Frame], depth: int, shortcodes: dict[str, Shortcode], *, strict: bool
+) -> None:
+    """Discharge any block tag still open above ``depth``.
+
+    Only block tags ever reach the stack — void and raw ones are rendered on sight — so
+    anything left open here was written with no closing tag by an author who owed one.
+    Rendering it anyway would silently drop or reparent whatever it was meant to wrap, so
+    under ``strict`` the parse fails and names the tag. Otherwise the tag renders empty
+    and its contents are kept, which is what platzky did before it could tell a void tag
+    from an unclosed one.
 
     Args:
         stack: The parse stack, mutated in place.
-        depth: Index of the frame to stop at; everything above it is discharged.
+        depth: Index of the frame to stop at; everything above it must be closed by now.
         shortcodes: Registered shortcodes, keyed by tag name.
+        strict: Whether an unclosed tag is an error rather than something to render past.
+
+    Raises:
+        ShortcodeError: If ``strict`` and a block tag above ``depth`` was never closed.
     """
+    if strict and len(stack) - 1 > depth:
+        name, _, _, position = stack[-1]
+        raise ShortcodeError(_never_closed(name), name, position)
     while len(stack) - 1 > depth:
-        name, raw_attrs, parts = stack.pop()
+        name, raw_attrs, parts, _ = stack.pop()
         stack[-1][2].append(_render_tag(shortcodes[name], raw_attrs, ""))
         stack[-1][2].extend(parts)
 
@@ -126,47 +223,77 @@ def _open_frame_for(stack: list[_Frame], name: str) -> int | None:
     return None
 
 
-def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
+def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> str:
     """Render every registered shortcode in the content, innermost tag first.
 
     Tokenises once and matches tags with a stack, so a tag nests inside another of the
     same name and a closing tag pairs with the opening tag it actually belongs to. A
-    closing tag with nothing to close, and any tag name not registered here, are left in
-    the content as the author wrote them.
+    ``"raw"`` tag is not descended into at all: its body is taken verbatim up to the
+    matching closing tag, so brackets inside it are characters rather than syntax.
+
+    A tag name no plugin registered is left exactly as written — an author may be writing
+    *about* a shortcode rather than using one, and platzky has no opinion on a name it
+    does not know. A registered name used wrongly is a different matter and is reported
+    when ``strict``: there is no rendering of an unclosed tag, or of a closing tag that
+    closes nothing, that is not a guess about what the author meant.
 
     Args:
         content: Content to scan for shortcode tags.
         shortcodes: Registered shortcodes, keyed by tag name.
+        strict: Whether a malformed tag is an error. True for content someone vouched
+            for, since whoever wrote it has write access and can fix the bracket. False
+            otherwise, because a stranger's typo must not take a page down — and because
+            escaping mangles a tag on the way in, so unvouched content arrives malformed
+            through no fault of its author: quotes become entities, the opening tag stops
+            matching, and its closing tag is left with nothing to close.
 
     Returns:
         The content with every registered shortcode replaced by its rendered HTML.
+
+    Raises:
+        ShortcodeError: If ``strict`` and a tag is opened and never closed, or a closing
+            tag matches no opening one.
     """
     if not shortcodes:
         return content
 
-    stack: list[_Frame] = [("", "", [])]
+    pattern = _tag_pattern(shortcodes)
+    stack: list[_Frame] = [("", "", [], 0)]
     position = 0
 
-    for match in _tag_pattern(shortcodes).finditer(content):
+    while (match := pattern.search(content, position)) is not None:
         stack[-1][2].append(content[position : match.start()])
         position = match.end()
         closing, opening, raw_attrs = match.group(1), match.group(2), match.group(3)
 
-        if closing is None:
-            stack.append((opening, raw_attrs or "", []))
+        if closing is not None:
+            depth = _open_frame_for(stack, closing)
+            if depth is None:
+                if strict:
+                    raise ShortcodeError(
+                        _closes_nothing(shortcodes[closing]), closing, match.start()
+                    )
+                stack[-1][2].append(match.group(0))
+                continue
+            _reject_unclosed_above(stack, depth, shortcodes, strict=strict)
+            name, attrs_text, parts, _ = stack.pop()
+            stack[-1][2].append(_render_tag(shortcodes[name], attrs_text, "".join(parts)))
             continue
 
-        depth = _open_frame_for(stack, closing)
-        if depth is None:
-            stack[-1][2].append(match.group(0))
-            continue
-
-        _close_unclosed_above(stack, depth, shortcodes)
-        name, attrs_text, parts = stack.pop()
-        stack[-1][2].append(_render_tag(shortcodes[name], attrs_text, "".join(parts)))
+        shortcode = shortcodes[opening]
+        if shortcode.kind == "void":
+            stack[-1][2].append(_render_tag(shortcode, raw_attrs or "", ""))
+        elif shortcode.kind == "raw":
+            body_end = content.find(f"[/{opening}]", position)
+            if body_end < 0:
+                raise ShortcodeError(_never_closed(opening), opening, match.start())
+            stack[-1][2].append(_render_tag(shortcode, raw_attrs or "", content[position:body_end]))
+            position = body_end + len(opening) + 3
+        else:
+            stack.append((opening, raw_attrs or "", [], match.start()))
 
     stack[-1][2].append(content[position:])
-    _close_unclosed_above(stack, 0, shortcodes)
+    _reject_unclosed_above(stack, 0, shortcodes, strict=strict)
     return "".join(stack[0][2])
 
 
@@ -237,16 +364,23 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
     @final
-    def transform_content(self, content: str) -> str:
+    def transform_content(self, content: str, *, strict: bool = True) -> str:
         """Split content on shortcode tags, transform plain-text segments, then apply shortcodes.
 
         Not overridable — override ``transform_text`` instead.
 
         Args:
             content: Raw content string to transform.
+            strict: Whether a malformed shortcode tag is an error. The registry passes
+                False for content nobody vouched for, whose author cannot fix it and whose
+                tags escaping has already mangled. A direct caller is transforming content
+                it holds itself, so the default reports mistakes.
 
         Returns:
             Transformed content string.
+
+        Raises:
+            ShortcodeError: If ``strict`` and a shortcode tag is malformed.
         """
         parts = _SHORTCODE_TAG_RE.split(content)
         tags = _SHORTCODE_TAG_RE.findall(content)
@@ -254,7 +388,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         reassembled = "".join(
             segment for pair in zip_longest(transformed, tags, fillvalue="") for segment in pair
         )
-        return _apply_shortcodes(reassembled, self.shortcodes)
+        return _apply_shortcodes(reassembled, self.shortcodes, strict=strict)
 
     def transform_text(self, text: str) -> str:
         """Apply plain-text transformation to a non-tag content segment.
@@ -414,6 +548,8 @@ class ContentTransformerRegistry:
         plugins: Iterable[ContentTransformerPluginBase],
         content: str,
         content_type: ContentType,
+        *,
+        strip_html: bool = False,
     ) -> str:
         """Run every permitted transformer over the content, in order.
 
@@ -432,20 +568,48 @@ class ContentTransformerRegistry:
             content: The content to transform. A plain ``str`` is treated as untrusted and
                 escaped; a ``Markup`` is taken as vouched for and passed through.
             content_type: The kind of content, e.g. ``POST``.
+            strip_html: Overrule vouching and remove HTML tags the author wrote, keeping
+                the text they wrapped and logging what went. The operator's call, behind
+                ``STRIP_CONTENT_HTML``: shortcodes still render, but a site turning it on
+                needs some other way to format a post, because HTML is currently the only
+                one platzky has.
 
         Returns:
             The content after every permitted transformer has run.
         """
+        # Whether anyone vouched decides two separate things, so read it before escaping
+        # flattens the Markup away: what gets escaped, and whose mistakes get reported.
+        vouched = hasattr(content, "__html__")
+        if strip_html and vouched:
+            # Overrule the vouching: the operator has decided authored HTML is not part of
+            # the content format. Shortcodes are what replaces it, and they survive — an
+            # HTML parser has no opinion about square brackets. Re-wrapped as Markup so
+            # the escape() below leaves the surviving entities as the author wrote them.
+            stripped, removed = _strip_markup(str(content))
+            if removed:
+                # Lossy and silent otherwise, so say what went and how much of it.
+                logger.warning(
+                    "Removed %d HTML tag(s) from %s content (%s) because STRIP_CONTENT_HTML "
+                    "is on. The text they wrapped was kept.",
+                    len(removed),
+                    content_type,
+                    ", ".join(sorted(set(removed))),
+                )
+            content = Markup(stripped)
         # escape() is a no-op on anything carrying __html__, so this is the whole rule.
         # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
         # a bare tag in untrusted content still fires — harmlessly, since what it wraps is
         # already escaped — while a quoted attribute does not survive and that tag renders
         # literally. Safety does not depend on which happens.
         content = str(escape(content))
+        # That mangling is also why only vouched content is parsed strictly. Escaping the
+        # quotes out of `[tag a="b"]x[/tag]` leaves an opening tag that no longer matches
+        # and a closing tag that does, so a stranger writing an ordinary shortcode would
+        # otherwise fail the render — a typo in a comment must not take a page down.
         for plugin in plugins:
             if not self.may_transform(plugin, content_type):
                 continue
-            content = plugin.transform_content(content)
+            content = plugin.transform_content(content, strict=vouched)
         return content
 
     def shortcodes_for(

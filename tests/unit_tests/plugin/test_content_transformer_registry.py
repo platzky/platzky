@@ -16,7 +16,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
 )
-from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
 
 
 class _ShoutShortcode(Shortcode):
@@ -272,12 +272,156 @@ class TestTrustBoundary:
 
         assert result == "[wrap tone=&#34;loud&#34;]hi[/wrap]"
 
+    def test_a_stranger_cannot_fail_the_render_with_a_malformed_tag(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Unvouched content is parsed leniently, and it has to be.
+
+        Escaping mangles the tags on the way in: the quotes in ``[wrap tone="loud"]``
+        become entities, so the opening tag stops matching while ``[/wrap]`` still does.
+        Parsed strictly, that closing tag closes nothing and the page fails — which would
+        let anyone who can write a comment take a page down by using a shortcode
+        perfectly correctly.
+        """
+        plugin = AttrPlugin({})
+        registry.grant(plugin, frozenset({"comment"}))
+        registry.known_content_types |= {"comment"}
+
+        for hostile in ['[wrap tone="loud"]hi[/wrap]', "[/wrap]", "[wrap]hi"]:
+            assert registry.transform_content([plugin], hostile, "comment")
+
+    def test_vouched_content_is_parsed_strictly(self, registry: ContentTransformerRegistry) -> None:
+        """An author with write access can fix their own bracket, so they are told."""
+        plugin = AttrPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        with pytest.raises(ShortcodeError):
+            registry.transform_content([plugin], Markup("[wrap]hi"), "post")
+
     def test_vouched_shortcode_still_fires(self, registry: ContentTransformerRegistry) -> None:
         """The same tag in vouched content renders normally."""
         plugin = ShoutPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
         assert registry.transform_content([plugin], Markup("[shout]hi[/shout]"), "post") == "HI"
+
+
+class TestStripContentHtml:
+    """STRIP_CONTENT_HTML overrules vouching, removing HTML the author wrote."""
+
+    def test_off_by_default_so_vouched_html_still_renders(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        assert registry.transform_content([plugin], Markup('a <img src="x">'), "post") == (
+            'a <img src="x">'
+        )
+
+    def test_on_removes_the_tag_and_keeps_the_text(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup('a <b>bold</b> and <img src="x">'), "post", strip_html=True
+        )
+
+        assert result == "a bold and "
+
+    def test_removals_are_logged(
+        self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Stripping is lossy, so it must not be silent."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        with caplog.at_level(logging.WARNING):
+            registry.transform_content(
+                [plugin], Markup('<b>x</b> <img src="y">'), "post", strip_html=True
+            )
+
+        assert "Removed 2 HTML tag(s) from post content" in caplog.text
+        assert "b, img" in caplog.text
+
+    def test_nothing_is_logged_when_there_was_no_html(
+        self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        with caplog.at_level(logging.WARNING):
+            registry.transform_content([plugin], Markup("just words"), "post", strip_html=True)
+
+        assert "Removed" not in caplog.text
+
+    def test_a_quote_containing_an_angle_bracket_does_not_leak(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """``>`` is legal inside an attribute; a regex would leave half the tag behind."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup('<img alt="a > b" src="/a.png">clean'), "post", strip_html=True
+        )
+
+        assert result == "clean"
+
+    def test_shortcodes_keep_working_when_it_is_on(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Escaping authored HTML must not disable the formatting meant to replace it."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup("[shout]hi[/shout]"), "post", strip_html=True
+        )
+
+        assert result == "HI"
+
+    def test_shortcodes_with_attributes_keep_working_when_it_is_on(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """The case a bare tag does not cover: ``escape()`` would eat the quotes.
+
+        Turning quoted attributes into entities stops the tag matching, which would leave
+        every attributed shortcode as literal text — disabling the very formatting this
+        flag exists to make authors use.
+        """
+        plugin = AttrPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup('[wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
+        )
+
+        assert result == '<span class="loud">hi</span>'
+
+    def test_html_around_a_shortcode_goes_while_the_shortcode_renders(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        plugin = AttrPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup('<b>x</b> [wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
+        )
+
+        assert result == 'x <span class="loud">hi</span>'
+
+    def test_untrusted_content_is_unaffected(self, registry: ContentTransformerRegistry) -> None:
+        """It was escaped already; turning the flag on must not escape it twice."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        off = registry.transform_content([plugin], '<img src="x">', "post")
+        on = registry.transform_content([plugin], '<img src="x">', "post", strip_html=True)
+
+        assert off == on == "&lt;img src=&#34;x&#34;&gt;"
 
 
 class TestDispatch:

@@ -21,6 +21,7 @@ class ImageShortcode(Shortcode):
         ]
     )
     example = '[image url="https://example.com/photo.jpg" alt="A photo"]'
+    kind = "void"
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Render an img tag, returning empty string if the URL is not allowed.

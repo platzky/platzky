@@ -1,17 +1,22 @@
 """Shortcode parser for blog post content.
 
 Plugins register handlers through the ``shortcodes`` class variable on
-``ContentTransformerPluginBase``. Syntax::
+``ContentTransformerPluginBase``. A shortcode declares its ``kind``, which is what says
+whether a closing tag belongs::
 
-    [tagname attr="val"]                     # void
-    [tagname attr="val"]content[/tagname]    # block
+    [tagname attr="val"]                     # kind = "void"
+    [tagname attr="val"]content[/tagname]    # kind = "block"  (the default)
 
 Shortcodes nest, including inside another of the same name: tags are matched with a
 stack, so a closing tag pairs with the opening tag it belongs to rather than the nearest
-one. A closing tag with nothing to close, and a tag name no plugin registered, are left
-in the content as the author wrote them. An opening tag that is never closed renders
-with empty content, which is also how a tag written without one — ``[image url="…"]`` —
-is handled.
+one.
+
+Malformed content is reported rather than guessed at. A ``"block"`` tag that is never
+closed raises ``ShortcodeError`` naming the tag and where it was written, because there
+is no rendering of it that is not a guess about what the author meant to wrap. What is
+*not* malformed passes through untouched: a closing tag with nothing to close, and any
+tag name no plugin registered, are left exactly as written — an author may be writing
+about a shortcode rather than using one.
 """
 
 import inspect
@@ -19,11 +24,50 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import ClassVar, cast, final
+from typing import ClassVar, Literal, cast, final, get_args
 
 from markupsafe import Markup, escape
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+
+#: How a shortcode is written, which is what tells the parser what to do with the text
+#: after the opening tag. ``"block"`` wraps content and must be closed; ``"void"`` takes
+#: none and must not be; ``"raw"`` must be closed, and its body is taken verbatim rather
+#: than parsed, so brackets inside it are characters rather than syntax.
+#:
+#: The kind is a *declaration*, read before the parser descends, which is what lets it
+#: change parsing at all — ``render`` runs afterwards and so could never stop it.
+#:
+#: A raw body is verbatim only for the pass that renders it. Transformers each render
+#: their own shortcodes before passing a plain string on, so a later one sees that body as
+#: ordinary content. Moving rendering out of the per-plugin loop is what would close that.
+ShortcodeKind = Literal["block", "void", "raw"]
+
+#: The same set at runtime, for the check in ``__init_subclass__`` — plugin authors are
+#: third parties who may not run a type checker. Derived rather than repeated so adding a
+#: kind is one edit.
+_SHORTCODE_KINDS: frozenset[str] = frozenset(get_args(ShortcodeKind))
+
+
+class ShortcodeError(ValueError):
+    """Raised when content cannot be parsed as the shortcodes registered for it describe.
+
+    A ``ValueError`` because the content is the bad input. It carries the tag name and the
+    offset it was written at: this surfaces as a failed page render, so the log is the
+    only evidence an operator gets of which bracket was wrong.
+    """
+
+    def __init__(self, message: str, tag: str, position: int) -> None:
+        """Record which tag failed and where.
+
+        Args:
+            message: What went wrong, phrased for whoever wrote the content.
+            tag: Name of the shortcode tag at fault.
+            position: Character offset of the tag within the content.
+        """
+        super().__init__(f"{message} (shortcode {tag!r} at character {position})")
+        self.tag = tag
+        self.position = position
 
 
 @dataclass
@@ -115,6 +159,14 @@ class Shortcode(ABC):
     #: as well, so an application storing a bare value needs no declaration.
     content_key: ClassVar[str] = "content"
 
+    #: Whether a closing tag is expected. The default wraps content, because most
+    #: shortcodes do and because it is the safe default to get wrong: a block shortcode
+    #: mistakenly left as ``"block"`` still renders, whereas a void one declared ``"block"``
+    #: makes every correct use of it look unclosed. Declare ``"void"`` for a tag written
+    #: without a closing tag, like ``[image url="…"]`` — the parser then renders it on
+    #: sight, and rejects an unclosed ``"block"`` tag rather than guessing what was meant.
+    kind: ClassVar[ShortcodeKind] = "block"
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         if inspect.isabstract(cls):
@@ -123,6 +175,12 @@ class Shortcode(ABC):
         if not isinstance(name, str) or not _VALID_SHORTCODE_NAME_RE.match(name):
             raise ValueError(
                 f"Shortcode subclass {cls.__name__!r} must declare a valid `name`; got {name!r}."
+            )
+        kind = getattr(cls, "kind", None)
+        if kind not in _SHORTCODE_KINDS:
+            raise ValueError(
+                f"Shortcode subclass {cls.__name__!r} declares `kind` {kind!r}; "
+                f"expected one of {sorted(_SHORTCODE_KINDS)}."
             )
 
     @final

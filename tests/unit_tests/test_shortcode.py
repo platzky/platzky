@@ -7,7 +7,7 @@ from markupsafe import Markup
 
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
 
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
@@ -81,6 +81,22 @@ class TestShortcodeSubclassing:
                 (Shortcode,),
                 {"name": "123invalid", "description": "test", "render": _render},
             )
+
+    def test_invalid_kind_raises(self) -> None:
+        """Caught at class definition, since a plugin author may not run a type checker."""
+
+        def _render(_self: object, attrs: ShortcodeAttrs, content: str) -> str:
+            return str(attrs) + content
+
+        with pytest.raises(ValueError, match="declares `kind` 'Void'"):
+            _ = type(
+                "_BadKindSC",
+                (Shortcode,),
+                {"name": "ok", "description": "test", "kind": "Void", "render": _render},
+            )
+
+    def test_kind_defaults_to_block(self) -> None:
+        assert _sc("anything").kind == "block"
 
 
 def _echo_sc(tag: str, *attr_names: str) -> Shortcode:
@@ -181,6 +197,7 @@ class TestApplyShortcodes:
         class _ImgSC(Shortcode):
             name = "img"
             description = "test"
+            kind = "void"
 
             def render(self, attrs: ShortcodeAttrs, content: str) -> str:
                 calls.append((attrs, content))
@@ -235,19 +252,117 @@ class TestTagMatching:
         result = _apply_shortcodes("[box][box][box]x[/box][/box][/box]", {"box": sc})
         assert result == "[RENDERED:box:[RENDERED:box:[RENDERED:box:x]]]"
 
-    def test_closing_tag_with_nothing_open_is_left_alone(self) -> None:
+    def test_closing_tag_with_nothing_open_is_rejected(self) -> None:
         sc = _sc("box")
-        assert _apply_shortcodes("a[/box]", {"box": sc}) == "a[/box]"
+        with pytest.raises(ShortcodeError, match=r"\[/box\] closes nothing"):
+            _apply_shortcodes("a[/box]", {"box": sc})
 
-    def test_unclosed_tag_renders_empty_and_keeps_the_text_after_it(self) -> None:
-        """Matches how a tag written without a closing tag has always behaved."""
+    def test_closing_a_void_tag_says_it_takes_no_closing_tag(self) -> None:
+        """The mistake is not a missing opener, so saying so would send them the wrong way."""
+
+        class _ImgSC(Shortcode):
+            name = "img"
+            description = "test"
+            kind = "void"
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                return "<img>"
+
+        with pytest.raises(ShortcodeError, match="takes no closing tag"):
+            _apply_shortcodes("[img][/img]", {"img": _ImgSC()})
+
+    def test_unregistered_closing_tag_is_still_left_alone(self) -> None:
+        """Platzky has no opinion on a name it does not know, closing tag or not."""
         sc = _sc("box")
-        assert _apply_shortcodes("[box]a", {"box": sc}) == "[RENDERED:box:]a"
+        assert _apply_shortcodes("a[/unknown]", {"box": sc}) == "a[/unknown]"
 
-    def test_crossed_tags_close_the_inner_one_first(self) -> None:
+    def test_unclosed_block_tag_is_rejected(self) -> None:
+        """A block tag owes a closing tag; without one there is nothing correct to render."""
+        sc = _sc("box")
+        with pytest.raises(ShortcodeError, match=r"\[box\] is never closed"):
+            _apply_shortcodes("[box]a", {"box": sc})
+
+    def test_unclosed_tag_error_names_the_tag_and_where_it_was_written(self) -> None:
+        """A failed render leaves only the log, so it has to say which bracket was wrong."""
+        sc = _sc("box")
+        with pytest.raises(ShortcodeError) as excinfo:
+            _apply_shortcodes("hello [box]a", {"box": sc})
+
+        assert excinfo.value.tag == "box"
+        assert excinfo.value.position == 6
+        assert "character 6" in str(excinfo.value)
+
+    def test_crossed_tags_are_rejected(self) -> None:
+        """``[box][b]x[/box]`` leaves ``[b]`` unclosed, whatever the author intended."""
         outer, inner = _sc("box"), _sc("b")
-        result = _apply_shortcodes("[box][b]x[/box]", {"box": outer, "b": inner})
-        assert result == "[RENDERED:box:[RENDERED:b:]x]"
+        with pytest.raises(ShortcodeError, match=r"\[b\] is never closed"):
+            _apply_shortcodes("[box][b]x[/box]", {"box": outer, "b": inner})
+
+    def test_void_tag_needs_no_closing_tag(self) -> None:
+        class _ImgSC(Shortcode):
+            name = "img"
+            description = "test"
+            kind = "void"
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                return "<img>"
+
+        assert _apply_shortcodes("a [img] b", {"img": _ImgSC()}) == "a <img> b"
+
+    def test_void_tag_does_not_swallow_what_follows_it(self) -> None:
+        """The old parser opened a frame for every tag; a void one must not."""
+
+        class _ImgSC(Shortcode):
+            name = "img"
+            description = "test"
+            kind = "void"
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                return "<img>"
+
+        block = _sc("box")
+        result = _apply_shortcodes("[box][img]tail[/box]", {"img": _ImgSC(), "box": block})
+        assert result == "[RENDERED:box:<img>tail]"
+
+
+def _raw_sc(tag: str) -> Shortcode:
+    """Build a raw shortcode that echoes its body untouched."""
+
+    class _SC(Shortcode):
+        name = tag
+        description = "test"
+        kind = "raw"
+
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            return f"[RAW:{content}]"
+
+    return _SC()
+
+
+class TestRawKind:
+    """A raw body is text, not syntax."""
+
+    def test_body_is_passed_through_untouched(self) -> None:
+        assert _apply_shortcodes("[raw]hello[/raw]", {"raw": _raw_sc("raw")}) == "[RAW:hello]"
+
+    def test_shortcodes_inside_a_raw_body_are_not_parsed(self) -> None:
+        raw, block = _raw_sc("raw"), _sc("box")
+        result = _apply_shortcodes("[raw][box]x[/box][/raw]", {"raw": raw, "box": block})
+        assert result == "[RAW:[box]x[/box]]"
+
+    def test_an_unclosed_tag_inside_a_raw_body_is_not_an_error(self) -> None:
+        """Nothing in there is a tag, so there is nothing to be unclosed."""
+        raw, block = _raw_sc("raw"), _sc("box")
+        assert _apply_shortcodes("[raw][box][/raw]", {"raw": raw, "box": block}) == "[RAW:[box]]"
+
+    def test_parsing_resumes_after_the_raw_body(self) -> None:
+        raw, block = _raw_sc("raw"), _sc("box")
+        result = _apply_shortcodes("[raw][x][/raw][box]y[/box]", {"raw": raw, "box": block})
+        assert result == "[RAW:[x]][RENDERED:box:y]"
+
+    def test_unclosed_raw_tag_is_rejected(self) -> None:
+        with pytest.raises(ShortcodeError, match=r"\[raw\] is never closed"):
+            _apply_shortcodes("[raw]forever", {"raw": _raw_sc("raw")})
 
     def test_longer_tag_name_is_not_shadowed_by_a_shorter_prefix(self) -> None:
         short, long = _sc("box"), _sc("boxed")

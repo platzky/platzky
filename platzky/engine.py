@@ -29,7 +29,7 @@ from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
-from platzky.feature_flags import FeatureFlag
+from platzky.feature_flags import FeatureFlag, StripContentHtml
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
@@ -198,7 +198,10 @@ class Engine(Flask):
             The content after every permitted transformer has run.
         """
         return self.content_transformers.transform_content(
-            self.get_plugins(ContentTransformerPluginBase), content, content_type
+            self.get_plugins(ContentTransformerPluginBase),
+            content,
+            content_type,
+            strip_html=self.is_enabled(StripContentHtml),
         )
 
     def shortcodes_for(self, content_type: ContentType) -> dict[str, Shortcode]:

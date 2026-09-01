@@ -14,8 +14,52 @@ only where its plugin's ``accepted_content_types`` and the operator's
 
 .. code-block:: text
 
-    [tagname attr="val"]              # void (no inner content)
-    [tagname attr="val"]content[/tagname]  # block
+    [tagname attr="val"]                     # kind = "void"
+    [tagname attr="val"]content[/tagname]    # kind = "block"  (the default)
+    [tagname]anything at all[/tagname]       # kind = "raw"
+
+A shortcode declares which shape it is, and the parser holds authors to it::
+
+    class ImageShortcode(Shortcode):
+        name = "image"
+        kind = "void"
+
+``"block"``
+    Wraps content, which is parsed for further shortcodes. The default, and the safer one
+    to leave in place by mistake: a block shortcode that never declares anything still
+    works, whereas a void one wrongly left as ``"block"`` makes every correct use of it
+    look unclosed.
+
+``"void"``
+    Takes no closing tag, like ``[image url="…"]``. Rendered on sight.
+
+``"raw"``
+    Takes a closing tag, but its body is verbatim: brackets inside are characters, not
+    syntax, so an author can write *about* a shortcode rather than invoking one. No
+    built-in uses it yet; it is the mechanism a ``[code]`` or ``[latex]`` plugin needs.
+
+**Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
+nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
+and the character it was written at. Neither has a rendering that is not a guess about
+what the author meant, and guessing quietly drops or reparents their content.
+
+Two things are deliberately *not* errors. A tag name no plugin registered passes through
+as written — platzky has no opinion on a name it does not know. And content nobody vouched
+for is parsed leniently, because escaping mangles its tags on the way in: the quotes in
+``[wrap tone="loud"]`` become entities, the opening tag stops matching, and its closing tag
+is left with nothing to close. Parsed strictly, anyone able to write a comment could fail a
+page render by using a shortcode perfectly correctly.
+
+.. note::
+
+   A raw body is verbatim only for the pass that renders it. Transformers each render
+   their own shortcodes before handing a plain string to the next, so a plugin later in
+   the chain sees that body as ordinary content and will filter its text and render any
+   tag of its own inside it. Treat ``"raw"`` as protection against re-parsing rather than
+   a guarantee of verbatim output, and note that a shortcode wanting to *display* its body
+   rather than emit it cannot yet do so correctly: escaping happens at the boundary before
+   parsing, so by ``render`` time content that was escaped and content deliberately left
+   alone look the same, and escaping again double-escapes one of them.
 
 Declare ``shortcodes`` as a class variable:
 
@@ -57,7 +101,7 @@ Platzky ships three shortcodes that are always available, registered by a built-
 transformer that runs ahead of any plugin:
 
 ``[image url="…" alt="…" width="…" height="…"]``
-    Embeds an ``<img>`` tag. ``url`` is required.
+    Embeds an ``<img>`` tag. ``url`` is required. Void — no closing tag.
 
 ``[link url="…" target="…"]text[/link]``
     Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
