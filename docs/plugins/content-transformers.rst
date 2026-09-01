@@ -22,14 +22,35 @@ own kinds (see :ref:`new-content-types`), and plugins opt in to those the same w
         def transform_text(self, text: str) -> str:
             return text.replace(":smile:", "😊")
 
-Override ``transform_text`` to apply plain-text transformations. The framework
-guarantees that shortcode tags are excluded from the text passed here and
-re-inserted after transformation. ``transform_content`` is ``@final`` and must
-not be overridden.
+Override ``transform_text`` to apply plain-text transformations. What reaches it is only
+what an author typed between tags: never a shortcode's attributes, never another
+shortcode's output, and never the body of a ``raw`` tag. ``transform_content`` is
+``@final`` and must not be overridden — the pipeline parses the whole document once,
+then runs every filter, then renders every tag, so a transformer no longer controls that
+sequence for itself.
 
 A transformer's other half is :doc:`shortcodes` — named tags it registers, rendered by
 the same pass. This page covers where a transformer is allowed to run; that one covers
 what its tags emit.
+
+Jinja extensions
+----------------
+
+A content transformer may also contribute Jinja2 extensions, which are collected at
+startup and registered on the engine's template environment. Use this for template-level
+syntax — a custom tag or filter available in every template — as opposed to
+``transform_text`` and shortcodes, which act on stored content:
+
+.. code-block:: python
+
+    class MyPlugin(ContentTransformerPluginBase):
+        def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
+            return [MyExtension]
+
+Extensions are gathered from every loaded transformer regardless of
+``accepted_content_types``: the two-key contract governs *content*, and a Jinja extension
+is not content. An extension therefore reaches every template the application renders, so
+a plugin should contribute one only when that is genuinely what it means.
 
 .. _transformer-order:
 

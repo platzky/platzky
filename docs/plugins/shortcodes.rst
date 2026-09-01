@@ -111,10 +111,22 @@ transformer that runs ahead of any plugin:
     inside is displayed rather than rendered — this is how to document a tag without
     invoking it — and no text filter reaches in to rewrite a sample.
 
-``[image]`` and ``[link]`` reject non-HTTP/HTTPS external URLs and relative paths not
-starting with ``/``. All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds
-its content as raw markup, so the built-in transformer enumerates rather than claiming to
-suit any kind of content.
+``[image]`` and ``[link]`` accept ``http``/``https`` URLs and paths rooted at ``/``, and
+nothing else. A bare relative path such as ``photo.jpg`` is refused because it resolves
+against whichever page happens to be showing the content; ``//host/path`` is refused
+because it carries no scheme yet is external anyway; every other scheme is refused, which
+is what keeps ``javascript:`` and ``data:`` out.
+
+**A tag whose URL is missing or refused renders nothing, and logs why.** An image with no
+source is not an image, and ``<img src="">`` is worse than an absence — it draws a broken
+icon, and several browsers resolve the empty source against the current page and fetch the
+document a second time. ``[link]`` drops its text along with the tag, since link text is
+written to be clicked and reads as a mistake when left stranded in prose. The log is the
+only trace either leaves, because nobody can see an absence.
+
+All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds its content as raw
+markup, so the built-in transformer enumerates rather than claiming to suit any kind of
+content.
 
 Shortcodes are documented for content authors on the admin *Help* page
 (``/admin/help``).
