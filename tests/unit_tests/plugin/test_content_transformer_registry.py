@@ -5,12 +5,13 @@ takes the plugins on dispatch, so the routing rules are exercised directly.
 """
 
 import logging
+from collections.abc import Mapping
 from typing import ClassVar
 
 import pytest
 from markupsafe import Markup, escape
 
-from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
+from platzky.content_types import ALL_CONTENT_TYPES, BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
@@ -30,14 +31,16 @@ class _ShoutShortcode(Shortcode):
 class ShoutPlugin(ContentTransformerPluginBase):
     """Accepts every builtin content type and registers [shout]."""
 
-    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 class PostOnlyPlugin(ContentTransformerPluginBase):
     """Accepts posts only, and registers the same tag name as ShoutPlugin."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+    accepted_content_types: Mapping[ContentType, str] = {"post": "Exercised by tests."}
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
@@ -56,8 +59,17 @@ class _WrapShortcode(Shortcode):
 class AttrPlugin(ContentTransformerPluginBase):
     """Registers a shortcode that takes a quoted attribute."""
 
-    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
     shortcodes: ClassVar[dict[str, Shortcode]] = {"wrap": _WrapShortcode()}
+
+
+class AnyPlugin(ContentTransformerPluginBase):
+    """Declares no constraint on where it runs."""
+
+    accepted_content_types: Mapping[ContentType, str] = {ALL_CONTENT_TYPES: "No constraint."}
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 @pytest.fixture
@@ -86,7 +98,7 @@ class TestMayTransform:
         """A plugin widening its own declaration does not widen the operator's grant."""
         plugin = PostOnlyPlugin({})
         registry.grant(plugin, frozenset({"post"}))
-        plugin.accepted_content_types = BUILTIN_CONTENT_TYPES
+        plugin.accepted_content_types = dict.fromkeys(BUILTIN_CONTENT_TYPES, "Exercised by tests.")
 
         assert not registry.may_transform(plugin, "page")
 
@@ -109,6 +121,106 @@ class TestMayTransform:
         registry.grant(plugin, frozenset())
 
         assert not registry.may_transform(plugin, "post")
+
+
+class TestRationaleIsRequired:
+    """A declaration that asks for a content type must say why."""
+
+    def test_missing_reason_is_rejected_at_class_definition(self) -> None:
+        """Caught when the class is written, not when an operator wonders what to tick."""
+        with pytest.raises(ValueError, match="needs a reason"):
+
+            class NoReason(ContentTransformerPluginBase):
+                accepted_content_types: Mapping[ContentType, str] = {"post": ""}
+
+    def test_a_set_is_rejected(self) -> None:
+        """The old frozenset shape carries no reasons, so it is not silently accepted."""
+        with pytest.raises(ValueError, match="must map each content type"):
+
+            class StillASet(ContentTransformerPluginBase):
+                accepted_content_types = frozenset({"post"})  # type: ignore[assignment]
+
+    def test_wildcard_needs_a_reason_too(self) -> None:
+        """Claiming no constraint is still a claim an operator deserves to see justified."""
+        with pytest.raises(ValueError, match="ALL_CONTENT_TYPES"):
+
+            class BlankWildcard(ContentTransformerPluginBase):
+                accepted_content_types: Mapping[ContentType, str] = {ALL_CONTENT_TYPES: "  "}
+
+    def test_declaring_nothing_is_allowed(self) -> None:
+        """A plugin that transforms text only asks for nothing and explains nothing."""
+
+        class TextOnly(ContentTransformerPluginBase):
+            pass
+
+        assert TextOnly({}).accepted_content_types == {}
+
+
+class TestRationale:
+    def test_enumerated_plugin_gives_a_reason_per_type(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Each checkbox carries the reason its own type was asked for."""
+        assert registry.rationale_for(PostOnlyPlugin({}), "post") == "Exercised by tests."
+        assert registry.rationale_for(PostOnlyPlugin({}), "page") == ""
+
+    def test_wildcard_reason_stands_for_every_offered_type(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """One claim, so one reason, shown against each type it is offered."""
+        plugin = AnyPlugin({})
+
+        assert registry.rationale_for(plugin, "post") == "No constraint."
+        assert registry.rationale_for(plugin, "page") == "No constraint."
+        assert registry.rationale_for(plugin, "not_a_known_type") == ""
+
+
+class TestWildcard:
+    """ALL_CONTENT_TYPES offers every known type; it grants none of them."""
+
+    def test_offers_the_whole_vocabulary(self, registry: ContentTransformerRegistry) -> None:
+        """The admin panel's checkboxes: everything the application knows about."""
+        registry.known_content_types |= {"field"}
+
+        assert registry.acceptable_content_types(AnyPlugin({})) == registry.known_content_types
+
+    def test_resolves_lazily_so_load_order_does_not_matter(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """A type contributed by a plugin loaded later is still offered."""
+        plugin = AnyPlugin({})
+        before = set(registry.acceptable_content_types(plugin))
+
+        registry.known_content_types |= {"catalogue_attr"}
+
+        assert "catalogue_attr" not in before
+        assert "catalogue_attr" in registry.acceptable_content_types(plugin)
+
+    def test_accepting_everything_grants_nothing(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Default-deny is untouched: the operator still names each type."""
+        plugin = AnyPlugin({})
+
+        assert not registry.may_transform(plugin, "post")
+
+        registry.grant(plugin, frozenset({"post"}))
+
+        assert registry.may_transform(plugin, "post")
+        assert not registry.may_transform(plugin, "page")
+
+    def test_grant_beyond_the_vocabulary_is_still_blocked(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """The wildcard means every *known* type, not every string an operator can type."""
+        plugin = AnyPlugin({})
+        registry.grant(plugin, frozenset({"typo_type"}))
+
+        assert not registry.may_transform(plugin, "typo_type")
+
+    def test_enumerating_plugin_is_unaffected(self, registry: ContentTransformerRegistry) -> None:
+        """A plugin with a real constraint still offers only what it named."""
+        assert registry.acceptable_content_types(PostOnlyPlugin({})) == frozenset({"post"})
 
 
 class TestTrustBoundary:

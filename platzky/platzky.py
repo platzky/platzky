@@ -3,7 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Awaitable, Iterable, Sequence
+from collections.abc import Awaitable, Iterable, Mapping, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request, session
@@ -78,7 +78,10 @@ def _gather_shortcodes_and_extensions(
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
     """Built-in image and link shortcodes, always registered for posts and pages."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({POST, PAGE})
+    accepted_content_types: Mapping[ContentType, str] = {
+        POST: "Renders [image] and [link] tags an author wrote in a post.",
+        PAGE: "Renders [image] and [link] tags an author wrote in a page.",
+    }
     shortcodes = get_builtin_shortcodes()
 
 
@@ -391,7 +394,7 @@ def create_app_from_config(
     # Self-granted, not operator config: the builtins are not opt-in, so the plugin's own
     # declaration is the second key. They route through the same gate as everything else.
     engine.content_transformers.grant(
-        _builtin_transformer, _builtin_transformer.accepted_content_types
+        _builtin_transformer, frozenset(_builtin_transformer.accepted_content_types)
     )
     engine.shortcodes.update(_builtin_transformer.shortcodes)
 

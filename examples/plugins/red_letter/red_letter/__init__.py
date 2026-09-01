@@ -6,6 +6,7 @@ Two features:
 """
 
 import re
+from collections.abc import Mapping
 from typing import ClassVar
 
 from platzky.content_types import PAGE, POST, ContentType
@@ -40,7 +41,10 @@ class _RedShortcode(Shortcode):
 class RedLetterPlugin(ContentTransformerPluginBase):
     """Colours every 'a' red and adds a [red] shortcode."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({POST, PAGE})
+    accepted_content_types: Mapping[ContentType, str] = {
+        POST: "Colours letters and renders [red] in post bodies.",
+        PAGE: "Colours letters and renders [red] in page bodies.",
+    }
     shortcodes: ClassVar[dict[str, Shortcode]] = {"red": _RedShortcode()}
 
     def transform_text(self, text: str) -> str:

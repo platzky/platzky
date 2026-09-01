@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any, ClassVar
 from unittest import mock
 
@@ -230,14 +231,18 @@ class _ShoutShortcode(Shortcode):
 class ShoutFilter(ContentTransformerPluginBase):
     """Registers a [shout] shortcode that upper-cases its content."""
 
-    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
 class TestContentTransformerPluginBase:
     def test_default_returns_empty_dict(self) -> None:
         class NoOpFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+            accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                BUILTIN_CONTENT_TYPES, "Exercised by tests."
+            )
 
         f = NoOpFilter({})
         assert f.shortcodes == {}
@@ -273,17 +278,23 @@ class TestContentTransformerPluginBase:
                 return f"B({content})"
 
         class AFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+            accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                BUILTIN_CONTENT_TYPES, "Exercised by tests."
+            )
             shortcodes: ClassVar[dict[str, Shortcode]] = {"atag": _ATagSC()}
 
         class BFilter(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+            accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                BUILTIN_CONTENT_TYPES, "Exercised by tests."
+            )
             shortcodes: ClassVar[dict[str, Shortcode]] = {"btag": _BTagSC()}
 
         combined = {**AFilter.shortcodes, **BFilter.shortcodes}
 
         class _CombinedTestPlugin(ContentTransformerPluginBase):
-            accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+            accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                BUILTIN_CONTENT_TYPES, "Exercised by tests."
+            )
 
         _CombinedTestPlugin.shortcodes = combined
         result = _CombinedTestPlugin({}).transform_content("[atag]x[/atag] [btag]y[/btag]")
@@ -332,7 +343,9 @@ class TestRegisterPluginBases:
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
                 self.accepted_topics: frozenset[NotificationTopic] = frozenset({"general"})
-                self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+                self.accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                    BUILTIN_CONTENT_TYPES, "Exercised by tests."
+                )
 
             def notify(self, notification: Notification) -> None:
                 pass  # no-op: test stub
@@ -400,7 +413,9 @@ class TestGetInfo:
 class ShoutTagPlugin(ContentTransformerPluginBase):
     """Registers a [shout] shortcode."""
 
-    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
 
 
@@ -413,7 +428,9 @@ class JinjaExtPlugin(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+        self.accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+            BUILTIN_CONTENT_TYPES, "Exercised by tests."
+        )
 
     def get_jinja_extensions(self) -> list[type[jinja2.ext.Extension]]:
         return [_DummyJinjaExtension]
@@ -424,7 +441,9 @@ class AllTypesFilter(ContentTransformerPluginBase):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+        self.accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+            BUILTIN_CONTENT_TYPES, "Exercised by tests."
+        )
 
     def transform_text(self, text: str) -> str:
         return text + "[filtered]"
@@ -453,7 +472,9 @@ class TestContentTransformerWiring:
         class PostOnlyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "post": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[filtered]"
@@ -505,7 +526,7 @@ class TestContentTransformerWiring:
         """A grant wider than the plugin's own declaration still yields nothing."""
 
         class PostOnlyShout(ShoutTagPlugin):
-            accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+            accepted_content_types: Mapping[ContentType, str] = {"post": "Exercised by tests."}
 
         p = PostOnlyShout({})
         app.plugins[ContentTransformerPluginBase].append(p)
@@ -551,7 +572,9 @@ class TestContentTransformerWiring:
         class AToXFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+                self.accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+                    BUILTIN_CONTENT_TYPES, "Exercised by tests."
+                )
 
             def transform_text(self, text: str) -> str:
                 return text.replace("a", "X")
@@ -580,7 +603,9 @@ class TestPluginProvidedContentType:
 
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "field": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[field]"
@@ -609,7 +634,9 @@ class TestPluginProvidedContentType:
 
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "field": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[field]"
@@ -635,7 +662,9 @@ class TestHostRegisteredContentType:
         class FieldReadyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "field": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[field]"
@@ -652,7 +681,9 @@ class TestHostRegisteredContentType:
         class PostOnlyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "post": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[post]"
@@ -670,7 +701,9 @@ class TestHostRegisteredContentType:
         class PostOnlyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"post"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "post": "Exercised by tests."
+                }
 
         with caplog.at_level(logging.WARNING):
             _app_with_plugin(base_config_data, "postonly", PostOnlyFilter, also_granted=("filed",))
@@ -684,7 +717,9 @@ class TestHostRegisteredContentType:
         class FieldReadyFilter(ContentTransformerPluginBase):
             def __init__(self, config: dict[str, Any]) -> None:
                 super().__init__(config)
-                self.accepted_content_types: frozenset[ContentType] = frozenset({"field"})
+                self.accepted_content_types: Mapping[ContentType, str] = {
+                    "field": "Exercised by tests."
+                }
 
             def transform_text(self, text: str) -> str:
                 return text + "[field]"

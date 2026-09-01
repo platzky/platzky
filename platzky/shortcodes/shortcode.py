@@ -1,9 +1,10 @@
 """Shortcode parser for blog post content.
 
-Plugins register handlers via ContentTransformerPluginBase.get_supported_shortcodes().
-Syntax:
-    Block: [tagname attr="val"]content[/tagname]
-    Void:  [tagname attr="val"]
+Plugins register handlers through the ``shortcodes`` class variable on
+``ContentTransformerPluginBase``. Syntax::
+
+    [tagname attr="val"]                     # void
+    [tagname attr="val"]content[/tagname]    # block
 
 Nested shortcodes of different tag names work; nested same-tag shortcodes do not
 (the lazy regex finds the nearest closing tag).

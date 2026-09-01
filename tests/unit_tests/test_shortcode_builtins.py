@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
-    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
 
 
 _BuiltinTestPlugin.shortcodes = get_builtin_shortcodes()

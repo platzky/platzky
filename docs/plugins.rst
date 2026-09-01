@@ -92,13 +92,15 @@ own kinds (see :ref:`new-content-types`), and plugins opt in to those the same w
 
 .. code-block:: python
 
-    from typing import Any
-    from platzky import ContentTransformerPluginBase, ContentType
+    from collections.abc import Mapping
+    from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
 
     class EmojiPlugin(ContentTransformerPluginBase):
-        """Replace :smile: tokens with emoji in posts and pages."""
+        """Replace :smile: tokens with emoji."""
 
-        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+        accepted_content_types: Mapping[ContentType, str] = {
+            ALL_CONTENT_TYPES: "Swaps text for emoji; nothing about it is content-specific.",
+        }
 
         def transform_text(self, text: str) -> str:
             return text.replace(":smile:", "😊")
@@ -108,11 +110,93 @@ guarantees that shortcode tags are excluded from the text passed here and
 re-inserted after transformation. ``transform_content`` is ``@final`` and must
 not be overridden.
 
+.. _declaring-scope:
+
+Declaring scope
+~~~~~~~~~~~~~~~
+
+``accepted_content_types`` maps each content type a plugin asks for to **why it needs
+it**. The reason is required — a declaration missing one raises ``ValueError`` when the
+class is defined — because it is shown beside the checkbox an operator ticks, and a
+justification nothing enforces is one that rots. Declaring nothing at all is still
+allowed; such a plugin simply transforms no content.
+
+Two keys have to turn before a transformer runs, and they belong to different people:
+
+``accepted_content_types``
+    The plugin author's declaration: the choices an operator is *offered*. Think of the
+    checkboxes an admin panel puts on screen.
+
+``allowed_content_types``
+    The operator's grant, in the database config (see :ref:`plugin-configuration`):
+    which of those checkboxes they ticked.
+
+Silence is refusal on both sides, so declaring broadly never widens what a plugin
+actually does — a type nobody granted stays ungranted, and the engine, not the plugin,
+decides routing.
+
+Key the declaration with :data:`~platzky.content_types.ALL_CONTENT_TYPES` when the plugin
+has no technical constraint on where it runs. One reason then stands for every type it is
+offered. The wildcard resolves against the content types the application actually has, so
+a plugin written today is offered one invented tomorrow and never hardcodes a name
+belonging to a package it does not depend on. It grants nothing on its own — the operator
+still names each type.
+
+Enumerate when there is a real constraint. A shortcode that embeds raw markup, reaches an
+external host, or costs something to run cannot honestly claim to work anywhere. The
+built-in ``[hero]`` tag is the in-tree example: it wraps whatever it is given as raw
+markup by design, so its transformer names its types instead:
+
+.. code-block:: python
+
+    from collections.abc import Mapping
+    from platzky import ContentTransformerPluginBase
+    from platzky.content_types import PAGE, POST, ContentType
+
+    class HeroPlugin(ContentTransformerPluginBase):
+        """Wrap content in a hero block."""
+
+        accepted_content_types: Mapping[ContentType, str] = {
+            POST: "Wraps a post body in a hero block.",
+            PAGE: "Wraps a page body in a hero block.",
+        }
+
+Enumerating is **not** how a plugin keeps itself out of comments. Whether commenters may
+use a shortcode is the operator's policy — their grant already decides it, and a plugin
+narrowing its declaration for that reason only takes away a choice that was theirs to
+make.
+
+**Asking the registry**
+
+The gate is
+:class:`~platzky.plugin.content_transformer.ContentTransformerRegistry`, reachable as
+``app.content_transformers``. Code that renders the operator's choices — an admin panel,
+say — asks it rather than reading the plugin's attribute directly:
+
+``acceptable_content_types(plugin)``
+    The types this plugin may be granted: its declaration resolved against the
+    vocabulary the application actually has, so a wildcard comes back expanded.
+
+``rationale_for(plugin, content_type)``
+    The author's reason for that type, to show beside the checkbox.
+
+``may_transform(plugin, content_type)``
+    Whether both keys have turned. This is the question the pipeline itself asks.
+
+``grant(plugin, allowed_types)``
+    Records the operator's grant. Called by the plugin loader with the plugin's
+    ``allowed_content_types``; not intended for plugin code.
+
+``warn_unknown_grants()``
+    Logs a warning for each granted content type nothing registered. Run once, after
+    every plugin has loaded.
+
 Shortcodes
 ~~~~~~~~~~
 
 Content transformer plugins can also register *shortcodes* — bracket-style tags
-that content authors embed in posts and pages.
+that content authors embed in content, and that an application can also use to render
+a value it has stored (see :ref:`Rendering a stored value <value-rendering>`).
 
 **Syntax**
 
@@ -125,9 +209,10 @@ Declare ``shortcodes`` as a class variable:
 
 .. code-block:: python
 
+    from collections.abc import Mapping
     from typing import ClassVar
-    from markupsafe import Markup, escape
-    from platzky import ContentTransformerPluginBase, ContentType
+    from markupsafe import escape
+    from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
     from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeAttr
 
     class _AlertShortcode(Shortcode):
@@ -146,8 +231,36 @@ Declare ``shortcodes`` as a class variable:
     class AlertPlugin(ContentTransformerPluginBase):
         """Adds an [alert] shortcode for Bootstrap alert boxes."""
 
-        accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+        accepted_content_types: Mapping[ContentType, str] = {
+            ALL_CONTENT_TYPES: "Renders an alert box; nothing about it is content-specific.",
+        }
         shortcodes: ClassVar[dict[str, Shortcode]] = {"alert": _AlertShortcode()}
+
+The plugin's ``accepted_content_types`` decides where its shortcodes may be used; see
+:ref:`declaring-scope` above.
+
+**Built-in shortcodes**
+
+Platzky ships three shortcodes that are always available, registered by a built-in
+transformer that runs ahead of any plugin:
+
+``[image url="…" alt="…" width="…" height="…"]``
+    Embeds an ``<img>`` tag. ``url`` is required.
+
+``[link url="…" target="…"]text[/link]``
+    Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
+    adds ``rel="noopener noreferrer"``.
+
+``[hero]…[/hero]``
+    Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
+
+``[image]`` and ``[link]`` reject non-HTTP/HTTPS external URLs and relative paths not
+starting with ``/``. All three are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds
+its content as raw markup, so the built-in transformer enumerates rather than claiming to
+suit any kind of content.
+
+Shortcodes are documented for content authors on the admin *Help* page
+(``/admin/help``).
 
 **Escaping**
 
@@ -179,9 +292,9 @@ boundary escape it. Vouching is the deliberate act; the default is the safe one.
 
 A shortcode can also render a value the application has stored against a record — rather than
 a tag an author wrote in prose — through
-:meth:`~platzky.shortcodes.Shortcode.render_value`:
+:meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`:
 
-:meth:`~platzky.shortcodes.Shortcode.render_value`
+:meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`
     Renders the value to HTML, so the application needs no per-shortcode frontend
     code at all. It is ``final``: a shortcode has exactly one rendering, in
     ``render``, and this maps a field value onto that method's arguments — keys
@@ -220,10 +333,12 @@ which key a bare value belongs under. Platzky does not shape that payload: only 
 application knows what its own wire format needs, and a shortcode describing one would be a
 second contract to keep in step with ``render``.
 
-As with a tag written by an author, escaping is ``render``'s responsibility: a stored
-value is data and can be hostile. An application that renders the returned HTML is extending
-the plugin the same trust platzky extends it in post content, so a shortcode must not
-interpolate a stored value without escaping or validating it.
+The escaping rules above hold unchanged here, and a shortcode needs no second code path
+for them. A stored value is data and nobody vouched for it, so ``render_value`` escapes
+the content before calling ``render`` — exactly what ``transform_content`` does for
+unvouched prose. ``render`` therefore embeds its ``content`` directly on both paths, and
+escapes each attribute where it interpolates it, since attributes out of a stored value
+arrive raw just as a tag's do.
 
 .. _new-content-types:
 
@@ -245,9 +360,16 @@ A plugin opts in exactly as it would for a post:
 .. code-block:: python
 
     class MyPlugin(ContentTransformerPluginBase):
-        accepted_content_types: frozenset[ContentType] = frozenset({"post", "field"})
+        accepted_content_types: Mapping[ContentType, str] = {
+            POST: "Renders its tags in post bodies.",
+            MARKER_FIELD: "Renders the same tags stored against a marker.",
+        }
 
-and the operator grants it through ``allowed_content_types`` in the database config
+A plugin with no constraint on where it runs need not name the new type at all: keying
+its declaration with ``ALL_CONTENT_TYPES`` offers whatever the application has, including
+types added after the plugin was written (see :ref:`declaring-scope`).
+
+Either way the operator grants it through ``allowed_content_types`` in the database config
 (see :ref:`plugin-configuration`); a plugin runs only where both agree. A content type
 is only ever its name, so accepting a kind of content never means importing the package
 that brought it — otherwise every plugin handling marker fields would depend on the
@@ -282,22 +404,6 @@ cleanly and is simply never called with one, which is what lets a single plugin 
 both an application that has the type and a plain platzky blog that does not. Because
 such a grant silently does nothing, platzky logs a warning naming the unknown type,
 which is usually a typo in operator config.
-
-**Built-in shortcodes**
-
-Platzky ships two shortcodes that are always available:
-
-``[image url="…" alt="…" width="…" height="…"]``
-    Embeds an ``<img>`` tag. ``url`` is required.
-
-``[link url="…" target="…"]text[/link]``
-    Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
-    adds ``rel="noopener noreferrer"``.
-
-Both reject non-HTTP/HTTPS external URLs and relative paths not starting with ``/``.
-
-Shortcodes are documented for content authors on the admin *Help* page
-(``/admin/help``).
 
 Login Plugins
 -------------
@@ -484,7 +590,13 @@ backends):
     [project.entry-points."platzky.plugins"]
     my_plugin = "platzky_my_plugin:MyPlugin"
 
-The key (``my_plugin``) is the name used in the database configuration.
+The key (``my_plugin``) is the name used in the database configuration. The two are one
+name, not two: the loader looks a config key up among the installed entry-point names, so
+a plugin whose entry point and config key differ never loads at all. The engine stamps it
+onto the instance as :attr:`~platzky.plugin.plugin.PluginBase.name` when the plugin is
+registered — which is why it is empty while the plugin's own ``__init__`` runs — and
+``get_info()`` reports it, falling back to the class name for a plugin never registered
+with an engine.
 
 .. _plugin-configuration:
 
@@ -522,9 +634,11 @@ For notifier plugins you can restrict which topics the plugin receives:
         }
     }
 
-For content transformer plugins you can restrict which content types are processed.
-Include ``"field"`` to also allow the plugin's shortcodes to be used for field
-rendering by the application:
+For content transformer plugins, ``allowed_content_types`` names the content types the
+plugin may act on — the operator's half of the two-key contract in
+:ref:`declaring-scope`. Omitting it grants nothing, and naming a type the plugin does not
+offer grants nothing either. Include an application's own type (here ``"field"``) to let
+the plugin's shortcodes render stored values of that kind as well as prose:
 
 .. code-block:: json
 

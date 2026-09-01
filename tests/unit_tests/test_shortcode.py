@@ -1,5 +1,7 @@
 """Tests for the shortcode parser."""
 
+from collections.abc import Mapping
+
 import pytest
 
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
@@ -9,7 +11,9 @@ from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
     class _TestPlugin(ContentTransformerPluginBase):
-        accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+        accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+            BUILTIN_CONTENT_TYPES, "Exercised by tests."
+        )
 
     _TestPlugin.shortcodes = shortcodes
     return _TestPlugin({}).transform_content(content)

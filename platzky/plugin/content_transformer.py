@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from itertools import zip_longest
-from typing import ClassVar, final
+from typing import ClassVar, cast, final
 
 import jinja2.ext
 from markupsafe import escape
 
-from platzky.content_types import ContentType
+from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode, ShortcodeAttrs
@@ -25,6 +25,19 @@ class ContentTransformerPluginConfig(PluginConfigBase):
 
 
 logger = logging.getLogger(__name__)
+
+
+def _wildcard_reason(declared: Mapping[ContentType, str]) -> str | None:
+    """Return the wildcard rationale if this declaration carries one, else None.
+
+    Matched by identity, so a content type that happens to be named ``"*"`` is not
+    mistaken for the sentinel.
+    """
+    for content_type, reason in declared.items():
+        if content_type is ALL_CONTENT_TYPES:
+            return reason
+    return None
+
 
 _SHORTCODE_TAG_RE = re.compile(r"\[[^\]]*\]|<[^>]*>")
 
@@ -62,8 +75,20 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     """Base class for content-transformer plugins.
 
     Subclasses declare which content types they want to transform via
-    ``accepted_content_types``. A plugin may name a kind of content some other package
-    brings — accepting one never means importing that package — and still install on an
+    ``accepted_content_types``. That declaration is the set of choices an operator is
+    offered, not a grant: they still name each type in ``allowed_content_types``, and
+    silence is refusal.
+
+    A plugin with no technical constraint on where it runs declares
+    ``ALL_CONTENT_TYPES`` — offering every type in the vocabulary, including ones invented
+    after it was written. A plugin that does have a constraint enumerates: one whose
+    shortcode embeds raw markup, reaches an external host, or costs something to run
+    cannot honestly claim to work anywhere, and naming its types is how it says so.
+
+    Enumerating is *not* how a plugin keeps itself out of comments — whether commenters
+    may use it is the operator's policy, and their grant already decides it. A plugin may
+    also name a kind of content some other package brings — accepting one never means
+    importing that package — and still install on an
     application that has no such content, where it is simply never called. To *bring* a
     content type, see ``PluginBase.provides_content_types``. The engine enforces final
     routing — ``Engine.may_transform`` decides, not the plugin, so widening
@@ -81,7 +106,35 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     transformations cannot accidentally mangle tags intended for other plugins.
     """
 
-    accepted_content_types: frozenset[ContentType] = frozenset()
+    accepted_content_types: Mapping[ContentType, str] = {}
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Reject a declaration that asks for a content type without saying why.
+
+        Required, not encouraged: the rationale is shown beside the checkbox an operator
+        ticks, and a reason nothing enforces is a reason that rots.
+
+        Raises:
+            ValueError: If a declared content type carries no rationale.
+        """
+        super().__init_subclass__(**kwargs)
+        declared = cls.__dict__.get("accepted_content_types")
+        if declared is None:
+            return
+        if not isinstance(declared, Mapping):
+            raise ValueError(
+                f"{cls.__name__}.accepted_content_types must map each content type to the "
+                f"reason this plugin needs it; got {type(declared).__name__}."
+            )
+        # Typed as Mapping[ContentType, str], but an untyped plugin can put anything here.
+        for content_type, reason in cast("Mapping[object, object]", declared).items():
+            if not isinstance(reason, str) or not reason.strip():
+                name = "ALL_CONTENT_TYPES" if content_type is ALL_CONTENT_TYPES else content_type
+                raise ValueError(
+                    f"{cls.__name__}.accepted_content_types[{name!r}] needs a reason an "
+                    f"operator can read when deciding whether to grant it."
+                )
+
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
 
     @final
@@ -189,6 +242,9 @@ class ContentTransformerRegistry:
         widening ``accepted_content_types`` at runtime opens the first key and not the
         second. Default-deny: an unlisted plugin is blocked, as is an empty grant.
 
+        ``ALL_CONTENT_TYPES`` turns the first key for anything in the vocabulary, and
+        nothing more — the operator still names each type they want acted on.
+
         Args:
             plugin: The content-transformer plugin to check.
             content_type: The kind of content it wants to act on.
@@ -196,9 +252,50 @@ class ContentTransformerRegistry:
         Returns:
             True if the plugin is both willing and permitted.
         """
-        if content_type not in plugin.accepted_content_types:
+        if content_type not in self.acceptable_content_types(plugin):
             return False
         return content_type in self._allowlist.get(plugin, frozenset())
+
+    def acceptable_content_types(self, plugin: ContentTransformerPluginBase) -> set[ContentType]:
+        """The content types an operator may grant this plugin — its declaration, resolved.
+
+        The set of choices, not the decision: an admin panel offers exactly these and the
+        operator ticks the ones they want, which become ``allowed_content_types``. A
+        wildcard offers everything in the vocabulary; an enumeration offers only what it
+        names.
+
+        Resolved on each call rather than cached, because plugins contribute content types
+        as they load and the vocabulary is only complete once loading is done.
+
+        Args:
+            plugin: The plugin whose declaration to resolve.
+
+        Returns:
+            The content types this plugin may be granted.
+        """
+        if _wildcard_reason(plugin.accepted_content_types) is not None:
+            return set(self.known_content_types)
+        return set(plugin.accepted_content_types)
+
+    def rationale_for(self, plugin: ContentTransformerPluginBase, content_type: ContentType) -> str:
+        """Why this plugin is asking for this content type, in its author's words.
+
+        Shown beside the checkbox an operator ticks. A plugin that enumerates gives a
+        reason per type; one declaring ``ALL_CONTENT_TYPES`` gives a single reason that
+        stands for every type it is offered.
+
+        Args:
+            plugin: The plugin whose declaration to read.
+            content_type: The content type being offered.
+
+        Returns:
+            The rationale, or an empty string if this plugin is not offered that type.
+        """
+        declared = plugin.accepted_content_types
+        wildcard = _wildcard_reason(declared)
+        if wildcard is not None:
+            return wildcard if content_type in self.known_content_types else ""
+        return declared.get(content_type, "")
 
     def transform_content(
         self,
