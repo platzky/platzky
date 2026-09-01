@@ -35,8 +35,10 @@ A shortcode declares which shape it is, and the parser holds authors to it::
 
 ``"raw"``
     Takes a closing tag, but its body is verbatim: brackets inside are characters, not
-    syntax, so an author can write *about* a shortcode rather than invoking one. No
-    built-in uses it yet; it is the mechanism a ``[code]`` or ``[latex]`` plugin needs.
+    syntax, so an author can write *about* a shortcode rather than invoking one. Nothing
+    in the pipeline reaches inside: not another plugin's filter, not another plugin's
+    shortcodes. The built-in ``[code]`` is the one in tree; ``[latex]`` or ``[mermaid]``
+    would want the same.
 
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
 nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
@@ -50,16 +52,10 @@ for is parsed leniently, because escaping mangles its tags on the way in: the qu
 is left with nothing to close. Parsed strictly, anyone able to write a comment could fail a
 page render by using a shortcode perfectly correctly.
 
-.. note::
-
-   A raw body is verbatim only for the pass that renders it. Transformers each render
-   their own shortcodes before handing a plain string to the next, so a plugin later in
-   the chain sees that body as ordinary content and will filter its text and render any
-   tag of its own inside it. Treat ``"raw"`` as protection against re-parsing rather than
-   a guarantee of verbatim output, and note that a shortcode wanting to *display* its body
-   rather than emit it cannot yet do so correctly: escaping happens at the boundary before
-   parsing, so by ``render`` time content that was escaped and content deliberately left
-   alone look the same, and escaping again double-escapes one of them.
+``"raw"`` governs parsing and nothing else. HTML written inside a raw body is not treated
+specially — it behaves exactly as it would anywhere else in the content, which means
+``STRIP_CONTENT_HTML`` removes it there too. Two concerns, two mechanisms, composing
+without either knowing about the other.
 
 Declare ``shortcodes`` as a class variable:
 
@@ -97,7 +93,7 @@ The plugin's ``accepted_content_types`` decides where its shortcodes may be used
 
 **Built-in shortcodes**
 
-Platzky ships three shortcodes that are always available, registered by a built-in
+Platzky ships four shortcodes that are always available, registered by a built-in
 transformer that runs ahead of any plugin:
 
 ``[image url="…" alt="…" width="…" height="…"]``
@@ -110,8 +106,13 @@ transformer that runs ahead of any plugin:
 ``[hero]…[/hero]``
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
+``[code]…[/code]``
+    Shows its content as a code sample in ``<pre><code>``. Raw, so a shortcode written
+    inside is displayed rather than rendered — this is how to document a tag without
+    invoking it — and no text filter reaches in to rewrite a sample.
+
 ``[image]`` and ``[link]`` reject non-HTTP/HTTPS external URLs and relative paths not
-starting with ``/``. All three are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds
+starting with ``/``. All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds
 its content as raw markup, so the built-in transformer enumerates rather than claiming to
 suit any kind of content.
 

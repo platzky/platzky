@@ -38,9 +38,9 @@ _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 #: The kind is a *declaration*, read before the parser descends, which is what lets it
 #: change parsing at all — ``render`` runs afterwards and so could never stop it.
 #:
-#: A raw body is verbatim only for the pass that renders it. Transformers each render
-#: their own shortcodes before passing a plain string on, so a later one sees that body as
-#: ordinary content. Moving rendering out of the per-plugin loop is what would close that.
+#: A raw body is verbatim against the whole pipeline: no plugin's text filter reaches into
+#: it and no plugin's shortcodes are rendered inside it, because the document is parsed
+#: once before any of them run.
 ShortcodeKind = Literal["block", "void", "raw"]
 
 #: The same set at runtime, for the check in ``__init_subclass__`` — plugin authors are

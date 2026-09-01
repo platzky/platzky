@@ -537,3 +537,71 @@ class TestGrantReporting:
             registry.warn_unknown_grants()
 
         assert caplog.text == ""
+
+
+class _CodeShortcode(Shortcode):
+    name = "code"
+    kind = "raw"
+    description = "Show content without parsing it."
+
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        """Wrap the verbatim body in a pre block."""
+        return f"<pre>{content}</pre>"
+
+
+class CodePlugin(ContentTransformerPluginBase):
+    """Registers a raw shortcode."""
+
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"code": _CodeShortcode()}
+
+
+class _LetterAPlugin(ContentTransformerPluginBase):
+    """Colours every letter 'a', the way the red_letter example plugin does."""
+
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
+
+    def transform_text(self, text: str) -> str:
+        """Wrap each 'a' in a span."""
+        return text.replace("a", "<i>a</i>")
+
+
+class TestFiltersNeverSeeRenderedMarkup:
+    """Parsing, filtering and rendering are three passes, in that order."""
+
+    def test_a_filter_does_not_reach_an_earlier_shortcode_s_attributes(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """The bug that motivated separating the passes.
+
+        ``[wrap]`` renders to a tag carrying a ``class`` attribute. Running plugins one
+        after another over a flat string handed that markup to the next plugin's filter,
+        which rewrote the letter 'a' inside ``class`` and corrupted the tag.
+        """
+        wrap, letters = AttrPlugin({}), _LetterAPlugin({})
+        for plugin in (wrap, letters):
+            registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [wrap, letters], Markup('[wrap tone="loud"]hi[/wrap] and a plan'), "post"
+        )
+
+        assert result == '<span class="loud">hi</span> <i>a</i>nd <i>a</i> pl<i>a</i>n'
+
+    def test_a_raw_body_survives_another_plugin_entirely(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Neither that plugin's filter nor its shortcodes reach inside."""
+        code, letters = CodePlugin({}), _LetterAPlugin({})
+        for plugin in (code, letters):
+            registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [code, letters], Markup("[code]a [wrap]x[/wrap][/code] a"), "post"
+        )
+
+        assert result == "<pre>a [wrap]x[/wrap]</pre> <i>a</i>"

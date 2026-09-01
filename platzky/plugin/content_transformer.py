@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from html.parser import HTMLParser
 from itertools import zip_longest
 from typing import ClassVar, cast, final
@@ -40,18 +41,48 @@ def _wildcard_reason(declared: Mapping[ContentType, str]) -> str | None:
     return None
 
 
-_SHORTCODE_TAG_RE = re.compile(r"\[[^\]]*\]|<[^>]*>")
+#: HTML tags, held back from text filters. Only the HTML half of what this used to match:
+#: shortcode syntax no longer needs protecting here, because parsing has already lifted it
+#: out of the text by the time a filter runs.
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
 
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048
 _ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
 
 
-#: One frame of the parse stack: tag name, its raw attribute text, the rendered pieces
-#: collected inside it so far, and where the opening tag was written — kept so an
-#: unclosed tag can say which one it was. The outermost frame is the document itself and
-#: carries ``""`` as its name, which no shortcode can have.
-_Frame = tuple[str, str, list[str], int]
+@dataclass
+class _Text:
+    """Author text between tags — the only thing a text filter is allowed to touch."""
+
+    text: str
+
+
+@dataclass
+class _Verbatim:
+    """A raw shortcode's body: parsed by nobody, filtered by nobody."""
+
+    shortcode: Shortcode
+    raw_attrs: str
+    body: str
+
+
+@dataclass
+class _Element:
+    """A shortcode tag and everything written inside it."""
+
+    shortcode: Shortcode
+    raw_attrs: str
+    children: list["_Node"]
+
+
+_Node = _Text | _Verbatim | _Element
+
+#: One frame of the parse stack: tag name, its raw attribute text, the nodes collected
+#: inside it so far, and where the opening tag was written — kept so an unclosed tag can
+#: say which one it was. The outermost frame is the document itself and carries ``""`` as
+#: its name, which no shortcode can have.
+_Frame = tuple[str, str, list[_Node], int]
 
 
 def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
@@ -202,9 +233,9 @@ def _reject_unclosed_above(
         name, _, _, position = stack[-1]
         raise ShortcodeError(_never_closed(name), name, position)
     while len(stack) - 1 > depth:
-        name, raw_attrs, parts, _ = stack.pop()
-        stack[-1][2].append(_render_tag(shortcodes[name], raw_attrs, ""))
-        stack[-1][2].extend(parts)
+        name, raw_attrs, children, _ = stack.pop()
+        stack[-1][2].append(_Element(shortcodes[name], raw_attrs, []))
+        stack[-1][2].extend(children)
 
 
 def _open_frame_for(stack: list[_Frame], name: str) -> int | None:
@@ -223,13 +254,13 @@ def _open_frame_for(stack: list[_Frame], name: str) -> int | None:
     return None
 
 
-def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> str:
-    """Render every registered shortcode in the content, innermost tag first.
+def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> list[_Node]:
+    """Read the content into nodes, without rendering anything.
 
     Tokenises once and matches tags with a stack, so a tag nests inside another of the
     same name and a closing tag pairs with the opening tag it actually belongs to. A
-    ``"raw"`` tag is not descended into at all: its body is taken verbatim up to the
-    matching closing tag, so brackets inside it are characters rather than syntax.
+    ``"raw"`` tag is not descended into: its body is taken verbatim up to the matching
+    closing tag, so brackets inside it are characters rather than syntax.
 
     A tag name no plugin registered is left exactly as written — an author may be writing
     *about* a shortcode rather than using one, and platzky has no opinion on a name it
@@ -248,21 +279,19 @@ def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode], *, strict:
             matching, and its closing tag is left with nothing to close.
 
     Returns:
-        The content with every registered shortcode replaced by its rendered HTML.
+        The document as a list of nodes.
 
     Raises:
         ShortcodeError: If ``strict`` and a tag is opened and never closed, or a closing
             tag matches no opening one.
     """
-    if not shortcodes:
-        return content
-
     pattern = _tag_pattern(shortcodes)
     stack: list[_Frame] = [("", "", [], 0)]
     position = 0
 
     while (match := pattern.search(content, position)) is not None:
-        stack[-1][2].append(content[position : match.start()])
+        if match.start() > position:
+            stack[-1][2].append(_Text(content[position : match.start()]))
         position = match.end()
         closing, opening, raw_attrs = match.group(1), match.group(2), match.group(3)
 
@@ -273,28 +302,130 @@ def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode], *, strict:
                     raise ShortcodeError(
                         _closes_nothing(shortcodes[closing]), closing, match.start()
                     )
-                stack[-1][2].append(match.group(0))
+                stack[-1][2].append(_Text(match.group(0)))
                 continue
             _reject_unclosed_above(stack, depth, shortcodes, strict=strict)
-            name, attrs_text, parts, _ = stack.pop()
-            stack[-1][2].append(_render_tag(shortcodes[name], attrs_text, "".join(parts)))
+            name, attrs_text, children, _ = stack.pop()
+            stack[-1][2].append(_Element(shortcodes[name], attrs_text, children))
             continue
 
         shortcode = shortcodes[opening]
         if shortcode.kind == "void":
-            stack[-1][2].append(_render_tag(shortcode, raw_attrs or "", ""))
+            stack[-1][2].append(_Element(shortcode, raw_attrs or "", []))
         elif shortcode.kind == "raw":
             body_end = content.find(f"[/{opening}]", position)
             if body_end < 0:
-                raise ShortcodeError(_never_closed(opening), opening, match.start())
-            stack[-1][2].append(_render_tag(shortcode, raw_attrs or "", content[position:body_end]))
+                if strict:
+                    raise ShortcodeError(_never_closed(opening), opening, match.start())
+                stack[-1][2].append(_Text(match.group(0)))
+                continue
+            stack[-1][2].append(_Verbatim(shortcode, raw_attrs or "", content[position:body_end]))
             position = body_end + len(opening) + 3
         else:
             stack.append((opening, raw_attrs or "", [], match.start()))
 
-    stack[-1][2].append(content[position:])
+    if position < len(content):
+        stack[-1][2].append(_Text(content[position:]))
     _reject_unclosed_above(stack, 0, shortcodes, strict=strict)
-    return "".join(stack[0][2])
+    return stack[0][2]
+
+
+def _filter_text(nodes: list[_Node], filters: Sequence[Callable[[str], str]]) -> None:
+    """Run every text filter over the document's text, and nothing else.
+
+    This is what separating parsing from rendering buys. A filter now sees only what an
+    author typed between tags: never a tag's attributes, never another shortcode's output,
+    and never the body of a ``"raw"`` tag. Previously each plugin rendered its own
+    shortcodes before handing a flat string to the next, so a later plugin's filter was
+    handed markup earlier ones had produced and could corrupt it.
+
+    HTML the author wrote is still held back from filters by ``_HTML_TAG_RE`` — the one
+    kind of markup that is still text at this point, since platzky parses shortcodes but
+    not HTML. Filters are re-applied one at a time so a filter's own output is held back
+    from the next one too.
+
+    Args:
+        nodes: The parsed document, modified in place.
+        filters: Each permitted plugin's ``transform_text``, in pipeline order.
+    """
+    for node in nodes:
+        if isinstance(node, _Text):
+            node.text = _filter_around_html(node.text, filters)
+        elif isinstance(node, _Element):
+            _filter_text(node.children, filters)
+
+
+def _filter_around_html(text: str, filters: Sequence[Callable[[str], str]]) -> str:
+    """Apply each filter to the text, keeping HTML tags out of their reach.
+
+    Args:
+        text: A single run of author text.
+        filters: Filters to apply, in order.
+
+    Returns:
+        The text after every filter has run over its non-tag parts.
+    """
+    for transform in filters:
+        parts = _HTML_TAG_RE.split(text)
+        tags = _HTML_TAG_RE.findall(text)
+        text = "".join(
+            segment
+            for pair in zip_longest([transform(p) for p in parts], tags, fillvalue="")
+            for segment in pair
+        )
+    return text
+
+
+def _render(nodes: Sequence[_Node]) -> str:
+    """Render a parsed document to HTML, innermost tag first.
+
+    Args:
+        nodes: The parsed, filtered document.
+
+    Returns:
+        The rendered HTML.
+    """
+    rendered: list[str] = []
+    for node in nodes:
+        if isinstance(node, _Text):
+            rendered.append(node.text)
+        elif isinstance(node, _Verbatim):
+            rendered.append(_render_tag(node.shortcode, node.raw_attrs, node.body))
+        else:
+            rendered.append(_render_tag(node.shortcode, node.raw_attrs, _render(node.children)))
+    return "".join(rendered)
+
+
+def _render_document(
+    content: str,
+    shortcodes: dict[str, Shortcode],
+    filters: Sequence[Callable[[str], str]],
+    *,
+    strict: bool,
+) -> str:
+    """Parse the content once, filter its text, then render its tags.
+
+    The order is the point. Rendering used to happen inside the per-plugin loop, so every
+    stage flattened the document back to a string and the next one had to rediscover it —
+    which is how a filter came to be handed markup an earlier shortcode had produced.
+
+    Args:
+        content: The content to transform.
+        shortcodes: Every shortcode permitted here, keyed by tag name.
+        filters: Every permitted ``transform_text``, in pipeline order.
+        strict: Whether a malformed tag is an error.
+
+    Returns:
+        The rendered content.
+
+    Raises:
+        ShortcodeError: If ``strict`` and a shortcode tag is malformed.
+    """
+    nodes: list[_Node] = (
+        _parse(content, shortcodes, strict=strict) if shortcodes else [_Text(content)]
+    )
+    _filter_text(nodes, filters)
+    return _render(nodes)
 
 
 class ContentTransformerPluginBase(PluginBase, ABC):
@@ -365,9 +496,12 @@ class ContentTransformerPluginBase(PluginBase, ABC):
 
     @final
     def transform_content(self, content: str, *, strict: bool = True) -> str:
-        """Split content on shortcode tags, transform plain-text segments, then apply shortcodes.
+        """Parse the content, run this plugin's text filter, then render its shortcodes.
 
-        Not overridable — override ``transform_text`` instead.
+        Not overridable — override ``transform_text`` instead. This runs the plugin on its
+        own; in a pipeline the registry runs every plugin's filter and every plugin's
+        shortcodes through the same three passes, so that a filter never sees another
+        shortcode's output.
 
         Args:
             content: Raw content string to transform.
@@ -382,13 +516,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         Raises:
             ShortcodeError: If ``strict`` and a shortcode tag is malformed.
         """
-        parts = _SHORTCODE_TAG_RE.split(content)
-        tags = _SHORTCODE_TAG_RE.findall(content)
-        transformed = [self.transform_text(p) for p in parts]
-        reassembled = "".join(
-            segment for pair in zip_longest(transformed, tags, fillvalue="") for segment in pair
-        )
-        return _apply_shortcodes(reassembled, self.shortcodes, strict=strict)
+        return _render_document(content, self.shortcodes, [self.transform_text], strict=strict)
 
     def transform_text(self, text: str) -> str:
         """Apply plain-text transformation to a non-tag content segment.
@@ -606,11 +734,17 @@ class ContentTransformerRegistry:
         # quotes out of `[tag a="b"]x[/tag]` leaves an opening tag that no longer matches
         # and a closing tag that does, so a stranger writing an ordinary shortcode would
         # otherwise fail the render — a typo in a comment must not take a page down.
-        for plugin in plugins:
-            if not self.may_transform(plugin, content_type):
-                continue
-            content = plugin.transform_content(content, strict=vouched)
-        return content
+        permitted = [p for p in plugins if self.may_transform(p, content_type)]
+        # One parse for the whole pipeline, then every filter, then every shortcode. The
+        # plugins are no longer run one after another over a flat string: doing that made
+        # each stage re-derive the document the previous one had just discarded, and handed
+        # every filter the markup earlier shortcodes had produced.
+        return _render_document(
+            content,
+            self.shortcodes_for(permitted, content_type),
+            [plugin.transform_text for plugin in permitted],
+            strict=vouched,
+        )
 
     def shortcodes_for(
         self, plugins: Iterable[ContentTransformerPluginBase], content_type: ContentType
