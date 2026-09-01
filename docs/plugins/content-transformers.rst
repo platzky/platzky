@@ -31,6 +31,38 @@ A transformer's other half is :doc:`shortcodes` — named tags it registers, ren
 the same pass. This page covers where a transformer is allowed to run; that one covers
 what its tags emit.
 
+.. _transformer-order:
+
+Order
+-----
+
+Transformers are a pipeline: each one's output is the next one's input, the way
+``cat post | emoji | red_letter`` would be. Order therefore changes the result, and the
+order is **the order the plugins appear in the operator's config**, because the loader
+walks the ``plugins`` object top to bottom and each plugin is appended as it loads.
+
+.. code-block:: text
+
+    {"plugins": {"emoji": {…}, "red_letter": {…}}}
+
+is ``emoji | red_letter``; swapping the two keys swaps the stages. Platzky's built-in
+shortcode transformer is the one exception — it is always inserted first, so ``[image]``,
+``[link]`` and ``[hero]`` have rendered before any plugin runs.
+
+Two consequences worth knowing:
+
+*A transformer sees what earlier ones produced, markup included.*
+    By the time a later plugin's ``transform_text`` runs, earlier stages have already
+    rendered their shortcodes to HTML. The framework keeps tags away from
+    ``transform_text``, so a filter does not corrupt them, but they are in the content.
+
+*A failing transformer aborts the chain.*
+    Stages are not independent, so a stage that raises stops the pipeline rather than
+    passing partial output to the next one.
+
+Nothing sorts or prioritises the pipeline: an operator who needs a particular order gets
+it by ordering the config keys. A plugin cannot request a position.
+
 .. _declaring-scope:
 
 Declaring scope
