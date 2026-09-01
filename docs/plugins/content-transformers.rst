@@ -1,0 +1,178 @@
+Content Transformer Plugins
+===========================
+
+.. versionadded:: 1.5.0
+
+Platzky's own content types are :data:`platzky.content_types.BUILTIN_CONTENT_TYPES`
+— ``"post"``, ``"page"``, ``"comment"``. An application built on platzky adds its
+own kinds (see :ref:`new-content-types`), and plugins opt in to those the same way.
+
+.. code-block:: python
+
+    from collections.abc import Mapping
+    from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
+
+    class EmojiPlugin(ContentTransformerPluginBase):
+        """Replace :smile: tokens with emoji."""
+
+        accepted_content_types: Mapping[ContentType, str] = {
+            ALL_CONTENT_TYPES: "Swaps text for emoji; nothing about it is content-specific.",
+        }
+
+        def transform_text(self, text: str) -> str:
+            return text.replace(":smile:", "😊")
+
+Override ``transform_text`` to apply plain-text transformations. The framework
+guarantees that shortcode tags are excluded from the text passed here and
+re-inserted after transformation. ``transform_content`` is ``@final`` and must
+not be overridden.
+
+A transformer's other half is :doc:`shortcodes` — named tags it registers, rendered by
+the same pass. This page covers where a transformer is allowed to run; that one covers
+what its tags emit.
+
+.. _declaring-scope:
+
+Declaring scope
+---------------
+
+``accepted_content_types`` maps each content type a plugin asks for to **why it needs
+it**. The reason is required — a declaration missing one raises ``ValueError`` when the
+class is defined — because it is shown beside the checkbox an operator ticks, and a
+justification nothing enforces is one that rots. Declaring nothing at all is still
+allowed; such a plugin simply transforms no content.
+
+Two keys have to turn before a transformer runs, and they belong to different people:
+
+``accepted_content_types``
+    The plugin author's declaration: the choices an operator is *offered*. Think of the
+    checkboxes an admin panel puts on screen.
+
+``allowed_content_types``
+    The operator's grant, in the database config (see :ref:`plugin-configuration`):
+    which of those checkboxes they ticked.
+
+Silence is refusal on both sides, so declaring broadly never widens what a plugin
+actually does — a type nobody granted stays ungranted, and the engine, not the plugin,
+decides routing.
+
+Key the declaration with :data:`~platzky.content_types.ALL_CONTENT_TYPES` when the plugin
+has no technical constraint on where it runs. One reason then stands for every type it is
+offered. The wildcard resolves against the content types the application actually has, so
+a plugin written today is offered one invented tomorrow and never hardcodes a name
+belonging to a package it does not depend on. It grants nothing on its own — the operator
+still names each type.
+
+Enumerate when there is a real constraint. A shortcode that embeds raw markup, reaches an
+external host, or costs something to run cannot honestly claim to work anywhere. The
+built-in ``[hero]`` tag is the in-tree example: it wraps whatever it is given as raw
+markup by design, so its transformer names its types instead:
+
+.. code-block:: python
+
+    from collections.abc import Mapping
+    from platzky import ContentTransformerPluginBase
+    from platzky.content_types import PAGE, POST, ContentType
+
+    class HeroPlugin(ContentTransformerPluginBase):
+        """Wrap content in a hero block."""
+
+        accepted_content_types: Mapping[ContentType, str] = {
+            POST: "Wraps a post body in a hero block.",
+            PAGE: "Wraps a page body in a hero block.",
+        }
+
+Enumerating is **not** how a plugin keeps itself out of comments. Whether commenters may
+use a shortcode is the operator's policy — their grant already decides it, and a plugin
+narrowing its declaration for that reason only takes away a choice that was theirs to
+make.
+
+**Asking the registry**
+
+The gate is
+:class:`~platzky.plugin.content_transformer.ContentTransformerRegistry`, reachable as
+``app.content_transformers``. Code that renders the operator's choices — an admin panel,
+say — asks it rather than reading the plugin's attribute directly:
+
+``acceptable_content_types(plugin)``
+    The types this plugin may be granted: its declaration resolved against the
+    vocabulary the application actually has, so a wildcard comes back expanded.
+
+``rationale_for(plugin, content_type)``
+    The author's reason for that type, to show beside the checkbox.
+
+``may_transform(plugin, content_type)``
+    Whether both keys have turned. This is the question the pipeline itself asks.
+
+``grant(plugin, allowed_types)``
+    Records the operator's grant. Called by the plugin loader with the plugin's
+    ``allowed_content_types``; not intended for plugin code.
+
+``warn_unknown_grants()``
+    Logs a warning for each granted content type nothing registered. Run once, after
+    every plugin has loaded.
+
+.. _new-content-types:
+
+New content types
+-----------------
+
+Platzky produces posts, pages and comments — ``POST``, ``PAGE``, ``COMMENT`` in
+:mod:`platzky.content_types`. An application or plugin with its own kind of content
+names its own and registers it:
+
+.. code-block:: python
+
+    MARKER_FIELD: ContentType = "field"
+
+    create_app_from_config(config, extra_content_types=[MARKER_FIELD])
+
+A plugin opts in exactly as it would for a post:
+
+.. code-block:: python
+
+    class MyPlugin(ContentTransformerPluginBase):
+        accepted_content_types: Mapping[ContentType, str] = {
+            POST: "Renders its tags in post bodies.",
+            MARKER_FIELD: "Renders the same tags stored against a marker.",
+        }
+
+A plugin with no constraint on where it runs need not name the new type at all: keying
+its declaration with ``ALL_CONTENT_TYPES`` offers whatever the application has, including
+types added after the plugin was written (see :ref:`declaring-scope`).
+
+Either way the operator grants it through ``allowed_content_types`` in the database config
+(see :ref:`plugin-configuration`); a plugin runs only where both agree. A content type
+is only ever its name, so accepting a kind of content never means importing the package
+that brought it — otherwise every plugin handling marker fields would depend on the
+application that has them.
+
+The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a closed
+``Literal`` cannot survive extension, since platzky cannot know at type-check time what a
+package it has never heard of will add. A name is therefore checked at runtime or not at
+all — an operator's grant naming a type nothing produces is reported at startup by
+``warn_unknown_grants``.
+
+A plugin can contribute one too, which is what lets a plugin large enough to bring its
+own kind of content install without an application built around it:
+
+.. code-block:: python
+
+    class MarkerPlugin(ContentTransformerPluginBase):
+        provides_content_types: ClassVar[frozenset[str]] = frozenset({MARKER_FIELD})
+
+``provides_content_types`` is the counterpart to ``accepted_content_types``: what a
+plugin *produces* rather than what it consumes. The two are independent — contributing
+a type to the vocabulary is not permission to act on it, which still takes the plugin's
+own opt-in and the operator's grant.
+
+Content types are read only when content is transformed, well after loading, so a
+plugin may contribute one whatever order it loads in, and the check below runs once
+every plugin is loaded rather than as each one arrives.
+
+A plugin naming a type nothing registered is *inert*, not an error — it installs
+cleanly and is simply never called with one, which is what lets a single plugin serve
+both an application that has the type and a plain platzky blog that does not. Because
+such a grant silently does nothing, platzky logs a warning naming the unknown type,
+which is usually a typo in operator config.
+

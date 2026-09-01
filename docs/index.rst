@@ -25,7 +25,7 @@ started with Platzky and building applications.
    config
    database
    telemetry
-   plugins
+   plugins/index
 
 API Reference
 -------------
