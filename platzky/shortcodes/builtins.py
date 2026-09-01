@@ -1,8 +1,8 @@
 """Built-in shortcode handlers for images, links, hero blocks and verbatim HTML."""
 
 from platzky.shortcodes import Shortcode
-from platzky.shortcodes.html import html_shortcode
 from platzky.shortcodes.hero import hero_shortcode
+from platzky.shortcodes.html import html_shortcode
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import link_shortcode
 
