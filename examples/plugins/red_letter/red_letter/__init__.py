@@ -9,6 +9,8 @@ import re
 from collections.abc import Mapping
 from typing import ClassVar
 
+from markupsafe import Markup
+
 from platzky.content_types import PAGE, POST, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import ShortcodeAttrs
@@ -24,13 +26,19 @@ class _RedShortcode(Shortcode):
     description = "Render content in red."
     example = "[red]danger[/red]"
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:  # noqa: ARG002
         """Wrap content in a red span.
+
+        Embedded, not escaped: this plugin's own ``transform_text`` ran one step earlier
+        and put ``<span>`` markup inside the tag, so ``[red]danger[/red]`` arrives here as
+        ``d<span style="color:red">a</span>nger``. Escaping would show those spans to the
+        reader as literal text.
 
         Args:
             attrs: Unused.
-            content: Inner content, already safe to embed — it routinely carries markup
-                from this plugin's own ``transform_text``, one step earlier.
+            content: Inner content. ``Markup`` because the escaping decision was already
+                taken upstream — escaped if nobody vouched for it, left as written if the
+                caller did.
 
         Returns:
             Content wrapped in ``<span style="color:red">``.

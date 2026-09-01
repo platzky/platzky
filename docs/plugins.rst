@@ -268,23 +268,51 @@ Two rules, and they do not vary by shortcode:
 
 .. code-block:: python
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
         kind = attrs.type or "info"
         return f'<div class="alert alert-{escape(kind)}">{content}</div>'
         #                                 ^^^^^^^^^^^^   attribute — always escape
         #                                                 ^^^^^^^   content — never escape
 
 *Embed* ``content`` *directly. Never escape it.*
-    Escaping already happened, before ``render`` was reached, at the boundary — the only
-    place that knows where the content came from.
+    Its type is the reason: ``Markup`` means the escaping *decision* has already been
+    taken. Not that escaping happened — for a post body it deliberately did not.
 
 *Escape every attribute where you interpolate it.*
     Attributes arrive raw. That is an HTML-attribute-context obligation rather than a
     trust judgement, so it applies just as much to a value an author typed as to one out
     of a database.
 
-What "already safe" means in practice. Suppose a text filter is installed that colours the
-letter ``a`` red, and an author writes ``[alert type="warning"]danger[/alert]``:
+**Where ``content`` comes from.** Exactly three sources, and each is settled before
+``render`` runs:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Source
+     - Decided by
+     - What arrives
+   * - The caller's own content
+     - ``blog.py`` vouches for a post body with ``Markup``; ``render_value`` escapes a
+       stored value; anything else unvouched is escaped
+     - live markup if vouched, entities if not
+   * - A text filter's output
+     - the plugin's ``transform_text``, one step earlier in the same pipeline
+     - live markup
+   * - An inner shortcode's output
+     - a nested tag, already rendered by the time the outer one runs
+     - live markup
+
+The last two are markup platzky itself produced, by plugins that turned both keys for this
+content type — so trusting them is the same act as granting the plugin.
+
+That is what makes escaping here pointless at best. Every character is either one the
+boundary already turned into an entity, leaving nothing to neutralise, or one a trusted
+source meant to render, which escaping would destroy.
+
+Concretely: suppose a text filter is installed that colours the letter ``a`` red, and an
+author writes ``[alert type="warning"]danger[/alert]``:
 
 .. code-block:: text
 
