@@ -413,6 +413,56 @@ class TestStripContentHtml:
 
         assert result == 'x <span class="loud">hi</span>'
 
+    def test_a_raw_body_keeps_the_html_written_in_it(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Verbatim holds against this pass too, so a raw body is where meant HTML goes."""
+        plugin = CodePlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup('[code]<img src="/a.png">[/code]'), "post", strip_html=True
+        )
+
+        assert result == '<pre><img src="/a.png"></pre>'
+
+    def test_an_unvouched_raw_body_is_not_a_way_in(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """The escape hatch belongs to whoever vouched; a stranger's tag stays characters."""
+        plugin = CodePlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], '[code]<img src="/a.png">[/code]', "post", strip_html=True
+        )
+
+        assert "<img" not in result
+
+    def test_html_outside_a_raw_body_still_goes(self, registry: ContentTransformerRegistry) -> None:
+        plugin = CodePlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [plugin], Markup("<b>x</b> [code]<i>y</i>[/code] <b>z</b>"), "post", strip_html=True
+        )
+
+        assert result == "x <pre><i>y</i></pre> z"
+
+    def test_only_the_removed_tags_are_logged(
+        self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """What a raw body kept was not removed, so it must not be reported as removed."""
+        plugin = CodePlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        with caplog.at_level(logging.WARNING):
+            registry.transform_content(
+                [plugin], Markup("<b>x</b> [code]<i>y</i>[/code]"), "post", strip_html=True
+            )
+
+        assert "Removed 1 HTML tag(s) from post content (b)" in caplog.text
+
     def test_untrusted_content_is_unaffected(self, registry: ContentTransformerRegistry) -> None:
         """It was escaped already; turning the flag on must not escape it twice."""
         plugin = ShoutPlugin({})

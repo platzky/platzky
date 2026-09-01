@@ -1,4 +1,4 @@
-"""Tests for built-in shortcodes (image, link, hero, code)."""
+"""Tests for built-in shortcodes (image, link, hero, html)."""
 
 from __future__ import annotations
 
@@ -109,28 +109,28 @@ class TestHeroShortcode:
         assert result == '<div class="hero">Just some text</div>'
 
 
-class TestCodeShortcode:
+class TestHtmlShortcode:
     def test_shortcodes_inside_are_shown_not_rendered(self) -> None:
-        """The reason the tag exists: documenting a shortcode without invoking it."""
-        result = _apply('[code][image url="/a.png"][/code]')
-        assert result == '<pre><code>[image url="/a.png"]</code></pre>'
+        """One reason the tag exists: documenting a shortcode without invoking it."""
+        result = _apply('[html][image url="/a.png"][/html]')
+        assert result == '[image url="/a.png"]'
 
     def test_the_same_tag_outside_still_renders(self) -> None:
         assert _apply('[image url="/a.png"]') == '<img src="/a.png" alt="">'
 
-    def test_html_inside_is_not_treated_specially(self) -> None:
-        """``raw`` governs parsing only; what HTML does is STRIP_CONTENT_HTML's business."""
-        result = _apply('[code]<img src="/a.png">[/code]')
-        assert result == '<pre><code><img src="/a.png"></code></pre>'
+    def test_html_inside_reaches_the_page_as_html(self) -> None:
+        """The other reason: marking HTML that is meant, where the rest is stripped."""
+        result = _apply('[html]<img src="/a.png">[/html]')
+        assert result == '<img src="/a.png">'
 
-    def test_whitespace_and_newlines_are_kept(self) -> None:
-        result = _apply("[code]line1\n    line2[/code]")
-        assert result == "<pre><code>line1\n    line2</code></pre>"
+    def test_the_body_is_emitted_without_a_wrapper(self) -> None:
+        result = _apply("[html]line1\n    line2[/html]")
+        assert result == "line1\n    line2"
 
-    def test_unclosed_code_tag_is_rejected(self) -> None:
+    def test_unclosed_html_tag_is_rejected(self) -> None:
         import pytest
 
         from platzky.shortcodes import ShortcodeError
 
-        with pytest.raises(ShortcodeError, match=r"\[code\] is never closed"):
-            _apply("[code]forever")
+        with pytest.raises(ShortcodeError, match=r"\[html\] is never closed"):
+            _apply("[html]forever")

@@ -78,7 +78,9 @@ StripContentHtml = FeatureFlag(
     default=False,
     description=(
         "Remove HTML tags written in content, keeping the text they wrapped, even where "
-        "the caller vouched for the content. Shortcodes still render. Each removal is "
+        "the caller vouched for the content. Shortcodes still render, and an [html] block "
+        "keeps the HTML written inside it, which is how an author marks a piece they "
+        "mean. Each removal is "
         "logged, since it is lossy. Off by default because HTML is currently the only "
         "formatting a post body has — with no markdown renderer wired up, turning this on "
         "leaves plain text and shortcodes."

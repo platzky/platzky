@@ -37,8 +37,8 @@ A shortcode declares which shape it is, and the parser holds authors to it::
     Takes a closing tag, but its body is verbatim: brackets inside are characters, not
     syntax, so an author can write *about* a shortcode rather than invoking one. Nothing
     in the pipeline reaches inside: not another plugin's filter, not another plugin's
-    shortcodes. The built-in ``[code]`` is the one in tree; ``[latex]`` or ``[mermaid]``
-    would want the same.
+    shortcodes, not ``STRIP_CONTENT_HTML``. The built-in ``[html]`` is the one in tree;
+    ``[latex]`` or ``[mermaid]`` would want the same.
 
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
 nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
@@ -52,10 +52,12 @@ for is parsed leniently, because escaping mangles its tags on the way in: the qu
 is left with nothing to close. Parsed strictly, anyone able to write a comment could fail a
 page render by using a shortcode perfectly correctly.
 
-``"raw"`` governs parsing and nothing else. HTML written inside a raw body is not treated
-specially — it behaves exactly as it would anywhere else in the content, which means
-``STRIP_CONTENT_HTML`` removes it there too. Two concerns, two mechanisms, composing
-without either knowing about the other.
+Verbatim means verbatim, HTML included. A raw body is taken out of the document before
+any filter or stripping pass runs, so HTML written inside one reaches the page as HTML
+even where ``STRIP_CONTENT_HTML`` is removing the HTML around it — which is what makes
+``[html]`` the way an author marks a piece they mean. The hatch belongs to whoever the
+caller vouched for: content nobody vouched for is escaped at the boundary, raw bodies
+with it, so a raw shortcode is never a way to get markup out of a stranger's text.
 
 Declare ``shortcodes`` as a class variable:
 
@@ -106,10 +108,10 @@ transformer that runs ahead of any plugin:
 ``[hero]…[/hero]``
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
-``[code]…[/code]``
-    Shows its content as a code sample in ``<pre><code>``. Raw, so a shortcode written
-    inside is displayed rather than rendered — this is how to document a tag without
-    invoking it — and no text filter reaches in to rewrite a sample.
+``[html]…[/html]``
+    Emits its content exactly as written. Raw, so a shortcode written inside is displayed
+    rather than rendered — this is how to document a tag without invoking it — no text
+    filter reaches in to rewrite it, and the HTML in it survives ``STRIP_CONTENT_HTML``.
 
 ``[image]`` and ``[link]`` accept ``http``/``https`` URLs and paths rooted at ``/``, and
 nothing else. A bare relative path such as ``photo.jpg`` is refused because it resolves

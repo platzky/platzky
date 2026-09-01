@@ -330,6 +330,32 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
     return stack[0][2]
 
 
+def _strip_text_nodes(nodes: list[_Node]) -> list[str]:
+    """Remove HTML tags from the document's author text, keeping the text they wrapped.
+
+    Runs over the parsed document rather than the source string, which is what lets it
+    leave a ``"raw"`` body alone. A raw body is verbatim by declaration — no filter reaches
+    it and no shortcode inside it renders — and that holds for this pass too, so the tag is
+    also how an author says "this HTML is meant" on a site that strips the rest. The escape
+    hatch is only open to whoever vouched for the content: unvouched content was escaped at
+    the boundary, raw bodies with it, so nothing there can pass a tag through.
+
+    Args:
+        nodes: The parsed document, modified in place.
+
+    Returns:
+        The names of the tags removed, in document order.
+    """
+    removed: list[str] = []
+    for node in nodes:
+        if isinstance(node, _Text):
+            node.text, gone = _strip_markup(node.text)
+            removed.extend(gone)
+        elif isinstance(node, _Element):
+            removed.extend(_strip_text_nodes(node.children))
+    return removed
+
+
 def _filter_text(nodes: list[_Node], filters: Sequence[Callable[[str], str]]) -> None:
     """Run every text filter over the document's text, and nothing else.
 
@@ -402,21 +428,26 @@ def _render_document(
     filters: Sequence[Callable[[str], str]],
     *,
     strict: bool,
-) -> str:
-    """Parse the content once, filter its text, then render its tags.
+    strip_html: bool = False,
+) -> tuple[str, list[str]]:
+    """Parse the content once, strip and filter its text, then render its tags.
 
     The order is the point. Rendering used to happen inside the per-plugin loop, so every
     stage flattened the document back to a string and the next one had to rediscover it —
     which is how a filter came to be handed markup an earlier shortcode had produced.
+    Stripping joined the same pass for the same reason: run over the source string before
+    parsing, it could not tell HTML an author left in prose from HTML they marked to keep.
 
     Args:
         content: The content to transform.
         shortcodes: Every shortcode permitted here, keyed by tag name.
         filters: Every permitted ``transform_text``, in pipeline order.
         strict: Whether a malformed tag is an error.
+        strip_html: Whether to remove HTML tags the author wrote. Applies to author text
+            only: a raw body is verbatim, so what is written there survives.
 
     Returns:
-        The rendered content.
+        The rendered content, and the names of the HTML tags stripped from it.
 
     Raises:
         ShortcodeError: If ``strict`` and a shortcode tag is malformed.
@@ -424,8 +455,9 @@ def _render_document(
     nodes: list[_Node] = (
         _parse(content, shortcodes, strict=strict) if shortcodes else [_Text(content)]
     )
+    removed = _strip_text_nodes(nodes) if strip_html else []
     _filter_text(nodes, filters)
-    return _render(nodes)
+    return _render(nodes), removed
 
 
 class ContentTransformerPluginBase(PluginBase, ABC):
@@ -516,7 +548,10 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         Raises:
             ShortcodeError: If ``strict`` and a shortcode tag is malformed.
         """
-        return _render_document(content, self.shortcodes, [self.transform_text], strict=strict)
+        rendered, _ = _render_document(
+            content, self.shortcodes, [self.transform_text], strict=strict
+        )
+        return rendered
 
     def transform_text(self, text: str) -> str:
         """Apply plain-text transformation to a non-tag content segment.
@@ -700,30 +735,18 @@ class ContentTransformerRegistry:
                 the text they wrapped and logging what went. The operator's call, behind
                 ``STRIP_CONTENT_HTML``: shortcodes still render, but a site turning it on
                 needs some other way to format a post, because HTML is currently the only
-                one platzky has.
+                one platzky has. A ``"raw"`` shortcode body is exempt: it is verbatim by
+                declaration, which makes it the way an author marks HTML they mean to
+                keep. Only vouched content has one — unvouched content is escaped at the
+                boundary, raw bodies included.
 
         Returns:
             The content after every permitted transformer has run.
         """
-        # Whether anyone vouched decides two separate things, so read it before escaping
-        # flattens the Markup away: what gets escaped, and whose mistakes get reported.
+        # Whether anyone vouched decides three separate things, so read it before escaping
+        # flattens the Markup away: what gets escaped, whose mistakes get reported, and
+        # whether there is any authored HTML left for the operator to strip.
         vouched = hasattr(content, "__html__")
-        if strip_html and vouched:
-            # Overrule the vouching: the operator has decided authored HTML is not part of
-            # the content format. Shortcodes are what replaces it, and they survive — an
-            # HTML parser has no opinion about square brackets. Re-wrapped as Markup so
-            # the escape() below leaves the surviving entities as the author wrote them.
-            stripped, removed = _strip_markup(str(content))
-            if removed:
-                # Lossy and silent otherwise, so say what went and how much of it.
-                logger.warning(
-                    "Removed %d HTML tag(s) from %s content (%s) because STRIP_CONTENT_HTML "
-                    "is on. The text they wrapped was kept.",
-                    len(removed),
-                    content_type,
-                    ", ".join(sorted(set(removed))),
-                )
-            content = Markup(stripped)
         # escape() is a no-op on anything carrying __html__, so this is the whole rule.
         # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
         # a bare tag in untrusted content still fires — harmlessly, since what it wraps is
@@ -735,16 +758,30 @@ class ContentTransformerRegistry:
         # and a closing tag that does, so a stranger writing an ordinary shortcode would
         # otherwise fail the render — a typo in a comment must not take a page down.
         permitted = [p for p in plugins if self.may_transform(p, content_type)]
-        # One parse for the whole pipeline, then every filter, then every shortcode. The
-        # plugins are no longer run one after another over a flat string: doing that made
-        # each stage re-derive the document the previous one had just discarded, and handed
-        # every filter the markup earlier shortcodes had produced.
-        return _render_document(
+        # One parse for the whole pipeline, then any stripping, then every filter, then
+        # every shortcode. The plugins are no longer run one after another over a flat
+        # string: doing that made each stage re-derive the document the previous one had
+        # just discarded, and handed every filter the markup earlier shortcodes had
+        # produced.
+        rendered, removed = _render_document(
             content,
             self.shortcodes_for(permitted, content_type),
             [plugin.transform_text for plugin in permitted],
             strict=vouched,
+            # Unvouched content was escaped above, raw bodies with it, so it has no tags
+            # left to strip and no way to pass one through a raw body either.
+            strip_html=strip_html and vouched,
         )
+        if removed:
+            # Lossy and silent otherwise, so say what went and how much of it.
+            logger.warning(
+                "Removed %d HTML tag(s) from %s content (%s) because STRIP_CONTENT_HTML "
+                "is on. The text they wrapped was kept.",
+                len(removed),
+                content_type,
+                ", ".join(sorted(set(removed))),
+            )
+        return rendered
 
     def shortcodes_for(
         self, plugins: Iterable[ContentTransformerPluginBase], content_type: ContentType
