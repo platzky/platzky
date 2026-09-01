@@ -266,22 +266,54 @@ Shortcodes are documented for content authors on the admin *Help* page
 
 Two rules, and they do not vary by shortcode:
 
-*Embed* ``content`` *directly. Never escape it.*
-    It is already safe by the time you see it. Content reaching
-    :meth:`~platzky.engine.Engine.transform_content` is escaped on the way in unless the
-    caller vouched for it by passing ``Markup`` — as ``blog.py`` does for a post body,
-    which an author with write access wrote — and a stored value rendered through
-    ``render_value`` is escaped there, because nobody vouched for it. Anything the
-    pipeline added since came from a plugin that was granted this content type, so it is
-    markup platzky itself produced.
+.. code-block:: python
 
-    Escaping it again is what makes a nested shortcode's output, or a text filter's, show
-    up as literal ``&lt;span&gt;`` on the page.
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        kind = attrs.type or "info"
+        return f'<div class="alert alert-{escape(kind)}">{content}</div>'
+        #                                 ^^^^^^^^^^^^   attribute — always escape
+        #                                                 ^^^^^^^   content — never escape
+
+*Embed* ``content`` *directly. Never escape it.*
+    Escaping already happened, before ``render`` was reached, at the boundary — the only
+    place that knows where the content came from.
 
 *Escape every attribute where you interpolate it.*
-    Attributes arrive raw. That escaping is an HTML-attribute-context obligation rather
-    than a trust judgement, so it applies just as much to a value an author typed as to
-    one out of a database.
+    Attributes arrive raw. That is an HTML-attribute-context obligation rather than a
+    trust judgement, so it applies just as much to a value an author typed as to one out
+    of a database.
+
+What "already safe" means in practice. Suppose a text filter is installed that colours the
+letter ``a`` red, and an author writes ``[alert type="warning"]danger[/alert]``:
+
+.. code-block:: text
+
+    content argument   d<span style="color:red">a</span>nger    <- the filter already ran
+    embedding it       <div class="alert alert-warning">d<span style="color:red">a</span>nger</div>
+    escaping it        <div class="alert alert-warning">d&lt;span style=&#34;color…nger</div>
+
+The second is the bug: the filter's markup is shown to the reader as literal text. The
+same happens to a nested shortcode's output, because by the time the outer shortcode runs
+the inner one has already rendered.
+
+Now the same shortcode rendering a *stored* value that is hostile:
+
+.. code-block:: text
+
+    database column    <img src=x onerror=alert(1)>
+    content argument   &lt;img src=x onerror=alert(1)&gt;    <- render_value escaped it
+    embedding it       <div class="alert alert-info">&lt;img src=x onerror=alert(1)&gt;</div>
+
+Embedding is right in both cases, and only the boundary changed. A post body is vouched
+for by ``blog.py``, which passes ``Markup`` because an author with write access wrote it;
+a stored value is escaped by ``render_value``, because nobody vouched for a database
+column. Anything the pipeline added in between — a filter's output, an inner shortcode's —
+came from a plugin granted this content type, so it is markup platzky itself produced.
+
+Attributes get no such treatment, which is why the second rule differs. A hostile ``type``
+attribute is defused only by the ``escape`` at the interpolation site::
+
+    <div class="alert alert-&#34; onmouseover=alert(1) x=&#34;">hi</div>
 
 A caller handing platzky content it did not write should pass a plain ``str`` and let the
 boundary escape it. Vouching is the deliberate act; the default is the safe one.
