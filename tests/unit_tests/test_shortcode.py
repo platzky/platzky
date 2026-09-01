@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 import pytest
+from markupsafe import Markup
 
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
@@ -144,7 +145,7 @@ class TestRenderField:
 
     def test_field_and_tag_rendering_are_the_same_html(self) -> None:
         sc = _echo_sc("mytag", "color")
-        from_tag = sc.render(_attrs_with(sc, color="red"), "X")
+        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"))
         from_field = sc.render_value({"color": "red", "value": "X"})
         assert from_tag == from_field
 

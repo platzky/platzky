@@ -250,7 +250,7 @@ class TestContentTransformerPluginBase:
     def test_override_registers_shortcode(self) -> None:
         f = ShoutFilter({})
         assert "shout" in f.shortcodes
-        assert f.shortcodes["shout"].render(ShortcodeAttrs([]), "hello") == "HELLO"
+        assert f.shortcodes["shout"].render(ShortcodeAttrs([]), Markup("hello")) == "HELLO"
 
     def test_filters_registered_under_capability_key(
         self, base_config_data: dict[str, Any]

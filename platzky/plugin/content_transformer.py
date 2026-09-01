@@ -10,7 +10,7 @@ from itertools import zip_longest
 from typing import ClassVar, cast, final
 
 import jinja2.ext
-from markupsafe import escape
+from markupsafe import Markup, escape
 
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.plugin.plugin import PluginBase
@@ -64,7 +64,12 @@ def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
             inner = m.group(3) or ""
             if inner:
                 inner = _apply(inner)
-            return sc.render(attrs, inner)
+            # Markup, and truthfully: by here the content was either vouched for by its
+            # caller or escaped at the boundary, and anything added since came from a
+            # permitted plugin. Saying so in the type is what tells a shortcode author not
+            # to escape it — and makes escaping it anyway a harmless no-op rather than a
+            # bug that shows the markup to the reader as literal text.
+            return sc.render(attrs, Markup(inner))
 
         return pattern.sub(_replace, text)
 

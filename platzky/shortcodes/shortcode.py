@@ -17,7 +17,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import ClassVar, cast, final
 
-from markupsafe import escape
+from markupsafe import Markup, escape
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
@@ -163,18 +163,26 @@ class Shortcode(ABC):
         return self.render(attrs, escape("" if content is None else content))
 
     @abstractmethod
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
         """Render the shortcode tag and return the replacement HTML.
 
-        **Embed ``content`` directly; never escape it.** It is already safe: whoever
-        supplied it either vouched for it or had it escaped at the boundary, and anything
-        the pipeline added since was produced by a plugin permitted for this content type.
-        Escaping it again is what makes a nested shortcode's markup, or a text filter's,
-        show up as literal ``&lt;span&gt;`` on the page.
+        **Embed ``content`` directly; never escape it.** Its type says why: ``Markup``
+        means the escaping decision is already made. Every character in it is either one
+        an untrusted source supplied — in which case the boundary already turned it into
+        an entity, and there is nothing left to neutralise — or one a trusted source meant
+        to render, written by an author with write access or produced by a plugin
+        permitted for this content type. So escaping here cannot add safety; it can only
+        turn markup that was meant into literal ``&lt;span&gt;`` on the page.
 
         **Escape every attribute where you interpolate it.** Attributes stay raw, because
         that escaping is an HTML-attribute-context obligation rather than a trust
         judgement, and it applies just as much to a value an author typed.
+
+        A subclass may still annotate ``content`` as ``str`` — widening a parameter is
+        allowed — and escaping it is a harmless no-op on a ``Markup``. The rule is
+        therefore about keeping meaning, not about safety. One caveat: ``Markup``
+        overloads ``+``, ``%`` and ``format`` to escape their *other* operand, so build
+        output with f-strings rather than concatenation or ``.format()``.
 
         Args:
             attrs: Parsed shortcode attributes with dot-access and default fallback. Raw —
