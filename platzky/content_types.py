@@ -1,21 +1,22 @@
 """Content types — the kinds of content platzky can hand to a transformer plugin.
 
-Platzky produces the three below. An application or a plugin large enough to bring its
-own kind of content — a map marker's fields, a catalogue's attributes — names its own and
-registers it, so nothing has to be built around it.
+Platzky provides defaults named below. An application or a plugin large enough
+can bring its own types of content.
 
 The vocabulary is therefore open, and a content type is just its name: a plugin accepting
 a kind of content another package brought never has to import that package, and installs
 just as cleanly where no such content exists, being simply never called.
 
-That openness costs static checking, which a closed ``Literal`` would give but cannot
-survive extension — platzky cannot know at type-check time what a package it has never
-heard of will add. A package that *does* know its own whole vocabulary can narrow for its
-own code::
+That openness costs static checking. A closed vocabulary would get a ``Literal`` — as
+``NotificationTopic`` does, since platzky owns every topic — but content types are open by
+design, and platzky cannot know at type-check time what a package it has never heard of
+will add. A name is therefore checked at runtime or not at all: an operator's grant naming
+a type nothing produces is reported at startup by ``warn_unknown_grants``.
 
-    GoodmapContentType = Literal["post", "page", "comment", "field"]
-
-which type-checks its own call sites while the boundary here stays open.
+Registration and discovery live on ``ContentTransformerRegistry``
+(``known_content_types``, ``acceptable_content_types``), not on this module, and
+deliberately: the vocabulary belongs to one application. Hanging it off the type instead
+would make it process-global and let one app's content types leak into another's.
 """
 
 ContentType = str

@@ -375,12 +375,11 @@ is only ever its name, so accepting a kind of content never means importing the 
 that brought it — otherwise every plugin handling marker fields would depend on the
 application that has them.
 
-The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a
-closed ``Literal`` cannot survive extension, since platzky cannot know at type-check time
-what a package it has never heard of will add. A package that knows its own whole
-vocabulary can narrow for its own code::
-
-    GoodmapContentType = Literal["post", "page", "comment", "field"]
+The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a closed
+``Literal`` cannot survive extension, since platzky cannot know at type-check time what a
+package it has never heard of will add. A name is therefore checked at runtime or not at
+all — an operator's grant naming a type nothing produces is reported at startup by
+``warn_unknown_grants``.
 
 A plugin can contribute one too, which is what lets a plugin large enough to bring its
 own kind of content install without an application built around it:
