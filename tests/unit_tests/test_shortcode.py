@@ -220,3 +220,36 @@ class TestApplyShortcodes:
         sc = _sc("block")
         result = _apply_shortcodes("[block]line1\nline2[/block]", {"block": sc})
         assert result == "[RENDERED:block:line1\nline2]"
+
+
+class TestTagMatching:
+    """Tags pair by stack, not by proximity."""
+
+    def test_tag_nests_inside_another_of_the_same_name(self) -> None:
+        sc = _sc("box")
+        result = _apply_shortcodes("[box][box]a[/box][/box]", {"box": sc})
+        assert result == "[RENDERED:box:[RENDERED:box:a]]"
+
+    def test_same_tag_nests_three_deep(self) -> None:
+        sc = _sc("box")
+        result = _apply_shortcodes("[box][box][box]x[/box][/box][/box]", {"box": sc})
+        assert result == "[RENDERED:box:[RENDERED:box:[RENDERED:box:x]]]"
+
+    def test_closing_tag_with_nothing_open_is_left_alone(self) -> None:
+        sc = _sc("box")
+        assert _apply_shortcodes("a[/box]", {"box": sc}) == "a[/box]"
+
+    def test_unclosed_tag_renders_empty_and_keeps_the_text_after_it(self) -> None:
+        """Matches how a tag written without a closing tag has always behaved."""
+        sc = _sc("box")
+        assert _apply_shortcodes("[box]a", {"box": sc}) == "[RENDERED:box:]a"
+
+    def test_crossed_tags_close_the_inner_one_first(self) -> None:
+        outer, inner = _sc("box"), _sc("b")
+        result = _apply_shortcodes("[box][b]x[/box]", {"box": outer, "b": inner})
+        assert result == "[RENDERED:box:[RENDERED:b:]x]"
+
+    def test_longer_tag_name_is_not_shadowed_by_a_shorter_prefix(self) -> None:
+        short, long = _sc("box"), _sc("boxed")
+        result = _apply_shortcodes("[boxed]q[/boxed]", {"box": short, "boxed": long})
+        assert result == "[RENDERED:boxed:q]"

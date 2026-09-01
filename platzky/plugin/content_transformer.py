@@ -46,34 +46,128 @@ _MAX_ATTR_VALUE_LEN = 2048
 _ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
 
 
+#: One frame of the parse stack: tag name, its raw attribute text, and the rendered
+#: pieces collected inside it so far. The outermost frame is the document itself and
+#: carries ``""`` as its name, which no shortcode can have.
+_Frame = tuple[str, str, list[str]]
+
+
+def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
+    """Build the token pattern matching an opening or closing tag of a known shortcode.
+
+    Names are alternated longest-first so a shortcode never shadows a longer one that
+    starts with the same letters.
+
+    Args:
+        shortcodes: Registered shortcodes, keyed by tag name.
+
+    Returns:
+        A pattern whose groups are (closing name, opening name, opening attributes).
+    """
+    names = "|".join(re.escape(n) for n in sorted(shortcodes, key=len, reverse=True))
+    return re.compile(rf"\[/({names})\]" rf"|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
+
+
+def _render_tag(shortcode: Shortcode, raw_attrs: str, inner: str) -> str:
+    """Render one shortcode with its parsed attributes and already-rendered content.
+
+    Args:
+        shortcode: The shortcode to render.
+        raw_attrs: The attribute text as written in the tag.
+        inner: Content between the tags, with any nested shortcodes already rendered.
+
+    Returns:
+        The shortcode's replacement HTML.
+    """
+    attrs = ShortcodeAttrs(list(shortcode.attributes))
+    attrs.values = dict(_ATTR_RE.findall(raw_attrs))
+    # Markup, and truthfully: by here the content was either vouched for by its caller or
+    # escaped at the boundary, and anything added since came from a permitted plugin.
+    # Saying so in the type is what tells a shortcode author not to escape it — and makes
+    # escaping it anyway a harmless no-op rather than a bug that shows the markup to the
+    # reader as literal text.
+    return shortcode.render(attrs, Markup(inner))
+
+
+def _close_unclosed_above(
+    stack: list[_Frame], depth: int, shortcodes: dict[str, Shortcode]
+) -> None:
+    """Discharge frames left open above ``depth``, treating each as a void tag.
+
+    An opening tag that is never closed renders with empty content, and the text that
+    followed it stays outside — the same shape ``[image url="…"]`` relies on, so a tag
+    that takes no closing tag and one whose author forgot it are handled alike. Telling
+    them apart needs shortcodes to declare a kind, which they do not yet.
+
+    Args:
+        stack: The parse stack, mutated in place.
+        depth: Index of the frame to stop at; everything above it is discharged.
+        shortcodes: Registered shortcodes, keyed by tag name.
+    """
+    while len(stack) - 1 > depth:
+        name, raw_attrs, parts = stack.pop()
+        stack[-1][2].append(_render_tag(shortcodes[name], raw_attrs, ""))
+        stack[-1][2].extend(parts)
+
+
+def _open_frame_for(stack: list[_Frame], name: str) -> int | None:
+    """Find the innermost frame a closing tag could belong to.
+
+    Args:
+        stack: The parse stack.
+        name: The tag name being closed.
+
+    Returns:
+        Index of the matching frame, or None if nothing on the stack opened this tag.
+    """
+    for index in range(len(stack) - 1, 0, -1):
+        if stack[index][0] == name:
+            return index
+    return None
+
+
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
+    """Render every registered shortcode in the content, innermost tag first.
+
+    Tokenises once and matches tags with a stack, so a tag nests inside another of the
+    same name and a closing tag pairs with the opening tag it actually belongs to. A
+    closing tag with nothing to close, and any tag name not registered here, are left in
+    the content as the author wrote them.
+
+    Args:
+        content: Content to scan for shortcode tags.
+        shortcodes: Registered shortcodes, keyed by tag name.
+
+    Returns:
+        The content with every registered shortcode replaced by its rendered HTML.
+    """
     if not shortcodes:
         return content
 
-    tag_names = "|".join(re.escape(n) for n in shortcodes)
-    pattern = re.compile(
-        rf"\[({tag_names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\](?:(.*?)\[/\1\])?",
-        re.DOTALL,
-    )
+    stack: list[_Frame] = [("", "", [])]
+    position = 0
 
-    def _apply(text: str) -> str:
-        def _replace(m: re.Match[str]) -> str:
-            sc = shortcodes[m.group(1)]
-            attrs = ShortcodeAttrs(list(sc.attributes))
-            attrs.values = dict(_ATTR_RE.findall(m.group(2) or ""))
-            inner = m.group(3) or ""
-            if inner:
-                inner = _apply(inner)
-            # Markup, and truthfully: by here the content was either vouched for by its
-            # caller or escaped at the boundary, and anything added since came from a
-            # permitted plugin. Saying so in the type is what tells a shortcode author not
-            # to escape it — and makes escaping it anyway a harmless no-op rather than a
-            # bug that shows the markup to the reader as literal text.
-            return sc.render(attrs, Markup(inner))
+    for match in _tag_pattern(shortcodes).finditer(content):
+        stack[-1][2].append(content[position : match.start()])
+        position = match.end()
+        closing, opening, raw_attrs = match.group(1), match.group(2), match.group(3)
 
-        return pattern.sub(_replace, text)
+        if closing is None:
+            stack.append((opening, raw_attrs or "", []))
+            continue
 
-    return _apply(content)
+        depth = _open_frame_for(stack, closing)
+        if depth is None:
+            stack[-1][2].append(match.group(0))
+            continue
+
+        _close_unclosed_above(stack, depth, shortcodes)
+        name, attrs_text, parts = stack.pop()
+        stack[-1][2].append(_render_tag(shortcodes[name], attrs_text, "".join(parts)))
+
+    stack[-1][2].append(content[position:])
+    _close_unclosed_above(stack, 0, shortcodes)
+    return "".join(stack[0][2])
 
 
 class ContentTransformerPluginBase(PluginBase, ABC):
@@ -183,6 +277,19 @@ class ContentTransformerPluginBase(PluginBase, ABC):
             Jinja2 extension classes to register; empty list by default.
         """
         return []
+
+
+def _plugin_label(plugin: "ContentTransformerPluginBase") -> str:
+    """Name a plugin the way an operator would recognise it in a log.
+
+    Args:
+        plugin: The plugin to name.
+
+    Returns:
+        The plugin's config key, or its class name if it was never registered with an
+        engine and so has no key stamped on it yet.
+    """
+    return plugin.name or type(plugin).__name__
 
 
 class ContentTransformerRegistry:
@@ -358,22 +465,30 @@ class ContentTransformerRegistry:
 
         Returns:
             Permitted shortcodes keyed by tag name. A name registered by more than one
-            permitted plugin is taken from the last, matching startup registration.
+            permitted plugin is taken from the *first*, which is the same one prose gets:
+            transformers run in order and the first to own a tag consumes it, so a later
+            registration could never have rendered it anyway. Taking the last here would
+            make a stored value render differently from the identical tag in a post body.
         """
         permitted: dict[str, Shortcode] = {}
+        owners: dict[str, str] = {}
         for plugin in plugins:
             if not self.may_transform(plugin, content_type):
                 continue
             for tag_name, shortcode in plugin.shortcodes.items():
                 if tag_name in permitted:
                     logger.warning(
-                        "Plugin %s shortcode %r overrides an existing registration for "
-                        "content type '%s'.",
-                        type(plugin).__name__,
+                        "Plugin %r registers shortcode %r, already registered by %r for "
+                        "content type '%s'. The earlier plugin wins; reorder the plugins "
+                        "in the config to change which.",
+                        _plugin_label(plugin),
                         tag_name,
+                        owners[tag_name],
                         content_type,
                     )
+                    continue
                 permitted[tag_name] = shortcode
+                owners[tag_name] = _plugin_label(plugin)
         return permitted
 
     def warn_unknown_grants(self) -> None:

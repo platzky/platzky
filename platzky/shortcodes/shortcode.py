@@ -6,8 +6,12 @@ Plugins register handlers through the ``shortcodes`` class variable on
     [tagname attr="val"]                     # void
     [tagname attr="val"]content[/tagname]    # block
 
-Nested shortcodes of different tag names work; nested same-tag shortcodes do not
-(the lazy regex finds the nearest closing tag).
+Shortcodes nest, including inside another of the same name: tags are matched with a
+stack, so a closing tag pairs with the opening tag it belongs to rather than the nearest
+one. A closing tag with nothing to close, and a tag name no plugin registered, are left
+in the content as the author wrote them. An opening tag that is never closed renders
+with empty content, which is also how a tag written without one — ``[image url="…"]`` —
+is handled.
 """
 
 import inspect

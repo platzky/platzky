@@ -306,7 +306,7 @@ class TestDispatch:
     def test_shortcodes_for_warns_on_collision(
         self, registry: ContentTransformerRegistry, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Two permitted plugins claiming a tag name warn, and the last one wins."""
+        """Two permitted plugins claiming a tag name warn, and the first one wins."""
         first, second = ShoutPlugin({}), PostOnlyPlugin({})
         registry.grant(first, frozenset({"post"}))
         registry.grant(second, frozenset({"post"}))
@@ -314,8 +314,46 @@ class TestDispatch:
         with caplog.at_level(logging.WARNING):
             result = registry.shortcodes_for([first, second], "post")
 
-        assert result["shout"] is second.shortcodes["shout"]
-        assert "overrides an existing registration" in caplog.text
+        assert result["shout"] is first.shortcodes["shout"]
+        assert "already registered by" in caplog.text
+
+    def test_collision_resolves_the_same_way_for_prose_and_stored_values(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """A contested tag renders identically whether written in prose or stored.
+
+        Prose has no choice: transformers run in order and the first to own a tag consumes
+        it, so a later plugin never sees it. ``shortcodes_for`` has to agree, or the same
+        promo code renders one way in a post body and another against a record. The two
+        plugins must render *differently* for this to test anything.
+        """
+
+        def plugin_rendering(marker: str) -> ContentTransformerPluginBase:
+            class _SC(Shortcode):
+                name = "promo"
+                description = "Exercised by tests."
+
+                def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                    """Wrap content in a marker identifying which plugin rendered it."""
+                    return f"<{marker}>{content}</{marker}>"
+
+            class _P(ContentTransformerPluginBase):
+                """Registers [promo] with an owner-specific rendering."""
+
+                accepted_content_types: Mapping[ContentType, str] = {"post": "Tests."}
+                shortcodes: ClassVar[dict[str, Shortcode]] = {"promo": _SC()}
+
+            return _P({})
+
+        first, second = plugin_rendering("alpha"), plugin_rendering("beta")
+        registry.grant(first, frozenset({"post"}))
+        registry.grant(second, frozenset({"post"}))
+
+        from_prose = registry.transform_content([first, second], "[promo]X[/promo]", "post")
+        from_value = registry.shortcodes_for([first, second], "post")["promo"].render_value("X")
+
+        assert from_prose == "<alpha>X</alpha>"
+        assert from_value == from_prose
 
 
 class TestGrantReporting:

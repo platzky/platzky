@@ -51,7 +51,11 @@ def _gather_shortcodes_and_extensions(
 ) -> tuple[dict[str, Shortcode], list[type[jinja2.ext.Extension]]]:
     """Collect shortcodes and Jinja2 extensions from a set of content-transformer plugins.
 
-    Logs a warning for any tag name that collides with an already-registered shortcode.
+    A tag name already claimed is kept by whoever claimed it first, and the loser is
+    logged. Built-ins are registered before any plugin, so a plugin cannot displace
+    ``[image]``, ``[link]`` or ``[hero]``, and among plugins the earlier config key wins —
+    the same rule prose follows, since transformers run in that order and the first to own
+    a tag consumes it.
 
     Args:
         plugins: Content-transformer plugins to inspect.
@@ -66,10 +70,13 @@ def _gather_shortcodes_and_extensions(
         for tag_name, shortcode in plugin.shortcodes.items():
             if tag_name in registered_shortcodes or tag_name in shortcodes:
                 logger.warning(
-                    "Plugin %s shortcode %r overrides an existing registration.",
-                    type(plugin).__name__,
+                    "Plugin %r registers shortcode %r, which is already registered. The "
+                    "earlier registration wins; reorder the plugins in the config to "
+                    "change which.",
+                    plugin.name or type(plugin).__name__,
                     tag_name,
                 )
+                continue
             shortcodes[tag_name] = shortcode
         extensions.extend(plugin.get_jinja_extensions())
     return shortcodes, extensions

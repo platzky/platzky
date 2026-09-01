@@ -60,8 +60,16 @@ Two consequences worth knowing:
     Stages are not independent, so a stage that raises stops the pipeline rather than
     passing partial output to the next one.
 
+*Two plugins claiming one tag name: the earlier wins.*
+    Prose has no other option — the first transformer to own a tag renders it, so the
+    later one never sees it. :meth:`~platzky.engine.Engine.shortcodes_for` and the admin
+    help page follow the same rule, so a stored value renders exactly as the identical tag
+    in a post body would. The loser is logged at startup, naming both plugins.
+
 Nothing sorts or prioritises the pipeline: an operator who needs a particular order gets
-it by ordering the config keys. A plugin cannot request a position.
+it by ordering the config keys. A plugin cannot request a position, and built-in
+shortcodes are registered ahead of every plugin, so ``[image]``, ``[link]`` and ``[hero]``
+cannot be displaced.
 
 .. _declaring-scope:
 
