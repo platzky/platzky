@@ -10,6 +10,7 @@ from itertools import zip_longest
 from typing import ClassVar, final
 
 import jinja2.ext
+from markupsafe import escape
 
 from platzky.content_types import ContentType
 from platzky.plugin.plugin import PluginBase
@@ -134,8 +135,18 @@ class ContentTransformerRegistry:
     engine so the routing rules sit beside the capability base they govern and the
     config model that defines the grant, and so they can be exercised without an app.
 
-    It deliberately does not own the plugins: the engine's capability registry remains
-    the single ordered source of those, and they are passed in on dispatch.
+    What it does not own is which transformers exist and in what order: ``Engine.plugins``
+    is that, uniformly for every capability, and the list arrives as a dispatch argument.
+    Three things keep it there. Transformers chain, so their order is semantic, and it is
+    set in two places — ``register_plugin`` appends, while ``platzky.py`` inserts the
+    builtin shortcodes at index 0 to run ahead of any plugin filter. One instance may
+    implement several capabilities and is registered under each, so only the engine sees
+    the whole picture. And applications add capability bases of their own through
+    ``extra_plugin_bases``, which ``register_plugin`` covers generically; a capability
+    owning its plugins would be a second registration path that mechanism misses.
+
+    It does hold a reference to every granted plugin, since the allowlist is keyed by
+    instance — membership and order are what live elsewhere, not the plugins themselves.
     """
 
     def __init__(self, known_content_types: Iterable[ContentType] = ()) -> None:
@@ -167,19 +178,6 @@ class ContentTransformerRegistry:
         """
         self._allowlist[plugin] = allowed_types
         self._pending_grants.append((plugin.name, allowed_types))
-
-    def grant_declared(self, plugin: ContentTransformerPluginBase) -> None:
-        """Grant a plugin exactly what it declares it accepts.
-
-        For a transformer the application owns rather than one an operator installed —
-        platzky's builtin shortcodes are not opt-in, so there is no operator grant to
-        read and the plugin's own declaration is the whole answer. It still goes through
-        the same gate as everything else; only where the second key comes from differs.
-
-        Args:
-            plugin: The application-owned plugin to grant.
-        """
-        self.grant(plugin, plugin.accepted_content_types)
 
     def may_transform(
         self, plugin: ContentTransformerPluginBase, content_type: ContentType
@@ -213,14 +211,28 @@ class ContentTransformerRegistry:
         Transformers chain their output, so a failing transformer aborts the chain rather
         than silently passing partial output to the next stage.
 
+        Content is escaped on the way in unless the caller vouched for it by passing
+        ``Markup`` — the caller is the only party that knows where it came from, so the
+        default is the safe one and vouching is the deliberate act. Everything the
+        pipeline adds afterwards is markup platzky itself produced, by plugins that turned
+        both keys for this content type, so it is trusted by construction and shortcodes
+        embed their content directly. See ``Shortcode.render``.
+
         Args:
             plugins: Content transformers in registration order.
-            content: The content to transform.
+            content: The content to transform. A plain ``str`` is treated as untrusted and
+                escaped; a ``Markup`` is taken as vouched for and passed through.
             content_type: The kind of content, e.g. ``POST``.
 
         Returns:
             The content after every permitted transformer has run.
         """
+        # escape() is a no-op on anything carrying __html__, so this is the whole rule.
+        # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
+        # a bare tag in untrusted content still fires — harmlessly, since what it wraps is
+        # already escaped — while a quoted attribute does not survive and that tag renders
+        # literally. Safety does not depend on which happens.
+        content = str(escape(content))
         for plugin in plugins:
             if not self.may_transform(plugin, content_type):
                 continue

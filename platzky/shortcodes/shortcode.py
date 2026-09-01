@@ -16,6 +16,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import ClassVar, cast, final
 
+from markupsafe import escape
+
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
 
@@ -136,8 +138,10 @@ class Shortcode(ABC):
         *declaring* — naming its ``content_key``, adding a ``ShortcodeAttr`` — so the two
         renderings cannot drift apart.
 
-        Escaping is ``render``'s responsibility, exactly as for a tag written by an
-        author — a field value is data and can be hostile.
+        A stored value is data and can be hostile, and nobody vouched for it, so it is
+        escaped here — the same rule ``transform_content`` applies to content nobody
+        vouched for. ``render`` therefore embeds its content directly and never escapes
+        it, on either path.
 
         Args:
             value: The stored value, as the application holds it.
@@ -153,15 +157,28 @@ class Shortcode(ABC):
             content = d.get(self.content_key, d.get("value", ""))
         else:
             content = value
-        return self.render(attrs, "" if content is None else str(content))
+        # str() would strip the Markup and make a shortcode that still escapes
+        # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
+        return self.render(attrs, escape("" if content is None else content))
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render the shortcode tag and return the replacement HTML.
 
+        **Embed ``content`` directly; never escape it.** It is already safe: whoever
+        supplied it either vouched for it or had it escaped at the boundary, and anything
+        the pipeline added since was produced by a plugin permitted for this content type.
+        Escaping it again is what makes a nested shortcode's markup, or a text filter's,
+        show up as literal ``&lt;span&gt;`` on the page.
+
+        **Escape every attribute where you interpolate it.** Attributes stay raw, because
+        that escaping is an HTML-attribute-context obligation rather than a trust
+        judgement, and it applies just as much to a value an author typed.
+
         Args:
-            attrs: Parsed shortcode attributes with dot-access and default fallback.
-            content: Inner content between opening and closing tags.
+            attrs: Parsed shortcode attributes with dot-access and default fallback. Raw —
+                escape at the point of use.
+            content: Inner content between opening and closing tags. Already safe to embed.
 
         Returns:
             Replacement HTML string.

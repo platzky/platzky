@@ -8,8 +8,6 @@ Two features:
 import re
 from typing import ClassVar
 
-from markupsafe import Markup
-
 from platzky.content_types import PAGE, POST, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.shortcodes import ShortcodeAttrs
@@ -30,12 +28,13 @@ class _RedShortcode(Shortcode):
 
         Args:
             attrs: Unused.
-            content: HTML content to colour red (may contain markup from earlier transforms).
+            content: Inner content, already safe to embed — it routinely carries markup
+                from this plugin's own ``transform_text``, one step earlier.
 
         Returns:
             Content wrapped in ``<span style="color:red">``.
         """
-        return str(Markup('<span style="color:red">{}</span>').format(Markup(content)))
+        return f'<span style="color:red">{content}</span>'
 
 
 class RedLetterPlugin(ContentTransformerPluginBase):

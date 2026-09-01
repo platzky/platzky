@@ -8,6 +8,7 @@ from unittest import mock
 
 import jinja2.ext
 import pytest
+from markupsafe import Markup
 
 from platzky.attachment import Attachment
 from platzky.config import Config
@@ -535,7 +536,11 @@ class TestContentTransformerWiring:
         """Builtin [image] shortcode must be resolved by the engine pipeline."""
         config = Config.model_validate(base_config_data)
         app = create_app_from_config(config)
-        result = app.transform_content('[image url="https://example.com/x.png" alt="x"]', "post")
+        # Markup vouches, as blog.py does for a post body; unvouched content is escaped
+        # and its shortcode syntax deliberately stops parsing.
+        result = app.transform_content(
+            Markup('[image url="https://example.com/x.png" alt="x"]'), "post"
+        )
         assert '<img src="https://example.com/x.png"' in result
 
     def test_transform_text_does_not_mangle_html_from_earlier_transformer(
@@ -552,7 +557,7 @@ class TestContentTransformerWiring:
                 return text.replace("a", "X")
 
         app = _app_with_plugin(base_config_data, "atox", AToXFilter)
-        result = app.transform_content('<img alt="anchor">', "post")
+        result = app.transform_content(Markup('<img alt="anchor">'), "post")
         assert result == '<img alt="anchor">'
 
     def test_jinja_extensions_registered(self, base_config_data: dict[str, Any]) -> None:

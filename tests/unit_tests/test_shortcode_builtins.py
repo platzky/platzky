@@ -53,8 +53,14 @@ class TestLinkShortcode:
         assert "<a" not in result
         assert "click" in result
 
-    def test_javascript_url_escapes_html_content(self) -> None:
-        result = _apply('[link url="javascript:alert(1)"]<img src=x onerror=1>[/link]')
+    def test_javascript_url_leaves_hostile_value_escaped(self) -> None:
+        """A rejected URL unwraps the content, which the boundary already escaped.
+
+        render_value is the hostile boundary, so this is the path hostile content
+        actually takes; render itself never escapes.
+        """
+        link = get_builtin_shortcodes()["link"]
+        result = link.render_value({"url": "javascript:alert(1)", "value": "<img src=x onerror=1>"})
         assert "<a" not in result
         assert "<img" not in result
         assert "&lt;img src=x onerror=1&gt;" in result

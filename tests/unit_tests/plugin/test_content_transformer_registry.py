@@ -8,13 +8,14 @@ import logging
 from typing import ClassVar
 
 import pytest
+from markupsafe import Markup, escape
 
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
 )
-from platzky.shortcodes import Shortcode, ShortcodeAttrs
+from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs
 
 
 class _ShoutShortcode(Shortcode):
@@ -38,6 +39,25 @@ class PostOnlyPlugin(ContentTransformerPluginBase):
 
     accepted_content_types: frozenset[ContentType] = frozenset({"post"})
     shortcodes: ClassVar[dict[str, Shortcode]] = {"shout": _ShoutShortcode()}
+
+
+class _WrapShortcode(Shortcode):
+    name = "wrap"
+    description = "Wrap content, taking an attribute."
+    attributes: ClassVar[ShortcodeAttrs] = ShortcodeAttrs(
+        [ShortcodeAttr("tone", "Tone of voice", required=False)]
+    )
+
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        """Wrap content in a span carrying the tone."""
+        return f'<span class="{escape(attrs.tone)}">{content}</span>'
+
+
+class AttrPlugin(ContentTransformerPluginBase):
+    """Registers a shortcode that takes a quoted attribute."""
+
+    accepted_content_types: frozenset[ContentType] = BUILTIN_CONTENT_TYPES
+    shortcodes: ClassVar[dict[str, Shortcode]] = {"wrap": _WrapShortcode()}
 
 
 @pytest.fixture
@@ -91,16 +111,61 @@ class TestMayTransform:
         assert not registry.may_transform(plugin, "post")
 
 
-class TestGrantDeclared:
-    def test_grants_exactly_what_the_plugin_accepts(
+class TestTrustBoundary:
+    """Content is escaped on the way in unless the caller vouched with Markup."""
+
+    def test_unvouched_content_is_escaped(self, registry: ContentTransformerRegistry) -> None:
+        """The caller said nothing about where this came from, so it is not trusted."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content([plugin], "<img src=x onerror=1>", "post")
+
+        assert result == "&lt;img src=x onerror=1&gt;"
+
+    def test_vouched_content_passes_through(self, registry: ContentTransformerRegistry) -> None:
+        """Markup is the caller vouching, as blog.py does for an author's post body."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content([plugin], Markup("<em>hi</em>"), "post")
+
+        assert result == "<em>hi</em>"
+
+    def test_unvouched_tag_without_attributes_still_fires(
         self, registry: ContentTransformerRegistry
     ) -> None:
-        """An application-owned plugin needs no operator grant: its declaration is the grant."""
-        plugin = PostOnlyPlugin({})
-        registry.grant_declared(plugin)
+        """Escaping does not stop shortcode parsing — it only makes the content safe.
 
-        assert registry.may_transform(plugin, "post")
-        assert not registry.may_transform(plugin, "page")
+        Brackets are not escaped, so a bare tag in untrusted content still invokes the
+        plugin. That is not a hole: whatever it renders was escaped on the way in.
+        """
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        assert registry.transform_content([plugin], "[shout]hi[/shout]", "post") == "HI"
+
+    def test_unvouched_tag_with_attributes_stops_parsing(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """A quoted attribute does not survive escaping, so the tag renders literally.
+
+        An inconsistency worth knowing about rather than relying on: whether an untrusted
+        tag fires depends on whether it carries attributes. Both outcomes are safe.
+        """
+        plugin = AttrPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content([plugin], '[wrap tone="loud"]hi[/wrap]', "post")
+
+        assert result == "[wrap tone=&#34;loud&#34;]hi[/wrap]"
+
+    def test_vouched_shortcode_still_fires(self, registry: ContentTransformerRegistry) -> None:
+        """The same tag in vouched content renders normally."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        assert registry.transform_content([plugin], Markup("[shout]hi[/shout]"), "post") == "HI"
 
 
 class TestDispatch:

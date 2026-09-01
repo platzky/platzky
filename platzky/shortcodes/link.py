@@ -25,7 +25,10 @@ class LinkShortcode(Shortcode):
     example = '[link url="https://example.com"]Click here[/link]'
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Render an anchor tag, returning raw content if the URL is not allowed.
+        """Render an anchor tag, returning the content unwrapped if the URL is not allowed.
+
+        Content is embedded as-is per the ``render`` contract; only the attributes are
+        escaped here.
 
         Args:
             attrs: Parsed shortcode attributes (url, target).
@@ -35,11 +38,11 @@ class LinkShortcode(Shortcode):
             An ``<a>`` tag, or raw content if the URL is not allowed.
         """
         if not is_url_allowed(attrs.url):
-            return str(escape(content))
+            return content
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
         rel_attr = ' rel="noopener noreferrer"' if target_value == "_blank" else ""
-        return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{escape(content)}</a>'
+        return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{content}</a>'
 
 
 link_shortcode = LinkShortcode()

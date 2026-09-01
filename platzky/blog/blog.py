@@ -160,7 +160,8 @@ def create_blog_blueprint(
         return render_template(
             "post.html",
             post=post,
-            content=content_transformer(post.contentInMarkdown, POST),
+            # Markup vouches: a post body is written by someone with CMS write access.
+            content=content_transformer(Markup(post.contentInMarkdown), POST),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -182,7 +183,8 @@ def create_blog_blueprint(
             "page.html",
             title=page.title,
             css=page.css,
-            content=content_transformer(page.contentInMarkdown, PAGE),
+            # Markup vouches, as for a post body.
+            content=content_transformer(Markup(page.contentInMarkdown), PAGE),
             cover_image=cover_image_url,
         )
 

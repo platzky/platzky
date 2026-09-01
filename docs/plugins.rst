@@ -140,13 +140,38 @@ Declare ``shortcodes`` as a class variable:
 
         def render(self, attrs: ShortcodeAttrs, content: str) -> str:
             kind = attrs.type or "info"
-            return str(Markup('<div class="alert alert-{}">{}</div>').format(escape(kind), escape(content)))
+            # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
+            return f'<div class="alert alert-{escape(kind)}">{content}</div>'
 
     class AlertPlugin(ContentTransformerPluginBase):
         """Adds an [alert] shortcode for Bootstrap alert boxes."""
 
         accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
         shortcodes: ClassVar[dict[str, Shortcode]] = {"alert": _AlertShortcode()}
+
+**Escaping**
+
+Two rules, and they do not vary by shortcode:
+
+*Embed* ``content`` *directly. Never escape it.*
+    It is already safe by the time you see it. Content reaching
+    :meth:`~platzky.engine.Engine.transform_content` is escaped on the way in unless the
+    caller vouched for it by passing ``Markup`` — as ``blog.py`` does for a post body,
+    which an author with write access wrote — and a stored value rendered through
+    ``render_value`` is escaped there, because nobody vouched for it. Anything the
+    pipeline added since came from a plugin that was granted this content type, so it is
+    markup platzky itself produced.
+
+    Escaping it again is what makes a nested shortcode's output, or a text filter's, show
+    up as literal ``&lt;span&gt;`` on the page.
+
+*Escape every attribute where you interpolate it.*
+    Attributes arrive raw. That escaping is an HTML-attribute-context obligation rather
+    than a trust judgement, so it applies just as much to a value an author typed as to
+    one out of a database.
+
+A caller handing platzky content it did not write should pass a plain ``str`` and let the
+boundary escape it. Vouching is the deliberate act; the default is the safe one.
 
 .. _value-rendering:
 
