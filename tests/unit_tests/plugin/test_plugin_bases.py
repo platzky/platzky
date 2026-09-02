@@ -13,12 +13,15 @@ from markupsafe import Markup
 
 from platzky.attachment import Attachment
 from platzky.config import Config
-from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, ContentType
 from platzky.db.db import DB
 from platzky.engine import Engine
 from platzky.notification_topics import NotificationTopic
 from platzky.platzky import create_app_from_config, create_engine
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.plugin.content_transformer import (
+    ContentTransformerPluginBase,
+    ContentTransformerRegistry,
+)
 from platzky.plugin.html_injector import HtmlInjectorPluginBase, PageSection
 from platzky.plugin.notifier import Notification, NotifierPluginBase
 from platzky.plugin.plugin import PluginBase
@@ -289,15 +292,15 @@ class TestContentTransformerPluginBase:
             )
             shortcodes: ClassVar[dict[str, Shortcode]] = {"btag": _BTagSC()}
 
-        combined = {**AFilter.shortcodes, **BFilter.shortcodes}
+        a_filter, b_filter = AFilter({}), BFilter({})
+        registry = ContentTransformerRegistry(BUILTIN_CONTENT_TYPES)
+        for plugin in (a_filter, b_filter):
+            registry.grant(plugin, frozenset({POST}))
 
-        class _CombinedTestPlugin(ContentTransformerPluginBase):
-            accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
-                BUILTIN_CONTENT_TYPES, "Exercised by tests."
-            )
+        result = registry.transform_content(
+            [a_filter, b_filter], Markup("[atag]x[/atag] [btag]y[/btag]"), POST
+        )
 
-        _CombinedTestPlugin.shortcodes = combined
-        result = _CombinedTestPlugin({}).transform_content("[atag]x[/atag] [btag]y[/btag]")
         assert result == "A(x) B(y)"
 
 

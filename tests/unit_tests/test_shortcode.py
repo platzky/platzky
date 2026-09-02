@@ -5,19 +5,31 @@ from collections.abc import Mapping
 import pytest
 from markupsafe import Markup
 
-from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
-from platzky.plugin.content_transformer import ContentTransformerPluginBase
+from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, ContentType
+from platzky.plugin.content_transformer import (
+    ContentTransformerPluginBase,
+    ContentTransformerRegistry,
+)
 from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
 
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
+    """Parse content with these shortcodes registered, through a granted registry.
+
+    ``Markup`` because these tests are about what a parser does with a post body, whose
+    author vouched for it — an unvouched string is escaped and parsed leniently instead.
+    """
+
     class _TestPlugin(ContentTransformerPluginBase):
         accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
             BUILTIN_CONTENT_TYPES, "Exercised by tests."
         )
 
     _TestPlugin.shortcodes = shortcodes
-    return _TestPlugin({}).transform_content(content)
+    plugin = _TestPlugin({})
+    registry = ContentTransformerRegistry(BUILTIN_CONTENT_TYPES)
+    registry.grant(plugin, frozenset({POST}))
+    return registry.transform_content([plugin], Markup(content), POST)
 
 
 def _sc(tag: str) -> Shortcode:

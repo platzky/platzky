@@ -24,10 +24,11 @@ own kinds (see :ref:`new-content-types`), and plugins opt in to those the same w
 
 Override ``transform_text`` to apply plain-text transformations. What reaches it is only
 what an author typed between tags: never a shortcode's attributes, never another
-shortcode's output, and never the body of a ``raw`` tag. ``transform_content`` is
-``@final`` and must not be overridden — the pipeline parses the whole document once,
-then runs every filter, then renders every tag, so a transformer no longer controls that
-sequence for itself.
+shortcode's output, and never the body of a ``raw`` tag. It is the only method a
+transformer implements: running one is the registry's job, reached through
+``Engine.transform_content``, which parses the whole document once, then runs every
+permitted filter, then renders every permitted tag. A transformer does not control that
+sequence for itself, and has no way to run outside the operator's grant.
 
 A transformer's other half is :doc:`shortcodes` — named tags it registers, rendered by
 the same pass. This page covers where a transformer is allowed to run; that one covers

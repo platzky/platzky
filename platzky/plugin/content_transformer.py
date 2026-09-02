@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from itertools import zip_longest
-from typing import ClassVar, cast, final
+from typing import ClassVar, cast
 
 import jinja2.ext
 from markupsafe import Markup, escape
@@ -483,8 +483,10 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     routing — ``Engine.may_transform`` decides, not the plugin, so widening
     ``accepted_content_types`` cannot widen the operator's grant.
 
-    Declare ``shortcodes`` to register shortcode tags; they are applied
-    automatically by ``transform_content``. An application rendering a *stored value*
+    Declare ``shortcodes`` to register shortcode tags; they are applied automatically by
+    ``Engine.transform_content``, which is the only thing that runs a plugin — a plugin
+    never transforms content itself, because running one is the registry's job and the
+    gate is where it makes its decision. An application rendering a *stored value*
     through ``Shortcode.render_value`` bypasses ``transform_content`` entirely, so it
     must take its shortcodes from ``Engine.shortcodes_for`` to stay behind the same
     gate rather than reading ``shortcodes`` off loaded plugins itself.
@@ -525,33 +527,6 @@ class ContentTransformerPluginBase(PluginBase, ABC):
                 )
 
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
-
-    @final
-    def transform_content(self, content: str, *, strict: bool = True) -> str:
-        """Parse the content, run this plugin's text filter, then render its shortcodes.
-
-        Not overridable — override ``transform_text`` instead. This runs the plugin on its
-        own; in a pipeline the registry runs every plugin's filter and every plugin's
-        shortcodes through the same three passes, so that a filter never sees another
-        shortcode's output.
-
-        Args:
-            content: Raw content string to transform.
-            strict: Whether a malformed shortcode tag is an error. The registry passes
-                False for content nobody vouched for, whose author cannot fix it and whose
-                tags escaping has already mangled. A direct caller is transforming content
-                it holds itself, so the default reports mistakes.
-
-        Returns:
-            Transformed content string.
-
-        Raises:
-            ShortcodeError: If ``strict`` and a shortcode tag is malformed.
-        """
-        rendered, _ = _render_document(
-            content, self.shortcodes, [self.transform_text], strict=strict
-        )
-        return rendered
 
     def transform_text(self, text: str) -> str:
         """Apply plain-text transformation to a non-tag content segment.
