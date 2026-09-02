@@ -470,11 +470,12 @@ class ContentTransformerPluginBase(PluginBase, ABC):
 
     A plugin with no technical constraint on where it runs declares
     ``ALL_CONTENT_TYPES`` — offering every type in the vocabulary, including ones invented
-    after it was written. A plugin that does have a constraint enumerates: one whose
-    shortcode embeds raw markup, reaches an external host, or costs something to run
-    cannot honestly claim to work anywhere, and naming its types is how it says so.
+    after it was written. A plugin that does have a constraint names each type it can
+    serve: one whose shortcode emits block-level layout markup, reaches an external host,
+    or costs something to run cannot honestly claim to work anywhere, and naming its types
+    is how it says so.
 
-    Enumerating is *not* how a plugin keeps itself out of comments — whether commenters
+    Naming types is *not* how a plugin keeps itself out of comments — whether commenters
     may use it is the operator's policy, and their grant already decides it. A plugin may
     also name a kind of content some other package brings — accepting one never means
     importing that package — and still install on an
@@ -645,8 +646,8 @@ class ContentTransformerRegistry:
 
         The set of choices, not the decision: an admin panel offers exactly these and the
         operator ticks the ones they want, which become ``allowed_content_types``. A
-        wildcard offers everything in the vocabulary; an enumeration offers only what it
-        names.
+        wildcard offers everything in the vocabulary; a declaration that names types offers
+        only those.
 
         Resolved on each call rather than cached, because plugins contribute content types
         as they load and the vocabulary is only complete once loading is done.
@@ -664,7 +665,7 @@ class ContentTransformerRegistry:
     def rationale_for(self, plugin: ContentTransformerPluginBase, content_type: ContentType) -> str:
         """Why this plugin is asking for this content type, in its author's words.
 
-        Shown beside the checkbox an operator ticks. A plugin that enumerates gives a
+        Shown beside the checkbox an operator ticks. A plugin that names its types gives a
         reason per type; one declaring ``ALL_CONTENT_TYPES`` gives a single reason that
         stands for every type it is offered.
 

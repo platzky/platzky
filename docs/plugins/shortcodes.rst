@@ -126,9 +126,9 @@ document a second time. ``[link]`` drops its text along with the tag, since link
 written to be clicked and reads as a mistake when left stranded in prose. The log is the
 only trace either leaves, because nobody can see an absence.
 
-All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` embeds its content as raw
-markup, so the built-in transformer enumerates rather than claiming to suit any kind of
-content.
+All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` emits a ``<div class="hero">``
+header block, which only makes sense in a document body, so the built-in transformer names
+its types rather than claiming to suit any kind of content.
 
 Shortcodes are documented for content authors on the admin *Help* page
 (``/admin/help``).

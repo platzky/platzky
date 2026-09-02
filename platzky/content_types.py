@@ -46,7 +46,7 @@ class _AllContentTypes(str):
 #:
 #: It is not a way to skip the question, and it grants nothing. An operator still names
 #: every content type they want the plugin to act on, and silence is still refusal — the
-#: wildcard only decides which types they are *offered*. A plugin whose shortcode embeds
-#: raw markup, reaches an external host, or costs something to run has a real constraint
-#: and should enumerate instead.
+#: wildcard only decides which types they are *offered*. A plugin whose shortcode emits
+#: block-level layout markup, reaches an external host, or costs something to run has a
+#: real constraint and should name its types instead.
 ALL_CONTENT_TYPES: ContentType = _AllContentTypes("*")

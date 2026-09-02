@@ -125,10 +125,11 @@ a plugin written today is offered one invented tomorrow and never hardcodes a na
 belonging to a package it does not depend on. It grants nothing on its own — the operator
 still names each type.
 
-Enumerate when there is a real constraint. A shortcode that embeds raw markup, reaches an
-external host, or costs something to run cannot honestly claim to work anywhere. The
-built-in ``[hero]`` tag is the in-tree example: it wraps whatever it is given as raw
-markup by design, so its transformer names its types instead:
+Name each type instead when there is a real constraint. A shortcode that emits
+block-level layout markup, reaches an external host, or costs something to run cannot
+honestly claim to work anywhere. The built-in ``[hero]`` tag is the in-tree example: it
+wraps what it is given in a ``<div class="hero">``, a header block that only makes sense
+in a document body, so its transformer names the two types where that is true:
 
 .. code-block:: python
 
@@ -144,7 +145,7 @@ markup by design, so its transformer names its types instead:
             PAGE: "Wraps a page body in a hero block.",
         }
 
-Enumerating is **not** how a plugin keeps itself out of comments. Whether commenters may
+Naming types is **not** how a plugin keeps itself out of comments. Whether commenters may
 use a shortcode is the operator's policy — their grant already decides it, and a plugin
 narrowing its declaration for that reason only takes away a choice that was theirs to
 make.
