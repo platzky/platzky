@@ -12,7 +12,7 @@ class HtmlShortcode(Shortcode):
     prose cannot quietly edit what is in here.
 
     Verbatim also means HTML written inside reaches the page as HTML, and keeps doing so
-    where ``STRIP_CONTENT_HTML`` removes the HTML around it: the flag has the operator
+    where ``STRIP_CONTENT_HTML`` removes the HTML around it: the flag has the site owner
     decide that prose is not written in HTML, and this tag is how an author says a
     particular piece of it is meant. That escape hatch is only open to whoever the caller
     vouched for — an author with CMS write access. Content nobody vouched for, a comment

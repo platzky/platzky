@@ -65,7 +65,7 @@ subclass several.
    capabilities
 
 The rest of this page is what every plugin needs regardless of capability: how to
-package it, how an operator configures it, and how it is listed and translated.
+package it, how a site owner configures it, and how it is listed and translated.
 
 Accessing the Engine from Request Handlers
 -------------------------------------------
@@ -148,7 +148,7 @@ For notifier plugins you can restrict which topics the plugin receives:
     }
 
 For content transformer plugins, ``allowed_content_types`` names the content types the
-plugin may act on — the operator's half of the two-key contract in
+plugin may act on — the :term:`site owner`\ 's half of :term:`offer and grant` in
 :ref:`declaring-scope`. Omitting it grants nothing, and naming a type the plugin does not
 offer grants nothing either. Include an application's own type (here ``"field"``) to let
 the plugin's shortcodes render stored values of that kind as well as prose:
@@ -185,7 +185,7 @@ Admin Help Page
 
 Loaded plugins and their shortcodes are listed on the admin *Help* page
 (``/admin/help``). A plugin is listed under its own ``name`` — the entry-point name it is
-installed and configured under — so an operator reading the page can find it in their
+installed and configured under — so a site owner reading the page can find it in their
 config. The description comes from the class docstring; override ``get_info()`` to write
 one by hand:
 

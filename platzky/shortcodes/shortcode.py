@@ -57,7 +57,7 @@ class ShortcodeError(ValueError):
 
     A ``ValueError`` because the content is the bad input. It carries the tag name and the
     offset it was written at: this surfaces as a failed page render, so the log is the
-    only evidence an operator gets of which bracket was wrong.
+    only evidence a site owner gets of which bracket was wrong.
     """
 
     def __init__(self, message: str, tag: str, position: int) -> None:

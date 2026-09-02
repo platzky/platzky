@@ -44,5 +44,6 @@ Additional Notes
 .. toctree::
    :maxdepth: 2
 
+   glossary
    changelog
    license

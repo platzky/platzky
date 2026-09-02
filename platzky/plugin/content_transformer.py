@@ -145,7 +145,7 @@ class _MarkupStripper(HTMLParser):
         """Drop a closing tag without recording it; its opener already counted."""
 
     def handle_comment(self, data: str) -> None:  # noqa: ARG002
-        """Drop a comment, recording it under a name an operator will recognise."""
+        """Drop a comment, recording it under a name a site owner will recognise."""
         self.removed.append("<!--")
 
     def handle_data(self, data: str) -> None:
@@ -464,7 +464,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     """Base class for content-transformer plugins.
 
     Subclasses declare which content types they want to transform via
-    ``accepted_content_types``. That declaration is the set of choices an operator is
+    ``accepted_content_types``. That declaration is the set of choices a site owner is
     offered, not a grant: they still name each type in ``allowed_content_types``, and
     silence is refusal.
 
@@ -476,13 +476,13 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     is how it says so.
 
     Naming types is *not* how a plugin keeps itself out of comments — whether commenters
-    may use it is the operator's policy, and their grant already decides it. A plugin may
+    may use it is the site owner's policy, and their grant already decides it. A plugin may
     also name a kind of content some other package brings — accepting one never means
     importing that package — and still install on an
     application that has no such content, where it is simply never called. To *bring* a
     content type, see ``PluginBase.provides_content_types``. The engine enforces final
     routing — ``Engine.may_transform`` decides, not the plugin, so widening
-    ``accepted_content_types`` cannot widen the operator's grant.
+    ``accepted_content_types`` cannot widen the site owner's grant.
 
     Declare ``shortcodes`` to register shortcode tags; they are applied automatically by
     ``Engine.transform_content``, which is the only thing that runs a plugin — a plugin
@@ -503,7 +503,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Reject a declaration that asks for a content type without saying why.
 
-        Required, not encouraged: the rationale is shown beside the checkbox an operator
+        Required, not encouraged: the rationale is shown beside the checkbox a site owner
         ticks, and a reason nothing enforces is a reason that rots.
 
         Raises:
@@ -524,7 +524,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
                 name = "ALL_CONTENT_TYPES" if content_type is ALL_CONTENT_TYPES else content_type
                 raise ValueError(
                     f"{cls.__name__}.accepted_content_types[{name!r}] needs a reason an "
-                    f"operator can read when deciding whether to grant it."
+                    f"site owner can read when deciding whether to grant it."
                 )
 
     shortcodes: ClassVar[dict[str, Shortcode]] = {}
@@ -553,7 +553,7 @@ class ContentTransformerPluginBase(PluginBase, ABC):
 
 
 def _plugin_label(plugin: "ContentTransformerPluginBase") -> str:
-    """Name a plugin the way an operator would recognise it in a log.
+    """Name a plugin the way a site owner would recognise it in a log.
 
     Args:
         plugin: The plugin to name.
@@ -569,7 +569,7 @@ class ContentTransformerRegistry:
     """The gate deciding which content transformers may act on which content.
 
     Holds the content-type vocabulary transformers route on and each plugin's
-    operator-granted allowlist, and applies both when dispatching. Kept apart from the
+    allowlist the site owner granted, and applies both when dispatching. Kept apart from the
     engine so the routing rules sit beside the capability base they govern and the
     config model that defines the grant, and so they can be exercised without an app.
 
@@ -601,7 +601,7 @@ class ContentTransformerRegistry:
     def grant(
         self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
-        """Record the operator's grant for a plugin.
+        """Record the site owner's grant for a plugin.
 
         One call because it is one decision: the same grant is what ``may_transform``
         enforces and what ``warn_unknown_grants`` later checks for typos. An empty
@@ -612,7 +612,7 @@ class ContentTransformerRegistry:
             plugin: The plugin the grant applies to. Its ``name`` identifies it in any
                 later warning, so grant it after ``Engine.register_plugin`` has stamped
                 that on.
-            allowed_types: Content types the operator granted it.
+            allowed_types: Content types the site owner granted it.
         """
         self._allowlist[plugin] = allowed_types
         self._pending_grants.append((plugin.name, allowed_types))
@@ -622,13 +622,13 @@ class ContentTransformerRegistry:
     ) -> bool:
         """Return whether this plugin may act on this kind of content.
 
-        Both keys must turn: the plugin's own ``accepted_content_types`` declaration and
-        the operator's grant. The allowlist lives here and a plugin never receives it, so
-        widening ``accepted_content_types`` at runtime opens the first key and not the
-        second. Default-deny: an unlisted plugin is blocked, as is an empty grant.
+        Offer and grant must agree: the plugin's own ``accepted_content_types`` declaration
+        and the site owner's grant. The allowlist lives here and a plugin never receives it,
+        so widening ``accepted_content_types`` at runtime changes the offer and not the
+        grant. Default-deny: an unlisted plugin is blocked, as is an empty grant.
 
-        ``ALL_CONTENT_TYPES`` turns the first key for anything in the vocabulary, and
-        nothing more — the operator still names each type they want acted on.
+        ``ALL_CONTENT_TYPES`` offers anything in the vocabulary, and nothing more — the
+        site owner still names each type they want acted on.
 
         Args:
             plugin: The content-transformer plugin to check.
@@ -642,10 +642,10 @@ class ContentTransformerRegistry:
         return content_type in self._allowlist.get(plugin, frozenset())
 
     def acceptable_content_types(self, plugin: ContentTransformerPluginBase) -> set[ContentType]:
-        """The content types an operator may grant this plugin — its declaration, resolved.
+        """The content types a site owner may grant this plugin — its declaration, resolved.
 
         The set of choices, not the decision: an admin panel offers exactly these and the
-        operator ticks the ones they want, which become ``allowed_content_types``. A
+        site owner ticks the ones they want, which become ``allowed_content_types``. A
         wildcard offers everything in the vocabulary; a declaration that names types offers
         only those.
 
@@ -665,7 +665,7 @@ class ContentTransformerRegistry:
     def rationale_for(self, plugin: ContentTransformerPluginBase, content_type: ContentType) -> str:
         """Why this plugin is asking for this content type, in its author's words.
 
-        Shown beside the checkbox an operator ticks. A plugin that names its types gives a
+        Shown beside the checkbox a site owner ticks. A plugin that names its types gives a
         reason per type; one declaring ``ALL_CONTENT_TYPES`` gives a single reason that
         stands for every type it is offered.
 
@@ -699,7 +699,7 @@ class ContentTransformerRegistry:
         ``Markup`` — the caller is the only party that knows where it came from, so the
         default is the safe one and vouching is the deliberate act. Everything the
         pipeline adds afterwards is markup platzky itself produced, by plugins that turned
-        both keys for this content type, so it is trusted by construction and shortcodes
+        offered and granted this content type, so it is trusted by construction and shortcodes
         embed their content directly. See ``Shortcode.render``.
 
         Args:
@@ -708,7 +708,7 @@ class ContentTransformerRegistry:
                 escaped; a ``Markup`` is taken as vouched for and passed through.
             content_type: The kind of content, e.g. ``POST``.
             strip_html: Overrule vouching and remove HTML tags the author wrote, keeping
-                the text they wrapped and logging what went. The operator's call, behind
+                the text they wrapped and logging what went. The site owner's call, behind
                 ``STRIP_CONTENT_HTML``: shortcodes still render, but a site turning it on
                 needs some other way to format a post, because HTML is currently the only
                 one platzky has. A ``"raw"`` shortcode body is exempt: it is verbatim by
@@ -721,7 +721,7 @@ class ContentTransformerRegistry:
         """
         # Whether anyone vouched decides three separate things, so read it before escaping
         # flattens the Markup away: what gets escaped, whose mistakes get reported, and
-        # whether there is any authored HTML left for the operator to strip.
+        # whether there is any authored HTML left for the site owner to strip.
         vouched = hasattr(content, "__html__")
         # escape() is a no-op on anything carrying __html__, so this is the whole rule.
         # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
@@ -768,7 +768,7 @@ class ContentTransformerRegistry:
         ``Shortcode.render_value`` instead of transforming prose. That call does not pass
         through ``transform_content``, so an application collecting shortcodes off its
         loaded plugins itself would honour neither the plugin's declaration nor the
-        operator's grant — the grant would silently govern nothing.
+        site owner's grant — the grant would silently govern nothing.
 
         Args:
             plugins: Content transformers in registration order.
@@ -809,7 +809,7 @@ class ContentTransformerRegistry:
         registers its own, and a plugin may name one this application does not have — a
         plugin built for another application installs cleanly and stays inert, which is
         deliberate. A grant naming a type nothing produces is almost always a typo in
-        operator config, though, and silently grants nothing, so say so rather than
+        site-owner config, though, and silently grants nothing, so say so rather than
         leaving a transformer mysteriously idle.
 
         Called by the plugin loader once every plugin is loaded, so that a plugin

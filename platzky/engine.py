@@ -100,10 +100,10 @@ class Engine(Flask):
             extra_content_types: Content types the application produces beyond
                 ``BUILTIN_CONTENT_TYPES`` — a marker field, a catalogue attribute. Plugins
                 opt in to them through ``accepted_content_types`` exactly as they do for a
-                post, and operators grant them the same way. This parameter is the
+                post, and site owners grant them the same way. This parameter is the
                 application's own contribution; a plugin declares any type it introduces
                 through ``PluginBase.provides_content_types``. Both are added to
-                ``known_content_types``, and an operator grants from that union.
+                ``known_content_types``, and a site owner grants from that union.
         """
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
@@ -311,7 +311,7 @@ class Engine(Flask):
             allowed = ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
             # Checked once every plugin has loaded, not here: a plugin may contribute the
             # very content type another plugin was granted, and which loads first is not
-            # something operator config should have to think about.
+            # something site-owner config should have to think about.
             app.content_transformers.grant(plugin_instance, allowed)
         if isinstance(plugin_instance, HtmlInjectorPluginBase):
             if not plugin_instance.accepted_page_sections:

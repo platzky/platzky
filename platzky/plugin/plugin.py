@@ -49,7 +49,7 @@ class PluginBase(ABC):
     name: str = ""
 
     #: Content types this plugin *defines*, added to the application's vocabulary so other
-    #: plugins can accept them and operators can grant them — the counterpart to
+    #: plugins can accept them and site owners can grant them — the counterpart to
     #: ``ContentTransformerPluginBase.accepted_content_types``, which names what a plugin
     #: *consumes*. A plugin large enough to bring its own kind of content (a map's marker
     #: fields, a catalogue's attributes) defines it here rather than the application having
@@ -85,7 +85,7 @@ class PluginBase(ABC):
         """Return a metadata snapshot describing this plugin.
 
         The name is the plugin's own ``name`` — the one it is configured and installed
-        under, so the admin page names it as an operator would look it up. It falls back
+        under, so the admin page names it as a site owner would look it up. It falls back
         to the class name for a plugin never registered with an engine. Override to
         provide a description; the docstring is used when you do not.
         """

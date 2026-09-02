@@ -10,7 +10,7 @@ just as cleanly where no such content exists, being simply never called.
 That openness costs static checking. A closed vocabulary would get a ``Literal`` — as
 ``NotificationTopic`` does, since platzky owns every topic — but content types are open by
 design, and platzky cannot know at type-check time what a package it has never heard of
-will add. A name is therefore checked at runtime or not at all: an operator's grant naming
+will add. A name is therefore checked at runtime or not at all: a site owner's grant naming
 a type nothing produces is reported at startup by ``warn_unknown_grants``.
 
 Registration and discovery live on ``ContentTransformerRegistry``
@@ -44,7 +44,7 @@ class _AllContentTypes(str):
 #: to a package it does not depend on. Resolution is lazy: plugins contribute types as
 #: they load, so the answer is only complete once loading is done.
 #:
-#: It is not a way to skip the question, and it grants nothing. An operator still names
+#: It is not a way to skip the question, and it grants nothing. A site owner still names
 #: every content type they want the plugin to act on, and silence is still refusal — the
 #: wildcard only decides which types they are *offered*. A plugin whose shortcode emits
 #: block-level layout markup, reaches an external host, or costs something to run has a

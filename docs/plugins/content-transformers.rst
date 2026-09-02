@@ -28,7 +28,7 @@ shortcode's output, and never the body of a ``raw`` tag. It is the only method a
 transformer implements: running one is the registry's job, reached through
 ``Engine.transform_content``, which parses the whole document once, then runs every
 permitted filter, then renders every permitted tag. A transformer does not control that
-sequence for itself, and has no way to run outside the operator's grant.
+sequence for itself, and has no way to run outside the :term:`site owner`\ 's :term:`grant`.
 
 A transformer's other half is :doc:`shortcodes` — named tags it registers, rendered by
 the same pass. This page covers where a transformer is allowed to run; that one covers
@@ -49,7 +49,7 @@ syntax — a custom tag or filter available in every template — as opposed to
             return [MyExtension]
 
 Extensions are gathered from every loaded transformer regardless of
-``accepted_content_types``: the two-key contract governs *content*, and a Jinja extension
+``accepted_content_types``: :term:`offer and grant` governs *content*, and a Jinja extension
 is not content. An extension therefore reaches every template the application renders, so
 a plugin should contribute one only when that is genuinely what it means.
 
@@ -60,7 +60,7 @@ Order
 
 Transformers are a pipeline: each one's output is the next one's input, the way
 ``cat post | emoji | red_letter`` would be. Order therefore changes the result, and the
-order is **the order the plugins appear in the operator's config**, because the loader
+order is **the order the plugins appear in the site owner's config**, because the loader
 walks the ``plugins`` object top to bottom and each plugin is appended as it loads.
 
 .. code-block:: text
@@ -88,7 +88,7 @@ Two consequences worth knowing:
     help page follow the same rule, so a stored value renders exactly as the identical tag
     in a post body would. The loser is logged at startup, naming both plugins.
 
-Nothing sorts or prioritises the pipeline: an operator who needs a particular order gets
+Nothing sorts or prioritises the pipeline: a site owner who needs a particular order gets
 it by ordering the config keys. A plugin cannot request a position, and built-in
 shortcodes are registered ahead of every plugin, so ``[image]``, ``[link]`` and ``[hero]``
 cannot be displaced.
@@ -98,20 +98,21 @@ cannot be displaced.
 Declaring scope
 ---------------
 
-``accepted_content_types`` maps each content type a plugin asks for to **why it needs
-it**. The reason is required — a declaration missing one raises ``ValueError`` when the
-class is defined — because it is shown beside the checkbox an operator ticks, and a
+``accepted_content_types`` maps each :term:`content type` a plugin asks for to **why it
+needs it**. The reason is required — a declaration missing one raises ``ValueError`` when the
+class is defined — because it is shown beside the checkbox a site owner ticks, and a
 justification nothing enforces is one that rots. Declaring nothing at all is still
 allowed; such a plugin simply transforms no content.
 
-Two keys have to turn before a transformer runs, and they belong to different people:
+Two people have to agree before a transformer runs — the plugin author offers, the site
+owner grants:
 
 ``accepted_content_types``
-    The plugin author's declaration: the choices an operator is *offered*. Think of the
+    The plugin author's declaration: the choices a site owner is *offered*. Think of the
     checkboxes an admin panel puts on screen.
 
 ``allowed_content_types``
-    The operator's grant, in the database config (see :ref:`plugin-configuration`):
+    The site owner's grant, in the database config (see :ref:`plugin-configuration`):
     which of those checkboxes they ticked.
 
 Silence is refusal on both sides, so declaring broadly never widens what a plugin
@@ -122,7 +123,7 @@ Key the declaration with :data:`~platzky.content_types.ALL_CONTENT_TYPES` when t
 has no technical constraint on where it runs. One reason then stands for every type it is
 offered. The wildcard resolves against the content types the application actually has, so
 a plugin written today is offered one invented tomorrow and never hardcodes a name
-belonging to a package it does not depend on. It grants nothing on its own — the operator
+belonging to a package it does not depend on. It grants nothing on its own — the site owner
 still names each type.
 
 Name each type instead when there is a real constraint. A shortcode that emits
@@ -146,7 +147,7 @@ in a document body, so its transformer names the two types where that is true:
         }
 
 Naming types is **not** how a plugin keeps itself out of comments. Whether commenters may
-use a shortcode is the operator's policy — their grant already decides it, and a plugin
+use a shortcode is the site owner's policy — their grant already decides it, and a plugin
 narrowing its declaration for that reason only takes away a choice that was theirs to
 make.
 
@@ -154,7 +155,7 @@ make.
 
 The gate is
 :class:`~platzky.plugin.content_transformer.ContentTransformerRegistry`, reachable as
-``app.content_transformers``. Code that renders the operator's choices — an admin panel,
+``app.content_transformers``. Code that renders the site owner's choices — an admin panel,
 say — asks it rather than reading the plugin's attribute directly:
 
 ``acceptable_content_types(plugin)``
@@ -165,10 +166,10 @@ say — asks it rather than reading the plugin's attribute directly:
     The author's reason for that type, to show beside the checkbox.
 
 ``may_transform(plugin, content_type)``
-    Whether both keys have turned. This is the question the pipeline itself asks.
+    Whether the offer and the grant agree. This is the question the pipeline itself asks.
 
 ``grant(plugin, allowed_types)``
-    Records the operator's grant. Called by the plugin loader with the plugin's
+    Records the site owner's grant. Called by the plugin loader with the plugin's
     ``allowed_content_types``; not intended for plugin code.
 
 ``warn_unknown_grants()``
@@ -204,7 +205,7 @@ A plugin with no constraint on where it runs need not name the new type at all: 
 its declaration with ``ALL_CONTENT_TYPES`` offers whatever the application has, including
 types added after the plugin was written (see :ref:`declaring-scope`).
 
-Either way the operator grants it through ``allowed_content_types`` in the database config
+Either way the site owner grants it through ``allowed_content_types`` in the database config
 (see :ref:`plugin-configuration`); a plugin runs only where both agree. A content type
 is only ever its name, so accepting a kind of content never means importing the package
 that brought it — otherwise every plugin handling marker fields would depend on the
@@ -213,7 +214,7 @@ application that has them.
 The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a closed
 ``Literal`` cannot survive extension, since platzky cannot know at type-check time what a
 package it has never heard of will add. A name is therefore checked at runtime or not at
-all — an operator's grant naming a type nothing produces is reported at startup by
+all — a site owner's grant naming a type nothing produces is reported at startup by
 ``warn_unknown_grants``.
 
 A plugin can contribute one too, which is what lets a plugin large enough to bring its
@@ -227,7 +228,7 @@ own kind of content install without an application built around it:
 ``provides_content_types`` is the counterpart to ``accepted_content_types``: what a
 plugin *produces* rather than what it consumes. The two are independent — contributing
 a type to the vocabulary is not permission to act on it, which still takes the plugin's
-own opt-in and the operator's grant.
+own opt-in and the site owner's grant.
 
 Content types are read only when content is transformed, well after loading, so a
 plugin may contribute one whatever order it loads in, and the check below runs once
@@ -237,5 +238,5 @@ A plugin naming a type nothing registered is *inert*, not an error — it instal
 cleanly and is simply never called with one, which is what lets a single plugin serve
 both an application that has the type and a plain platzky blog that does not. Because
 such a grant silently does nothing, platzky logs a warning naming the unknown type,
-which is usually a typo in operator config.
+which is usually a typo in site-owner config.
 

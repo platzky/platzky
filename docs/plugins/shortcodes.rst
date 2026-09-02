@@ -7,7 +7,7 @@ application can also use to render a value it has stored (see
 
 They are registered by :doc:`content transformer plugins <content-transformers>` and run
 inside ``transform_content``, so everything on that page applies here: a shortcode renders
-only where its plugin's ``accepted_content_types`` and the operator's
+only where its plugin's ``accepted_content_types`` and the site owner's
 ``allowed_content_types`` agree (see :ref:`declaring-scope`).
 
 **Syntax**
@@ -46,8 +46,9 @@ and the character it was written at. Neither has a rendering that is not a guess
 what the author meant, and guessing quietly drops or reparents their content.
 
 Two things are deliberately *not* errors. A tag name no plugin registered passes through
-as written — platzky has no opinion on a name it does not know. And content nobody vouched
-for is parsed leniently, because escaping mangles its tags on the way in: the quotes in
+as written — platzky has no opinion on a name it does not know. And content nobody
+:term:`vouched <vouching>` for is parsed leniently, because escaping mangles its tags on
+the way in: the quotes in
 ``[wrap tone="loud"]`` become entities, the opening tag stops matching, and its closing tag
 is left with nothing to close. Parsed strictly, anyone able to write a comment could fail a
 page render by using a shortcode perfectly correctly.
@@ -175,8 +176,8 @@ Two rules, and they do not vary by shortcode:
      - a nested tag, already rendered by the time the outer one runs
      - live markup
 
-The last two are markup platzky itself produced, by plugins that turned both keys for this
-content type — so trusting them is the same act as granting the plugin.
+The last two are markup platzky itself produced, by plugins whose offer and grant both
+cover this content type — so trusting them is the same act as granting the plugin.
 
 That is what makes escaping here pointless at best. Every character is either one the
 boundary already turned into an entity, leaving nothing to neutralise, or one a trusted
@@ -253,8 +254,8 @@ by reading ``shortcodes`` off loaded plugins::
 
 ``render_value`` is called directly by the application and so does not pass through
 ``transform_content``, where routing is normally enforced. ``shortcodes_for`` applies the
-same two keys that pipeline applies — the plugin's own ``accepted_content_types`` and the
-operator's ``allowed_content_types`` grant — so an operator withholding a content type
+same offer and grant that pipeline applies — the plugin's own ``accepted_content_types`` and the
+site owner's ``allowed_content_types`` grant — so a site owner withholding a content type
 withholds it here too. Collecting shortcodes off ``loaded_plugins`` instead would leave
 the grant governing prose but not stored values.
 
