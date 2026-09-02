@@ -55,7 +55,9 @@ class LinkShortcode(Shortcode):
             return ""
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
-        rel_attr = ' rel="noopener noreferrer"' if target_value == "_blank" else ""
+        # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new
+        # context too and needs the same rel.
+        rel_attr = ' rel="noopener noreferrer"' if target_value.lower() == "_blank" else ""
         return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{content}</a>'
 
 

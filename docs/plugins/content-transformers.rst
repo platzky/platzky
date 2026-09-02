@@ -68,15 +68,15 @@ walks the ``plugins`` object top to bottom and each plugin is appended as it loa
     {"plugins": {"emoji": {…}, "red_letter": {…}}}
 
 is ``emoji | red_letter``; swapping the two keys swaps the stages. Platzky's built-in
-shortcode transformer is the one exception — it is always inserted first, so ``[image]``,
-``[link]`` and ``[hero]`` have rendered before any plugin runs.
+shortcode transformer is always inserted first, which decides tag ownership: a name it
+registers cannot be taken over by a plugin loaded later.
 
 Two consequences worth knowing:
 
-*A transformer sees what earlier ones produced, markup included.*
-    By the time a later plugin's ``transform_text`` runs, earlier stages have already
-    rendered their shortcodes to HTML. The framework keeps tags away from
-    ``transform_text``, so a filter does not corrupt them, but they are in the content.
+*A filter sees what earlier filters produced, but never a shortcode's output.*
+    The document is parsed once, then every permitted ``transform_text`` runs, then every
+    permitted shortcode renders. So a later filter can see an earlier filter's text, and no
+    filter ever sees rendered markup — not even from the built-in shortcodes.
 
 *A failing transformer aborts the chain.*
     Stages are not independent, so a stage that raises stops the pipeline rather than

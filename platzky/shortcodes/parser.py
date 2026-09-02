@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 
 #: HTML tags, held back from text filters. Captured, so ``split`` returns the tags along
 #: with the text between them: the odd indices of the result are the tags.
-_HTML_TAG_RE = re.compile(r"(<[^>]*>)")
+#:
+#: Quote-aware, because ``>`` is legal inside an attribute: ``<[^>]*>`` ends
+#: ``<a title="a > b">`` at the first ``>`` and hands ``` b">`` to every filter, which the
+#: filter contract says never happens. Same hazard ``_MarkupStripper`` exists to avoid.
+_HTML_TAG_RE = re.compile(r"""(<(?:[^>"']|"[^"]*"|'[^']*')*>)""")
 
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048

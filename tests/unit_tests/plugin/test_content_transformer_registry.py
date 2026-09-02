@@ -637,6 +637,20 @@ class TestFiltersNeverSeeRenderedMarkup:
 
         assert result == '<span class="loud">hi</span> <i>a</i>nd <i>a</i> pl<i>a</i>n'
 
+    def test_a_filter_does_not_see_inside_a_quoted_html_attribute(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """``>`` is legal inside an attribute, and a naive tag regex leaks the rest of it."""
+        letters = _LetterAPlugin({})
+        registry.grant(letters, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [letters], Markup('<a title="a > b">and a word</a>'), "post"
+        )
+
+        # The 'a' inside the title attribute is untouched; both in the text are wrapped.
+        assert result == '<a title="a > b"><i>a</i>nd <i>a</i> word</a>'
+
     def test_a_raw_body_survives_another_plugin_entirely(
         self, registry: ContentTransformerRegistry
     ) -> None:

@@ -261,8 +261,8 @@ content and which is an attribute; a stored value has no brackets to say it, so
     ``ShortcodeAttr``, which content authors then get as a tag attribute too.
 
     Given that declaration and a ``render`` of
-    ``f'<span class="promo {attrs.color}">{content}</span>'``, here is what each shape of
-    stored value produces:
+    ``f'<span class="promo {escape(attrs.color)}">{content}</span>'`` — the attribute
+    escaped, the content embedded — here is what each shape of stored value produces:
 
     .. list-table::
        :header-rows: 1

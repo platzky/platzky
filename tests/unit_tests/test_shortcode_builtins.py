@@ -84,6 +84,11 @@ class TestLinkShortcode:
     def test_target_attr_included_when_given(self) -> None:
         result = _apply('[link url="https://example.com" target="_blank"]Go[/link]')
         assert 'target="_blank"' in result
+
+    def test_uppercase_blank_still_gets_rel(self) -> None:
+        """Browsing context names are case-insensitive, so _BLANK opens a new tab too."""
+        result = _apply('[link url="https://example.com" target="_BLANK"]Go[/link]')
+        assert 'rel="noopener noreferrer"' in result
         assert 'rel="noopener noreferrer"' in result
 
     def test_javascript_url_renders_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
