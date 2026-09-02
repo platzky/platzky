@@ -1,22 +1,13 @@
-"""Shortcode parser for blog post content.
+"""What a shortcode is: the tag an author writes, and the class that renders it.
 
-Plugins register handlers through the ``shortcodes`` class variable on
-``ContentTransformerPluginBase``. A shortcode declares its ``kind``, which is what says
-whether a closing tag belongs::
+A shortcode declares its ``kind``, which says whether a closing tag belongs::
 
     [tagname attr="val"]                     # kind = "void"
     [tagname attr="val"]content[/tagname]    # kind = "block"  (the default)
 
-Shortcodes nest, including inside another of the same name: tags are matched with a
-stack, so a closing tag pairs with the opening tag it belongs to rather than the nearest
-one.
-
-Malformed content is reported rather than guessed at. A ``"block"`` tag that is never
-closed raises ``ShortcodeError`` naming the tag and where it was written, because there
-is no rendering of it that is not a guess about what the author meant to wrap. What is
-*not* malformed passes through untouched: a closing tag with nothing to close, and any
-tag name no plugin registered, are left exactly as written — an author may be writing
-about a shortcode rather than using one.
+Plugins register handlers through the ``shortcodes`` class variable on
+``ContentTransformerPluginBase``. How a document of them is read and rendered — nesting,
+raw bodies, what happens to a malformed tag — lives in :mod:`platzky.shortcodes.parser`.
 """
 
 import inspect
