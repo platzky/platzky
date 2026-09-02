@@ -29,29 +29,6 @@ class ContentTransformerPluginConfig(PluginConfigBase):
 logger = logging.getLogger(__name__)
 
 
-def _wildcard_reason(declared: Mapping[ContentType, str]) -> str | None:
-    """Return the wildcard rationale if this declaration carries one, else None.
-
-    Matched by identity rather than looked up, because ``ALL_CONTENT_TYPES`` is a ``str``
-    subclass: ``declared.get(ALL_CONTENT_TYPES)`` would also find a content type literally
-    named ``"*"`` and read it as the sentinel.
-    """
-    for content_type, reason in declared.items():
-        if content_type is ALL_CONTENT_TYPES:
-            return reason
-    return None
-
-
-def _declares_wildcard(declared: Mapping[ContentType, str]) -> bool:
-    """Whether this declaration is keyed with ``ALL_CONTENT_TYPES``.
-
-    The same question as ``_wildcard_reason``, for callers that want the fact and not the
-    words — a rationale is never empty, since ``__init_subclass__`` rejects a blank one, so
-    presence and reason answer identically.
-    """
-    return _wildcard_reason(declared) is not None
-
-
 #: HTML tags, held back from text filters. Only the HTML half of what this used to match:
 #: shortcode syntax no longer needs protecting here, because parsing has already lifted it
 #: out of the text by the time a filter runs.
@@ -638,13 +615,17 @@ class ContentTransformerRegistry:
             return False
         return content_type in self._allowlist.get(plugin, frozenset())
 
-    def acceptable_content_types(self, plugin: ContentTransformerPluginBase) -> set[ContentType]:
-        """The content types a site owner may grant this plugin — its declaration, resolved.
+    def offered_content_types(self, plugin: ContentTransformerPluginBase) -> dict[ContentType, str]:
+        """This plugin's declaration resolved: every type it is offered, and why.
 
-        The set of choices, not the decision: an admin panel offers exactly these and the
-        site owner ticks the ones they want, which become ``allowed_content_types``. A
-        wildcard offers everything in the vocabulary; a declaration that names types offers
-        only those.
+        The one place the wildcard is expanded. A declaration that names types is already
+        this mapping; one keyed with ``ALL_CONTENT_TYPES`` becomes every type in the
+        vocabulary against that single reason. Everything downstream reads the result and
+        never the sentinel, so there is no second shape of the same question.
+
+        The sentinel is found by identity rather than looked up, because
+        ``ALL_CONTENT_TYPES`` is a ``str`` subclass: ``declared.get(ALL_CONTENT_TYPES)``
+        would also find a content type literally named ``"*"`` and read it as the wildcard.
 
         Resolved on each call rather than cached, because plugins contribute content types
         as they load and the vocabulary is only complete once loading is done.
@@ -653,11 +634,27 @@ class ContentTransformerRegistry:
             plugin: The plugin whose declaration to resolve.
 
         Returns:
+            Each content type this plugin may be granted, mapped to its rationale.
+        """
+        declared = plugin.accepted_content_types
+        for content_type, reason in declared.items():
+            if content_type is ALL_CONTENT_TYPES:
+                return dict.fromkeys(self.known_content_types, reason)
+        return dict(declared)
+
+    def acceptable_content_types(self, plugin: ContentTransformerPluginBase) -> set[ContentType]:
+        """The content types a site owner may grant this plugin.
+
+        The set of choices, not the decision: an admin panel offers exactly these and the
+        site owner ticks the ones they want, which become ``allowed_content_types``.
+
+        Args:
+            plugin: The plugin whose declaration to resolve.
+
+        Returns:
             The content types this plugin may be granted.
         """
-        if _declares_wildcard(plugin.accepted_content_types):
-            return set(self.known_content_types)
-        return set(plugin.accepted_content_types)
+        return set(self.offered_content_types(plugin))
 
     def rationale_for(self, plugin: ContentTransformerPluginBase, content_type: ContentType) -> str:
         """Why this plugin is asking for this content type, in its author's words.
@@ -673,10 +670,7 @@ class ContentTransformerRegistry:
         Returns:
             The rationale, or an empty string if this plugin is not offered that type.
         """
-        declared = plugin.accepted_content_types
-        if (wildcard := _wildcard_reason(declared)) is not None:
-            return wildcard if content_type in self.known_content_types else ""
-        return declared.get(content_type, "")
+        return self.offered_content_types(plugin).get(content_type, "")
 
     def transform_content(
         self,
