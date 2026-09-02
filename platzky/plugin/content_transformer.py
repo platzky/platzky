@@ -32,13 +32,24 @@ logger = logging.getLogger(__name__)
 def _wildcard_reason(declared: Mapping[ContentType, str]) -> str | None:
     """Return the wildcard rationale if this declaration carries one, else None.
 
-    Matched by identity, so a content type that happens to be named ``"*"`` is not
-    mistaken for the sentinel.
+    Matched by identity rather than looked up, because ``ALL_CONTENT_TYPES`` is a ``str``
+    subclass: ``declared.get(ALL_CONTENT_TYPES)`` would also find a content type literally
+    named ``"*"`` and read it as the sentinel.
     """
     for content_type, reason in declared.items():
         if content_type is ALL_CONTENT_TYPES:
             return reason
     return None
+
+
+def _declares_wildcard(declared: Mapping[ContentType, str]) -> bool:
+    """Whether this declaration is keyed with ``ALL_CONTENT_TYPES``.
+
+    The same question as ``_wildcard_reason``, for callers that want the fact and not the
+    words — a rationale is never empty, since ``__init_subclass__`` rejects a blank one, so
+    presence and reason answer identically.
+    """
+    return _wildcard_reason(declared) is not None
 
 
 #: HTML tags, held back from text filters. Only the HTML half of what this used to match:
@@ -644,7 +655,7 @@ class ContentTransformerRegistry:
         Returns:
             The content types this plugin may be granted.
         """
-        if _wildcard_reason(plugin.accepted_content_types) is not None:
+        if _declares_wildcard(plugin.accepted_content_types):
             return set(self.known_content_types)
         return set(plugin.accepted_content_types)
 
@@ -663,8 +674,7 @@ class ContentTransformerRegistry:
             The rationale, or an empty string if this plugin is not offered that type.
         """
         declared = plugin.accepted_content_types
-        wildcard = _wildcard_reason(declared)
-        if wildcard is not None:
+        if (wildcard := _wildcard_reason(declared)) is not None:
             return wildcard if content_type in self.known_content_types else ""
         return declared.get(content_type, "")
 
