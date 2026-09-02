@@ -68,6 +68,16 @@ class TestImageShortcode:
         """``photo.jpg`` resolves against whichever page is showing the content."""
         assert _apply('[image url="photo.jpg"]') == ""
 
+    def test_the_rejected_url_is_not_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A rejected URL is where credentials and signed queries turn up; log the fault."""
+        with caplog.at_level(logging.WARNING):
+            assert _apply('[image url="ftp://user:s3cr3t@host/path?sig=abc"]') == ""
+
+        assert "s3cr3t" not in caplog.text
+        assert "sig=abc" not in caplog.text
+        assert "host" not in caplog.text
+        assert "scheme 'ftp' is not allowed" in caplog.text
+
     def test_protocol_relative_url_rejected(self) -> None:
         """No scheme, but external all the same."""
         assert _apply('[image url="//evil.example/x.png"]') == ""

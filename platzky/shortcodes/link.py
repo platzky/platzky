@@ -5,7 +5,7 @@ import logging
 from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes._url import URL_LOG_LIMIT, is_url_allowed
+from platzky.shortcodes._url import is_url_allowed, rejection_reason
 from platzky.shortcodes.shortcode import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,8 @@ class LinkShortcode(Shortcode):
         """
         if not is_url_allowed(attrs.url):
             logger.warning(
-                "[link] rendered nothing: url %r is missing or not allowed. Use an "
-                "http(s) URL or a path starting with '/'.",
-                attrs.url[:URL_LOG_LIMIT],
+                "[link] rendered nothing: %s.",
+                rejection_reason(attrs.url),
             )
             return ""
         target_value = str(attrs.target or "")

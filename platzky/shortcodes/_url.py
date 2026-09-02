@@ -31,6 +31,25 @@ def is_url_allowed(url: str) -> bool:
     return url.startswith("/")
 
 
-#: How much of a URL to put in a log line. A shortcode attribute can be 2 KB, and a
-#: rejected one is often junk; enough to recognise it is enough to act on.
-URL_LOG_LIMIT = 120
+def rejection_reason(url: str) -> str:
+    """Say why ``is_url_allowed`` refused this URL, without quoting the URL itself.
+
+    A rejected value is the one place a URL is most likely to be malformed or private —
+    credentials in a ``ftp://user:pass@host``, a signed query, a ``data:`` payload — and a
+    log line is the wrong place for any of it. The scheme is the exception: it is what was
+    wrong, it is a fixed vocabulary, and it carries nothing the author typed beyond it.
+
+    Args:
+        url: The URL as written in the shortcode.
+
+    Returns:
+        A phrase naming the fault, safe to log verbatim.
+    """
+    if not url:
+        return "no url was given"
+    parsed = urlparse(url)
+    if parsed.scheme:
+        return f"scheme {parsed.scheme!r} is not allowed; use http or https"
+    if parsed.netloc:
+        return "a protocol-relative '//host/path' url has no scheme; write http(s) instead"
+    return "a relative path resolves against whichever page shows it; start it with '/'"
