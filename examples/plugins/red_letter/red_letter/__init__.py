@@ -29,10 +29,12 @@ class _RedShortcode(Shortcode):
     def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:  # noqa: ARG002
         """Wrap content in a red span.
 
-        Embedded, not escaped: this plugin's own ``transform_text`` ran one step earlier
-        and put ``<span>`` markup inside the tag, so ``[red]danger[/red]`` arrives here as
-        ``d<span style="color:red">a</span>nger``. Escaping would show those spans to the
-        reader as literal text.
+        Embedded, not escaped. The pipeline runs every filter before it renders any tag,
+        so a shortcode's content can already hold markup platzky produced. This plugin
+        shows that on itself: ``transform_text`` colours every letter ``a``, and it reaches
+        the text inside the tag first — so the ``danger`` in ``[red]danger[/red]`` arrives
+        here as ``d<span style="color:red">a</span>nger``, not as plain text. Escaping it
+        would put those spans on the page as visible characters instead of a red letter.
 
         Args:
             attrs: Unused.
