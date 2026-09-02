@@ -222,9 +222,19 @@ boundary escape it. Vouching is the deliberate act; the default is the safe one.
 
 **Rendering a stored value**
 
-A shortcode can also render a value the application has stored against a record — rather than
-a tag an author wrote in prose — through
-:meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`:
+A shortcode is normally a tag an :term:`author` writes in prose. It can also render a value
+the :term:`application` has stored against a record, where nobody wrote brackets at all —
+a field on a product, a map marker's popup entry — through
+:meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`. Two ways in, one rendering::
+
+    [promocode color="red"]SAVE20[/promocode]        # written in a post body
+
+    shortcode.render_value({"code": "SAVE20", "color": "red"})   # stored on a record
+
+Both reach the same ``render`` and produce the same
+``<span class="promo red">SAVE20</span>``. In the tag, the brackets say which part is the
+content and which is an attribute; a stored value has no brackets to say it, so
+``content_key`` and ``attributes`` say it instead. That is all the declaring below is for:
 
 :meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`
     Renders the value to HTML, so the application needs no per-shortcode frontend
@@ -235,24 +245,111 @@ a tag an author wrote in prose — through
     content on its own. So every shortcode gains field rendering without writing
     any, and the tag and the field cannot drift apart.
 
-    A shortcode adapts by *declaring*, not by overriding. If a stored value keeps
-    the content under its own key, name it::
+    A shortcode adapts to the shape of the stored value by *declaring*, never by
+    overriding — ``render_value`` cannot be overridden, so what you change is which
+    key holds the content and which keys are attributes. A promo code the application
+    stores as ``{"code": "SAVE20", "color": "red"}`` needs no code, only::
 
         class PromocodeShortcode(Shortcode):
             name = "promocode"
             content_key = "code"          # {"code": "SAVE20"} -> render(attrs, "SAVE20")
             attributes = ShortcodeAttrs([ShortcodeAttr("color", "Button colour")])
 
-    Anything a stored value should be able to override becomes a ``ShortcodeAttr``,
-    which content authors then get as a tag attribute too.
+    ``content_key`` names the key holding the body. It is ``"content"`` by default and
+    ``"value"`` is always accepted as well, so an application storing a bare string needs
+    no declaration at all. Anything a stored value should be able to override becomes a
+    ``ShortcodeAttr``, which content authors then get as a tag attribute too.
 
-Take the shortcodes to render with from :meth:`~platzky.engine.Engine.shortcodes_for`,
-passing the :term:`content type` the stored value belongs to — usually one the application
-brought itself, such as the ``"product_field"`` of :ref:`new-content-types` — rather than
-reading ``shortcodes`` off loaded plugins::
+    Given that declaration and a ``render`` of
+    ``f'<span class="promo {attrs.color}">{content}</span>'``, here is what each shape of
+    stored value produces:
 
-    for name, shortcode in app.shortcodes_for("product_field").items():
-        ...
+    .. list-table::
+       :header-rows: 1
+       :widths: 38 30 32
+
+       * - Stored value
+         - ``render`` receives
+         - Output
+       * - ``"SAVE20"``
+         - ``attrs``: nothing, ``content``: ``SAVE20``
+         - ``<span class="promo ">SAVE20</span>``
+       * - ``{"code": "SAVE20"}``
+         - the same — ``content_key`` found it
+         - ``<span class="promo ">SAVE20</span>``
+       * - ``{"code": "SAVE20", "color": "red"}``
+         - ``attrs.color``: ``red``, ``content``: ``SAVE20``
+         - ``<span class="promo red">SAVE20</span>``
+       * - ``{"code": "SAVE20", "size": "big"}``
+         - ``size`` is dropped: no ``ShortcodeAttr`` declares it
+         - ``<span class="promo ">SAVE20</span>``
+       * - ``{"value": "SAVE20"}``
+         - ``value`` is accepted whatever ``content_key`` says
+         - ``<span class="promo ">SAVE20</span>``
+       * - ``{"colour": "red"}``
+         - nothing matches; ``content`` is empty and ``attrs.color`` defaults to ``""``
+         - ``<span class="promo "></span>``
+       * - ``{"code": "<b>x</b>"}``
+         - ``content``: ``&lt;b&gt;x&lt;/b&gt;``, escaped on the way in
+         - ``<span class="promo ">&lt;b&gt;x&lt;/b&gt;</span>``
+
+    An undeclared key is dropped rather than passed through, which is the same rule from
+    the other side: a shortcode receives exactly what it declared, so a stored value cannot
+    smuggle in an attribute the shortcode never thought about. A missing one is not an
+    error either — ``attrs.color`` falls back to ``""``, the way an omitted tag attribute
+    does.
+
+    A shortcode that declares nothing at all still renders stored values. With no
+    ``content_key`` and no ``attributes``, ``"hello"``, ``{"content": "hello"}`` and
+    ``{"value": "hello"}`` all arrive as the content, which is why most shortcodes need to
+    do nothing here.
+
+**What a stored value looks like.** Say the shop keeps its products in the database, one
+record each, and one of the fields holds a promo code:
+
+.. code-block:: json
+
+    {
+        "slug": "blue-mug",
+        "name": "Blue mug",
+        "price": "12.00",
+        "promocode": {"code": "SAVE20", "color": "red"},
+        "care": "Dishwasher safe"
+    }
+
+Nothing here is prose and nobody wrote a tag. What connects the record to a shortcode is
+the **field name**: a field called ``promocode`` is rendered by the ``[promocode]``
+shortcode, and a field no shortcode is registered under is just text. Rendering a product
+is therefore a lookup per field:
+
+.. code-block:: python
+
+    shortcodes = app.shortcodes_for(PRODUCT_FIELD)
+
+    def render_fields(product: dict[str, object]) -> dict[str, str]:
+        rendered = {}
+        for field, value in product.items():
+            if shortcode := shortcodes.get(field):
+                rendered[field] = shortcode.render_value(value)
+            else:
+                rendered[field] = escape(value)
+        return rendered
+
+.. code-block:: text
+
+    name       -> Blue mug
+    price      -> 12.00
+    promocode  -> <span class="promo red">SAVE20</span>
+    care       -> Dishwasher safe
+
+The application writes this loop once, not once per shortcode: installing a plugin that
+registers ``[shipping]`` makes a ``shipping`` field render, with no change here. goodmap
+does exactly this for the fields shown in a map marker's popup.
+
+Take the shortcodes from :meth:`~platzky.engine.Engine.shortcodes_for`, passing the
+:term:`content type` the stored value belongs to, rather than reading ``shortcodes`` off
+loaded plugins. Ask for them once and keep the result, as above: each call walks every
+loaded plugin and rechecks the grant, so calling it per record pays that for nothing.
 
 ``render_value`` is called directly by the application and so does not pass through
 ``transform_content``, where routing is normally enforced. ``shortcodes_for`` applies the
