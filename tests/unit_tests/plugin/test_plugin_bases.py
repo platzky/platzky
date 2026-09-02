@@ -319,26 +319,6 @@ class TestRegisterPluginBases:
         with pytest.raises(TypeError, match="does not implement any recognised capability"):
             app.register_plugin(GenericPlugin({}), "generic")
 
-    def test_register_plugin_stamps_name(self, base_config_data: dict[str, Any]) -> None:
-        """The instance carries the name it was configured under, so callers stop passing it."""
-        app = create_app_from_config(Config.model_validate(base_config_data))
-        plugin = AllTypesFilter({})
-        assert plugin.name == ""
-
-        app.register_plugin(plugin, "all_types")
-
-        assert plugin.name == "all_types"
-
-    def test_name_is_per_instance(self, base_config_data: dict[str, Any]) -> None:
-        """Two entry points may point at one class; each instance keeps its own name."""
-        app = create_app_from_config(Config.model_validate(base_config_data))
-        first, second = AllTypesFilter({}), AllTypesFilter({})
-
-        app.register_plugin(first, "first")
-        app.register_plugin(second, "second")
-
-        assert (first.name, second.name) == ("first", "second")
-
     def test_multi_capability_plugin_registered_under_all_bases(
         self, base_config_data: dict[str, Any]
     ) -> None:
@@ -366,8 +346,8 @@ class TestRegisterPluginBases:
 
 
 class TestGetInfo:
-    def test_unregistered_plugin_info_falls_back_to_class_name(self) -> None:
-        """A plugin never registered has no configured name, so the class name stands in."""
+    def test_plugin_info_is_named_by_class(self) -> None:
+        """A plugin carries no configured name, so the admin page lists it by class."""
 
         class MyPlugin(PluginBase):
             """A plugin for testing."""
@@ -378,16 +358,6 @@ class TestGetInfo:
         info = MyPlugin({}).get_info()
         assert info.name == "MyPlugin"
         assert info.description == "A plugin for testing."
-
-    def test_registered_plugin_info_uses_its_configured_name(
-        self, base_config_data: dict[str, Any]
-    ) -> None:
-        """The admin page names a plugin as an operator configured it, not by class."""
-        app = create_app_from_config(Config.model_validate(base_config_data))
-        plugin = AllTypesFilter({})
-        app.register_plugin(plugin, "all_types")
-
-        assert plugin.get_info().name == "all_types"
 
     def test_default_info_empty_description_when_no_docstring(self) -> None:
         class NoDocPlugin(PluginBase):

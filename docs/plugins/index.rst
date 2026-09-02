@@ -185,10 +185,10 @@ Admin Help Page
 ---------------
 
 Loaded plugins and their shortcodes are listed on the admin *Help* page
-(``/admin/help``). A plugin is listed under its own ``name`` — the entry-point name it is
-installed and configured under — so a site owner reading the page can find it in their
-config. The description comes from the class docstring; override ``get_info()`` to write
-one by hand:
+(``/admin/help``). A plugin is listed by its class name, which by convention matches the
+entry-point name it is installed and configured under — ``RedLetterPlugin`` against
+``red_letter``. The description comes from the class docstring; override ``get_info()`` to
+write one by hand, and to give the page a name of your own choosing:
 
 .. code-block:: python
 

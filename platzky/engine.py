@@ -226,13 +226,12 @@ class Engine(Flask):
         Args:
             instance: Plugin instance to register.
             plugin_name: The plugin's entry-point name, which is also its config key.
-                Stamped onto the instance as ``name``, so anything registering a plugin
-                passes it here once rather than threading it alongside the instance.
+                Used to name the plugin in this method's log and error messages, where the
+                config key is what a site owner can act on.
 
         Raises:
             TypeError: If the plugin does not implement any recognised capability.
         """
-        instance.name = plugin_name
         recognised_bases = (*PLUGIN_BASES, *self.extra_plugin_bases)
         matched = False
         for base in recognised_bases:
@@ -249,9 +248,15 @@ class Engine(Flask):
                 f"{', '.join(b.__name__ for b in recognised_bases)}"
             )
 
-    def register_plugin_locale(self, plugin_instance: "PluginBase") -> None:
-        """Register plugin's locale directory with Babel if it exists."""
-        plugin_name = plugin_instance.name
+    def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
+        """Register plugin's locale directory with Babel if it exists.
+
+        Args:
+            plugin_instance: The plugin whose locale directory to register.
+            plugin_name: Its config key, for the log line — a rejected locale directory is
+                something a site owner has to act on, so the message names what they
+                configured rather than the class that shipped it.
+        """
         locale_dir = plugin_instance.get_locale_dir()
         if locale_dir is None:
             return
@@ -289,8 +294,8 @@ class Engine(Flask):
         raw = plugin_config_base.model_dump()
         plugin_instance = plugin_class(plugin_config_base.config)
         app = self
-        # First, so the capability wiring below can read plugin_instance.name, and
-        # so a plugin implementing no capability is rejected before it collects any grant.
+        # First, so a plugin implementing no capability is rejected before it collects
+        # any grant.
         app.register_plugin(plugin_instance, plugin_name)
         app.content_transformers.known_content_types |= plugin_instance.provides_content_types
         if isinstance(plugin_instance, NotifierPluginBase):
@@ -324,7 +329,7 @@ class Engine(Flask):
                 HtmlInjectorPluginConfig.model_validate(raw).allowed_page_sections,
             )
         app.loaded_plugins.append(plugin_instance)
-        app.register_plugin_locale(plugin_instance)
+        app.register_plugin_locale(plugin_instance, plugin_name)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 

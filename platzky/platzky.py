@@ -73,7 +73,7 @@ def _gather_shortcodes_and_extensions(
                     "Plugin %r registers shortcode %r, which is already registered. The "
                     "earlier registration wins; reorder the plugins in the config to "
                     "change which.",
-                    plugin.name or type(plugin).__name__,
+                    type(plugin).__name__,
                     tag_name,
                 )
                 continue
@@ -395,8 +395,8 @@ def create_app_from_config(
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
     _builtin_transformer = _BuiltinShortcodeTransformer({})
-    # Named here rather than by register_plugin, which appends: this one must be first.
-    _builtin_transformer.name = "platzky_builtin_shortcodes"
+    # Inserted rather than registered, because register_plugin appends and this one must
+    # run first.
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
     # Self-granted, not site-owner config: the builtins are not opt-in, so the plugin's own
     # declaration stands in for the grant. They route through the same gate as everything else.

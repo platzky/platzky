@@ -41,21 +41,6 @@ class PluginBase(ABC):
     etc.) rather than overriding process().
     """
 
-    #: The plugin's name: its entry-point name, which is also the key it is configured
-    #: under — the loader looks the config key up among entry-point names, so a plugin
-    #: whose two differ never loads at all. Declared once, in the plugin package's
-    #: metadata, and every message a site owner reads names the plugin this way rather
-    #: than by its class, so what a warning says matches what they would search their
-    #: config for.
-    #:
-    #: Stamped by ``Engine.register_plugin``, so it is empty while the plugin's own
-    #: ``__init__`` runs. Per-instance rather than a ``ClassVar`` because registration is
-    #: what supplies it, and a plugin can be registered without any packaging metadata to
-    #: read it from: platzky's own builtin shortcode transformer names itself, and a test
-    #: constructing a plugin directly leaves it empty. Code that reports a plugin should
-    #: therefore expect the empty string and fall back, the way ``get_info`` does.
-    name: str = ""
-
     #: Content types this plugin *defines*, added to the application's vocabulary so other
     #: plugins can accept them and site owners can grant them — the counterpart to
     #: ``ContentTransformerPluginBase.accepted_content_types``, which names what a plugin
@@ -92,14 +77,15 @@ class PluginBase(ABC):
     def get_info(self) -> PluginInfo:
         """Return a metadata snapshot describing this plugin.
 
-        The name is the plugin's own ``name`` — the one it is configured and installed
-        under, so the admin page names it as a site owner would look it up. It falls back
-        to the class name for a plugin never registered with an engine. Override to
-        provide a description; the docstring is used when you do not.
+        The name is the class name. By convention it matches the entry-point name the
+        plugin is installed and configured under — ``RedLetterPlugin`` against
+        ``red_letter`` — but nothing enforces that, so a plugin whose two differ is listed
+        by its class. Override to provide a description; the docstring is used when you
+        do not.
         """
         doc = type(self).__doc__
         return PluginInfo(
-            name=self.name or type(self).__name__,
+            name=type(self).__name__,
             description=inspect.cleandoc(doc) if doc else "",
         )
 

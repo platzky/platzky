@@ -552,19 +552,6 @@ class ContentTransformerPluginBase(PluginBase, ABC):
         return []
 
 
-def _plugin_label(plugin: "ContentTransformerPluginBase") -> str:
-    """Name a plugin the way a site owner would recognise it in a log.
-
-    Args:
-        plugin: The plugin to name.
-
-    Returns:
-        The plugin's config key, or its class name if it was never registered with an
-        engine and so has no key stamped on it yet.
-    """
-    return plugin.name or type(plugin).__name__
-
-
 class ContentTransformerRegistry:
     """The gate deciding which content transformers may act on which content.
 
@@ -609,13 +596,12 @@ class ContentTransformerRegistry:
         Called by the plugin loader; not intended to be called from plugin code.
 
         Args:
-            plugin: The plugin the grant applies to. Its ``name`` identifies it in any
-                later warning, so grant it after ``Engine.register_plugin`` has stamped
-                that on.
+            plugin: The plugin the grant applies to. Its class names it in any later
+                warning.
             allowed_types: Content types the site owner granted it.
         """
         self._allowlist[plugin] = allowed_types
-        self._pending_grants.append((plugin.name, allowed_types))
+        self._pending_grants.append((type(plugin).__name__, allowed_types))
 
     def may_transform(
         self, plugin: ContentTransformerPluginBase, content_type: ContentType
@@ -792,14 +778,14 @@ class ContentTransformerRegistry:
                         "Plugin %r registers shortcode %r, already registered by %r for "
                         "content type '%s'. The earlier plugin wins; reorder the plugins "
                         "in the config to change which.",
-                        _plugin_label(plugin),
+                        type(plugin).__name__,
                         tag_name,
                         owners[tag_name],
                         content_type,
                     )
                     continue
                 permitted[tag_name] = shortcode
-                owners[tag_name] = _plugin_label(plugin)
+                owners[tag_name] = type(plugin).__name__
         return permitted
 
     def warn_unknown_grants(self) -> None:
