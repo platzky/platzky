@@ -52,35 +52,59 @@ _ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_
 
 @dataclass
 class _Text:
-    """Author text between tags — the only thing a text filter is allowed to touch."""
+    """Text outside any shortcode element: everything the parser did not read as one.
+
+    Prose, HTML — platzky parses shortcodes, not HTML, so a ``<b>`` written in content
+    sits in here as characters — and any brackets no plugin registered, including a
+    closing tag that closes nothing. The only node a text filter may touch, and the only
+    one ``STRIP_CONTENT_HTML`` reaches.
+    """
 
     text: str
 
 
 @dataclass
-class _Verbatim:
-    """A raw shortcode's body: parsed by nobody, filtered by nobody."""
+class _RawElement:
+    """A ``"raw"`` shortcode element, its content held as the characters it was written with.
+
+    ``content`` is what the element wraps — everything after the opening tag and before
+    the closing one, untrimmed and uninterpreted, the same string ``Shortcode.render``
+    receives under that name. A string rather than nodes because the parser never
+    descended into it: parsed by nobody, filtered by nobody, stripped by nobody.
+    """
 
     shortcode: Shortcode
     raw_attrs: str
-    body: str
+    content: str
 
 
 @dataclass
 class _Element:
-    """A shortcode tag and everything written inside it."""
+    """A shortcode element whose content has been parsed into nodes.
+
+    The parsed counterpart of ``_RawElement``: same element, same content, read as syntax
+    instead of characters. Every kind but ``"raw"`` ends up here — a ``"void"`` shortcode
+    is written as one tag and simply has no children.
+    """
 
     shortcode: Shortcode
     raw_attrs: str
     children: list["_Node"]
 
 
-_Node = _Text | _Verbatim | _Element
+_Node = _Text | _RawElement | _Element
 
-#: One frame of the parse stack: tag name, its raw attribute text, the nodes collected
-#: inside it so far, and where the opening tag was written — kept so an unclosed tag can
-#: say which one it was. The outermost frame is the document itself and carries ``""`` as
-#: its name, which no shortcode can have.
+#: An element under construction: an opening tag whose closing tag has not arrived yet.
+#: It carries the shortcode's name, the attribute text written in that opening tag, the
+#: nodes collected inside it so far, and the offset the opening tag was written at — the
+#: last only for the error path, so an unclosed element can say which one it was and where.
+#:
+#: A stack of these is how nesting is tracked. An opening tag pushes a frame; everything
+#: parsed after it accumulates in that frame's children; its closing tag pops the frame and
+#: turns it into an ``_Element`` in the frame below. The bottom frame is the document
+#: itself, which is why appending to ``stack[-1]`` never needs a special case for top
+#: level — there is always a frame to append to. It carries ``""`` as its name, safe as a
+#: sentinel because a shortcode name must start with a letter.
 _Frame = tuple[str, str, list[_Node], int]
 
 
@@ -97,13 +121,13 @@ def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     return re.compile(rf"\[/({names})\]" rf"|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
 
 
-def _render_tag(shortcode: Shortcode, raw_attrs: str, inner: str) -> str:
-    """Render one shortcode with its parsed attributes and already-rendered content.
+def _render_element(shortcode: Shortcode, raw_attrs: str, content: str) -> str:
+    """Render one shortcode element with its parsed attributes and rendered content.
 
     Args:
         shortcode: The shortcode to render.
-        raw_attrs: The attribute text as written in the tag.
-        inner: Content between the tags, with any nested shortcodes already rendered.
+        raw_attrs: The attribute text as written in the opening tag.
+        content: What the element wraps, with any nested elements already rendered.
 
     Returns:
         The shortcode's replacement HTML.
@@ -115,7 +139,7 @@ def _render_tag(shortcode: Shortcode, raw_attrs: str, inner: str) -> str:
     # Saying so in the type is what tells a shortcode author not to escape it — and makes
     # escaping it anyway a harmless no-op rather than a bug that shows the markup to the
     # reader as literal text.
-    return shortcode.render(attrs, Markup(inner))
+    return shortcode.render(attrs, Markup(content))
 
 
 class _MarkupStripper(HTMLParser):
@@ -318,7 +342,7 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
                     raise ShortcodeError(_never_closed(opening), opening, match.start())
                 stack[-1][2].append(_Text(match.group(0)))
                 continue
-            stack[-1][2].append(_Verbatim(shortcode, raw_attrs or "", content[position:body_end]))
+            stack[-1][2].append(_RawElement(shortcode, raw_attrs or "", content[position:body_end]))
             position = body_end + len(opening) + 3
         else:
             stack.append((opening, raw_attrs or "", [], match.start()))
@@ -330,9 +354,9 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
 
 
 def _text_nodes(nodes: Sequence[_Node]) -> Iterator[_Text]:
-    """Yield every author-text node in the document, outermost first.
+    """Yield every text node in the document, outermost first.
 
-    The one definition of what the text passes reach. ``_Verbatim`` is skipped and never
+    The one definition of what the text passes reach. ``_RawElement`` is skipped and never
     descended into, which is what makes a ``"raw"`` body verbatim against filters and
     against ``STRIP_CONTENT_HTML`` alike — one rule, stated once, rather than each pass
     remembering it.
@@ -351,7 +375,7 @@ def _text_nodes(nodes: Sequence[_Node]) -> Iterator[_Text]:
 
 
 def _strip_text_nodes(nodes: list[_Node]) -> list[str]:
-    """Remove HTML tags from the document's author text, keeping the text they wrapped.
+    """Remove HTML tags from the document's text, keeping the text they wrapped.
 
     Runs over the parsed document rather than the source string, which is what lets it
     leave a ``"raw"`` body alone. A raw body is verbatim by declaration — no filter reaches
@@ -376,13 +400,14 @@ def _strip_text_nodes(nodes: list[_Node]) -> list[str]:
 def _filter_text(nodes: list[_Node], filters: Sequence[Callable[[str], str]]) -> None:
     """Run every text filter over the document's text, and nothing else.
 
-    This is what separating parsing from rendering buys. A filter now sees only what an
-    author typed between tags: never a tag's attributes, never another shortcode's output,
-    and never the body of a ``"raw"`` tag. Previously each plugin rendered its own
-    shortcodes before handing a flat string to the next, so a later plugin's filter was
-    handed markup earlier ones had produced and could corrupt it.
+    This is what separating parsing from rendering buys. A filter now sees only text that
+    a shortcode element wraps or lies outside every element: never a tag's attributes,
+    never another shortcode's output, and never the content of a ``"raw"`` element.
+    Previously each plugin rendered its own shortcodes before handing a flat string to the
+    next, so a later plugin's filter was handed markup earlier ones had produced and could
+    corrupt it.
 
-    HTML the author wrote is still held back from filters by ``_HTML_TAG_RE`` — the one
+    HTML written in the content is still held back from filters by ``_HTML_TAG_RE`` — the one
     kind of markup that is still text at this point, since platzky parses shortcodes but
     not HTML. Filters are re-applied one at a time so a filter's own output is held back
     from the next one too.
@@ -399,7 +424,7 @@ def _filter_around_html(text: str, filters: Sequence[Callable[[str], str]]) -> s
     """Apply each filter to the text, keeping HTML tags out of their reach.
 
     Args:
-        text: A single run of author text.
+        text: A single run of text from one node.
         filters: Filters to apply, in order.
 
     Returns:
@@ -424,10 +449,10 @@ def _render(nodes: Sequence[_Node]) -> str:
     for node in nodes:
         if isinstance(node, _Text):
             rendered.append(node.text)
-        elif isinstance(node, _Verbatim):
-            rendered.append(_render_tag(node.shortcode, node.raw_attrs, node.body))
+        elif isinstance(node, _RawElement):
+            rendered.append(_render_element(node.shortcode, node.raw_attrs, node.content))
         else:
-            rendered.append(_render_tag(node.shortcode, node.raw_attrs, _render(node.children)))
+            rendered.append(_render_element(node.shortcode, node.raw_attrs, _render(node.children)))
     return "".join(rendered)
 
 
@@ -452,8 +477,9 @@ def render_document(
         shortcodes: Every shortcode permitted here, keyed by tag name.
         filters: Every permitted ``transform_text``, in pipeline order.
         strict: Whether a malformed tag is an error.
-        strip_html: Whether to remove HTML tags the author wrote. Applies to author text
-            only: a raw body is verbatim, so what is written there survives.
+        strip_html: Whether to remove HTML tags the author wrote. Applies to text nodes
+            only: a ``"raw"`` element's content is verbatim, so what is written there
+            survives.
 
     Returns:
         The rendered content, and the names of the HTML tags stripped from it.
