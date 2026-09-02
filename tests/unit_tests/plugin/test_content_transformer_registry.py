@@ -288,8 +288,10 @@ class TestTrustBoundary:
         plugin = AttrPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
+        unclosed = Markup("[wrap]hi")
+
         with pytest.raises(ShortcodeError):
-            registry.transform_content([plugin], Markup("[wrap]hi"), "post")
+            registry.transform_content([plugin], unclosed, "post")
 
     def test_vouched_shortcode_still_fires(self, registry: ContentTransformerRegistry) -> None:
         """The same tag in vouched content renders normally."""

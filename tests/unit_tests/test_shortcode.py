@@ -280,8 +280,10 @@ class TestTagMatching:
             def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 return "<img>"
 
+        shortcodes: dict[str, Shortcode] = {"img": _ImgSC()}
+
         with pytest.raises(ShortcodeError, match="takes no closing tag"):
-            _apply_shortcodes("[img][/img]", {"img": _ImgSC()})
+            _apply_shortcodes("[img][/img]", shortcodes)
 
     def test_unregistered_closing_tag_is_still_left_alone(self) -> None:
         """Platzky has no opinion on a name it does not know, closing tag or not."""
@@ -373,8 +375,10 @@ class TestRawKind:
         assert result == "[RAW:[x]][RENDERED:box:y]"
 
     def test_unclosed_raw_tag_is_rejected(self) -> None:
+        shortcodes = {"raw": _raw_sc("raw")}
+
         with pytest.raises(ShortcodeError, match=r"\[raw\] is never closed"):
-            _apply_shortcodes("[raw]forever", {"raw": _raw_sc("raw")})
+            _apply_shortcodes("[raw]forever", shortcodes)
 
     def test_longer_tag_name_is_not_shadowed_by_a_shorter_prefix(self) -> None:
         short, long = _sc("box"), _sc("boxed")

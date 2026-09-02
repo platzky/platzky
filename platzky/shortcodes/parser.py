@@ -80,7 +80,7 @@ _Frame = tuple[str, str, list[_Node], int]
 def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     """Match an opening or closing tag of a known shortcode, grouped (close, open, attrs)."""
     names = "|".join(re.escape(n) for n in shortcodes)
-    return re.compile(rf"\[/({names})\]" rf"|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
+    return re.compile(rf"\[/({names})\]|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
 
 
 def _render_element(shortcode: Shortcode, raw_attrs: str, content: str) -> str:
@@ -211,6 +211,82 @@ def _open_frame_for(stack: list[_Frame], name: str) -> int | None:
     return None
 
 
+def _close_element(
+    stack: list[_Frame],
+    match: re.Match[str],
+    name: str,
+    shortcodes: dict[str, Shortcode],
+    *,
+    strict: bool,
+) -> None:
+    """Close the element this tag belongs to, or keep the tag as text.
+
+    Args:
+        stack: The parse stack, mutated in place.
+        match: The closing tag's match, for its position and raw text.
+        name: The tag name being closed.
+        shortcodes: Registered shortcodes, keyed by tag name.
+        strict: Whether a tag that closes nothing is an error.
+
+    Raises:
+        ShortcodeError: If ``strict`` and this closing tag closes nothing.
+    """
+    depth = _open_frame_for(stack, name)
+    if depth is None:
+        if strict:
+            raise ShortcodeError(_closes_nothing(shortcodes[name]), name, match.start())
+        stack[-1][2].append(_Text(match.group(0)))
+        return
+    _reject_unclosed_above(stack, depth, shortcodes, strict=strict)
+    open_name, attrs_text, children, _ = stack.pop()
+    stack[-1][2].append(_Element(shortcodes[open_name], attrs_text, children))
+
+
+def _open_element(
+    stack: list[_Frame],
+    content: str,
+    position: int,
+    match: re.Match[str],
+    name: str,
+    shortcodes: dict[str, Shortcode],
+    *,
+    strict: bool,
+) -> int:
+    """Take an opening tag: render it on sight, take its raw content, or push a frame.
+
+    Args:
+        stack: The parse stack, mutated in place.
+        content: The whole document, for a raw element's content.
+        position: Offset just past the opening tag.
+        match: The opening tag's match, for its position and raw text.
+        name: The tag name being opened.
+        shortcodes: Registered shortcodes, keyed by tag name.
+        strict: Whether a raw element that is never closed is an error.
+
+    Returns:
+        Where scanning continues — past a raw element's closing tag, otherwise unchanged.
+
+    Raises:
+        ShortcodeError: If ``strict`` and a raw element is never closed.
+    """
+    shortcode = shortcodes[name]
+    raw_attrs = match.group(3) or ""
+    if shortcode.kind == "void":
+        stack[-1][2].append(_Element(shortcode, raw_attrs, []))
+        return position
+    if shortcode.kind == "raw":
+        end = content.find(f"[/{name}]", position)
+        if end < 0:
+            if strict:
+                raise ShortcodeError(_never_closed(name), name, match.start())
+            stack[-1][2].append(_Text(match.group(0)))
+            return position
+        stack[-1][2].append(_RawElement(shortcode, raw_attrs, content[position:end]))
+        return end + len(name) + 3
+    stack.append((name, raw_attrs, [], match.start()))
+    return position
+
+
 def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> list[_Node]:
     """Read the content into nodes, rendering nothing.
 
@@ -240,36 +316,13 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
         if match.start() > position:
             stack[-1][2].append(_Text(content[position : match.start()]))
         position = match.end()
-        closing, opening, raw_attrs = match.group(1), match.group(2), match.group(3)
-
+        closing, opening = match.group(1), match.group(2)
         if closing is not None:
-            depth = _open_frame_for(stack, closing)
-            if depth is None:
-                if strict:
-                    raise ShortcodeError(
-                        _closes_nothing(shortcodes[closing]), closing, match.start()
-                    )
-                stack[-1][2].append(_Text(match.group(0)))
-                continue
-            _reject_unclosed_above(stack, depth, shortcodes, strict=strict)
-            name, attrs_text, children, _ = stack.pop()
-            stack[-1][2].append(_Element(shortcodes[name], attrs_text, children))
-            continue
-
-        shortcode = shortcodes[opening]
-        if shortcode.kind == "void":
-            stack[-1][2].append(_Element(shortcode, raw_attrs or "", []))
-        elif shortcode.kind == "raw":
-            body_end = content.find(f"[/{opening}]", position)
-            if body_end < 0:
-                if strict:
-                    raise ShortcodeError(_never_closed(opening), opening, match.start())
-                stack[-1][2].append(_Text(match.group(0)))
-                continue
-            stack[-1][2].append(_RawElement(shortcode, raw_attrs or "", content[position:body_end]))
-            position = body_end + len(opening) + 3
+            _close_element(stack, match, closing, shortcodes, strict=strict)
         else:
-            stack.append((opening, raw_attrs or "", [], match.start()))
+            position = _open_element(
+                stack, content, position, match, opening, shortcodes, strict=strict
+            )
 
     if position < len(content):
         stack[-1][2].append(_Text(content[position:]))
