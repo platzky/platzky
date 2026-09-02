@@ -150,8 +150,9 @@ For notifier plugins you can restrict which topics the plugin receives:
 For content transformer plugins, ``allowed_content_types`` names the content types the
 plugin may act on — the :term:`site owner`\ 's half of :term:`offer and grant` in
 :ref:`declaring-scope`. Omitting it grants nothing, and naming a type the plugin does not
-offer grants nothing either. Include an application's own type (here ``"field"``) to let
-the plugin's shortcodes render stored values of that kind as well as prose:
+offer grants nothing either. Include an application's own type — here ``"product_field"``,
+from :ref:`new-content-types` — to let the plugin's shortcodes render stored values of that
+kind as well as prose:
 
 .. code-block:: json
 
@@ -160,7 +161,7 @@ the plugin's shortcodes render stored values of that kind as well as prose:
             "alert_plugin": {
                 "is_active": true,
                 "config": {},
-                "allowed_content_types": ["post", "page", "field"]
+                "allowed_content_types": ["post", "page", "product_field"]
             }
         }
     }

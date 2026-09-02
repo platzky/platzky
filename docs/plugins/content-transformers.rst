@@ -183,13 +183,14 @@ New content types
 
 Platzky produces posts, pages and comments — ``POST``, ``PAGE``, ``COMMENT`` in
 :mod:`platzky.content_types`. An application or plugin with its own kind of content
-names its own and registers it:
+names its own and registers it. A shop, say, storing a short piece of text against each
+product:
 
 .. code-block:: python
 
-    MARKER_FIELD: ContentType = "field"
+    PRODUCT_FIELD: ContentType = "product_field"
 
-    create_app_from_config(config, extra_content_types=[MARKER_FIELD])
+    create_app_from_config(config, extra_content_types=[PRODUCT_FIELD])
 
 A plugin opts in exactly as it would for a post:
 
@@ -198,7 +199,7 @@ A plugin opts in exactly as it would for a post:
     class MyPlugin(ContentTransformerPluginBase):
         accepted_content_types: Mapping[ContentType, str] = {
             POST: "Renders its tags in post bodies.",
-            MARKER_FIELD: "Renders the same tags stored against a marker.",
+            PRODUCT_FIELD: "Renders the same tags stored against a product.",
         }
 
 A plugin with no constraint on where it runs need not name the new type at all: keying
@@ -208,7 +209,7 @@ types added after the plugin was written (see :ref:`declaring-scope`).
 Either way the site owner grants it through ``allowed_content_types`` in the database config
 (see :ref:`plugin-configuration`); a plugin runs only where both agree. A content type
 is only ever its name, so accepting a kind of content never means importing the package
-that brought it — otherwise every plugin handling marker fields would depend on the
+that brought it — otherwise every plugin handling product fields would depend on the
 application that has them.
 
 The vocabulary being open costs static checking: ``ContentType`` is ``str``, and a closed

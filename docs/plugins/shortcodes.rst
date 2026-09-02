@@ -246,10 +246,12 @@ a tag an author wrote in prose — through
     Anything a stored value should be able to override becomes a ``ShortcodeAttr``,
     which content authors then get as a tag attribute too.
 
-Take the shortcodes to render with from :meth:`~platzky.engine.Engine.shortcodes_for`, not
-by reading ``shortcodes`` off loaded plugins::
+Take the shortcodes to render with from :meth:`~platzky.engine.Engine.shortcodes_for`,
+passing the :term:`content type` the stored value belongs to — usually one the application
+brought itself, such as the ``"product_field"`` of :ref:`new-content-types` — rather than
+reading ``shortcodes`` off loaded plugins::
 
-    for name, shortcode in app.shortcodes_for("field").items():
+    for name, shortcode in app.shortcodes_for("product_field").items():
         ...
 
 ``render_value`` is called directly by the application and so does not pass through
