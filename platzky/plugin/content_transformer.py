@@ -149,15 +149,15 @@ class ContentTransformerRegistry:
         """
         self.known_content_types: set[ContentType] = set(known_content_types)
         self._allowlist: dict[ContentTransformerPluginBase, frozenset[ContentType]] = {}
-        self._pending_grants: list[tuple[str, frozenset[ContentType]]] = []
+        self._grants_reported = False
 
     def grant(
         self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
     ) -> None:
         """Record the site owner's grant for a plugin.
 
-        One call because it is one decision: the same grant is what ``may_transform``
-        enforces and what ``warn_unknown_grants`` later checks for typos. An empty
+        One call because it is one decision: the same allowlist entry is what
+        ``may_transform`` enforces and what ``warn_unknown_grants`` later checks. An empty
         frozenset blocks every content type, as does never granting a plugin at all.
         Called by the plugin loader; not intended to be called from plugin code.
 
@@ -167,7 +167,6 @@ class ContentTransformerRegistry:
             allowed_types: Content types the site owner granted it.
         """
         self._allowlist[plugin] = allowed_types
-        self._pending_grants.append((type(plugin).__name__, allowed_types))
 
     def may_transform(
         self, plugin: ContentTransformerPluginBase, content_type: ContentType
@@ -381,15 +380,21 @@ class ContentTransformerRegistry:
         leaving a transformer mysteriously idle.
 
         Called by the plugin loader once every plugin is loaded, so that a plugin
-        contributing a content type need not load before the plugins granted it.
+        contributing a content type need not load before the plugins granted it. Reading
+        the allowlist rather than a log of grants is what makes that safe: the vocabulary
+        is complete by now, and a plugin granted twice is judged on the grant it ended up
+        with. Reports once — a second call is a no-op, since the answer cannot have
+        changed without another plugin loading.
         """
-        for plugin_name, allowed in self._pending_grants:
+        if self._grants_reported:
+            return
+        self._grants_reported = True
+        for plugin, allowed in self._allowlist.items():
             for unknown in sorted(allowed - self.known_content_types):
                 logger.warning(
                     "Plugin %s is granted content type '%s', which this application does not "
                     "produce; the grant has no effect. Known types: %s",
-                    plugin_name,
+                    type(plugin).__name__,
                     unknown,
                     ", ".join(sorted(self.known_content_types)),
                 )
-        self._pending_grants.clear()
