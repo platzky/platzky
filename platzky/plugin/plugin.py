@@ -43,9 +43,17 @@ class PluginBase(ABC):
 
     #: The plugin's name: its entry-point name, which is also the key it is configured
     #: under — the loader looks the config key up among entry-point names, so a plugin
-    #: whose two differ never loads at all. Stamped by ``Engine.register_plugin``, so it
-    #: is empty while the plugin's own ``__init__`` runs. Per-instance, not a
-    #: ``ClassVar``: two entry points may point at the same class under two names.
+    #: whose two differ never loads at all. Declared once, in the plugin package's
+    #: metadata, and every message a site owner reads names the plugin this way rather
+    #: than by its class, so what a warning says matches what they would search their
+    #: config for.
+    #:
+    #: Stamped by ``Engine.register_plugin``, so it is empty while the plugin's own
+    #: ``__init__`` runs. Per-instance rather than a ``ClassVar`` because registration is
+    #: what supplies it, and a plugin can be registered without any packaging metadata to
+    #: read it from: platzky's own builtin shortcode transformer names itself, and a test
+    #: constructing a plugin directly leaves it empty. Code that reports a plugin should
+    #: therefore expect the empty string and fall back, the way ``get_info`` does.
     name: str = ""
 
     #: Content types this plugin *defines*, added to the application's vocabulary so other
