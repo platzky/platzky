@@ -84,12 +84,14 @@ class ContentTransformerPluginBase(PluginBase, ABC):
                 f"{cls.__name__}.accepted_content_types must map each content type to the "
                 f"reason this plugin needs it; got {type(declared).__name__}."
             )
-        # Typed as Mapping[ContentType, str], but an untyped plugin can put anything here.
+        # The annotation promises str values, but nothing enforces annotations at runtime
+        # and a plugin is a third-party package that may never have been type-checked. The
+        # cast says so, so the checks below are not read as redundant.
         for content_type, reason in cast("Mapping[object, object]", declared).items():
             if not isinstance(reason, str) or not reason.strip():
                 name = "ALL_CONTENT_TYPES" if content_type is ALL_CONTENT_TYPES else content_type
                 raise ValueError(
-                    f"{cls.__name__}.accepted_content_types[{name!r}] needs a reason an "
+                    f"{cls.__name__}.accepted_content_types[{name!r}] needs a reason a "
                     f"site owner can read when deciding whether to grant it."
                 )
 
