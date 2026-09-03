@@ -61,11 +61,9 @@ class LinkShortcode(Shortcode):
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
         if not self.url_policy.allows(attrs.url):
-            # self.name, not "link": a subclass renders under its own tag, and a log line
-            # naming the wrong one sends whoever reads it to the wrong shortcode.
             logger.warning(
                 "[%s] rendered nothing: %s.",
-                self.name,
+                self.name,  # not "link": a subclass renders under its own tag
                 self.url_policy.rejection_reason(attrs.url),
             )
             return ""
