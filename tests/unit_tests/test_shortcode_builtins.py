@@ -14,6 +14,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerRegistry,
 )
 from platzky.shortcodes.builtins import get_builtin_shortcodes
+from platzky.shortcodes.urls import EMBED_URLS, LINK_URLS
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
@@ -149,6 +150,45 @@ class TestLinkShortcode:
             _apply('[link url="ftp://example.com/x"]x[/link]')
 
         assert "use http, https, mailto or tel" in caplog.text
+
+
+class TestUrlPolicy:
+    """The policy object itself: one question, asked of a value that knows what it permits."""
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://example.com",
+            "http://example.com",
+            "mailto:hello@example.com",
+            "tel:+48123456789",
+            "/about",
+            "",
+            "photo.jpg",
+            "//example.com/x",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "ftp://example.com/x",
+        ],
+    )
+    def test_allows_never_disagrees_with_rejection(self, url: str) -> None:
+        """The pair used to be two calls a caller had to keep in step; now one defines the other."""
+        for policy in (LINK_URLS, EMBED_URLS):
+            assert policy.allows(url) is (policy.rejection(url) is None)
+
+    def test_a_permitted_url_gives_no_reason(self) -> None:
+        assert LINK_URLS.rejection("https://example.com") is None
+
+    def test_each_position_names_its_own_schemes_when_refusing(self) -> None:
+        """The message has to say what would have worked *here*, and the two differ."""
+        assert "http, https, mailto or tel" in str(LINK_URLS.rejection("ftp://example.com"))
+        assert "http or https" in str(EMBED_URLS.rejection("ftp://example.com"))
+
+    def test_the_rejected_url_is_never_quoted_back(self) -> None:
+        reason = LINK_URLS.rejection("ftp://user:secret@example.com/signed?token=abc")
+        assert reason is not None
+        assert "secret" not in reason
+        assert "token" not in reason
 
 
 class TestHeroShortcode:

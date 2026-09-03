@@ -6,7 +6,7 @@ from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import is_url_allowed, rejection_reason
+from platzky.shortcodes.urls import EMBED_URLS
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,8 @@ class ImageShortcode(Shortcode):
         Returns:
             An ``<img>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not is_url_allowed(attrs.url):
-            logger.warning(
-                "[image] rendered nothing: %s.",
-                rejection_reason(attrs.url),
-            )
+        if reason := EMBED_URLS.rejection(attrs.url):
+            logger.warning("[image] rendered nothing: %s.", reason)
             return ""
         extra = ""
         if width := escape(attrs.width):

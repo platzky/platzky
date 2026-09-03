@@ -6,7 +6,7 @@ from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import LINK_SCHEMES, is_url_allowed, rejection_reason
+from platzky.shortcodes.urls import LINK_URLS
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +46,8 @@ class LinkShortcode(Shortcode):
         Returns:
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not is_url_allowed(attrs.url, schemes=LINK_SCHEMES):
-            logger.warning(
-                "[link] rendered nothing: %s.",
-                rejection_reason(attrs.url, schemes=LINK_SCHEMES),
-            )
+        if reason := LINK_URLS.rejection(attrs.url):
+            logger.warning("[link] rendered nothing: %s.", reason)
             return ""
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
