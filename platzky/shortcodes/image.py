@@ -6,9 +6,15 @@ from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import EMBED_URLS
+from platzky.shortcodes.urls import UrlPolicy
 
 logger = logging.getLogger(__name__)
+
+#: Only the two schemes that fetch a document over the network: an ``<img src="mailto:…">``
+#: is not an image. Local to this shortcode — nothing else needs an image's URL policy, unlike
+#: ``LINK_URLS`` in :mod:`platzky.shortcodes.urls`, which an application rendering its own
+#: ``hyperlink`` value (see goodmap) has to agree with ``[link]`` about.
+_EMBED_URLS = UrlPolicy(frozenset({"http", "https"}))
 
 
 class ImageShortcode(Shortcode):
@@ -42,8 +48,8 @@ class ImageShortcode(Shortcode):
         Returns:
             An ``<img>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not EMBED_URLS.allows(attrs.url):
-            logger.warning("[image] rendered nothing: %s.", EMBED_URLS.rejection_reason(attrs.url))
+        if not _EMBED_URLS.allows(attrs.url):
+            logger.warning("[image] rendered nothing: %s.", _EMBED_URLS.rejection_reason(attrs.url))
             return ""
         extra = ""
         if width := escape(attrs.width):

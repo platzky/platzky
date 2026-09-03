@@ -7,10 +7,9 @@ from platzky.shortcodes.shortcode import (
     ShortcodeError,
     ShortcodeKind,
 )
-from platzky.shortcodes.urls import EMBED_URLS, LINK_URLS, UrlPolicy
+from platzky.shortcodes.urls import LINK_URLS, UrlPolicy
 
 __all__ = [
-    "EMBED_URLS",
     "LINK_URLS",
     "Shortcode",
     "ShortcodeAttr",

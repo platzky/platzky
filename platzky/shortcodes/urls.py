@@ -99,7 +99,3 @@ class UrlPolicy:
 #: address are ordinary things to publish, and on a phone they are the useful form of a
 #: contact detail.
 LINK_URLS = UrlPolicy(frozenset({"http", "https", "mailto", "tel"}))
-
-#: For a URL something is *fetched* from and embedded, such as an image source. Only the two
-#: that fetch a document over the network: an ``<img src="mailto:…">`` is not an image.
-EMBED_URLS = UrlPolicy(frozenset({"http", "https"}))
