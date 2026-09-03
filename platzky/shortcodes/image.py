@@ -5,8 +5,8 @@ import logging
 from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes._url import is_url_allowed, rejection_reason
 from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.urls import is_url_allowed, rejection_reason
 
 logger = logging.getLogger(__name__)
 

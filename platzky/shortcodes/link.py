@@ -5,8 +5,8 @@ import logging
 from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes._url import is_url_allowed, rejection_reason
 from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.urls import LINK_SCHEMES, is_url_allowed, rejection_reason
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class LinkShortcode(Shortcode):
         [
             ShortcodeAttr(
                 "url",
-                "Target URL (http/https or a relative path starting with /)",
+                "Target URL (http/https/mailto/tel or a relative path starting with /)",
                 required=True,
             ),
             ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
@@ -46,10 +46,10 @@ class LinkShortcode(Shortcode):
         Returns:
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not is_url_allowed(attrs.url):
+        if not is_url_allowed(attrs.url, schemes=LINK_SCHEMES):
             logger.warning(
                 "[link] rendered nothing: %s.",
-                rejection_reason(attrs.url),
+                rejection_reason(attrs.url, schemes=LINK_SCHEMES),
             )
             return ""
         target_value = str(attrs.target or "")

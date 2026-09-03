@@ -82,6 +82,13 @@ class TestImageShortcode:
         """No scheme, but external all the same."""
         assert _apply('[image url="//evil.example/x.png"]') == ""
 
+    def test_mailto_url_rejected(self) -> None:
+        """An image is fetched, not navigated to, so the schemes a link accepts do not apply."""
+        assert _apply('[image url="mailto:hello@example.com"]') == ""
+
+    def test_tel_url_rejected(self) -> None:
+        assert _apply('[image url="tel:+48123456789"]') == ""
+
     def test_root_relative_url_allowed(self) -> None:
         assert _apply('[image url="/x.jpg"]') == '<img src="/x.jpg" alt="">'
 
@@ -124,6 +131,24 @@ class TestLinkShortcode:
     def test_data_url_rejected(self) -> None:
         result = _apply('[link url="data:text/html,<h1>x</h1>"]x[/link]')
         assert "<a" not in result
+
+    def test_mailto_url_allowed(self) -> None:
+        """An email address is an ordinary thing to publish, and a link is how it is read."""
+        result = _apply('[link url="mailto:hello@example.com"]Email us[/link]')
+        assert result == '<a href="mailto:hello@example.com">Email us</a>'
+
+    def test_tel_url_allowed(self) -> None:
+        result = _apply('[link url="tel:+48123456789"]Call us[/link]')
+        assert result == '<a href="tel:+48123456789">Call us</a>'
+
+    def test_rejection_names_the_schemes_a_link_accepts(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The reason has to say what would have worked, and a link accepts more than an image."""
+        with caplog.at_level(logging.WARNING):
+            _apply('[link url="ftp://example.com/x"]x[/link]')
+
+        assert "use http, https, mailto or tel" in caplog.text
 
 
 class TestHeroShortcode:
