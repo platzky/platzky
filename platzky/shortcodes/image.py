@@ -10,15 +10,10 @@ from platzky.shortcodes.urls import UrlPolicy
 
 logger = logging.getLogger(__name__)
 
-#: Only the two schemes that fetch a document over the network: an ``<img src="mailto:…">``
-#: is not an image.
-#:
-#: Lives here rather than beside ``LINK_URL_POLICY`` in :mod:`platzky.shortcodes.urls`, and is
-#: not re-exported from :mod:`platzky.shortcodes`, because this shortcode is its only consumer.
-#: ``LINK_URL_POLICY`` is exported because it has a second one: an application rendering a
-#: ``hyperlink`` value of its own (see goodmap) has to agree with ``[link]`` about what may be
-#: linked to. Export this the day something has the same need of an image's policy.
-EMBED_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
+#: An image is fetched, so only the schemes that fetch — ``<img src="mailto:…">`` is not an
+#: image. Kept here and unexported because this shortcode is its only consumer, unlike
+#: ``LINK_URL_POLICY``, which goodmap needs too.
+IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
 
 
 class ImageShortcode(Shortcode):
@@ -52,9 +47,9 @@ class ImageShortcode(Shortcode):
         Returns:
             An ``<img>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not EMBED_URL_POLICY.allows(attrs.url):
+        if not IMAGE_URL_POLICY.allows(attrs.url):
             logger.warning(
-                "[image] rendered nothing: %s.", EMBED_URL_POLICY.rejection_reason(attrs.url)
+                "[image] rendered nothing: %s.", IMAGE_URL_POLICY.rejection_reason(attrs.url)
             )
             return ""
         extra = ""
