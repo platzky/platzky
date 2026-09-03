@@ -150,6 +150,13 @@
         "contentInMarkdown": "page content",
         "excerpt": "page excerpt",
         "css": "</style><script>alert('xss')</script><style>"
+      },
+      {
+        "title": "strip html page",
+        "author": "autor",
+        "slug": "strip-html",
+        "contentInMarkdown": "Before <b>bold text</b> after. [html]<img id=\"kept-image\" src=\"/static/img/none.png\">[/html] Tail <img id=\"stripped-image\" src=\"/static/img/none.png\"> end. [image url=\"/static/img/none.png\" alt=\"shortcode image\"]",
+        "excerpt": "page excerpt"
       }
     ],
     "menu_items": {

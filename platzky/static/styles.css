@@ -211,7 +211,7 @@ main {
   z-index: 1;
 }
 
-.btn {
+#language-dropdown .btn {
   padding: 0;
 }
 

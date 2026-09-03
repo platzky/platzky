@@ -13,7 +13,7 @@ from platzky.plugin.plugin import PluginBase
 #
 # The application that *composes* the engine via ``create_app_from_config`` owns its
 # plugin ecosystem and may extend it explicitly with ``extra_plugin_bases`` (and
-# ``extra_plugins_entrypoints`` for discovery) — this is host-owned, not granted to
+# ``extra_plugins_entrypoints`` for discovery) — this is application-owned, not granted to
 # arbitrary installed packages.
 PLUGIN_BASES: tuple[type[PluginBase], ...] = (
     NotifierPluginBase,

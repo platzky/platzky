@@ -27,15 +27,16 @@ from flask_babel import Babel
 
 from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
-from platzky.content_types import ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
-from platzky.feature_flags import FeatureFlag
+from platzky.feature_flags import FeatureFlag, StripContentHtml
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerPluginConfig,
+    ContentTransformerRegistry,
 )
 from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPluginConfig
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
@@ -82,6 +83,7 @@ class Engine(Flask):
         import_name: str,
         extra_plugin_bases: Sequence[type["PluginBase"]] = (),
         extra_plugins_entrypoints: Sequence[str] = (),
+        extra_content_types: Sequence[ContentType] = (),
     ) -> None:
         """Initialize the Engine.
 
@@ -89,16 +91,26 @@ class Engine(Flask):
             config: Application configuration.
             db: Database instance.
             import_name: Name of the application module.
-            extra_plugin_bases: Host-registered capability base classes, in addition
-                to platzky's built-in ``PLUGIN_BASES``. A host application (e.g. one
+            extra_plugin_bases: Capability base classes the application registers, in
+                addition to platzky's built-in ``PLUGIN_BASES``. An application (e.g. one
                 that wraps ``create_app_from_config``) may define capabilities for its
                 own plugin ecosystem; plugins themselves cannot register capabilities.
-            extra_plugins_entrypoints: Host-registered entry-point groups to discover
-                plugins from, in addition to ``platzky.plugins``.
+            extra_plugins_entrypoints: Entry-point groups the application registers to
+                discover plugins from, in addition to ``platzky.plugins``.
+            extra_content_types: Content types the application produces beyond
+                ``BUILTIN_CONTENT_TYPES`` — a marker field, a catalogue attribute. Plugins
+                opt in to them through ``accepted_content_types`` exactly as they do for a
+                post, and site owners grant them the same way. This parameter is the
+                application's own contribution; a plugin declares any type it introduces
+                through ``PluginBase.provides_content_types``. Both are added to
+                ``known_content_types``, and a site owner grants from that union.
         """
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
         self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
+        self.content_transformers = ContentTransformerRegistry(
+            set(BUILTIN_CONTENT_TYPES) | set(extra_content_types)
+        )
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self.db = db
@@ -108,9 +120,6 @@ class Engine(Flask):
         self._notifier_topic_allowlist: defaultdict[
             NotifierPluginBase, frozenset[NotificationTopic]
         ] = defaultdict(frozenset)
-        self._content_transformer_allowlist: dict[
-            ContentTransformerPluginBase, frozenset[ContentType]
-        ] = {}
         self.shortcodes: dict[str, Shortcode] = {}
         self.dynamic_body = ""
         self.dynamic_head = ""
@@ -173,38 +182,52 @@ class Engine(Flask):
                 continue
             plugin.notify(notification)
 
+    @property
+    def known_content_types(self) -> set[ContentType]:
+        """The content-type vocabulary in play: builtins, application's, and plugins'."""
+        return self.content_transformers.known_content_types
+
     def transform_content(self, content: str, content_type: ContentType) -> str:
         """Apply all registered content-filter plugins for the given content type.
 
-        Checks plugin's declared ``accepted_content_types`` first, then the
-        engine-enforced allowlist set via ``set_content_transformer_allowlist``.
-        Transformers chain their output, so a failing transformer aborts the chain
-        rather than silently passing through partial output to the next stage.
-        """
-        for plugin in self.get_plugins(ContentTransformerPluginBase):
-            if content_type not in plugin.accepted_content_types:
-                continue
-            if content_type not in self._content_transformer_allowlist.get(plugin, frozenset()):
-                continue
-            content = plugin.transform_content(content)
-        return content
+        Args:
+            content: The content to transform.
+            content_type: The kind of content, e.g. ``POST``.
 
-    def set_content_transformer_allowlist(
-        self, plugin: ContentTransformerPluginBase, allowed_types: frozenset[ContentType]
-    ) -> None:
-        """Register engine-enforced content-type allowlist for a content-transformer plugin.
-
-        Empty frozenset blocks all content types. Plugin absent from the allowlist is also blocked.
-        Called by the plugin loader; not intended to be called from plugin code.
+        Returns:
+            The content after every permitted transformer has run.
         """
-        self._content_transformer_allowlist[plugin] = allowed_types
+        return self.content_transformers.transform_content(
+            self.get_plugins(ContentTransformerPluginBase),
+            content,
+            content_type,
+            strip_html=self.is_enabled(StripContentHtml),
+        )
+
+    def shortcodes_for(self, content_type: ContentType) -> dict[str, Shortcode]:
+        """Return the shortcodes permitted to render this kind of content.
+
+        The gate an application needs when it renders a *stored value* through
+        ``Shortcode.render_value``, which does not pass through ``transform_content``.
+
+        Args:
+            content_type: The kind of content the shortcodes will render.
+
+        Returns:
+            Permitted shortcodes keyed by tag name.
+        """
+        return self.content_transformers.shortcodes_for(
+            self.get_plugins(ContentTransformerPluginBase), content_type
+        )
 
     def register_plugin(self, instance: "PluginBase", plugin_name: str) -> None:
         """Register a plugin instance under all matching capability keys.
 
         Args:
             instance: Plugin instance to register.
-            plugin_name: Human-readable name used in log messages.
+            plugin_name: The plugin's entry-point name, which is also its config key.
+                Used to name the plugin in this method's log and error messages, where the
+                config key is what a site owner can act on.
 
         Raises:
             TypeError: If the plugin does not implement any recognised capability.
@@ -226,7 +249,14 @@ class Engine(Flask):
             )
 
     def register_plugin_locale(self, plugin_instance: "PluginBase", plugin_name: str) -> None:
-        """Register plugin's locale directory with Babel if it exists."""
+        """Register plugin's locale directory with Babel if it exists.
+
+        Args:
+            plugin_instance: The plugin whose locale directory to register.
+            plugin_name: Its config key, for the log line — a rejected locale directory is
+                something a site owner has to act on, so the message names what they
+                configured rather than the class that shipped it.
+        """
         locale_dir = plugin_instance.get_locale_dir()
         if locale_dir is None:
             return
@@ -264,6 +294,10 @@ class Engine(Flask):
         raw = plugin_config_base.model_dump()
         plugin_instance = plugin_class(plugin_config_base.config)
         app = self
+        # First, so a plugin implementing no capability is rejected before it collects
+        # any grant.
+        app.register_plugin(plugin_instance, plugin_name)
+        app.content_transformers.known_content_types |= plugin_instance.provides_content_types
         if isinstance(plugin_instance, NotifierPluginBase):
             if not plugin_instance.accepted_topics:
                 logger.debug(
@@ -279,10 +313,11 @@ class Engine(Flask):
                     "Plugin %s declares no accepted_content_types; it will transform no content.",
                     plugin_name,
                 )
-            app.set_content_transformer_allowlist(
-                plugin_instance,
-                ContentTransformerPluginConfig.model_validate(raw).allowed_content_types,
-            )
+            allowed = ContentTransformerPluginConfig.model_validate(raw).allowed_content_types
+            # Checked once every plugin has loaded, not here: a plugin may contribute the
+            # very content type another plugin was granted, and which loads first is not
+            # something site-owner config should have to think about.
+            app.content_transformers.grant(plugin_instance, allowed)
         if isinstance(plugin_instance, HtmlInjectorPluginBase):
             if not plugin_instance.accepted_page_sections:
                 logger.debug(
@@ -295,7 +330,6 @@ class Engine(Flask):
             )
         app.loaded_plugins.append(plugin_instance)
         app.register_plugin_locale(plugin_instance, plugin_name)
-        app.register_plugin(plugin_instance, plugin_name)
         logger.info("Processed class-based plugin: %s", plugin_name)
         return app
 

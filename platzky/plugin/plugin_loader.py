@@ -97,7 +97,7 @@ def plugify(app: Engine) -> Engine:
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
 
-    # Remove duplicate groups so a host re-registering the default group does not
+    # Remove duplicate groups so an application re-registering the default group does not
     # collide with itself.
     entry_point_groups = tuple(dict.fromkeys((_ENTRY_POINT_GROUP, *app.extra_plugins_entrypoints)))
     discovered, failed_entry_points = _discover_entry_points(entry_point_groups)
@@ -130,4 +130,5 @@ def plugify(app: Engine) -> Engine:
             logger.exception("Error processing plugin %s", plugin_name)
             raise PluginError(f"Error processing plugin {plugin_name}: {e}") from e
 
+    app.content_transformers.warn_unknown_grants()
     return app

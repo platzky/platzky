@@ -8,7 +8,7 @@ import os
 import types
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,18 @@ class PluginBase(ABC):
     etc.) rather than overriding process().
     """
 
+    #: Content types this plugin *defines*, added to the application's vocabulary so other
+    #: plugins can accept them and site owners can grant them — the counterpart to
+    #: ``ContentTransformerPluginBase.accepted_content_types``, which names what a plugin
+    #: *consumes*. A plugin large enough to bring its own kind of content (a map's marker
+    #: fields, a catalogue's attributes) defines it here rather than the application having
+    #: to know about it: installing the plugin is enough, with no matching
+    #: ``extra_content_types`` entry on the application side.
+    #:
+    #: Content types are read only when content is transformed, well after loading, so a
+    #: plugin may contribute one whatever order it loads in.
+    provides_content_types: ClassVar[frozenset[str]] = frozenset()
+
     @staticmethod
     def get_locale_dir_from_module(plugin_module: types.ModuleType) -> Optional[str]:
         """Get plugin locale directory from a module.
@@ -65,7 +77,11 @@ class PluginBase(ABC):
     def get_info(self) -> PluginInfo:
         """Return a metadata snapshot describing this plugin.
 
-        Override to provide a user-facing name or description.
+        The name is the class name. By convention it matches the entry-point name the
+        plugin is installed and configured under — ``RedLetterPlugin`` against
+        ``red_letter`` — but nothing enforces that, so a plugin whose two differ is listed
+        by its class. Override to provide a description; the docstring is used when you
+        do not.
         """
         doc = type(self).__doc__
         return PluginInfo(

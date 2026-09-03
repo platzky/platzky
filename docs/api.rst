@@ -30,3 +30,30 @@ Models
 .. automodule:: platzky.models
    :members:
    :undoc-members:
+
+Content types
+-------------
+
+.. automodule:: platzky.content_types
+   :members:
+
+Plugins
+-------
+
+.. automodule:: platzky.plugin.plugin
+   :members:
+
+.. automodule:: platzky.plugin.content_transformer
+   :members:
+   :exclude-members: ContentTransformerPluginConfig
+
+Shortcodes
+----------
+
+.. automodule:: platzky.shortcodes.shortcode
+   :members:
+   :special-members: __init__
+
+.. automodule:: platzky.shortcodes.parser
+   :members:
+   :special-members: __init__

@@ -3,7 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Awaitable, Iterable, Sequence
+from collections.abc import Awaitable, Iterable, Mapping, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request, session
@@ -19,7 +19,7 @@ from platzky.config import (
     Config,
     languages_dict,
 )
-from platzky.content_types import ContentType
+from platzky.content_types import PAGE, POST, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
@@ -51,7 +51,11 @@ def _gather_shortcodes_and_extensions(
 ) -> tuple[dict[str, Shortcode], list[type[jinja2.ext.Extension]]]:
     """Collect shortcodes and Jinja2 extensions from a set of content-transformer plugins.
 
-    Logs a warning for any tag name that collides with an already-registered shortcode.
+    A tag name already claimed is kept by whoever claimed it first, and the loser is
+    logged. Built-ins are registered before any plugin, so a plugin cannot displace
+    ``[image]``, ``[link]`` or ``[hero]``, and among plugins the earlier config key wins —
+    the same rule prose follows, since transformers run in that order and the first to own
+    a tag consumes it.
 
     Args:
         plugins: Content-transformer plugins to inspect.
@@ -66,10 +70,13 @@ def _gather_shortcodes_and_extensions(
         for tag_name, shortcode in plugin.shortcodes.items():
             if tag_name in registered_shortcodes or tag_name in shortcodes:
                 logger.warning(
-                    "Plugin %s shortcode %r overrides an existing registration.",
+                    "Plugin %r registers shortcode %r, which is already registered. The "
+                    "earlier registration wins; reorder the plugins in the config to "
+                    "change which.",
                     type(plugin).__name__,
                     tag_name,
                 )
+                continue
             shortcodes[tag_name] = shortcode
         extensions.extend(plugin.get_jinja_extensions())
     return shortcodes, extensions
@@ -78,7 +85,10 @@ def _gather_shortcodes_and_extensions(
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
     """Built-in image and link shortcodes, always registered for posts and pages."""
 
-    accepted_content_types: frozenset[ContentType] = frozenset({"post", "page"})
+    accepted_content_types: Mapping[ContentType, str] = {
+        POST: "Renders [image] and [link] tags an author wrote in a post.",
+        PAGE: "Renders [image] and [link] tags an author wrote in a page.",
+    }
     shortcodes = get_builtin_shortcodes()
 
 
@@ -210,6 +220,7 @@ def create_engine(
     db: DB,
     extra_plugin_bases: Sequence[type[PluginBase]] = (),
     extra_plugins_entrypoints: Sequence[str] = (),
+    extra_content_types: Sequence[ContentType] = (),
 ) -> Engine:
     """Create and configure a Platzky Engine instance.
 
@@ -221,11 +232,19 @@ def create_engine(
         db: Database instance for data persistence
         extra_plugin_bases: App specific registered capability base classes (see ``Engine``).
         extra_plugins_entrypoints: App specific registered entry-point groups (see ``Engine``).
+        extra_content_types: App specific content types (see ``Engine``).
 
     Returns:
         Configured Engine instance with plugins loaded
     """
-    app = Engine(config, db, __name__, extra_plugin_bases, extra_plugins_entrypoints)
+    app = Engine(
+        config,
+        db,
+        __name__,
+        extra_plugin_bases,
+        extra_plugins_entrypoints,
+        extra_content_types,
+    )
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -327,6 +346,7 @@ def create_app_from_config(
     config: Config,
     extra_plugin_bases: Sequence[type[PluginBase]] = (),
     extra_plugins_entrypoints: Sequence[str] = (),
+    extra_content_types: Sequence[ContentType] = (),
 ) -> Engine:
     """Create a fully configured Platzky application from a Config object.
 
@@ -336,11 +356,15 @@ def create_app_from_config(
 
     Args:
         config: Application configuration object
-        extra_plugin_bases: Capability base classes a host application registers for its
+        extra_plugin_bases: Capability base classes the application registers for its
             own plugin ecosystem, in addition to platzky's built-in ``PLUGIN_BASES``.
-            Plugins cannot register capabilities; only the host composing the app can.
-        extra_plugins_entrypoints: Entry-point groups a host application registers for
+            Plugins cannot register capabilities; only the application composing them can.
+        extra_plugins_entrypoints: Entry-point groups the application registers for
             plugin discovery, in addition to ``platzky.plugins``.
+        extra_content_types: Content types the application produces beyond platzky's own,
+            so its plugins can opt in to them through ``accepted_content_types``.
+            The application's own contribution; a plugin declares any type it introduces
+            through ``PluginBase.provides_content_types``.
 
     Returns:
         Fully configured Engine instance ready to serve requests
@@ -350,7 +374,9 @@ def create_app_from_config(
         ValueError: If telemetry configuration is invalid
     """
     db = get_db(config.db)
-    engine = create_engine(config, db, extra_plugin_bases, extra_plugins_entrypoints)
+    engine = create_engine(
+        config, db, extra_plugin_bases, extra_plugins_entrypoints, extra_content_types
+    )
 
     # Setup telemetry (optional feature)
     if config.telemetry.enabled:
@@ -369,9 +395,13 @@ def create_app_from_config(
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.
     _builtin_transformer = _BuiltinShortcodeTransformer({})
+    # Inserted rather than registered, because register_plugin appends and this one must
+    # run first.
     engine.plugins[ContentTransformerPluginBase].insert(0, _builtin_transformer)
-    engine.set_content_transformer_allowlist(
-        _builtin_transformer, _builtin_transformer.accepted_content_types
+    # Self-granted, not site-owner config: the builtins are not opt-in, so the plugin's own
+    # declaration stands in for the grant. They route through the same gate as everything else.
+    engine.content_transformers.grant(
+        _builtin_transformer, frozenset(_builtin_transformer.accepted_content_types)
     )
     engine.shortcodes.update(_builtin_transformer.shortcodes)
 

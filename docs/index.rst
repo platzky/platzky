@@ -25,7 +25,7 @@ started with Platzky and building applications.
    config
    database
    telemetry
-   plugins
+   plugins/index
 
 API Reference
 -------------
@@ -44,5 +44,6 @@ Additional Notes
 .. toctree::
    :maxdepth: 2
 
+   glossary
    changelog
    license
