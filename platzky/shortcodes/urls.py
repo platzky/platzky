@@ -98,4 +98,4 @@ class UrlPolicy:
 #: off to another application rather than fetching anything — a phone number and an email
 #: address are ordinary things to publish, and on a phone they are the useful form of a
 #: contact detail.
-LINK_URLS = UrlPolicy(frozenset({"http", "https", "mailto", "tel"}))
+LINK_URL_POLICY = UrlPolicy(frozenset({"http", "https", "mailto", "tel"}))

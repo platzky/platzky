@@ -14,7 +14,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerRegistry,
 )
 from platzky.shortcodes.builtins import get_builtin_shortcodes
-from platzky.shortcodes.urls import LINK_URLS, UrlPolicy
+from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
@@ -155,10 +155,10 @@ class TestLinkShortcode:
 class TestUrlPolicy:
     """The policy object itself: one question, asked of a value that knows what it permits.
 
-    Exercised through its own throwaway instances rather than ``LINK_URLS`` or a shortcode's
-    private policy, so a change to either's specific scheme set can never break a test of
-    what ``UrlPolicy`` itself guarantees. The shortcode tests above already cover ``LINK_URLS``
-    and image's embed policy end to end.
+    Exercised through its own throwaway instances rather than the real policies, so a change
+    to either's specific scheme set can never break a test of what ``UrlPolicy`` itself
+    guarantees. The shortcode tests above already cover ``LINK_URL_POLICY`` and image's embed
+    policy end to end.
     """
 
     _narrow = UrlPolicy(frozenset({"https"}))
@@ -197,10 +197,10 @@ class TestUrlPolicy:
         assert "token" not in reason
 
     def test_link_urls_accepts_contact_schemes(self) -> None:
-        """The one thing specific to the real ``LINK_URLS``: it is public because goodmap
+        """The one thing specific to the real ``LINK_URL_POLICY``: it is public because goodmap
         needs to agree with it, and that only works if mailto/tel are actually in it."""
-        assert LINK_URLS.allows("mailto:hello@example.com")
-        assert LINK_URLS.allows("tel:+48123456789")
+        assert LINK_URL_POLICY.allows("mailto:hello@example.com")
+        assert LINK_URL_POLICY.allows("tel:+48123456789")
 
 
 class TestHeroShortcode:
