@@ -28,7 +28,7 @@ class ImageShortcode(Shortcode):
     description = "Embed an image."
     attributes = ShortcodeAttrs(
         [
-            ShortcodeAttr("url", "Image URL (http/https or relative)", required=True),
+            ShortcodeAttr("url", "Image URL (http/https or a path starting with /)", required=True),
             ShortcodeAttr("alt", "Alt text", required=False),
             ShortcodeAttr("width", "Width in pixels", required=False),
             ShortcodeAttr("height", "Height in pixels", required=False),

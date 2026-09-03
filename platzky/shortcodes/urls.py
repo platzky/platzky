@@ -24,8 +24,23 @@ class UrlPolicy:
     removes the chance to disagree with itself.
     """
 
-    #: The URL schemes this position permits. A rooted path is always allowed as well.
+    #: The URL schemes this position permits, lowercased. A rooted path is always allowed
+    #: as well. May be empty, for a position that permits nothing but a rooted path.
     schemes: frozenset[str]
+
+    def __post_init__(self) -> None:
+        """Lowercase the declared schemes, because that is what they will be compared against.
+
+        ``urlparse`` lowercases the scheme it parses, so a policy declared ``{"HTTPS"}`` would
+        otherwise match nothing at all and explain itself with "scheme 'https' is not allowed;
+        use HTTPS" — failing closed, which is the safe direction, but silently and with advice
+        that contradicts itself. Normalising here means a caller cannot declare a policy that
+        refuses the very scheme it names.
+        """
+        lowered = frozenset(scheme.lower() for scheme in self.schemes)
+        if lowered != self.schemes:
+            # The dataclass is frozen, so this is the sanctioned way to normalise in place.
+            object.__setattr__(self, "schemes", lowered)
 
     def allows(self, url: str) -> bool:
         """Report whether this URL may be used here.
@@ -61,7 +76,8 @@ class UrlPolicy:
         ``data:`` out; a bare relative path such as ``photo.jpg``, which resolves against
         whichever page is showing the content and so means one thing in a post and another
         in a listing; and a protocol-relative ``//host/path``, which carries no scheme but
-        is external anyway.
+        is external anyway — along with the backslash spellings of it, which reach a host
+        just the same in a browser.
 
         Args:
             url: The URL as written.
@@ -76,19 +92,35 @@ class UrlPolicy:
             if parsed.scheme in self.schemes:
                 return None
             return f"scheme {parsed.scheme!r} is not allowed; use {self._permitted()}"
-        if parsed.netloc:
-            return "a protocol-relative '//host/path' url has no scheme; write http(s) instead"
+        # Two leading slashes mean an authority rather than a path — and a browser reads a
+        # backslash as a slash for special schemes (WHATWG URL takes `/\`, `\/` and `\\` into
+        # the same authority states as `//`), so `/\evil.example/x` fetches from that host
+        # while `urlparse` reports an innocent rooted path with no netloc. Checking the two
+        # characters directly is what closes that gap; `parsed.netloc` alone does not.
+        if parsed.netloc or (len(url) > 1 and url[0] in "/\\" and url[1] in "/\\"):
+            return (
+                "a protocol-relative '//host/path' url has no scheme; "
+                f"use {self._permitted()} instead"
+            )
         if url.startswith("/"):
             return None
         return "a relative path resolves against whichever page shows it; start it with '/'"
 
     def _permitted(self) -> str:
-        """Render the permitted schemes as prose for the tail of a rejection message.
+        """Render what this policy accepts, as prose for the tail of a rejection message.
+
+        Total by construction: ``allows`` is defined in terms of ``rejection_reason``, so a
+        policy this could not describe would raise out of the *allow check* and fail a whole
+        page render rather than refusing one URL. An empty scheme set is a real policy —
+        rooted paths only — not a mistake to crash on.
 
         Returns:
-            Them, sorted, joined as "a, b or c".
+            The schemes, sorted, joined as "a, b or c"; or a description of the rooted-path
+            case when there are none.
         """
         names = sorted(self.schemes)
+        if not names:
+            return "a path starting with '/'"
         if len(names) == 1:
             return names[0]
         return f"{', '.join(names[:-1])} or {names[-1]}"

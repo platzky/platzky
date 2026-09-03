@@ -14,6 +14,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerRegistry,
 )
 from platzky.shortcodes.builtins import get_builtin_shortcodes
+from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 
@@ -82,6 +83,12 @@ class TestImageShortcode:
     def test_protocol_relative_url_rejected(self) -> None:
         """No scheme, but external all the same."""
         assert _apply('[image url="//evil.example/x.png"]') == ""
+
+    def test_the_url_description_matches_what_is_actually_accepted(self) -> None:
+        """The description is shown on the help page; a bare relative url renders nothing."""
+        description = next(a.description for a in image_shortcode.attributes if a.name == "url")
+        assert "starting with /" in description
+        assert _apply('[image url="photo.jpg"]') == ""
 
     def test_mailto_url_rejected(self) -> None:
         """An image is fetched, not navigated to, so the schemes a link accepts do not apply."""
@@ -195,6 +202,42 @@ class TestUrlPolicy:
         assert reason is not None
         assert "secret" not in reason
         assert "token" not in reason
+
+    @pytest.mark.parametrize(
+        "url",
+        ["/\\evil.example/x", "\\\\evil.example/x", "\\/evil.example/x", "//evil.example/x"],
+    )
+    def test_an_authority_is_refused_however_its_slashes_are_spelled(self, url: str) -> None:
+        """A browser reads `\\` as `/` for special schemes, so these all reach a host."""
+        assert not LINK_URL_POLICY.allows(url)
+        assert "protocol-relative" in str(LINK_URL_POLICY.rejection_reason(url))
+
+    def test_a_rooted_path_is_still_allowed(self) -> None:
+        """The backslash guard must not catch an ordinary rooted path."""
+        assert LINK_URL_POLICY.allows("/about")
+        assert LINK_URL_POLICY.allows("/")
+
+    def test_a_policy_permitting_no_scheme_does_not_raise(self) -> None:
+        """Rooted-paths-only is a real policy. It used to IndexError out of ``allows``, which
+        would fail a whole page render rather than refuse one url."""
+        paths_only = UrlPolicy(frozenset())
+        assert paths_only.allows("/about")
+        assert not paths_only.allows("https://example.com")
+        assert "path starting with '/'" in str(paths_only.rejection_reason("https://example.com"))
+
+    def test_the_protocol_relative_reason_names_this_policy_s_schemes(self) -> None:
+        """It used to hardcode http(s) — advice a policy like this one then also refuses."""
+        assert "use mailto instead" in str(
+            UrlPolicy(frozenset({"mailto"})).rejection_reason("//host/path")
+        )
+
+    def test_declared_schemes_are_normalised_to_lowercase(self) -> None:
+        """``urlparse`` lowercases what it parses, so an uppercase declaration used to match
+        nothing while advising the very scheme it had just refused."""
+        policy = UrlPolicy(frozenset({"HTTPS", "MailTo"}))
+        assert policy.schemes == frozenset({"https", "mailto"})
+        assert policy.allows("https://example.com")
+        assert policy.allows("mailto:hello@example.com")
 
     def test_link_urls_accepts_contact_schemes(self) -> None:
         """The one thing specific to the real ``LINK_URL_POLICY``: it is public because goodmap
