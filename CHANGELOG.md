@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.14](https://github.com/platzky/platzky/compare/v2.0.0-alpha.13...v2.0.0-alpha.14) (2026-09-03)
+
+
+### Bug Fixes
+
+* Improved URL validations ([cb4a7d8](https://github.com/platzky/platzky/commit/cb4a7d813d075732a3b9a4e4b84fa17f7fb96997))
+
 ## [2.0.0-alpha.13](https://github.com/platzky/platzky/compare/v2.0.0-alpha.12...v2.0.0-alpha.13) (2026-09-03)
 
 
