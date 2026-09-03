@@ -50,10 +50,8 @@ class ImageShortcode(Shortcode):
         Returns:
             An ``<img>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not IMAGE_URL_POLICY.allows(attrs.url):
-            logger.warning(
-                "[image] rendered nothing: %s.", IMAGE_URL_POLICY.rejection_reason(attrs.url)
-            )
+        if reason := IMAGE_URL_POLICY.rejection_reason(attrs.url):
+            logger.warning("[image] rendered nothing: %s.", reason)
             return ""
         extra = ""
         if width := escape(attrs.width):

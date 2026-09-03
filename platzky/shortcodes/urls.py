@@ -9,11 +9,6 @@ from urllib.parse import urlparse
 #: RFC 3986's scheme grammar, lowercased: the shape ``urlparse`` returns in ``.scheme``.
 _SCHEME_AS_PARSED = re.compile(r"[a-z][a-z0-9+.\-]*")
 
-#: ``//host/path`` reaches an authority with no scheme, and a browser reads ``\`` as ``/``
-#: for special schemes, so ``/\host`` and ``\\host`` do too while ``urlparse`` reports no
-#: netloc for them.
-_PROTOCOL_RELATIVE = re.compile(r"[/\\]{2}")
-
 
 @dataclass(frozen=True)
 class UrlPolicy:
@@ -24,18 +19,19 @@ class UrlPolicy:
     def __post_init__(self) -> None:
         """Refuse a scheme ``urlparse`` could never return, since it would match nothing.
 
+        Uppercase is the case worth naming: ``.scheme`` is lowercased, so ``HTTPS`` matches
+        nothing while advising the very scheme it had just refused. It is refused where it is
+        written rather than silently lowercased — this is a security declaration, and its
+        author is entitled to have it mean what they wrote.
+
         Raises:
-            ValueError: If a declared scheme is not lowercase, or is not a scheme.
+            ValueError: If a declared scheme is not the shape ``urlparse`` returns.
         """
         for scheme in sorted(self.schemes):  # sorted, so two faults name the same one twice
-            if scheme != scheme.lower():
-                raise ValueError(
-                    f"url scheme {scheme!r} must be lowercase; write {scheme.lower()!r}"
-                )
             if not _SCHEME_AS_PARSED.fullmatch(scheme):
                 raise ValueError(
-                    f"{scheme!r} is not a url scheme: a letter, then letters, digits, "
-                    f"'+', '-' or '.'"
+                    f"{scheme!r} is not a url scheme: a lowercase letter, then letters, "
+                    f"digits, '+', '-' or '.'"
                 )
 
     def allows(self, url: str) -> bool:
@@ -67,32 +63,23 @@ class UrlPolicy:
         """
         if not url:
             return "no url was given"
-        parsed = urlparse(url)
+        # A browser reads '\' as '/' for a special scheme, so '/\host' and '\\host' reach an
+        # authority exactly as '//host' does. Normalising first is what lets urlparse — which
+        # reports no netloc for those two — answer the protocol-relative question by itself.
+        parsed = urlparse(url.replace("\\", "/"))
+        names = sorted(self.schemes)
+        permitted = " or ".join(filter(None, [", ".join(names[:-1]), *names[-1:]])) or (
+            "a path starting with '/'"
+        )
         if parsed.scheme:
             if parsed.scheme in self.schemes:
                 return None
-            return f"scheme {parsed.scheme!r} is not allowed; use {self._permitted()}"
-        if parsed.netloc or _PROTOCOL_RELATIVE.match(url):
-            return (
-                "a protocol-relative '//host/path' url has no scheme; "
-                f"use {self._permitted()} instead"
-            )
+            return f"scheme {parsed.scheme!r} is not allowed; use {permitted}"
+        if parsed.netloc:
+            return f"a protocol-relative '//host/path' url has no scheme; use {permitted} instead"
         if url.startswith("/"):
             return None
         return "a relative path resolves against whichever page shows it; start it with '/'"
-
-    def _permitted(self) -> str:
-        """Name what this policy accepts, for the tail of a rejection message.
-
-        Returns:
-            The schemes, sorted, joined as "a, b or c"; or the rooted-path case when empty.
-        """
-        names = sorted(self.schemes)
-        if not names:
-            return "a path starting with '/'"
-        if len(names) == 1:
-            return names[0]
-        return f"{', '.join(names[:-1])} or {names[-1]}"
 
 
 #: For a URL a reader navigates to: the two that fetch a document, plus the two that hand

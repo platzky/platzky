@@ -272,7 +272,7 @@ class TestUrlPolicy:
         nothing while advising the very scheme it had just refused. Refused where it is
         written rather than silently rewritten: this is a security declaration, and its
         author is entitled to have it mean what they wrote."""
-        with pytest.raises(ValueError, match="must be lowercase"):
+        with pytest.raises(ValueError, match="lowercase"):
             UrlPolicy(frozenset({"HTTPS"}))
 
     @pytest.mark.parametrize(
