@@ -20,15 +20,35 @@ class UrlPolicy:
     a scheme set passed at each call. Passing the set made every caller state it twice, to
     ask whether a URL was allowed and again to say why it was not, with nothing to keep the
     two in step; a message naming the wrong schemes is exactly the kind of wrong a log line
-    never gets caught being. Here the question is asked once, of a value that already knows
-    what it permits.
+    never gets caught being. Asking a value that already knows what it permits is what
+    removes the chance to disagree with itself.
     """
 
     #: The URL schemes this position permits. A rooted path is always allowed as well.
     schemes: frozenset[str]
 
-    def rejection(self, url: str) -> str | None:
+    def allows(self, url: str) -> bool:
+        """Report whether this URL may be used here.
+
+        The question a caller asks first. ``rejection_reason`` answers the follow-up, and is
+        defined below as the thing this one is derived from, so the two can never disagree
+        about a URL — which was the whole fault with passing a scheme set to each of a
+        separate pair of functions.
+
+        Args:
+            url: The URL as written.
+
+        Returns:
+            True if the URL may be used.
+        """
+        return self.rejection_reason(url) is None
+
+    def rejection_reason(self, url: str) -> str | None:
         """Say why this URL may not be used here, or ``None`` if it may.
+
+        For the caller that has already been told no by ``allows`` and has somewhere to
+        report it. Returning ``None`` for a permitted URL is what lets ``allows`` be one
+        line rather than a second copy of the rules.
 
         The reason never quotes the URL itself. A rejected value is the one place a URL is
         most likely to be malformed or private — credentials in an ``ftp://user:pass@host``,
@@ -61,20 +81,6 @@ class UrlPolicy:
         if url.startswith("/"):
             return None
         return "a relative path resolves against whichever page shows it; start it with '/'"
-
-    def allows(self, url: str) -> bool:
-        """Report whether this URL may be used here.
-
-        For a caller with nothing to log. Defined in terms of ``rejection`` so the two can
-        never disagree about a URL.
-
-        Args:
-            url: The URL as written.
-
-        Returns:
-            True if the URL may be used.
-        """
-        return self.rejection(url) is None
 
     def _permitted(self) -> str:
         """Render the permitted schemes as prose for the tail of a rejection message.

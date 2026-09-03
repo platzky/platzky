@@ -174,18 +174,18 @@ class TestUrlPolicy:
     def test_allows_never_disagrees_with_rejection(self, url: str) -> None:
         """The pair used to be two calls a caller had to keep in step; now one defines the other."""
         for policy in (LINK_URLS, EMBED_URLS):
-            assert policy.allows(url) is (policy.rejection(url) is None)
+            assert policy.allows(url) is (policy.rejection_reason(url) is None)
 
     def test_a_permitted_url_gives_no_reason(self) -> None:
-        assert LINK_URLS.rejection("https://example.com") is None
+        assert LINK_URLS.rejection_reason("https://example.com") is None
 
     def test_each_position_names_its_own_schemes_when_refusing(self) -> None:
         """The message has to say what would have worked *here*, and the two differ."""
-        assert "http, https, mailto or tel" in str(LINK_URLS.rejection("ftp://example.com"))
-        assert "http or https" in str(EMBED_URLS.rejection("ftp://example.com"))
+        assert "http, https, mailto or tel" in str(LINK_URLS.rejection_reason("ftp://example.com"))
+        assert "http or https" in str(EMBED_URLS.rejection_reason("ftp://example.com"))
 
     def test_the_rejected_url_is_never_quoted_back(self) -> None:
-        reason = LINK_URLS.rejection("ftp://user:secret@example.com/signed?token=abc")
+        reason = LINK_URLS.rejection_reason("ftp://user:secret@example.com/signed?token=abc")
         assert reason is not None
         assert "secret" not in reason
         assert "token" not in reason

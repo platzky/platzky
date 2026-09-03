@@ -42,8 +42,8 @@ class ImageShortcode(Shortcode):
         Returns:
             An ``<img>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if reason := EMBED_URLS.rejection(attrs.url):
-            logger.warning("[image] rendered nothing: %s.", reason)
+        if not EMBED_URLS.allows(attrs.url):
+            logger.warning("[image] rendered nothing: %s.", EMBED_URLS.rejection_reason(attrs.url))
             return ""
         extra = ""
         if width := escape(attrs.width):

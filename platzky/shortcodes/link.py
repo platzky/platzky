@@ -46,8 +46,8 @@ class LinkShortcode(Shortcode):
         Returns:
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if reason := LINK_URLS.rejection(attrs.url):
-            logger.warning("[link] rendered nothing: %s.", reason)
+        if not LINK_URLS.allows(attrs.url):
+            logger.warning("[link] rendered nothing: %s.", LINK_URLS.rejection_reason(attrs.url))
             return ""
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
