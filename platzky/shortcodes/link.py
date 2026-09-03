@@ -1,14 +1,12 @@
 """Built-in link shortcode."""
 
-import logging
+from typing import ClassVar
 
 from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes._url import is_url_allowed, rejection_reason
 from platzky.shortcodes.shortcode import Shortcode
-
-logger = logging.getLogger(__name__)
+from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 
 class LinkShortcode(Shortcode):
@@ -20,7 +18,7 @@ class LinkShortcode(Shortcode):
         [
             ShortcodeAttr(
                 "url",
-                "Target URL (http/https or a relative path starting with /)",
+                "Target URL (http/https/mailto/tel or a relative path starting with /)",
                 required=True,
             ),
             ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
@@ -28,13 +26,25 @@ class LinkShortcode(Shortcode):
     )
     example = '[link url="https://example.com"]Click here[/link]'
 
+    #: The URL policy this shortcode enforces. Declared rather than looked up so an
+    #: application can widen it by subclassing, for links that mean something platzky's do
+    #: not::
+    #:
+    #:     class SmsLink(LinkShortcode):
+    #:         name = "sms_link"
+    #:         url_policy = UrlPolicy(LINK_URL_POLICY.schemes | {"sms"})
+    #:
+    #: Widening is the application's decision to make and its risk to own; the default is
+    #: platzky's, and no site owner can change it from config, which is what keeps
+    #: ``javascript:`` out of every deployment rather than out of the careful ones.
+    url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
+
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Render an anchor tag, or nothing at all when there is nowhere to link to.
+        """Render an anchor tag, refusing a URL the policy does not permit.
 
         A link with no destination is not a link, and its text is usually written to be
         clicked — "read more", "here" — so leaving that behind on its own reads as a
-        mistake rather than as prose. The whole tag renders to nothing, text included, and
-        logs why, because an author cannot see an absence.
+        mistake rather than as prose. The parser drops the whole element, text included.
 
         Content is embedded as-is per the ``render`` contract; only the attributes are
         escaped here.
@@ -44,14 +54,12 @@ class LinkShortcode(Shortcode):
             content: Link text.
 
         Returns:
-            An ``<a>`` tag, or empty string if the URL is missing or not allowed.
+            An ``<a>`` tag.
+
+        Raises:
+            UrlNotPermitted: If the URL is missing, or not one the policy permits.
         """
-        if not is_url_allowed(attrs.url):
-            logger.warning(
-                "[link] rendered nothing: %s.",
-                rejection_reason(attrs.url),
-            )
-            return ""
+        self.url_policy.check(attrs.url)
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
         # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new
