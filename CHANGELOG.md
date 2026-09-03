@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.13](https://github.com/platzky/platzky/compare/v2.0.0-alpha.12...v2.0.0-alpha.13) (2026-09-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* support for custom content types ([#291](https://github.com/platzky/platzky/issues/291))
+
+### Features
+
+* support for custom content types ([#291](https://github.com/platzky/platzky/issues/291)) ([2106fe4](https://github.com/platzky/platzky/commit/2106fe4752e1d6f93726951c9ae50d84286055b5))
+
 ## [2.0.0-alpha.12](https://github.com/platzky/platzky/compare/v2.0.0-alpha.11...v2.0.0-alpha.12) (2026-08-03)
 
 
