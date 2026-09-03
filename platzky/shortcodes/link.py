@@ -1,6 +1,5 @@
 """Built-in link shortcode."""
 
-import logging
 from typing import ClassVar
 
 from markupsafe import escape
@@ -8,8 +7,6 @@ from markupsafe import escape
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
-
-logger = logging.getLogger(__name__)
 
 
 class LinkShortcode(Shortcode):
@@ -43,12 +40,11 @@ class LinkShortcode(Shortcode):
     url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Render an anchor tag, or nothing at all when there is nowhere to link to.
+        """Render an anchor tag, refusing a URL the policy does not permit.
 
         A link with no destination is not a link, and its text is usually written to be
         clicked — "read more", "here" — so leaving that behind on its own reads as a
-        mistake rather than as prose. The whole tag renders to nothing, text included, and
-        logs why, because an author cannot see an absence.
+        mistake rather than as prose. The parser drops the whole element, text included.
 
         Content is embedded as-is per the ``render`` contract; only the attributes are
         escaped here.
@@ -58,17 +54,12 @@ class LinkShortcode(Shortcode):
             content: Link text.
 
         Returns:
-            An ``<a>`` tag, or empty string if the URL is missing or not allowed.
+            An ``<a>`` tag.
+
+        Raises:
+            UrlNotPermitted: If the URL is missing, or not one the policy permits.
         """
-        if fault := self.url_policy.fault(attrs.url):
-            # self.name, not "link": a subclass renders under its own tag
-            logger.warning(
-                "[%s] rendered nothing: %s; use %s.",
-                self.name,
-                fault.value,
-                self.url_policy.permits(),
-            )
-            return ""
+        self.url_policy.check(attrs.url)
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
         # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new

@@ -11,6 +11,7 @@ raw bodies, what happens to a malformed tag — lives in :mod:`platzky.shortcode
 """
 
 import inspect
+import logging
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
@@ -18,6 +19,10 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, cast, final, get_args
 
 from markupsafe import Markup, escape
+
+from platzky.shortcodes.urls import UrlNotPermitted
+
+logger = logging.getLogger(__name__)
 
 _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
@@ -204,7 +209,7 @@ class Shortcode(ABC):
             value: The stored value, as the application holds it.
 
         Returns:
-            HTML for the value.
+            HTML for the value, or nothing at all when its URL was refused.
         """
         attrs = ShortcodeAttrs(list(self.attributes))
         if isinstance(value, dict):
@@ -214,9 +219,15 @@ class Shortcode(ABC):
             content = d.get(self.content_key, d.get("value", ""))
         else:
             content = value
-        # str() would strip the Markup and make a shortcode that still escapes
-        # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
-        return self.render(attrs, escape("" if content is None else content))
+        try:
+            # str() would strip the Markup and make a shortcode that still escapes
+            # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
+            return self.render(attrs, escape("" if content is None else content))
+        except UrlNotPermitted as refusal:
+            # The other way in, and it answers a refusal exactly as the parser does: this
+            # value renders to nothing, and the caller's page is not the casualty.
+            logger.warning("[%s] rendered nothing: %s.", self.name, refusal)
+            return ""
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:

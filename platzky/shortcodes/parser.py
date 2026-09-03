@@ -19,6 +19,7 @@ from html.parser import HTMLParser
 from markupsafe import Markup
 
 from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs, ShortcodeError
+from platzky.shortcodes.urls import UrlNotPermitted
 
 logger = logging.getLogger(__name__)
 
@@ -96,14 +97,20 @@ def _render_element(shortcode: Shortcode, raw_attrs: str, content: str) -> str:
         content: What the element wraps, with nested elements already rendered.
 
     Returns:
-        The shortcode's replacement HTML.
+        The shortcode's replacement HTML, or nothing at all when its URL was refused.
     """
     attrs = ShortcodeAttrs(list(shortcode.attributes))
     attrs.values = dict(_ATTR_RE.findall(raw_attrs))
-    # Markup truthfully: the content was either vouched for by its caller or escaped at the
-    # boundary, and anything added since came from a permitted plugin. The type is what
-    # tells a shortcode author not to escape it again.
-    return shortcode.render(attrs, Markup(content))
+    try:
+        # Markup truthfully: the content was either vouched for by its caller or escaped at
+        # the boundary, and anything added since came from a permitted plugin. The type is
+        # what tells a shortcode author not to escape it again.
+        return shortcode.render(attrs, Markup(content))
+    except UrlNotPermitted as refusal:
+        # One element, not the page: an author's typo costs its own tag. Logged because an
+        # author cannot see an absence, and named by tag so they can find which one.
+        logger.warning("[%s] rendered nothing: %s.", shortcode.name, refusal)
+        return ""
 
 
 class _MarkupStripper(HTMLParser):

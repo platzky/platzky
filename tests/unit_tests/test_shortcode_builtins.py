@@ -17,7 +17,7 @@ from platzky.plugin.content_transformer import (
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
-from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlPolicy
+from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
@@ -209,36 +209,49 @@ class TestUrlPolicy:
     _wide = UrlPolicy(frozenset({"https", "mailto"}))
 
     @pytest.mark.parametrize(
-        "url",
+        ("url", "fault"),
         [
-            "https://example.com",
-            "mailto:hello@example.com",
-            "/about",
-            "",
-            "photo.jpg",
-            "//example.com/x",
-            "javascript:alert(1)",
-            "ftp://example.com/x",
+            ("https://example.com", None),
+            ("/about", None),
+            ("/", None),
+            ("", UrlFault.NO_URL),
+            ("photo.jpg", UrlFault.RELATIVE_PATH),
+            ("//example.com/x", UrlFault.PROTOCOL_RELATIVE),
+            ("javascript:alert(1)", UrlFault.SCHEME_NOT_PERMITTED),
+            ("ftp://example.com/x", UrlFault.SCHEME_NOT_PERMITTED),
         ],
     )
-    def test_allows_never_disagrees_with_fault(self, url: str) -> None:
-        """The pair used to be two calls a caller had to keep in step; now one defines the other."""
-        for policy in (self._narrow, self._wide):
-            assert policy.allows(url) is (policy.fault(url) is None)
+    def test_every_url_is_sorted_into_the_fault_it_broke(
+        self, url: str, fault: UrlFault | None
+    ) -> None:
+        """The whole classification in one table: what passes, and which rule catches the rest."""
+        if fault is None:
+            assert self._narrow.check(url) is None
+            return
+        with pytest.raises(UrlNotPermitted) as refusal:
+            self._narrow.check(url)
+        assert refusal.value.fault is fault
 
-    def test_a_permitted_url_has_no_fault(self) -> None:
-        assert self._narrow.fault("https://example.com") is None
+    def test_a_permitted_url_passes_quietly(self) -> None:
+        """There is no verdict to unpack on the way through — which is the whole reason the
+        check raises rather than reports: the approved path has nothing to say."""
+        assert self._wide.check("mailto:hello@example.com") is None
 
     def test_each_policy_names_its_own_schemes(self) -> None:
         """What would have worked differs per policy, so the advice cannot be a constant."""
-        assert self._narrow.permits() == "https"
-        assert self._wide.permits() == "https or mailto"
+        with pytest.raises(UrlNotPermitted, match=r"use https$"):
+            self._narrow.check("ftp://x")
+        with pytest.raises(UrlNotPermitted, match=r"use https or mailto$"):
+            self._wide.check("ftp://x")
 
     def test_no_fault_phrase_can_quote_a_url_back(self) -> None:
         """The phrases are fixed strings chosen up front, so a url cannot reach a log through
         one — which is the whole reason classifying and wording are separate jobs."""
         secret = "ftp://user:secret@example.com/signed?token=abc"
-        assert self._narrow.fault(secret) is UrlFault.SCHEME_NOT_PERMITTED
+        with pytest.raises(UrlNotPermitted) as refusal:
+            self._narrow.check(secret)
+        assert "secret" not in str(refusal.value)
+        assert "token" not in str(refusal.value)
         for fault in UrlFault:
             assert "secret" not in fault.value
             assert "token" not in fault.value
@@ -249,24 +262,27 @@ class TestUrlPolicy:
     )
     def test_an_authority_is_refused_however_its_slashes_are_spelled(self, url: str) -> None:
         """A browser reads `\\` as `/` for special schemes, so these all reach a host."""
-        assert LINK_URL_POLICY.fault(url) is UrlFault.PROTOCOL_RELATIVE
+        with pytest.raises(UrlNotPermitted) as refusal:
+            LINK_URL_POLICY.check(url)
+        assert refusal.value.fault is UrlFault.PROTOCOL_RELATIVE
 
     def test_a_rooted_path_is_still_allowed(self) -> None:
         """The backslash guard must not catch an ordinary rooted path."""
-        assert LINK_URL_POLICY.allows("/about")
-        assert LINK_URL_POLICY.allows("/")
+        assert LINK_URL_POLICY.check("/about") is None
+        assert LINK_URL_POLICY.check("/") is None
 
-    def test_a_policy_permitting_no_scheme_does_not_raise(self) -> None:
-        """Rooted-paths-only is a real policy. It used to IndexError out of ``allows``, which
-        would fail a whole page render rather than refuse one url."""
+    def test_a_policy_permitting_no_scheme_still_takes_a_rooted_path(self) -> None:
+        """Rooted-paths-only is a real policy. Its advice used to IndexError off an empty
+        scheme list, failing a whole page render rather than refusing one url."""
         paths_only = UrlPolicy(frozenset())
-        assert paths_only.allows("/about")
-        assert not paths_only.allows("https://example.com")
-        assert paths_only.permits() == "a path starting with '/'"
+        assert paths_only.check("/about") is None
+        with pytest.raises(UrlNotPermitted, match=r"use a path starting with '/'$"):
+            paths_only.check("https://example.com")
 
     def test_the_advice_is_never_a_scheme_the_policy_itself_refuses(self) -> None:
         """It used to hardcode http(s) — advice a policy like this one then also refuses."""
-        assert UrlPolicy(frozenset({"mailto"})).permits() == "mailto"
+        with pytest.raises(UrlNotPermitted, match=r"use mailto$"):
+            UrlPolicy(frozenset({"mailto"})).check("//host/path")
 
     def test_an_uppercase_scheme_is_refused_at_construction(self) -> None:
         """``urlparse`` lowercases what it parses, so an uppercase declaration matches
@@ -295,14 +311,14 @@ class TestUrlPolicy:
         """RFC 3986 allows digits, '+', '-' and '.' after the first letter, and the registry
         is not consulted: a private scheme is the application's business, not platzky's."""
         policy = UrlPolicy(frozenset({"svn+ssh", "view-source", "z39.50r", "myapp"}))
-        assert policy.allows("svn+ssh://host/repo")
-        assert policy.allows("myapp://open")
+        assert policy.check("svn+ssh://host/repo") is None
+        assert policy.check("myapp://open") is None
 
     def test_link_urls_accepts_contact_schemes(self) -> None:
         """The one thing specific to the real ``LINK_URL_POLICY``: it is public because goodmap
         needs to agree with it, and that only works if mailto/tel are actually in it."""
-        assert LINK_URL_POLICY.allows("mailto:hello@example.com")
-        assert LINK_URL_POLICY.allows("tel:+48123456789")
+        assert LINK_URL_POLICY.check("mailto:hello@example.com") is None
+        assert LINK_URL_POLICY.check("tel:+48123456789") is None
 
 
 class TestHeroShortcode:

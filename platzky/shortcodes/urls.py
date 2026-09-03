@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import NoReturn
 from urllib.parse import urlparse
 
 #: RFC 3986's scheme grammar, lowercased: the shape ``urlparse`` returns in ``.scheme``.
@@ -14,15 +15,34 @@ _SCHEME_AS_PARSED = re.compile(r"[a-z][a-z0-9+.\-]*")
 class UrlFault(Enum):
     """Why a URL may not be used in the position a policy guards.
 
-    The value is a phrase naming the fault, for whoever reports it. It describes the URL's
-    shape and never quotes the URL back, a refused one being the likeliest to carry
-    credentials or a signed query — so it is safe to log verbatim.
+    The value is a phrase naming the fault. Every phrase is fixed here, chosen before any
+    URL is seen, which is what stops a refused URL reaching a log through one — a refused
+    URL being the likeliest to carry credentials or a signed query.
     """
 
     NO_URL = "no url was given"
     SCHEME_NOT_PERMITTED = "its scheme is not permitted here"
     PROTOCOL_RELATIVE = "a protocol-relative '//host/path' url has no scheme"
     RELATIVE_PATH = "a relative path resolves against whichever page shows it"
+
+
+class UrlNotPermitted(ValueError):
+    """Raised when a URL may not be used in the position a policy guards.
+
+    A ``ValueError`` because the URL is the bad input, and a sibling of ``ShortcodeError``
+    rather than a subclass: that one is fatal by design, while this one is caught per
+    element, so one refused URL costs its own tag and not the page around it.
+    """
+
+    def __init__(self, fault: UrlFault, permitted: str) -> None:
+        """Record the fault, and what the policy would have accepted.
+
+        Args:
+            fault: Which rule the URL broke.
+            permitted: What this policy accepts, for the tail of the message.
+        """
+        super().__init__(f"{fault.value}; use {permitted}")
+        self.fault = fault
 
 
 @dataclass(frozen=True)
@@ -49,19 +69,8 @@ class UrlPolicy:
                     f"digits, '+', '-' or '.'"
                 )
 
-    def allows(self, url: str) -> bool:
-        """Report whether this URL may be used here.
-
-        Args:
-            url: The URL as written.
-
-        Returns:
-            True if the URL may be used.
-        """
-        return self.fault(url) is None
-
-    def fault(self, url: str) -> UrlFault | None:
-        """Classify this URL against the policy.
+    def check(self, url: str) -> None:
+        """Pass a URL fit to use here, and refuse any other.
 
         Refused: an empty URL; a scheme outside ``schemes``, which is what keeps
         ``javascript:`` and ``data:`` out; a bare relative path such as ``photo.jpg``, which
@@ -71,31 +80,37 @@ class UrlPolicy:
         Args:
             url: The URL as written.
 
-        Returns:
-            The fault that refuses it, or ``None`` if the URL may be used.
+        Raises:
+            UrlNotPermitted: If the URL may not be used here.
         """
         if not url:
-            return UrlFault.NO_URL
+            self._refuse(UrlFault.NO_URL)
         # A browser reads '\' as '/' for a special scheme, so '/\host' and '\\host' reach an
         # authority exactly as '//host' does. Normalising first is what lets urlparse — which
         # reports no netloc for those two — answer the protocol-relative question by itself.
         parsed = urlparse(url.replace("\\", "/"))
         if parsed.scheme:
-            return None if parsed.scheme in self.schemes else UrlFault.SCHEME_NOT_PERMITTED
-        if parsed.netloc:
-            return UrlFault.PROTOCOL_RELATIVE
-        return None if url.startswith("/") else UrlFault.RELATIVE_PATH
+            if parsed.scheme not in self.schemes:
+                self._refuse(UrlFault.SCHEME_NOT_PERMITTED)
+        elif parsed.netloc:
+            self._refuse(UrlFault.PROTOCOL_RELATIVE)
+        elif not url.startswith("/"):
+            self._refuse(UrlFault.RELATIVE_PATH)
 
-    def permits(self) -> str:
-        """Name what this policy accepts, for whoever reports a fault.
+    def _refuse(self, fault: UrlFault) -> NoReturn:
+        """Refuse the URL under way, naming what this policy would have taken instead.
 
-        Returns:
-            The schemes, sorted, joined as "a, b or c"; or the rooted-path case when empty.
+        Args:
+            fault: Which rule the URL broke.
+
+        Raises:
+            UrlNotPermitted: Always.
         """
         names = sorted(self.schemes)
-        return " or ".join(filter(None, [", ".join(names[:-1]), *names[-1:]])) or (
+        permitted = " or ".join(filter(None, [", ".join(names[:-1]), *names[-1:]])) or (
             "a path starting with '/'"
         )
+        raise UrlNotPermitted(fault, permitted)
 
 
 #: For a URL a reader navigates to: the two that fetch a document, plus the two that hand
