@@ -17,7 +17,7 @@ from platzky.plugin.content_transformer import (
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
-from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
+from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlPolicy
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
@@ -80,7 +80,8 @@ class TestImageShortcode:
         assert "s3cr3t" not in caplog.text
         assert "sig=abc" not in caplog.text
         assert "host" not in caplog.text
-        assert "scheme 'ftp' is not allowed" in caplog.text
+        assert "its scheme is not permitted here" in caplog.text
+        assert "use http or https" in caplog.text
 
     def test_protocol_relative_url_rejected(self) -> None:
         """No scheme, but external all the same."""
@@ -220,24 +221,27 @@ class TestUrlPolicy:
             "ftp://example.com/x",
         ],
     )
-    def test_allows_never_disagrees_with_rejection_reason(self, url: str) -> None:
+    def test_allows_never_disagrees_with_fault(self, url: str) -> None:
         """The pair used to be two calls a caller had to keep in step; now one defines the other."""
         for policy in (self._narrow, self._wide):
-            assert policy.allows(url) is (policy.rejection_reason(url) is None)
+            assert policy.allows(url) is (policy.fault(url) is None)
 
-    def test_a_permitted_url_gives_no_reason(self) -> None:
-        assert self._narrow.rejection_reason("https://example.com") is None
+    def test_a_permitted_url_has_no_fault(self) -> None:
+        assert self._narrow.fault("https://example.com") is None
 
-    def test_each_policy_names_its_own_schemes_when_refusing(self) -> None:
-        """The message has to say what would have worked *for this policy*, and they differ."""
-        assert str(self._narrow.rejection_reason("ftp://example.com")).endswith("use https")
-        assert "https or mailto" in str(self._wide.rejection_reason("ftp://example.com"))
+    def test_each_policy_names_its_own_schemes(self) -> None:
+        """What would have worked differs per policy, so the advice cannot be a constant."""
+        assert self._narrow.permits() == "https"
+        assert self._wide.permits() == "https or mailto"
 
-    def test_the_rejected_url_is_never_quoted_back(self) -> None:
-        reason = self._narrow.rejection_reason("ftp://user:secret@example.com/signed?token=abc")
-        assert reason is not None
-        assert "secret" not in reason
-        assert "token" not in reason
+    def test_no_fault_phrase_can_quote_a_url_back(self) -> None:
+        """The phrases are fixed strings chosen up front, so a url cannot reach a log through
+        one — which is the whole reason classifying and wording are separate jobs."""
+        secret = "ftp://user:secret@example.com/signed?token=abc"
+        assert self._narrow.fault(secret) is UrlFault.SCHEME_NOT_PERMITTED
+        for fault in UrlFault:
+            assert "secret" not in fault.value
+            assert "token" not in fault.value
 
     @pytest.mark.parametrize(
         "url",
@@ -245,8 +249,7 @@ class TestUrlPolicy:
     )
     def test_an_authority_is_refused_however_its_slashes_are_spelled(self, url: str) -> None:
         """A browser reads `\\` as `/` for special schemes, so these all reach a host."""
-        assert not LINK_URL_POLICY.allows(url)
-        assert "protocol-relative" in str(LINK_URL_POLICY.rejection_reason(url))
+        assert LINK_URL_POLICY.fault(url) is UrlFault.PROTOCOL_RELATIVE
 
     def test_a_rooted_path_is_still_allowed(self) -> None:
         """The backslash guard must not catch an ordinary rooted path."""
@@ -259,13 +262,11 @@ class TestUrlPolicy:
         paths_only = UrlPolicy(frozenset())
         assert paths_only.allows("/about")
         assert not paths_only.allows("https://example.com")
-        assert "path starting with '/'" in str(paths_only.rejection_reason("https://example.com"))
+        assert paths_only.permits() == "a path starting with '/'"
 
-    def test_the_protocol_relative_reason_names_this_policy_s_schemes(self) -> None:
+    def test_the_advice_is_never_a_scheme_the_policy_itself_refuses(self) -> None:
         """It used to hardcode http(s) — advice a policy like this one then also refuses."""
-        assert "use mailto instead" in str(
-            UrlPolicy(frozenset({"mailto"})).rejection_reason("//host/path")
-        )
+        assert UrlPolicy(frozenset({"mailto"})).permits() == "mailto"
 
     def test_an_uppercase_scheme_is_refused_at_construction(self) -> None:
         """``urlparse`` lowercases what it parses, so an uppercase declaration matches

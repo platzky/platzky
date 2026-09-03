@@ -60,9 +60,14 @@ class LinkShortcode(Shortcode):
         Returns:
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if reason := self.url_policy.rejection_reason(attrs.url):
+        if fault := self.url_policy.fault(attrs.url):
             # self.name, not "link": a subclass renders under its own tag
-            logger.warning("[%s] rendered nothing: %s.", self.name, reason)
+            logger.warning(
+                "[%s] rendered nothing: %s; use %s.",
+                self.name,
+                fault.value,
+                self.url_policy.permits(),
+            )
             return ""
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
