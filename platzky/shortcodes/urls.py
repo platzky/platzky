@@ -1,24 +1,58 @@
-"""Which URLs may be emitted where, and why one was refused."""
+"""Policies for what URLs are allowed in a link or image position."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
+
+#: A scheme as RFC 3986 spells it, narrowed to lowercase because that is what ``urlparse``
+#: hands back. Deliberately *not* a list of the schemes that exist: this class is an
+#: allowlist, and which schemes are safe in a given position is not the same question as
+#: which ones are registered — ``data:`` is registered and is exactly what a policy like
+#: this exists to refuse, while a private ``myapp:`` is unregistered and perfectly fine for
+#: the application that owns it. Only the policy's author can answer the first question, so
+#: the check here is syntax and nothing more.
+_SCHEME_RE = re.compile(r"[a-z][a-z0-9+.\-]*")
 
 
 @dataclass(frozen=True)
 class UrlPolicy:
-    """The URLs allowed in one position — a link's destination, an image's source."""
+    """
+    A policy for what URLs are allowed in a URL.
+    """
 
-    #: The schemes this position permits, lowercased. A rooted path is always allowed as
-    #: well, and the set may be empty for a position allowing nothing else.
     schemes: frozenset[str]
 
     def __post_init__(self) -> None:
-        """Lowercase the declared schemes, since ``urlparse`` lowercases what it parses."""
-        lowered = frozenset(scheme.lower() for scheme in self.schemes)
-        if lowered != self.schemes:
-            object.__setattr__(self, "schemes", lowered)  # frozen dataclass
+        """Refuse a declared scheme ``urlparse`` could never hand back.
+
+        Both faults it catches fail the same silent way: the scheme matches nothing, so the
+        policy quietly refuses every URL it was written to allow, and then advises the very
+        scheme it just rejected. Raising here puts that in front of whoever wrote the
+        policy, at construction, instead of leaving it to be found as a missing link.
+
+        Rejecting rather than quietly lowercasing, because ``UrlPolicy`` is public API and
+        a security control: silently rewriting a security declaration into something its
+        author did not write is not a favour worth doing, and there is no correct reading
+        of a scheme that is not a scheme.
+
+        Raises:
+            ValueError: If a declared scheme is not lowercase, or is not a scheme at all.
+        """
+        # Sorted so a policy with more than one fault names the same scheme every run.
+        for scheme in sorted(self.schemes):
+            if scheme != scheme.lower():
+                raise ValueError(
+                    f"UrlPolicy scheme {scheme!r} must be lowercase: urlparse lowercases "
+                    f"what it parses, so this would match nothing. Write {scheme.lower()!r}."
+                )
+            if not _SCHEME_RE.fullmatch(scheme):
+                raise ValueError(
+                    f"UrlPolicy scheme {scheme!r} is not a url scheme: a scheme is a letter "
+                    f"followed by letters, digits, '+', '-' or '.' (RFC 3986), and carries "
+                    f"no ':'."
+                )
 
     def allows(self, url: str) -> bool:
         """Report whether this URL may be used here.

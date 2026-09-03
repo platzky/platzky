@@ -267,13 +267,35 @@ class TestUrlPolicy:
             UrlPolicy(frozenset({"mailto"})).rejection_reason("//host/path")
         )
 
-    def test_declared_schemes_are_normalised_to_lowercase(self) -> None:
-        """``urlparse`` lowercases what it parses, so an uppercase declaration used to match
-        nothing while advising the very scheme it had just refused."""
-        policy = UrlPolicy(frozenset({"HTTPS", "MailTo"}))
-        assert policy.schemes == frozenset({"https", "mailto"})
-        assert policy.allows("https://example.com")
-        assert policy.allows("mailto:hello@example.com")
+    def test_an_uppercase_scheme_is_refused_at_construction(self) -> None:
+        """``urlparse`` lowercases what it parses, so an uppercase declaration matches
+        nothing while advising the very scheme it had just refused. Refused where it is
+        written rather than silently rewritten: this is a security declaration, and its
+        author is entitled to have it mean what they wrote."""
+        with pytest.raises(ValueError, match="must be lowercase"):
+            UrlPolicy(frozenset({"HTTPS"}))
+
+    @pytest.mark.parametrize(
+        "scheme",
+        [
+            "https:",  # the colon belongs to the url, not to the scheme
+            "ht tp",
+            "2fast",  # a scheme starts with a letter
+            "",
+            "http/s",
+        ],
+    )
+    def test_a_scheme_that_is_not_a_scheme_is_refused_at_construction(self, scheme: str) -> None:
+        """Same silent failure as the uppercase case, from the same missing check."""
+        with pytest.raises(ValueError, match="not a url scheme"):
+            UrlPolicy(frozenset({scheme}))
+
+    def test_the_unusual_but_legal_spellings_are_accepted(self) -> None:
+        """RFC 3986 allows digits, '+', '-' and '.' after the first letter, and the registry
+        is not consulted: a private scheme is the application's business, not platzky's."""
+        policy = UrlPolicy(frozenset({"svn+ssh", "view-source", "z39.50r", "myapp"}))
+        assert policy.allows("svn+ssh://host/repo")
+        assert policy.allows("myapp://open")
 
     def test_link_urls_accepts_contact_schemes(self) -> None:
         """The one thing specific to the real ``LINK_URL_POLICY``: it is public because goodmap
