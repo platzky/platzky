@@ -10,8 +10,11 @@ from platzky.shortcodes.urls import UrlPolicy
 
 logger = logging.getLogger(__name__)
 
-#: An image is fetched, so only the schemes that fetch — ``<img src="mailto:…">`` is not an
-#: image. Kept here and unexported because this shortcode is its only consumer, unlike
+#: Only ``http`` and ``https``, because an image source has to be something the browser can
+#: download. ``mailto:`` and ``tel:`` hand off to another application instead, so they make
+#: sense in a link but never as an image source.
+#:
+#: Kept here and unexported because this shortcode is its only consumer, unlike
 #: ``LINK_URL_POLICY``, which goodmap needs too.
 IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
 
