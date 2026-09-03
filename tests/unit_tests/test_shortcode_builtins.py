@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from typing import ClassVar
 
 import pytest
 from markupsafe import Markup
@@ -15,6 +16,7 @@ from platzky.plugin.content_transformer import (
 )
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
+from platzky.shortcodes.link import LinkShortcode, link_shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 
@@ -157,6 +159,40 @@ class TestLinkShortcode:
             _apply('[link url="ftp://example.com/x"]x[/link]')
 
         assert "use http, https, mailto or tel" in caplog.text
+
+
+class TestLinkShortcodeUrlPolicyOverride:
+    """An application may widen the link policy by subclassing; a site owner may not.
+
+    Before this the policy was read from the module constant inside ``render``, so a subclass
+    could declare its own and be silently overruled by the base — the class looked extensible
+    and wasn't.
+    """
+
+    class _SmsLink(LinkShortcode):
+        name = "sms_link"
+        url_policy: ClassVar[UrlPolicy] = UrlPolicy(LINK_URL_POLICY.schemes | {"sms"})
+
+    def test_a_subclass_can_widen_the_policy(self) -> None:
+        rendered = self._SmsLink().render_value({"url": "sms:+48123456789", "content": "Text us"})
+        assert rendered == '<a href="sms:+48123456789">Text us</a>'
+
+    def test_widening_does_not_leak_into_the_builtin(self) -> None:
+        """The subclass's grant is its own; ``[link]`` in a post is unaffected."""
+        assert link_shortcode.render_value({"url": "sms:+48123456789", "content": "Text us"}) == ""
+
+    @pytest.mark.parametrize(
+        "url", ["javascript:alert(1)", "data:text/html,x", "/\\evil.example/x"]
+    )
+    def test_widening_opens_nothing_it_did_not_name(self, url: str) -> None:
+        assert self._SmsLink().render_value({"url": url, "content": "X"}) == ""
+
+    def test_the_log_names_the_subclass_tag(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A line saying "[link]" would send whoever reads it to the wrong shortcode."""
+        with caplog.at_level(logging.WARNING):
+            self._SmsLink().render_value({"url": "javascript:alert(1)", "content": "X"})
+
+        assert "[sms_link] rendered nothing" in caplog.text
 
 
 class TestUrlPolicy:

@@ -1,12 +1,13 @@
 """Built-in link shortcode."""
 
 import logging
+from typing import ClassVar
 
 from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import LINK_URL_POLICY
+from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,19 @@ class LinkShortcode(Shortcode):
     )
     example = '[link url="https://example.com"]Click here[/link]'
 
+    #: The URL policy this shortcode enforces. Declared rather than looked up so an
+    #: application can widen it by subclassing, for links that mean something platzky's do
+    #: not::
+    #:
+    #:     class SmsLink(LinkShortcode):
+    #:         name = "sms_link"
+    #:         url_policy = UrlPolicy(LINK_URL_POLICY.schemes | {"sms"})
+    #:
+    #: Widening is the application's decision to make and its risk to own; the default is
+    #: platzky's, and no site owner can change it from config, which is what keeps
+    #: ``javascript:`` out of every deployment rather than out of the careful ones.
+    url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
+
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render an anchor tag, or nothing at all when there is nowhere to link to.
 
@@ -46,9 +60,13 @@ class LinkShortcode(Shortcode):
         Returns:
             An ``<a>`` tag, or empty string if the URL is missing or not allowed.
         """
-        if not LINK_URL_POLICY.allows(attrs.url):
+        if not self.url_policy.allows(attrs.url):
+            # self.name, not "link": a subclass renders under its own tag, and a log line
+            # naming the wrong one sends whoever reads it to the wrong shortcode.
             logger.warning(
-                "[link] rendered nothing: %s.", LINK_URL_POLICY.rejection_reason(attrs.url)
+                "[%s] rendered nothing: %s.",
+                self.name,
+                self.url_policy.rejection_reason(attrs.url),
             )
             return ""
         target_value = str(attrs.target or "")

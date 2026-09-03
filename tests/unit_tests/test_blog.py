@@ -220,9 +220,9 @@ def _mock_get_page_with_bad_css(test_app: FlaskClient) -> None:
             {**mocked_post_json, "css": "</style><script>alert(1)</script><style>"}
         )
 
-    cast(MagicMock, cast(Engine, test_app.application).db.get_page).side_effect = (
-        get_page_with_bad_css
-    )
+    cast(
+        MagicMock, cast(Engine, test_app.application).db.get_page
+    ).side_effect = get_page_with_bad_css
 
 
 def test_page_with_style_breakout_css_is_never_rendered(test_app: FlaskClient):
