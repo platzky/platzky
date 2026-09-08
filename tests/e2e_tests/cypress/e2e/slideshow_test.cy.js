@@ -11,6 +11,18 @@ const ms = (value) => (value.endsWith('ms') ? parseFloat(value) : parseFloat(val
 
 const slideshowOf = (alt) => cy.get(`img[alt="${alt}"]`).closest('.slideshow');
 
+// What actually rotates is the slideshow's direct child, which is a [slide] frame when one
+// is used and the bare image otherwise. Tests assert against the frame, not the picture,
+// so they hold for both shapes.
+const frameOf = (alt) =>
+  cy.get(`img[alt="${alt}"]`).then(($img) => {
+    const slideshow = $img[0].closest('.slideshow');
+    let frame = $img[0];
+    while (frame.parentElement !== slideshow) frame = frame.parentElement;
+    // Wrapped as jQuery, so it behaves like anything else cy.get yields.
+    return cy.wrap(Cypress.$(frame));
+  });
+
 const computed = ($el, property) => window.getComputedStyle($el[0])[property];
 
 describe('[slideshow] shortcode', () => {
@@ -39,10 +51,11 @@ describe('[slideshow] shortcode', () => {
     slideshowOf('rotating one').should(($el) => {
       expect(computed($el, 'position')).to.eq('relative');
     });
-    cy.get('img[alt="rotating one"]').should(($el) => {
+    frameOf('rotating one').should(($el) => {
+      // The first frame stays in flow; it is what gives the slideshow its box.
       expect(computed($el, 'position')).to.eq('static');
     });
-    cy.get('img[alt="rotating two"]').should(($el) => {
+    frameOf('rotating two').should(($el) => {
       expect(computed($el, 'position')).to.eq('absolute');
     });
   });
@@ -51,12 +64,12 @@ describe('[slideshow] shortcode', () => {
     // Two slides means each is shown for half the cycle, so the cycle is twice the
     // interval -- the calc() in the stylesheet reading the custom property the shortcode
     // wrote. 4000ms in, 8s out.
-    cy.get('img[alt="rotating one"]').should(($el) => {
+    frameOf('rotating one').should(($el) => {
       expect(computed($el, 'animationName')).to.eq('platzky-slideshow-2');
       expect(ms(computed($el, 'animationDuration'))).to.eq(8000);
       expect(ms(computed($el, 'animationDelay'))).to.eq(0);
     });
-    cy.get('img[alt="rotating two"]').should(($el) => {
+    frameOf('rotating two').should(($el) => {
       // Staggered by one interval, which is what puts the second slide on screen as the
       // first leaves rather than alongside it.
       expect(ms(computed($el, 'animationDelay'))).to.eq(4000);
@@ -64,28 +77,47 @@ describe('[slideshow] shortcode', () => {
   });
 
   it('a second slideshow keeps its own interval', () => {
+    // Two slideshows on one page: the interval is a custom property on each element, so a
+    // second one must not inherit the first's. Only a second instance can show that.
     cy.get('img[alt="promo one"]').should(($el) => {
       expect(ms(computed($el, 'animationDuration'))).to.eq(4000);
+    });
+  });
+
+  it('rotates bare images the same way it rotates slide frames', () => {
+    // The affiliate slideshow is the page's only *animating* bare-image one, so it carries
+    // the whole no-[slide] path: without this, converting the rotating slideshow to frames
+    // would have left that form's stacking and geometry untested.
+    slideshowOf('promo one').then(($el) => {
+      const [first, second] = [...$el[0].children];
+      expect(first.tagName, 'a bare image is its own frame').to.eq('IMG');
+      expect(getComputedStyle(first).position).to.eq('static');
+      expect(getComputedStyle(second).position).to.eq('absolute');
+
+      const boxes = [first, second].map((f) => f.getBoundingClientRect());
+      ['x', 'y', 'width', 'height'].forEach((side) => {
+        expect(Math.round(boxes[1][side]), side).to.eq(Math.round(boxes[0][side]));
+      });
     });
   });
 
   it('actually cross-fades from one slide to the next', () => {
     // The behaviour the whole feature is for, and the only assertion here that needs time
     // to pass: opacity is animated, so it can only be read from a running browser.
-    cy.get('img[alt="rotating one"]').should(($el) => {
+    frameOf('rotating one').should(($el) => {
       expect(Number(computed($el, 'opacity'))).to.be.greaterThan(0.8);
     });
-    cy.get('img[alt="rotating two"]').should(($el) => {
+    frameOf('rotating two').should(($el) => {
       expect(Number(computed($el, 'opacity'))).to.be.lessThan(0.2);
     });
 
     // Past the first slide's half of the 8s cycle, with room for the fade to finish.
     cy.wait(5000);
 
-    cy.get('img[alt="rotating one"]').should(($el) => {
+    frameOf('rotating one').should(($el) => {
       expect(Number(computed($el, 'opacity'))).to.be.lessThan(0.2);
     });
-    cy.get('img[alt="rotating two"]').should(($el) => {
+    frameOf('rotating two').should(($el) => {
       expect(Number(computed($el, 'opacity'))).to.be.greaterThan(0.8);
     });
   });
@@ -124,11 +156,10 @@ describe('[slideshow] shortcode', () => {
     // pictures end up side by side rather than on top of each other. Only geometry
     // catches that, and it caught it twice while this was being built.
     slideshowOf('rotating one').then(($el) => {
-      const slides = [...$el[0].querySelectorAll('img')];
-      slides.forEach((img) => {
+      $el[0].querySelectorAll('img').forEach((img) => {
         expect(img.complete && img.naturalWidth > 0, `${img.alt} loaded`).to.be.true;
       });
-      const [first, second] = slides.map((img) => img.getBoundingClientRect());
+      const [first, second] = [...$el[0].children].map((f) => f.getBoundingClientRect());
       ['x', 'y', 'width', 'height'].forEach((side) => {
         expect(Math.round(second[side]), side).to.eq(Math.round(first[side]));
       });
@@ -141,6 +172,52 @@ describe('[slideshow] shortcode', () => {
     slideshowOf('many 1').then(($el) => {
       const tops = [...$el[0].querySelectorAll('img')].map((img) => img.getBoundingClientRect().y);
       tops.slice(1).forEach((top, i) => expect(top).to.be.greaterThan(tops[i]));
+    });
+  });
+
+  it('puts a slide’s text beside its picture, not under it', () => {
+    // A [slide] exists so a caption can travel with its image. Measured rather than
+    // asserted on the CSS, because "beside" is a fact about where the text ended up.
+    cy.get('img[alt="rotating one"]').then(($img) => {
+      const slide = $img[0].closest('.slide');
+      const picture = $img[0].getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(slide);
+      // Text starts to the right of the picture and overlaps it vertically.
+      const words = [...slide.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
+        .map((n) => {
+          const r = document.createRange();
+          r.selectNodeContents(n);
+          return r.getBoundingClientRect();
+        });
+      expect(words.length, 'slide has text of its own').to.be.greaterThan(0);
+      expect(words[0].left).to.be.greaterThan(picture.right - 1);
+      expect(words[0].top).to.be.lessThan(picture.bottom);
+    });
+  });
+
+  it('keeps a caption as one run of prose', () => {
+    // Regression test: the slide was briefly a flex container, which made every text node
+    // and inline element its own flex item. The fixture's red_letter plugin wraps each "a"
+    // in a span, so "chapter" rendered as "ch a pter" with a gap either side, and any
+    // caption containing a link would have broken the same way.
+    cy.get('img[alt="rotating one"]').then(($img) => {
+      const slide = $img[0].closest('.slide');
+      expect(getComputedStyle(slide).display).to.not.eq('flex');
+      // The pieces of the word abut: no gap is inserted between a text node and the span
+      // that interrupts it.
+      const pieces = [...slide.childNodes].filter(
+        (n) => n.nodeType === Node.TEXT_NODE || n.nodeName === 'SPAN'
+      );
+      const rects = pieces.map((n) => {
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        return r.getBoundingClientRect();
+      });
+      rects.slice(1).forEach((rect, i) => {
+        expect(rect.left - rects[i].right, 'gap between caption pieces').to.be.lessThan(2);
+      });
     });
   });
 });

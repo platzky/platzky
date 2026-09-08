@@ -442,3 +442,38 @@ class TestSlideshowShortcode:
         result = _apply('[slideshow][link url="https://e.com"]x[/link][/slideshow]')
         assert '<a href="https://e.com">x</a>' in result
         assert 'data-slides="0"' in result
+
+
+class TestSlideShortcode:
+    def test_wraps_content_in_a_slide_div(self) -> None:
+        result = _apply("[slide]The first chapter.[/slide]")
+        assert result == '<div class="slide">The first chapter.</div>'
+
+    def test_holds_an_image_and_its_text_together(self) -> None:
+        result = _apply('[slide][image url="/a.jpg" alt="cover"]The first chapter.[/slide]')
+        assert result == (
+            '<div class="slide"><img src="/a.jpg" alt="cover">The first chapter.</div>'
+        )
+
+    def test_a_frame_counts_as_one_slide_not_as_its_contents(self) -> None:
+        """A picture and its caption are one frame; counting images would double it."""
+        result = _apply(
+            '[slideshow][slide][image url="/a.jpg"]One.[/slide]'
+            '[slide][image url="/b.jpg"]Two.[/slide][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
+    def test_bare_images_still_count_as_frames_of_their_own(self) -> None:
+        """The plain form keeps working: a slideshow of nothing but pictures needs no wrapper."""
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert 'data-slides="2"' in result
+        assert 'class="slide"' not in result
+
+    def test_frames_win_over_the_images_inside_them(self) -> None:
+        """Three frames, five images between them — the frames are what rotate."""
+        result = _apply(
+            '[slideshow][slide][image url="/a.jpg"][image url="/b.jpg"][/slide]'
+            '[slide][image url="/c.jpg"][image url="/d.jpg"][/slide]'
+            '[slide][image url="/e.jpg"][/slide][/slideshow]'
+        )
+        assert 'data-slides="3"' in result

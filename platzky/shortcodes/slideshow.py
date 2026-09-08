@@ -5,6 +5,7 @@ import re
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.slide import SLIDE_CLASS
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +24,21 @@ MAX_INTERVAL_MS = 60000
 #: images simply render as an ordinary sequence, so nothing an author wrote disappears.
 MAX_SLIDES = 4
 
-#: Counts the images the nested shortcodes produced. The parser renders and *joins* an
-#: element's children before the parent ever runs, so this is the only way a wrapper can
-#: learn how many things it wrapped — `render` receives one flat string, never a list.
+#: Counts what the nested shortcodes produced. The parser renders and *joins* an element's
+#: children before the parent ever runs, so counting markers in that string is the only way
+#: a wrapper can learn how many things it wrapped — `render` receives one flat string,
+#: never a list.
 _IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
+_SLIDE_RE = re.compile(rf'<div class="{SLIDE_CLASS}">')
 
 
 class SlideshowShortcode(Shortcode):
-    """Cross-fade between the images it wraps, on a timer, using no JavaScript."""
+    """Cross-fade between the frames it wraps, on a timer, using no JavaScript."""
 
     name = "slideshow"
-    description = "Cross-fade between the images inside it. Rotates up to four."
+    description = (
+        "Cross-fade between the [slide]s inside it, or between bare images. Rotates up to four."
+    )
     attributes = ShortcodeAttrs(
         [
             ShortcodeAttr(
@@ -96,7 +101,11 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        slides = len(_IMG_RE.findall(content))
+        # [slide] wins when it is used: a frame holding a picture and its text is one
+        # slide, not two things, and counting images there would double it. Falling back to
+        # images keeps the plain form — a slideshow of nothing but pictures — working
+        # without an author having to wrap every one.
+        slides = len(_SLIDE_RE.findall(content)) or len(_IMG_RE.findall(content))
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d images but only %d can be rotated; showing them all "

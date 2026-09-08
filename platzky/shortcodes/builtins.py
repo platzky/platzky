@@ -5,6 +5,7 @@ from platzky.shortcodes.hero import hero_shortcode
 from platzky.shortcodes.html import html_shortcode
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import link_shortcode
+from platzky.shortcodes.slide import slide_shortcode
 from platzky.shortcodes.slideshow import slideshow_shortcode
 
 
@@ -13,12 +14,13 @@ def get_builtin_shortcodes() -> dict[str, Shortcode]:
 
     Returns:
         Map of tag name to Shortcode for the built-in image, link, hero, html and
-        slideshow tags.
+        slideshow tags, and the slide frames a slideshow holds.
     """
     return {
         image_shortcode.name: image_shortcode,
         link_shortcode.name: link_shortcode,
         hero_shortcode.name: hero_shortcode,
         html_shortcode.name: html_shortcode,
+        slide_shortcode.name: slide_shortcode,
         slideshow_shortcode.name: slideshow_shortcode,
     }

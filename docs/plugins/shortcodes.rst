@@ -96,7 +96,7 @@ The plugin's ``accepted_content_types`` decides where its shortcodes may be used
 
 **Built-in shortcodes**
 
-Platzky ships five shortcodes that are always available, registered by a built-in
+Platzky ships six shortcodes that are always available, registered by a built-in
 transformer that runs ahead of any plugin:
 
 ``[image url="…" alt="…" width="…" height="…"]``
@@ -117,8 +117,10 @@ transformer that runs ahead of any plugin:
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
 ``[slideshow interval="…"]…[/slideshow]``
-    Wraps images in a ``<div class="slideshow">`` that cross-fades between them, and
-    rotates up to four. ``interval`` is the milliseconds each slide is shown, defaulting to
+    Wraps frames in a ``<div class="slideshow">`` that cross-fades between them, and
+    rotates up to four. A frame is either a bare image or a ``[slide]``, which lets a
+    picture travel together with the text beside it.
+    ``interval`` is the milliseconds each slide is shown, defaulting to
     4000 and clamped to 1500–60000; below roughly the floor a cross-fade reads as a flash
     rather than a transition, which is a seizure risk and not a matter of taste. An
     unparseable or out-of-range value is corrected and logged rather than raised, since one
@@ -130,6 +132,24 @@ transformer that runs ahead of any plugin:
     decoration. Wrapping more than four images is not an error: the stylesheet has no
     timings for that count, so they render as an ordinary sequence, because a missing rule
     must never be able to hide an image somebody wrote.
+
+``[slide]…[/slide]``
+    One frame of a ``[slideshow]``. Wrap an image together with the text belonging beside
+    it and the whole frame counts as a single slide, however many images are inside::
+
+        [slideshow interval="4000"]
+          [slide][image url="/one.jpg" alt="…"]This is the first chapter.[/slide]
+          [slide][image url="/two.jpg" alt="…"]This is the second.[/slide]
+        [/slideshow]
+
+    The image floats and the rest flows around it, so a caption containing a link or an
+    emphasis stays one run of prose. Without ``[slide]``, each image inside a
+    ``[slideshow]`` is a frame on its own — the right shape for a slideshow of nothing but
+    pictures, and still what happens if no ``[slide]`` is used.
+
+    Every frame shares the box of the first one, which stays in normal flow and sizes the
+    slideshow; the rest are laid over it. Frames of very different sizes will therefore be
+    constrained to the first one's, so make them alike.
 
 ``[html]…[/html]``
     Emits its content exactly as written. Raw, so a shortcode written inside is displayed

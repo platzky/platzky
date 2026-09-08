@@ -440,13 +440,31 @@ footer .copyright {
     max-width: 100%;
 }
 
+/* A [slide] frame holds a picture and whatever belongs beside it: the image floats and the
+   rest flows around it.
+
+   Deliberately not a flex container. Flex makes every text node and every inline element
+   its own item, so a sentence containing a link, an emphasis, or a plugin's span is torn
+   into separate boxes with the gap between them, and long text wraps by chunk instead of
+   by word. A float is what actually flows prose beside a picture. flow-root contains the
+   float, so the frame is as tall as the taller of the two. */
+.slideshow > .slide {
+    display: flow-root;
+}
+
+.slideshow > .slide > img:first-child {
+    float: left;
+    margin-right: 1rem;
+    max-height: 100%;
+}
+
 /* Only a rotating slideshow stacks its images. The first stays in flow and is what gives
    the container its box; the rest are lifted onto it and pinned to all four of its edges,
    which is what makes them land exactly on the first rather than near it. object-fit keeps
    a slide of a different shape from being stretched to match. */
-.slideshow[data-slides="2"] img:not(:first-child),
-.slideshow[data-slides="3"] img:not(:first-child),
-.slideshow[data-slides="4"] img:not(:first-child) {
+.slideshow[data-slides="2"] > *:not(:first-child),
+.slideshow[data-slides="3"] > *:not(:first-child),
+.slideshow[data-slides="4"] > *:not(:first-child) {
     position: absolute;
     top: 0;
     right: 0;
@@ -458,9 +476,9 @@ footer .copyright {
     opacity: 0;
 }
 
-.slideshow[data-slides="2"] img,
-.slideshow[data-slides="3"] img,
-.slideshow[data-slides="4"] img {
+.slideshow[data-slides="2"] > *,
+.slideshow[data-slides="3"] > *,
+.slideshow[data-slides="4"] > * {
     animation-iteration-count: infinite;
     animation-timing-function: ease-in-out;
 }
@@ -485,17 +503,17 @@ footer .copyright {
     100% { opacity: 1; }
 }
 
-.slideshow[data-slides="2"] img {
+.slideshow[data-slides="2"] > * {
     animation-name: platzky-slideshow-2;
     animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 2);
 }
 
-.slideshow[data-slides="3"] img {
+.slideshow[data-slides="3"] > * {
     animation-name: platzky-slideshow-3;
     animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 3);
 }
 
-.slideshow[data-slides="4"] img {
+.slideshow[data-slides="4"] > * {
     animation-name: platzky-slideshow-4;
     animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 4);
 }
@@ -503,29 +521,29 @@ footer .copyright {
 /* Scoped to the counts that actually animate, like the rules above: an unscoped delay is
    inert on an image with no animation, but it still shows up in computed styles and would
    send whoever reads them next looking for a rotation that was never there. */
-.slideshow:is([data-slides="2"], [data-slides="3"], [data-slides="4"]) img:nth-child(2) {
+.slideshow:is([data-slides="2"], [data-slides="3"], [data-slides="4"]) > *:nth-child(2) {
     animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 1);
 }
 
-.slideshow:is([data-slides="3"], [data-slides="4"]) img:nth-child(3) {
+.slideshow:is([data-slides="3"], [data-slides="4"]) > *:nth-child(3) {
     animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 2);
 }
 
-.slideshow[data-slides="4"] img:nth-child(4) {
+.slideshow[data-slides="4"] > *:nth-child(4) {
     animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 3);
 }
 
 /* A reader who has stopped to look, or tabbed into the slideshow, is not helped by the
    picture changing under them. */
-.slideshow:hover img,
-.slideshow:focus-within img {
+.slideshow:hover > *,
+.slideshow:focus-within > * {
     animation-play-state: paused;
 }
 
 /* The rotation is content, not decoration, so it keeps running; it is the dissolve that
    is motion. steps(1, end) turns every fade into a cut without touching the timings. */
 @media (prefers-reduced-motion: reduce) {
-    .slideshow img {
+    .slideshow > * {
         animation-timing-function: steps(1, end);
     }
 }
