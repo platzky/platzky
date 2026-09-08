@@ -22,6 +22,11 @@ class LinkShortcode(Shortcode):
                 required=True,
             ),
             ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
+            ShortcodeAttr(
+                "rel",
+                'Relationship tokens, space separated, e.g. "sponsored nofollow"',
+                required=False,
+            ),
         ]
     )
     example = '[link url="https://example.com"]Click here[/link]'
@@ -39,6 +44,18 @@ class LinkShortcode(Shortcode):
     #: ``javascript:`` out of every deployment rather than out of the careful ones.
     url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
 
+    #: The ``rel`` tokens an author may ask for. An allowlist, because ``rel`` reaches
+    #: search engines and the browser rather than only the reader: ``sponsored`` and ``ugc``
+    #: are disclosures a site makes about its own links, and a typo that silently became a
+    #: token would be a disclosure nobody made. Unknown tokens are dropped, not refused —
+    #: one mistyped word should cost its own token, not the link.
+    #:
+    #: Declared as a ClassVar beside ``url_policy`` for the same reason: an application with
+    #: links platzky's do not describe can widen it by subclassing.
+    permitted_rel: ClassVar[frozenset[str]] = frozenset(
+        {"sponsored", "nofollow", "ugc", "noopener", "noreferrer"}
+    )
+
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render an anchor tag, refusing a URL the policy does not permit.
 
@@ -50,7 +67,7 @@ class LinkShortcode(Shortcode):
         escaped here.
 
         Args:
-            attrs: Parsed shortcode attributes (url, target).
+            attrs: Parsed shortcode attributes (url, target, rel).
             content: Link text.
 
         Returns:
@@ -62,9 +79,14 @@ class LinkShortcode(Shortcode):
         self.url_policy.check(attrs.url)
         target_value = str(attrs.target or "")
         target_attr = f' target="{escape(target_value)}"' if target_value else ""
+        tokens = {t for t in str(attrs.rel or "").lower().split() if t in self.permitted_rel}
         # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new
-        # context too and needs the same rel.
-        rel_attr = ' rel="noopener noreferrer"' if target_value.lower() == "_blank" else ""
+        # context too and needs the same rel. Unioned with whatever the author asked for
+        # rather than replacing it: an author adding rel="sponsored" to a _blank link is
+        # disclosing an affiliation, not volunteering to drop the opener protections.
+        if target_value.lower() == "_blank":
+            tokens |= {"noopener", "noreferrer"}
+        rel_attr = f' rel="{" ".join(sorted(tokens))}"' if tokens else ""
         return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{content}</a>'
 
 

@@ -412,3 +412,120 @@ footer .copyright {
     border-radius: 8px;
     font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
+
+/* Default look for the [slideshow] shortcode; override by targeting .slideshow
+   in a site/plugin stylesheet loaded after this one.
+
+   The rotation is pure CSS, because platzky ships no JavaScript of its own. Each slide
+   count needs its own timings -- with N slides each is shown for one Nth of the cycle --
+   so there is one keyframe rule and one delay set per supported count, selected by the
+   data-slides attribute the shortcode writes. A count with no rules here (a single image,
+   or more than four) simply renders as an ordinary sequence: a missing rule must never be
+   able to hide an image an author wrote. */
+/* Block, so a slideshow in prose sits on its own line as an image would, but only as wide
+   as its content: a full-width container would leave the in-flow first image at the left
+   while the stacked ones -- positioned against the container, not against that image --
+   sat somewhere else entirely, and the slides would never overlap. fit-content is what
+   gets both; inline-block shrink-wraps too, but then the block runs on with the text
+   around it. */
+.slideshow {
+    position: relative;
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.slideshow img {
+    display: block;
+    max-width: 100%;
+}
+
+/* Only a rotating slideshow stacks its images. The first stays in flow and is what gives
+   the container its box; the rest are lifted onto it and pinned to all four of its edges,
+   which is what makes them land exactly on the first rather than near it. object-fit keeps
+   a slide of a different shape from being stretched to match. */
+.slideshow[data-slides="2"] img:not(:first-child),
+.slideshow[data-slides="3"] img:not(:first-child),
+.slideshow[data-slides="4"] img:not(:first-child) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+}
+
+.slideshow[data-slides="2"] img,
+.slideshow[data-slides="3"] img,
+.slideshow[data-slides="4"] img {
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-in-out;
+}
+
+/* Each slide holds full opacity for its share of the cycle, fades out, waits, and fades
+   back in at the very end -- so the last slide dissolves into the first. */
+@keyframes platzky-slideshow-2 {
+    0%, 42% { opacity: 1; }
+    50%, 92% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes platzky-slideshow-3 {
+    0%, 28% { opacity: 1; }
+    33.333%, 94.667% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes platzky-slideshow-4 {
+    0%, 21% { opacity: 1; }
+    25%, 96% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+.slideshow[data-slides="2"] img {
+    animation-name: platzky-slideshow-2;
+    animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 2);
+}
+
+.slideshow[data-slides="3"] img {
+    animation-name: platzky-slideshow-3;
+    animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 3);
+}
+
+.slideshow[data-slides="4"] img {
+    animation-name: platzky-slideshow-4;
+    animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 4);
+}
+
+/* Scoped to the counts that actually animate, like the rules above: an unscoped delay is
+   inert on an image with no animation, but it still shows up in computed styles and would
+   send whoever reads them next looking for a rotation that was never there. */
+.slideshow:is([data-slides="2"], [data-slides="3"], [data-slides="4"]) img:nth-child(2) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 1);
+}
+
+.slideshow:is([data-slides="3"], [data-slides="4"]) img:nth-child(3) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 2);
+}
+
+.slideshow[data-slides="4"] img:nth-child(4) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 3);
+}
+
+/* A reader who has stopped to look, or tabbed into the slideshow, is not helped by the
+   picture changing under them. */
+.slideshow:hover img,
+.slideshow:focus-within img {
+    animation-play-state: paused;
+}
+
+/* The rotation is content, not decoration, so it keeps running; it is the dissolve that
+   is motion. steps(1, end) turns every fade into a cut without touching the timings. */
+@media (prefers-reduced-motion: reduce) {
+    .slideshow img {
+        animation-timing-function: steps(1, end);
+    }
+}

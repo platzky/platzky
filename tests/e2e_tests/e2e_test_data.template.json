@@ -157,6 +157,13 @@
         "slug": "strip-html",
         "contentInMarkdown": "Before <b>bold text</b> after. [html]<img id=\"kept-image\" src=\"/static/img/none.png\">[/html] Tail <img id=\"stripped-image\" src=\"/static/img/none.png\"> end. [image url=\"/static/img/none.png\" alt=\"shortcode image\"]",
         "excerpt": "page excerpt"
+      },
+      {
+        "title": "slideshow page",
+        "author": "autor",
+        "slug": "slideshow",
+        "contentInMarkdown": "Rotating [slideshow interval=\"4000\"][image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\" alt=\"rotating one\"][image url=\"https://upload.wikimedia.org/wikipedia/en/a/a1/The_Two_Towers_cover.gif\" alt=\"rotating two\"][/slideshow] Many [slideshow][image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\" alt=\"many 1\"][image url=\"https://upload.wikimedia.org/wikipedia/en/a/a1/The_Two_Towers_cover.gif\" alt=\"many 2\"][image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\" alt=\"many 3\"][image url=\"https://upload.wikimedia.org/wikipedia/en/a/a1/The_Two_Towers_cover.gif\" alt=\"many 4\"][image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\" alt=\"many 5\"][/slideshow] Affiliate [link url=\"https://example.com/deal\" rel=\"sponsored\" target=\"_blank\"][slideshow interval=\"2000\"][image url=\"https://upload.wikimedia.org/wikipedia/en/8/8e/The_Fellowship_of_the_Ring_cover.gif\" alt=\"promo one\"][image url=\"https://upload.wikimedia.org/wikipedia/en/a/a1/The_Two_Towers_cover.gif\" alt=\"promo two\"][/slideshow][/link]",
+        "excerpt": "page excerpt"
       }
     ],
     "menu_items": {

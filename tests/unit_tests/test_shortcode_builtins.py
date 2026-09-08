@@ -1,4 +1,4 @@
-"""Tests for built-in shortcodes (image, link, hero, html)."""
+"""Tests for built-in shortcodes (image, link, hero, html, slideshow)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,12 @@ from platzky.plugin.content_transformer import (
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
+from platzky.shortcodes.slideshow import (
+    DEFAULT_INTERVAL_MS,
+    MAX_INTERVAL_MS,
+    MAX_SLIDES,
+    MIN_INTERVAL_MS,
+)
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
 
 
@@ -134,6 +140,30 @@ class TestLinkShortcode:
 
     def test_missing_url_renders_nothing(self) -> None:
         assert _apply("[link]text[/link]") == ""
+
+    def test_rel_tokens_are_emitted(self) -> None:
+        result = _apply('[link url="https://example.com" rel="sponsored"]Buy[/link]')
+        assert 'rel="sponsored"' in result
+
+    def test_rel_unions_with_the_rel_that_blank_forces(self) -> None:
+        """Disclosing an affiliation is not volunteering to drop opener protection."""
+        result = _apply(
+            '[link url="https://example.com" rel="sponsored" target="_blank"]Buy[/link]'
+        )
+        assert 'rel="noopener noreferrer sponsored"' in result
+
+    def test_unknown_rel_tokens_are_dropped_without_losing_the_link(self) -> None:
+        """One mistyped word costs its own token, not the whole link."""
+        result = _apply('[link url="https://example.com" rel="sponsred nofollow"]Buy[/link]')
+        assert 'rel="nofollow"' in result
+        assert "sponsred" not in result
+
+    def test_rel_that_allowlists_nothing_emits_no_attribute(self) -> None:
+        result = _apply('[link url="https://example.com" rel="evil"]x[/link]')
+        assert "rel=" not in result
+
+    def test_rel_is_case_insensitive(self) -> None:
+        assert 'rel="sponsored"' in _apply('[link url="https://e.com" rel="SPONSORED"]x[/link]')
 
     def test_relative_url_allowed(self) -> None:
         result = _apply('[link url="/about"]About[/link]')
@@ -356,3 +386,59 @@ class TestHtmlShortcode:
 
         with pytest.raises(ShortcodeError, match=r"\[html\] is never closed"):
             _apply("[html]forever")
+
+
+class TestSlideshowShortcode:
+    def test_wraps_nested_images_and_counts_them(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert result.startswith('<div class="slideshow" data-slides="2"')
+        assert '<img src="/a.jpg" alt="">' in result
+        assert '<img src="/b.jpg" alt="">' in result
+
+    def test_default_interval_when_unspecified(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert "--platzky-slideshow-interval: 4000ms" in result
+
+    def test_interval_attribute_is_used(self) -> None:
+        result = _apply('[slideshow interval="2500"][image url="/a.jpg"][/slideshow]')
+        assert "--platzky-slideshow-interval: 2500ms" in result
+
+    @pytest.mark.parametrize(
+        ("written", "expected"),
+        [("100", MIN_INTERVAL_MS), ("999999", MAX_INTERVAL_MS)],
+    )
+    def test_interval_is_clamped_to_the_safe_range(self, written: str, expected: int) -> None:
+        """The floor is a seizure-risk threshold, not a matter of taste."""
+        result = _apply(f'[slideshow interval="{written}"][image url="/a.jpg"][/slideshow]')
+        assert f"--platzky-slideshow-interval: {expected}ms" in result
+
+    def test_unparseable_interval_falls_back_rather_than_failing(self) -> None:
+        """A typo in one attribute must not take the whole page down."""
+        result = _apply('[slideshow interval="soon"][image url="/a.jpg"][/slideshow]')
+        assert f"--platzky-slideshow-interval: {DEFAULT_INTERVAL_MS}ms" in result
+
+    def test_more_slides_than_can_rotate_still_render(self) -> None:
+        """A count the stylesheet has no rules for renders as a plain sequence.
+
+        The failure to avoid is a missing CSS rule silently hiding an image someone wrote,
+        so the count is reported honestly and the stacking rules simply do not match it.
+        """
+        images = "".join(f'[image url="/{n}.jpg"]' for n in range(MAX_SLIDES + 1))
+        result = _apply(f"[slideshow]{images}[/slideshow]")
+        assert f'data-slides="{MAX_SLIDES + 1}"' in result
+        for n in range(MAX_SLIDES + 1):
+            assert f'src="/{n}.jpg"' in result
+
+    def test_a_refused_image_url_is_not_counted_as_a_slide(self) -> None:
+        """The parser drops a refused element, so the count reflects what survived."""
+        result = _apply(
+            '[slideshow][image url="/a.jpg"][image url="javascript:alert(1)"][/slideshow]'
+        )
+        assert 'data-slides="1"' in result
+        assert "javascript:" not in result
+
+    def test_nested_shortcodes_are_rendered_before_the_wrapper_sees_them(self) -> None:
+        """The wrapper receives one flat string of already-rendered markup, never a list."""
+        result = _apply('[slideshow][link url="https://e.com"]x[/link][/slideshow]')
+        assert '<a href="https://e.com">x</a>' in result
+        assert 'data-slides="0"' in result

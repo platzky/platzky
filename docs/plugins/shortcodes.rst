@@ -96,18 +96,40 @@ The plugin's ``accepted_content_types`` decides where its shortcodes may be used
 
 **Built-in shortcodes**
 
-Platzky ships four shortcodes that are always available, registered by a built-in
+Platzky ships five shortcodes that are always available, registered by a built-in
 transformer that runs ahead of any plugin:
 
 ``[image url="…" alt="…" width="…" height="…"]``
     Embeds an ``<img>`` tag. ``url`` is required. Void — no closing tag.
 
-``[link url="…" target="…"]text[/link]``
+``[link url="…" target="…" rel="…"]text[/link]``
     Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
     adds ``rel="noopener noreferrer"``.
 
+    ``rel`` takes space-separated tokens from a fixed allowlist — ``sponsored``,
+    ``nofollow``, ``ugc``, ``noopener``, ``noreferrer`` — and is unioned with whatever
+    ``target="_blank"`` already forces, never a replacement for it. Use ``sponsored`` for
+    affiliate and paid links: an undisclosed one is a Search Essentials violation. A token
+    outside the allowlist is dropped and the rest of the link still renders, because ``rel``
+    is a disclosure a site makes about itself and a typo must not silently become one.
+
 ``[hero]…[/hero]``
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
+
+``[slideshow interval="…"]…[/slideshow]``
+    Wraps images in a ``<div class="slideshow">`` that cross-fades between them, and
+    rotates up to four. ``interval`` is the milliseconds each slide is shown, defaulting to
+    4000 and clamped to 1500–60000; below roughly the floor a cross-fade reads as a flash
+    rather than a transition, which is a seizure risk and not a matter of taste. An
+    unparseable or out-of-range value is corrected and logged rather than raised, since one
+    mistyped attribute should not take a page down.
+
+    The rotation is **pure CSS** — platzky ships no JavaScript of its own. It pauses on
+    hover and on focus, and ``prefers-reduced-motion: reduce`` turns each dissolve into a
+    cut while leaving the rotation running, the rotation being content rather than
+    decoration. Wrapping more than four images is not an error: the stylesheet has no
+    timings for that count, so they render as an ordinary sequence, because a missing rule
+    must never be able to hide an image somebody wrote.
 
 ``[html]…[/html]``
     Emits its content exactly as written. Raw, so a shortcode written inside is displayed
