@@ -18,6 +18,14 @@ DEFAULT_INTERVAL_MS = 4000
 MIN_INTERVAL_MS = 1500
 MAX_INTERVAL_MS = 60000
 
+#: What ``width`` accepts. ``"fit"`` shrink-wraps to the frames, which is the only thing
+#: that works for a slideshow of bare images: the first frame stays in normal flow at its
+#: natural size while the rest are laid over it, so a container wider than the picture puts
+#: them in different places. ``"full"`` spans whatever contains the slideshow, which is what
+#: a slideshow of [figure]s usually wants, those being blocks that fill it.
+WIDTHS = ("fit", "full")
+DEFAULT_WIDTH = "fit"
+
 #: How many slides the stylesheet can rotate. The animation is pure CSS, so each slide
 #: count needs its own keyframe timings and `nth-child` delays written out in `blog.css`;
 #: four is where that stops being worth the bytes. More than this is not an error — the
@@ -46,10 +54,37 @@ class SlideshowShortcode(Shortcode):
                 f"Milliseconds each slide is shown (default {DEFAULT_INTERVAL_MS}, "
                 f"{MIN_INTERVAL_MS}-{MAX_INTERVAL_MS})",
                 required=False,
-            )
+            ),
+            ShortcodeAttr(
+                "width",
+                'Either "fit" (default, as wide as the frames) or "full" (spans its container)',
+                required=False,
+            ),
         ]
     )
     example = '[slideshow interval="4000"][image url="/a.jpg"][image url="/b.jpg"][/slideshow]'
+
+    def _width(self, written: str) -> str:
+        """Read the width attribute, falling back rather than failing.
+
+        Args:
+            written: The attribute exactly as the author typed it, possibly empty.
+
+        Returns:
+            One of ``WIDTHS``.
+        """
+        if not written:
+            return DEFAULT_WIDTH
+        width = written.strip().lower()
+        if width not in WIDTHS:
+            logger.warning(
+                "[slideshow] width %r is not one of %s; using %r.",
+                written,
+                ", ".join(WIDTHS),
+                DEFAULT_WIDTH,
+            )
+            return DEFAULT_WIDTH
+        return width
 
     def _interval(self, written: str) -> int:
         """Read the interval attribute, falling back rather than failing.
@@ -114,10 +149,12 @@ class SlideshowShortcode(Shortcode):
                 MAX_SLIDES,
             )
         interval = self._interval(attrs.interval)
-        # Both interpolated values are integers by construction, so neither can carry a ';'
-        # out of the style attribute it lands in.
+        width = self._width(attrs.width)
+        # Every interpolated value is constructed here rather than taken from the author:
+        # two integers and a word from WIDTHS, so none can carry a ';' or a '"' out of the
+        # attribute it lands in.
         return (
-            f'<div class="slideshow" data-slides="{slides}" '
+            f'<div class="slideshow" data-slides="{slides}" data-width="{width}" '
             f'style="--platzky-slideshow-interval: {interval}ms">{content}</div>'
         )
 

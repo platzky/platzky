@@ -19,6 +19,7 @@ from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
 from platzky.shortcodes.slideshow import (
     DEFAULT_INTERVAL_MS,
+    DEFAULT_WIDTH,
     MAX_INTERVAL_MS,
     MAX_SLIDES,
     MIN_INTERVAL_MS,
@@ -477,3 +478,33 @@ class TestFigureShortcode:
             '[figure][image url="/e.jpg"][/figure][/slideshow]'
         )
         assert 'data-slides="3"' in result
+
+
+class TestSlideshowWidth:
+    def test_defaults_to_fitting_its_frames(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][/slideshow]')
+        assert f'data-width="{DEFAULT_WIDTH}"' in result
+
+    def test_full_spans_its_container(self) -> None:
+        result = _apply('[slideshow width="full"][image url="/a.jpg"][/slideshow]')
+        assert 'data-width="full"' in result
+
+    def test_width_is_case_insensitive(self) -> None:
+        result = _apply('[slideshow width="FULL"][image url="/a.jpg"][/slideshow]')
+        assert 'data-width="full"' in result
+
+    def test_an_unknown_width_falls_back_rather_than_failing(self) -> None:
+        """One mistyped attribute should cost a log line, not the page."""
+        result = _apply('[slideshow width="wide"][image url="/a.jpg"][/slideshow]')
+        assert f'data-width="{DEFAULT_WIDTH}"' in result
+
+    def test_the_width_written_into_the_element_is_never_the_authors_text(self) -> None:
+        """The emitted value is chosen from WIDTHS, never copied from what was written.
+
+        A value cannot contain a double quote — the parser only matches ``name="value"``, so
+        a tag carrying one is not recognised as a tag at all. This covers the rest: anything
+        legal but unrecognised is replaced rather than echoed into the element.
+        """
+        result = _apply('[slideshow width="full<script>"][image url="/a.jpg"][/slideshow]')
+        assert "<script>" not in result
+        assert f'data-width="{DEFAULT_WIDTH}"' in result

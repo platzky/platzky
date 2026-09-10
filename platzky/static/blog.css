@@ -435,6 +435,29 @@ footer .copyright {
     max-width: 100%;
 }
 
+/* width="full" spans the page, not the column it was written in. Blog content sits in a
+   centred `col-lg-8` inside a Bootstrap container, so filling that would still leave a
+   slideshow at well under half the screen on a wide display.
+
+   The negative margins cancel the centring: 50% of this element's own containing block
+   less half the viewport, on each side, which lands its edges on the viewport's. That is
+   preferred over `width: 100vw` because 100vw counts the scrollbar and would overhang by
+   its width.
+
+   Safe for [figure] frames, which are blocks and fill whatever they are given; a bare
+   image is not, so it is centred below to line up with the stacked frames, which
+   object-fit centres in the same box. Without that the picture would sit at the left on
+   one frame and jump to the middle on the next. */
+.slideshow[data-width="full"] {
+    width: auto;
+    max-width: none;
+    margin-inline: calc(50% - 50vw);
+}
+
+.slideshow[data-width="full"] > img {
+    margin-inline: auto;
+}
+
 .slideshow img {
     display: block;
     max-width: 100%;

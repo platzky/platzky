@@ -263,4 +263,47 @@ describe('[slideshow] shortcode', () => {
       expect(backgrounds[0]).to.not.eq(backgrounds[1]);
     });
   });
+
+  it('spans the page when asked to, and still stacks its frames', () => {
+    // width="full" breaks out of the centred content column, so the test is against the
+    // viewport rather than the parent. The frames must still land on each other, which a
+    // wider container is exactly what would break.
+    slideshowOf('rotating one').then(($el) => {
+      const slideshow = $el[0];
+      expect(slideshow.getAttribute('data-width')).to.eq('full');
+
+      expect(slideshow.getBoundingClientRect().width, 'spans the viewport')
+        .to.be.closeTo(Cypress.config('viewportWidth'), 2);
+      expect(slideshow.getBoundingClientRect().width, 'wider than the column it sits in')
+        .to.be.greaterThan(slideshow.parentElement.getBoundingClientRect().width);
+
+      const [first, second] = [...slideshow.children].map((f) => f.getBoundingClientRect());
+      ['x', 'y', 'width', 'height'].forEach((side) => {
+        expect(Math.round(second[side]), side).to.eq(Math.round(first[side]));
+      });
+    });
+  });
+
+  it('breaks out without making the page scroll sideways', () => {
+    // The classic way a full-bleed element goes wrong: 100vw counts the scrollbar, so the
+    // element overhangs and the whole page gains a horizontal scrollbar. The negative
+    // margins avoid vw for the width, and this is what keeps it that way.
+    cy.document().then((doc) => {
+      expect(doc.documentElement.scrollWidth)
+        .to.be.at.most(Cypress.config('viewportWidth') + 1);
+    });
+  });
+
+  it('leaves a slideshow that did not ask for it fitting its frames', () => {
+    // Shrink-wrapping is what "fit" means, so assert it directly: the container is exactly
+    // as wide as the frame inside it. Comparing against the parent would not work here —
+    // this slideshow's parent is the affiliate <a>, and an inline box reports no width.
+    slideshowOf('promo one').then(($el) => {
+      const slideshow = $el[0];
+      expect(slideshow.getAttribute('data-width')).to.eq('fit');
+      const frame = slideshow.children[0].getBoundingClientRect();
+      expect(slideshow.getBoundingClientRect().width, 'hugs its frame')
+        .to.be.closeTo(frame.width, 1);
+    });
+  });
 });

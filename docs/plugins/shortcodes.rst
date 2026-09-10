@@ -116,7 +116,7 @@ transformer that runs ahead of any plugin:
 ``[hero]…[/hero]``
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
-``[slideshow interval="…"]…[/slideshow]``
+``[slideshow interval="…" width="…"]…[/slideshow]``
     Wraps frames in a ``<div class="slideshow">`` that cross-fades between them, and
     rotates up to four. A frame is either a bare image or a ``[figure]``, which lets a
     picture travel together with the text beside it.
@@ -125,6 +125,18 @@ transformer that runs ahead of any plugin:
     rather than a transition, which is a seizure risk and not a matter of taste. An
     unparseable or out-of-range value is corrected and logged rather than raised, since one
     mistyped attribute should not take a page down.
+
+    ``width`` is ``"fit"`` (the default, as wide as the frames) or ``"full"``. ``"full"``
+    spans the **page**, not the column the slideshow was written in: blog content sits in a
+    centred column, so filling that would still leave a slideshow at under half the screen
+    on a wide display. It breaks out with negative margins rather than ``width: 100vw``,
+    since ``vw`` counts the scrollbar and would overhang by its width.
+
+    ``"full"`` is meant for ``[figure]`` frames, which are blocks and fill what they are
+    given. Bare images are not, so under ``"full"`` they are centred to line up
+    with the stacked frames — without that the picture would sit at the left on one frame
+    and jump to the middle on the next. An unrecognised width falls back to ``"fit"`` and is
+    logged, like an unrecognised interval.
 
     The rotation is **pure CSS** — platzky ships no JavaScript of its own. It pauses on
     hover and on focus, and ``prefers-reduced-motion: reduce`` turns each dissolve into a
