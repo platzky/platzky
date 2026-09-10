@@ -4,15 +4,16 @@
 // its data-slides selectors match, that the interval custom property survives calc() -- is
 // only observable in a browser. That is what this file is for.
 //
-// The test data has a page with three slideshows: one rotating pair, one with more images
-// than the stylesheet has timings for, and one wrapped in a disclosed affiliate link.
+// The test data has a page with three slideshows -- one rotating pair of [figure] frames,
+// one with more images than the stylesheet has timings for, and one of bare images wrapped
+// in a disclosed affiliate link -- plus a [figure] written on its own, outside any.
 
 const ms = (value) => (value.endsWith('ms') ? parseFloat(value) : parseFloat(value) * 1000);
 
 const slideshowOf = (alt) => cy.get(`img[alt="${alt}"]`).closest('.slideshow');
 
-// What actually rotates is the slideshow's direct child, which is a [slide] frame when one
-// is used and the bare image otherwise. Tests assert against the frame, not the picture,
+// What actually rotates is the slideshow's direct child, which is a [figure] frame when
+// one is used and the bare image otherwise. Tests assert against the frame, not the picture,
 // so they hold for both shapes.
 const frameOf = (alt) =>
   cy.get(`img[alt="${alt}"]`).then(($img) => {
@@ -84,9 +85,9 @@ describe('[slideshow] shortcode', () => {
     });
   });
 
-  it('rotates bare images the same way it rotates slide frames', () => {
+  it('rotates bare images the same way it rotates figure frames', () => {
     // The affiliate slideshow is the page's only *animating* bare-image one, so it carries
-    // the whole no-[slide] path: without this, converting the rotating slideshow to frames
+    // the whole no-[figure] path: without this, converting the rotating slideshow to frames
     // would have left that form's stacking and geometry untested.
     slideshowOf('promo one').then(($el) => {
       const [first, second] = [...$el[0].children];
@@ -175,39 +176,39 @@ describe('[slideshow] shortcode', () => {
     });
   });
 
-  it('puts a slide’s text beside its picture, not under it', () => {
-    // A [slide] exists so a caption can travel with its image. Measured rather than
+  it('puts a figure’s text beside its picture, not under it', () => {
+    // A [figure] exists so a caption can travel with its image. Measured rather than
     // asserted on the CSS, because "beside" is a fact about where the text ended up.
     cy.get('img[alt="rotating one"]').then(($img) => {
-      const slide = $img[0].closest('.slide');
+      const figure = $img[0].closest('.platzky-figure');
       const picture = $img[0].getBoundingClientRect();
       const range = document.createRange();
-      range.selectNodeContents(slide);
+      range.selectNodeContents(figure);
       // Text starts to the right of the picture and overlaps it vertically.
-      const words = [...slide.childNodes]
+      const words = [...figure.childNodes]
         .filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
         .map((n) => {
           const r = document.createRange();
           r.selectNodeContents(n);
           return r.getBoundingClientRect();
         });
-      expect(words.length, 'slide has text of its own').to.be.greaterThan(0);
+      expect(words.length, 'figure has text of its own').to.be.greaterThan(0);
       expect(words[0].left).to.be.greaterThan(picture.right - 1);
       expect(words[0].top).to.be.lessThan(picture.bottom);
     });
   });
 
   it('keeps a caption as one run of prose', () => {
-    // Regression test: the slide was briefly a flex container, which made every text node
+    // Regression test: the figure was briefly a flex container, which made every text node
     // and inline element its own flex item. The fixture's red_letter plugin wraps each "a"
     // in a span, so "chapter" rendered as "ch a pter" with a gap either side, and any
     // caption containing a link would have broken the same way.
     cy.get('img[alt="rotating one"]').then(($img) => {
-      const slide = $img[0].closest('.slide');
-      expect(getComputedStyle(slide).display).to.not.eq('flex');
+      const figure = $img[0].closest('.platzky-figure');
+      expect(getComputedStyle(figure).display).to.not.eq('flex');
       // The pieces of the word abut: no gap is inserted between a text node and the span
       // that interrupts it.
-      const pieces = [...slide.childNodes].filter(
+      const pieces = [...figure.childNodes].filter(
         (n) => n.nodeType === Node.TEXT_NODE || n.nodeName === 'SPAN'
       );
       const rects = pieces.map((n) => {
@@ -218,6 +219,48 @@ describe('[slideshow] shortcode', () => {
       rects.slice(1).forEach((rect, i) => {
         expect(rect.left - rects[i].right, 'gap between caption pieces').to.be.lessThan(2);
       });
+    });
+  });
+
+  it('lays out a figure written on its own, outside any slideshow', () => {
+    // A picture with its text beside it is worth having without a rotation, and writing a
+    // slideshow of one to get it would be nonsense. Before the layout was unscoped from
+    // .slideshow this rendered as an unstyled div: image on its own line, text under it.
+    cy.get('img[alt="lone figure"]').then(($img) => {
+      const figure = $img[0].closest('.platzky-figure');
+      expect(figure.closest('.slideshow'), 'is outside any slideshow').to.be.null;
+      expect(getComputedStyle(figure).display).to.eq('flow-root');
+      expect(getComputedStyle($img[0]).float).to.eq('left');
+
+      const picture = $img[0].getBoundingClientRect();
+      const text = [...figure.childNodes]
+        .filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
+        .map((n) => {
+          const r = document.createRange();
+          r.selectNodeContents(n);
+          return r.getBoundingClientRect();
+        })[0];
+      expect(text.left).to.be.greaterThan(picture.right - 1);
+      expect(text.top).to.be.lessThan(picture.bottom);
+    });
+  });
+
+  it('lets the page style its figures', () => {
+    // blog.css invites a site to override .platzky-figure, and the fixture page does it
+    // from its own `css` field. Each frame gets its own background, which is also what
+    // makes the cross-fade legible in a screenshot when two book covers look alike.
+    const backgrounds = [];
+    ['rotating one', 'rotating two'].forEach((alt) => {
+      cy.get(`img[alt="${alt}"]`).then(($img) => {
+        const style = getComputedStyle($img[0].closest('.platzky-figure'));
+        expect(style.backgroundColor, `${alt} background`).to.not.eq('rgba(0, 0, 0, 0)');
+        expect(parseFloat(style.paddingLeft), `${alt} padding`).to.be.greaterThan(0);
+        backgrounds.push(style.backgroundColor);
+      });
+    });
+    cy.then(() => {
+      // Per-frame, not one rule for all of them.
+      expect(backgrounds[0]).to.not.eq(backgrounds[1]);
     });
   });
 });

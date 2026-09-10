@@ -440,19 +440,26 @@ footer .copyright {
     max-width: 100%;
 }
 
-/* A [slide] frame holds a picture and whatever belongs beside it: the image floats and the
+/* A [figure] holds a picture and whatever belongs beside it: the image floats and the
    rest flows around it.
+
+   Unscoped, unlike the stacking and animation rules above, because the layout has nothing
+   to do with rotating: a figure is worth having on its own, and scoping this to .slideshow
+   would mean the only way to ask for one was to write a slideshow of one.
+
+   The class is prefixed, unlike .hero and .slideshow, because Bootstrap already defines
+   .figure as display: inline-block and platzky loads Bootstrap on every page.
 
    Deliberately not a flex container. Flex makes every text node and every inline element
    its own item, so a sentence containing a link, an emphasis, or a plugin's span is torn
    into separate boxes with the gap between them, and long text wraps by chunk instead of
    by word. A float is what actually flows prose beside a picture. flow-root contains the
    float, so the frame is as tall as the taller of the two. */
-.slideshow > .slide {
+.platzky-figure {
     display: flow-root;
 }
 
-.slideshow > .slide > img:first-child {
+.platzky-figure > img:first-child {
     float: left;
     margin-right: 1rem;
     max-height: 100%;

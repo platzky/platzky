@@ -118,7 +118,7 @@ transformer that runs ahead of any plugin:
 
 ``[slideshow interval="…"]…[/slideshow]``
     Wraps frames in a ``<div class="slideshow">`` that cross-fades between them, and
-    rotates up to four. A frame is either a bare image or a ``[slide]``, which lets a
+    rotates up to four. A frame is either a bare image or a ``[figure]``, which lets a
     picture travel together with the text beside it.
     ``interval`` is the milliseconds each slide is shown, defaulting to
     4000 and clamped to 1500–60000; below roughly the floor a cross-fade reads as a flash
@@ -133,22 +133,28 @@ transformer that runs ahead of any plugin:
     timings for that count, so they render as an ordinary sequence, because a missing rule
     must never be able to hide an image somebody wrote.
 
-``[slide]…[/slide]``
-    One frame of a ``[slideshow]``. Wrap an image together with the text belonging beside
-    it and the whole frame counts as a single slide, however many images are inside::
+``[figure]…[/figure]``
+    A picture with the text that belongs beside it: the image floats and the rest flows
+    around it. Useful on its own, and it is also what a ``[slideshow]`` rotates — wrapped
+    there, the whole frame counts as a single slide however many images are inside::
 
         [slideshow interval="4000"]
-          [slide][image url="/one.jpg" alt="…"]This is the first chapter.[/slide]
-          [slide][image url="/two.jpg" alt="…"]This is the second.[/slide]
+          [figure][image url="/one.jpg" alt="…"]This is the first chapter.[/figure]
+          [figure][image url="/two.jpg" alt="…"]This is the second.[/figure]
         [/slideshow]
 
-    The image floats and the rest flows around it, so a caption containing a link or an
-    emphasis stays one run of prose. Without ``[slide]``, each image inside a
-    ``[slideshow]`` is a frame on its own — the right shape for a slideshow of nothing but
-    pictures, and still what happens if no ``[slide]`` is used.
+    Because the text flows rather than being laid out as a separate box, a caption
+    containing a link or an emphasis stays one run of prose. Without ``[figure]``, each image
+    inside a ``[slideshow]`` is a frame on its own — the right shape for a slideshow of
+    nothing but pictures, and still what happens if no ``[figure]`` is used.
 
-    Every frame shares the box of the first one, which stays in normal flow and sizes the
-    slideshow; the rest are laid over it. Frames of very different sizes will therefore be
+    Written outside a ``[slideshow]`` it is simply that layout, with nothing rotating —
+    which is why it is named for what it is rather than for the one place it is most
+    used. It renders a ``<div class="platzky-figure">``; the class is prefixed because
+    Bootstrap already defines ``.figure``.
+
+    Inside a slideshow, every frame shares the box of the first one, which stays in normal
+    flow and sizes the slideshow; the rest are laid over it. Frames of very different sizes will therefore be
     constrained to the first one's, so make them alike.
 
 ``[html]…[/html]``

@@ -4,8 +4,8 @@ import logging
 import re
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes.figure import FIGURE_CLASS
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.slide import SLIDE_CLASS
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ MAX_SLIDES = 4
 #: a wrapper can learn how many things it wrapped — `render` receives one flat string,
 #: never a list.
 _IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
-_SLIDE_RE = re.compile(rf'<div class="{SLIDE_CLASS}">')
+_FIGURE_RE = re.compile(rf'<div class="{FIGURE_CLASS}">')
 
 
 class SlideshowShortcode(Shortcode):
@@ -37,7 +37,7 @@ class SlideshowShortcode(Shortcode):
 
     name = "slideshow"
     description = (
-        "Cross-fade between the [slide]s inside it, or between bare images. Rotates up to four."
+        "Cross-fade between the [figure]s inside it, or between bare images. Rotates up to four."
     )
     attributes = ShortcodeAttrs(
         [
@@ -101,11 +101,11 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        # [slide] wins when it is used: a frame holding a picture and its text is one
-        # slide, not two things, and counting images there would double it. Falling back to
-        # images keeps the plain form — a slideshow of nothing but pictures — working
+        # [figure] wins when it is used: a frame holding a picture and its text is one
+        # slide, not two things, and counting images there would double it. Falling back
+        # to images keeps the plain form — a slideshow of nothing but pictures — working
         # without an author having to wrap every one.
-        slides = len(_SLIDE_RE.findall(content)) or len(_IMG_RE.findall(content))
+        slides = len(_FIGURE_RE.findall(content)) or len(_IMG_RE.findall(content))
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d images but only %d can be rotated; showing them all "
