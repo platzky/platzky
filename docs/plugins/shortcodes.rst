@@ -115,9 +115,9 @@ transformer that runs ahead of any plugin:
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
 ``[slideshow interval="…" width="…"]…[/slideshow]``
-    Wraps frames in a ``<div class="slideshow">`` that cross-fades between them. Each
-    frame is a bare image or a ``[figure]``. Up to four frames rotate; more render as an
-    ordinary sequence instead.
+    Displays a slideshow, rendered as a ``<div class="slideshow">``. Each frame is a bare
+    image or a ``[figure]``; up to four frames rotate, more render as an ordinary sequence
+    instead.
 
     ``interval`` is the milliseconds each slide is shown, default ``4000``, clamped to
     1500–60000. An unparseable or out-of-range value falls back to the default and is

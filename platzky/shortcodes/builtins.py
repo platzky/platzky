@@ -1,4 +1,4 @@
-"""Built-in shortcode handlers for images, links, hero blocks, verbatim HTML and slideshows."""
+"""Built-in shortcode handlers."""
 
 from platzky.shortcodes import Shortcode
 from platzky.shortcodes.figure import figure_shortcode
