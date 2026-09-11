@@ -52,18 +52,27 @@ class SlideshowShortcode(Shortcode):
         [
             ShortcodeAttr(
                 "interval",
-                f"Milliseconds each slide is shown (default {DEFAULT_INTERVAL_MS}, "
-                f"{MIN_INTERVAL_MS}-{MAX_INTERVAL_MS})",
+                f"Milliseconds each slide is shown (default {DEFAULT_INTERVAL_MS}). An "
+                f"unparseable value falls back to the default; a value outside "
+                f"{MIN_INTERVAL_MS}-{MAX_INTERVAL_MS} is clamped to that range. Both are "
+                f"logged.",
                 required=False,
             ),
             ShortcodeAttr(
                 "width",
-                'Either "fit" (default, as wide as the frames) or "full" (spans its container)',
+                'Either "fit" (default, as wide as the frames) or "full" (spans its '
+                'container). An unrecognised value falls back to "fit" and is logged.',
                 required=False,
             ),
         ]
     )
     example = '[slideshow interval="4000"][image url="/a.jpg"][image url="/b.jpg"][/slideshow]'
+    notes = (
+        'Each frame is a bare image or a "[figure]"; up to four frames rotate, more render '
+        "as an ordinary sequence instead. The rotation is pure CSS and pauses on hover or "
+        'focus; with "prefers-reduced-motion: reduce", slides still rotate but without the '
+        "cross-fade."
+    )
 
     def _width(self, written: str) -> str:
         """Read the width attribute, falling back rather than failing.

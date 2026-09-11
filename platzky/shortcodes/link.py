@@ -21,15 +21,24 @@ class LinkShortcode(Shortcode):
                 "Target URL (http/https/mailto/tel or a relative path starting with /)",
                 required=True,
             ),
-            ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
+            ShortcodeAttr(
+                "target",
+                'Link target, e.g. "_blank" — automatically adds rel="noopener noreferrer"',
+                required=False,
+            ),
             ShortcodeAttr(
                 "rel",
-                'Relationship tokens, space separated, e.g. "sponsored nofollow"',
+                "Relationship tokens, space separated: sponsored, nofollow, ugc, noopener, "
+                "noreferrer. Other tokens are dropped; the link still renders.",
                 required=False,
             ),
         ]
     )
     example = '[link url="https://example.com"]Click here[/link]'
+    notes = (
+        'Use "sponsored" for affiliate and paid links. Tokens added automatically for '
+        'target="_blank" combine with, rather than replace, whatever rel is also given.'
+    )
 
     #: The URL policy this shortcode enforces. Declared rather than looked up so an
     #: application can widen it by subclassing, for links that mean something platzky's do

@@ -152,6 +152,14 @@ class Shortcode(ABC):
     attributes: ClassVar[ShortcodeAttrs] = ShortcodeAttrs([])
     example: str = ""
 
+    #: Behaviour that does not belong to one attribute — how attributes interact, what an
+    #: out-of-range or unrecognised value does, anything a content author or the built-in
+    #: shortcode reference documentation needs but a one-line ``description`` or a single
+    #: attribute's ``description`` cannot carry on its own. Plain prose: it is read both by
+    #: the admin help page and by the generated docs reference, so it takes no shortcode
+    #: or reST markup of its own.
+    notes: ClassVar[str] = ""
+
     #: Key holding the inner content when a field value is a dict — the field equivalent
     #: of what an author writes between the tags. Declare it when a shortcode names that
     #: key something of its own (``"code"``, ``"url"``); ``"value"`` is always accepted

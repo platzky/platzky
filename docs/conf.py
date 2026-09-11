@@ -31,6 +31,7 @@ extensions = [
     "myst_parser",
     "feature_flags",  # Auto-generate feature flags docs from FeatureFlagsConfig
     "plugin_bases",  # Auto-generate plugin base class table
+    "shortcodes",  # Auto-generate built-in shortcode reference
 ]
 
 templates_path = ["_templates"]
@@ -73,6 +74,10 @@ intersphinx_mapping = {
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 napoleon_include_init_with_doc = True
+# Render docstring "Attributes:" sections as plain :ivar: field lists rather than
+# ".. attribute::" directives — the latter registers an object under the same name
+# autodoc already assigns the real Pydantic field, which Sphinx reports as a duplicate.
+napoleon_use_ivar = True
 
 # Make version available as substitution in RST files
 rst_epilog = f"""

@@ -97,57 +97,12 @@ The plugin's ``accepted_content_types`` decides where its shortcodes may be used
 **Built-in shortcodes**
 
 Platzky ships shortcodes that are always available, registered by a built-in
-transformer that runs ahead of any plugin:
+transformer that runs ahead of any plugin. The tag, attributes, and example below come
+straight from each :class:`~platzky.shortcodes.shortcode.Shortcode` class — see
+:mod:`platzky.shortcodes.builtins` — so this reference cannot drift from what the code
+actually accepts:
 
-``[image url="…" alt="…" width="…" height="…"]``
-    Embeds an ``<img>`` tag. ``url`` is required. Void — no closing tag.
-
-``[link url="…" target="…" rel="…"]text[/link]``
-    Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
-    adds ``rel="noopener noreferrer"``.
-
-    ``rel`` accepts space-separated tokens from ``sponsored``, ``nofollow``, ``ugc``,
-    ``noopener``, ``noreferrer``; unknown tokens are dropped and the link still renders.
-    Use ``sponsored`` for affiliate and paid links. Combines with, rather than replaces,
-    whatever ``target="_blank"`` adds.
-
-``[hero]…[/hero]``
-    Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
-
-``[slideshow interval="…" width="…"]…[/slideshow]``
-    Displays a slideshow, rendered as a ``<div class="slideshow">``. Each frame is a bare
-    image or a ``[figure]``; up to four frames rotate, more render as an ordinary sequence
-    instead.
-
-    ``interval`` is the milliseconds each slide is shown, default ``4000``. An unparseable
-    value falls back to the default; an out-of-range value is clamped to 1500–60000. Both
-    are logged.
-
-    ``width`` is ``"fit"`` (default, as wide as the frames) or ``"full"`` (spans the full
-    page width, breaking out of the content column). Bare images are centred under
-    ``"full"``; ``[figure]`` frames already fill the width. An unrecognised value falls
-    back to ``"fit"`` and is logged.
-
-    The rotation is pure CSS and pauses on hover or focus. With
-    ``prefers-reduced-motion: reduce``, slides still rotate but without the cross-fade.
-
-``[figure]…[/figure]``
-    A picture with the text beside it: the image floats and the rest flows around it.
-    Renders a ``<div class="platzky-figure">``. Used on its own, or as a ``[slideshow]``
-    frame — wrapped in ``[figure]``, an image and its caption count as a single frame::
-
-        [slideshow interval="4000"]
-          [figure][image url="/one.jpg" alt="…"]This is the first chapter.[/figure]
-          [figure][image url="/two.jpg" alt="…"]This is the second.[/figure]
-        [/slideshow]
-
-    Without ``[figure]``, each image in a ``[slideshow]`` is its own frame. Inside a
-    slideshow, every frame is sized to match the first one, so keep frames similar in size.
-
-``[html]…[/html]``
-    Emits its content exactly as written. Raw, so a shortcode written inside is displayed
-    rather than rendered — this is how to document a tag without invoking it — no text
-    filter reaches in to rewrite it, and the HTML in it survives ``STRIP_CONTENT_HTML``.
+.. shortcode-reference::
 
 ``[image]`` and ``[link]`` accept ``http``/``https`` URLs and paths rooted at ``/``, and
 nothing else. A bare relative path such as ``photo.jpg`` is refused because it resolves

@@ -10,7 +10,19 @@ class FigureShortcode(Shortcode):
 
     name = "figure"
     description = "A picture with text beside it. Used in [slideshow] as single slide"
-    example = '[figure][image url="/a.jpg"]The first chapter.[/figure]'
+    example = (
+        '[slideshow interval="4000"]\n'
+        '  [figure][image url="/one.jpg" alt="…"]This is the first chapter.[/figure]\n'
+        '  [figure][image url="/two.jpg" alt="…"]This is the second.[/figure]\n'
+        "[/slideshow]"
+    )
+    notes = (
+        'Renders a <div class="platzky-figure">. Used on its own, or as a "[slideshow]" '
+        'frame — wrapped in "[figure]", an image '
+        "and its caption count as a single frame; without it, each image in a "
+        '"[slideshow]" is its own frame. Inside a slideshow, every frame is sized to '
+        "match the first one, so keep frames similar in size."
+    )
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Wrap the content in a figure the stylesheet lays out.

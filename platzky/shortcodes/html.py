@@ -24,6 +24,11 @@ class HtmlShortcode(Shortcode):
     kind = "raw"
     description = "Emit content exactly as written, parsing neither shortcodes nor HTML in it."
     example = '[html]<img src="/photo.jpg">[/html]'
+    notes = (
+        "Raw, so a shortcode written inside is displayed rather than rendered — this is "
+        "how to document a tag without invoking it — no text filter reaches in to rewrite "
+        'it, and the HTML in it survives "STRIP_CONTENT_HTML".'
+    )
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
         """Return the body unchanged.
