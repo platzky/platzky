@@ -106,70 +106,43 @@ transformer that runs ahead of any plugin:
     Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
     adds ``rel="noopener noreferrer"``.
 
-    ``rel`` takes space-separated tokens from a fixed allowlist — ``sponsored``,
-    ``nofollow``, ``ugc``, ``noopener``, ``noreferrer`` — and is unioned with whatever
-    ``target="_blank"`` already forces, never a replacement for it. Use ``sponsored`` for
-    affiliate and paid links: an undisclosed one is a Search Essentials violation. A token
-    outside the allowlist is dropped and the rest of the link still renders, because ``rel``
-    is a disclosure a site makes about itself and a typo must not silently become one.
+    ``rel`` accepts space-separated tokens from ``sponsored``, ``nofollow``, ``ugc``,
+    ``noopener``, ``noreferrer``; unknown tokens are dropped and the link still renders.
+    Use ``sponsored`` for affiliate and paid links. Combines with, rather than replaces,
+    whatever ``target="_blank"`` adds.
 
 ``[hero]…[/hero]``
     Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
 
 ``[slideshow interval="…" width="…"]…[/slideshow]``
-    Wraps frames in a ``<div class="slideshow">`` that cross-fades between them, and
-    rotates up to four. A frame is either a bare image or a ``[figure]``, which lets a
-    picture travel together with the text beside it.
-    ``interval`` is the milliseconds each slide is shown, defaulting to
-    4000 and clamped to 1500–60000; below roughly the floor a cross-fade reads as a flash
-    rather than a transition, which is a seizure risk and not a matter of taste. An
-    unparseable or out-of-range value is corrected and logged rather than raised, since one
-    mistyped attribute should not take a page down.
+    Wraps frames in a ``<div class="slideshow">`` that cross-fades between them. Each
+    frame is a bare image or a ``[figure]``. Up to four frames rotate; more render as an
+    ordinary sequence instead.
 
-    ``width`` is ``"fit"`` (the default, as wide as the frames) or ``"full"``. ``"full"``
-    spans the **page**, not the column the slideshow was written in: blog content sits in a
-    centred column, so filling that would still leave a slideshow at under half the screen
-    on a wide display. It breaks out with negative margins sized in ``cqw`` against
-    ``<article>``, which is declared a query container for the purpose. Not ``vw``: blog
-    content scrolls inside ``<main>``, whose scrollport is narrower than the viewport by its
-    own scrollbar, so a ``vw``-sized band overhangs and gives ``main`` a sideways scroll.
+    ``interval`` is the milliseconds each slide is shown, default ``4000``, clamped to
+    1500–60000. An unparseable or out-of-range value falls back to the default and is
+    logged.
 
-    ``"full"`` is meant for ``[figure]`` frames, which are blocks and fill what they are
-    given. Bare images are not, so under ``"full"`` they are centred to line up
-    with the stacked frames — without that the picture would sit at the left on one frame
-    and jump to the middle on the next. An unrecognised width falls back to ``"fit"`` and is
-    logged, like an unrecognised interval.
+    ``width`` is ``"fit"`` (default, as wide as the frames) or ``"full"`` (spans the full
+    page width, breaking out of the content column). Bare images are centred under
+    ``"full"``; ``[figure]`` frames already fill the width. An unrecognised value falls
+    back to ``"fit"`` and is logged.
 
-    The rotation is **pure CSS** — platzky ships no JavaScript of its own. It pauses on
-    hover and on focus, and ``prefers-reduced-motion: reduce`` turns each dissolve into a
-    cut while leaving the rotation running, the rotation being content rather than
-    decoration. Wrapping more than four images is not an error: the stylesheet has no
-    timings for that count, so they render as an ordinary sequence, because a missing rule
-    must never be able to hide an image somebody wrote.
+    The rotation is pure CSS and pauses on hover or focus. With
+    ``prefers-reduced-motion: reduce``, slides still rotate but without the cross-fade.
 
 ``[figure]…[/figure]``
-    A picture with the text that belongs beside it: the image floats and the rest flows
-    around it. Useful on its own, and it is also what a ``[slideshow]`` rotates — wrapped
-    there, the whole frame counts as a single slide however many images are inside::
+    A picture with the text beside it: the image floats and the rest flows around it.
+    Renders a ``<div class="platzky-figure">``. Used on its own, or as a ``[slideshow]``
+    frame — wrapped in ``[figure]``, an image and its caption count as a single frame::
 
         [slideshow interval="4000"]
           [figure][image url="/one.jpg" alt="…"]This is the first chapter.[/figure]
           [figure][image url="/two.jpg" alt="…"]This is the second.[/figure]
         [/slideshow]
 
-    Because the text flows rather than being laid out as a separate box, a caption
-    containing a link or an emphasis stays one run of prose. Without ``[figure]``, each image
-    inside a ``[slideshow]`` is a frame on its own — the right shape for a slideshow of
-    nothing but pictures, and still what happens if no ``[figure]`` is used.
-
-    Written outside a ``[slideshow]`` it is simply that layout, with nothing rotating —
-    which is why it is named for what it is rather than for the one place it is most
-    used. It renders a ``<div class="platzky-figure">``; the class is prefixed because
-    Bootstrap already defines ``.figure``.
-
-    Inside a slideshow, every frame shares the box of the first one, which stays in normal
-    flow and sizes the slideshow; the rest are laid over it. Frames of very different sizes will therefore be
-    constrained to the first one's, so make them alike.
+    Without ``[figure]``, each image in a ``[slideshow]`` is its own frame. Inside a
+    slideshow, every frame is sized to match the first one, so keep frames similar in size.
 
 ``[html]…[/html]``
     Emits its content exactly as written. Raw, so a shortcode written inside is displayed
