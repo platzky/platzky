@@ -9,6 +9,9 @@ all describe it — empty for ``ANY_TEXT``, which rules nothing out.
 import re
 from dataclasses import dataclass
 
+#: ASCII digits spelled out rather than ``\d``, which also matches Unicode decimal digits
+#: such as the Arabic-Indic and full-width forms. ``int`` reads those happily, so ``\d``
+#: would pass one through to a browser, which does not.
 _DIGITS_RE = re.compile(r"[0-9]+")
 
 

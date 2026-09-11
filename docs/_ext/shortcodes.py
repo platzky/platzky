@@ -37,6 +37,44 @@ def _signature(shortcode: object) -> str:
     return f"{opening}…[/{name}]"
 
 
+def _attribute_table_rst(shortcode: object) -> list[str]:
+    """Build the RST table of a shortcode's attributes.
+
+    Args:
+        shortcode: A registered ``Shortcode`` instance.
+
+    Returns:
+        RST lines for the table: one row per declared attribute, naming its default and
+        what it accepts. Nothing at all when the shortcode declares no attributes.
+    """
+    attrs = list(shortcode.attributes)  # type: ignore[attr-defined]
+    if not attrs:
+        return []
+
+    lines = [
+        "    .. list-table::",
+        "       :header-rows: 1",
+        "       :widths: 20 10 15 55",
+        "",
+        "       * - Attribute",
+        "         - Required",
+        "         - Default",
+        "         - Description",
+    ]
+    for attr in attrs:
+        default = f"``{attr.default}``" if attr.default else "—"
+        rule = str(attr.constraints)
+        accepts = f" Must be {rule}; anything else renders nothing." if rule else ""
+        lines += [
+            f"       * - ``{attr.name}``",
+            f"         - {'✓' if attr.required else '✗'}",
+            f"         - {default}",
+            f"         - {attr.description}{accepts}",
+        ]
+    lines.append("")
+    return lines
+
+
 def _build_shortcode_rst(shortcode: object) -> list[str]:
     """Build RST lines documenting a single shortcode.
 
@@ -52,29 +90,7 @@ def _build_shortcode_rst(shortcode: object) -> list[str]:
         "",
     ]
 
-    attrs = list(shortcode.attributes)  # type: ignore[attr-defined]
-    if attrs:
-        lines += [
-            "    .. list-table::",
-            "       :header-rows: 1",
-            "       :widths: 20 10 15 55",
-            "",
-            "       * - Attribute",
-            "         - Required",
-            "         - Default",
-            "         - Description",
-        ]
-        for attr in attrs:
-            default = f"``{attr.default}``" if attr.default else "—"
-            rule = str(attr.constraints)
-            accepts = f" Must be {rule}; anything else renders nothing." if rule else ""
-            lines += [
-                f"       * - ``{attr.name}``",
-                f"         - {'✓' if attr.required else '✗'}",
-                f"         - {default}",
-                f"         - {attr.description}{accepts}",
-            ]
-        lines.append("")
+    lines += _attribute_table_rst(shortcode)
 
     example = shortcode.example  # type: ignore[attr-defined]
     if example and "\n" in example:
