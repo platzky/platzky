@@ -54,11 +54,12 @@ class LinkShortcode(Shortcode):
     #: ``javascript:`` out of every deployment rather than out of the careful ones.
     url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
 
-    #: The ``rel`` tokens an author may ask for. An allowlist, because ``rel`` is read by
-    #: search engines and browsers, not just by a reader: ``sponsored``/``ugc`` are
-    #: disclosures a site makes about a link, and ``nofollow``/``noopener``/``noreferrer``
-    #: change real crawler or browser behaviour — a stray or misspelled word here is not as
-    #: harmless as a typo in prose.
+    #: The words a ``[link]`` tag's own ``rel`` attribute is allowed to contain. An
+    #: allowlist, because ``rel`` is read by search engines and browsers, not just by a
+    #: reader: ``sponsored``/``ugc`` are disclosures only the author writing the link can
+    #: know to make (a paid link, someone else's content), and ``nofollow``/``noopener``/
+    #: ``noreferrer`` change real crawler or browser behaviour — a stray or misspelled word
+    #: here is not as harmless as a typo in prose.
     #:
     #: Unknown tokens are dropped, not refused: one mistyped word should cost its own token,
     #: not the whole link.

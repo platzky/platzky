@@ -60,3 +60,7 @@ Shortcodes
 
 .. automodule:: platzky.shortcodes.urls
    :members:
+
+.. automodule:: platzky.shortcodes.constraints
+   :members:
+   :special-members: __contains__, __init__

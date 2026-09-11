@@ -68,20 +68,24 @@ Declare ``shortcodes`` as a class variable:
     from typing import ClassVar
     from markupsafe import escape
     from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
-    from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeAttr
+    from platzky.shortcodes import OneOf, Shortcode, ShortcodeAttrs, ShortcodeAttr
 
     class _AlertShortcode(Shortcode):
         name = "alert"
         description = "Render content inside a Bootstrap alert box."
         attributes = ShortcodeAttrs([
-            ShortcodeAttr("type", "Alert type: info, warning, danger", required=False),
+            ShortcodeAttr(
+                "type",
+                "Alert style",
+                default="info",
+                constraints=OneOf("info", "warning", "danger"),
+            ),
         ])
         example = '[alert type="warning"]Watch out![/alert]'
 
         def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-            kind = attrs.type or "info"
             # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
-            return f'<div class="alert alert-{escape(kind)}">{content}</div>'
+            return f'<div class="alert alert-{escape(attrs.type)}">{content}</div>'
 
     class AlertPlugin(ContentTransformerPluginBase):
         """Adds an [alert] shortcode for Bootstrap alert boxes."""
@@ -93,6 +97,16 @@ Declare ``shortcodes`` as a class variable:
 
 The plugin's ``accepted_content_types`` decides where its shortcodes may be used; see
 :ref:`declaring-scope`.
+
+**Attribute values.** ``default`` is what ``attrs.type`` returns when an author leaves the
+attribute out or writes it empty. ``constraints`` holds the values the attribute takes: a
+written value not in it makes the whole tag render nothing, logged with the attribute and
+what it takes, so ``[alert type="purple"]`` costs its own tag and not the page. A value
+that passes reaches ``render`` exactly as written — ``type="WARNING"`` is refused, not
+lowercased. :class:`~platzky.shortcodes.constraints.IntRange` and
+:class:`~platzky.shortcodes.constraints.OneOf` ship with platzky; any container of strings
+works too, such as a ``frozenset``. Both fields appear on the admin help page and in the
+reference below.
 
 **Built-in shortcodes**
 
@@ -115,7 +129,9 @@ source is not an image, and ``<img src="">`` is worse than an absence — it dra
 icon, and several browsers resolve the empty source against the current page and fetch the
 document a second time. ``[link]`` drops its text along with the tag, since link text is
 written to be clicked and reads as a mistake when left stranded in prose. The log is the
-only trace either leaves, because nobody can see an absence.
+only trace either leaves, because nobody can see an absence. The same holds for any value
+outside an attribute's ``constraints``, such as ``width="100%"`` on ``[image]``, which takes a
+whole number of pixels.
 
 All the built-in shortcodes are granted ``POST`` and ``PAGE`` only — ``[hero]`` emits a
 ``<div class="hero">`` header block, which only makes sense in a document body, so the
@@ -131,7 +147,7 @@ Two rules, and they do not vary by shortcode:
 .. code-block:: python
 
     def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
-        kind = attrs.type or "info"
+        kind = attrs.type
         return f'<div class="alert alert-{escape(kind)}">{content}</div>'
         #                                 ^^^^^^^^^^^^   attribute — always escape
         #                                                 ^^^^^^^   content — never escape

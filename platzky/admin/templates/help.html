@@ -43,8 +43,9 @@
             <tr>
               <td><code>{{ attr.name }}</code></td>
               <td><span class="{{ 'text-success' if attr.required else 'text-danger' }}">{{ "✓" if attr.required else "✗" }}</span></td>
-              <td>{{ attr.default if attr.default is not none else "—" }}</td>
-              <td>{{ attr.description }}</td>
+              <td>{{ attr.default or "—" }}</td>
+              {% set rule = attr.constraints | string %}
+              <td>{{ attr.description }}{% if rule %} Must be {{ rule }}; anything else renders nothing.{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>

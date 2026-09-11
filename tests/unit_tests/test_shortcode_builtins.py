@@ -17,13 +17,7 @@ from platzky.plugin.content_transformer import (
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
-from platzky.shortcodes.slideshow import (
-    DEFAULT_INTERVAL_MS,
-    DEFAULT_WIDTH,
-    MAX_INTERVAL_MS,
-    MAX_SLIDES,
-    MIN_INTERVAL_MS,
-)
+from platzky.shortcodes.slideshow import DEFAULT_WIDTH, MAX_SLIDES
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
 
 
@@ -67,6 +61,19 @@ class TestImageShortcode:
         assert result.startswith("<img")
         assert "width" not in result
         assert "height" not in result
+
+    @pytest.mark.parametrize("attr", ["width", "height"])
+    def test_a_size_that_is_not_whole_pixels_renders_nothing(
+        self, attr: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """``100%`` is not a valid HTML width; emitting it would only look like it worked."""
+        with caplog.at_level(logging.WARNING):
+            assert _apply(f'[image url="/x.jpg" {attr}="100%"]') == ""
+
+        assert f"[image] rendered nothing: {attr} '100%'" in caplog.text
+
+    def test_a_stored_size_is_checked_the_same_way(self) -> None:
+        assert image_shortcode.render_value({"url": "/x.jpg", "width": "wide"}) == ""
 
     def test_missing_url_renders_nothing_and_logs(self, caplog: pytest.LogCaptureFixture) -> None:
         """An image with no source is not an image, and nobody can see an absence."""
@@ -404,19 +411,24 @@ class TestSlideshowShortcode:
         result = _apply('[slideshow interval="2500"][image url="/a.jpg"][/slideshow]')
         assert "--platzky-slideshow-interval: 2500ms" in result
 
-    @pytest.mark.parametrize(
-        ("written", "expected"),
-        [("100", MIN_INTERVAL_MS), ("999999", MAX_INTERVAL_MS)],
-    )
-    def test_interval_is_clamped_to_the_safe_range(self, written: str, expected: int) -> None:
-        """The floor is a seizure-risk threshold, not a matter of taste."""
-        result = _apply(f'[slideshow interval="{written}"][image url="/a.jpg"][/slideshow]')
-        assert f"--platzky-slideshow-interval: {expected}ms" in result
+    @pytest.mark.parametrize("written", ["100", "999999"])
+    def test_out_of_range_interval_drops_the_whole_slideshow(
+        self, written: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The floor is a seizure-risk threshold: outside the range costs the whole tag."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply(f'[slideshow interval="{written}"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
 
-    def test_unparseable_interval_falls_back_rather_than_failing(self) -> None:
-        """A typo in one attribute must not take the whole page down."""
-        result = _apply('[slideshow interval="soon"][image url="/a.jpg"][/slideshow]')
-        assert f"--platzky-slideshow-interval: {DEFAULT_INTERVAL_MS}ms" in result
+    def test_unparseable_interval_drops_the_whole_slideshow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A typo in one attribute must not take the whole page down — just its own tag."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[slideshow interval="soon"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
 
     def test_more_slides_than_can_rotate_still_render(self) -> None:
         """A count the stylesheet has no rules for renders as a plain sequence.
@@ -463,6 +475,9 @@ class TestFigureShortcode:
         result = _apply("[figure]No image here.[/figure]")
         assert result == ""
 
+    def test_a_size_that_is_not_whole_pixels_renders_nothing(self) -> None:
+        assert _apply('[figure image="/a.jpg" height="tall"]Caption.[/figure]') == ""
+
     def test_a_frame_counts_as_one_slide_not_as_its_contents(self) -> None:
         """A picture and its caption are one frame."""
         result = _apply(
@@ -494,22 +509,20 @@ class TestSlideshowWidth:
         result = _apply('[slideshow width="full"][image url="/a.jpg"][/slideshow]')
         assert 'data-width="full"' in result
 
-    def test_width_is_case_insensitive(self) -> None:
-        result = _apply('[slideshow width="FULL"][image url="/a.jpg"][/slideshow]')
-        assert 'data-width="full"' in result
+    def test_width_is_matched_exactly(self) -> None:
+        """Nothing is rewritten on the way, so ``FULL`` is refused rather than lowercased."""
+        assert _apply('[slideshow width="FULL"][image url="/a.jpg"][/slideshow]') == ""
 
-    def test_an_unknown_width_falls_back_rather_than_failing(self) -> None:
-        """One mistyped attribute should cost a log line, not the page."""
-        result = _apply('[slideshow width="wide"][image url="/a.jpg"][/slideshow]')
-        assert f'data-width="{DEFAULT_WIDTH}"' in result
+    def test_an_unknown_width_drops_the_whole_slideshow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """One mistyped attribute should cost a log line and its own tag, not the page."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[slideshow width="wide"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
 
-    def test_the_width_written_into_the_element_is_never_the_authors_text(self) -> None:
-        """The emitted value is chosen from WIDTHS, never copied from what was written.
-
-        A value cannot contain a double quote — the parser only matches ``name="value"``, so
-        a tag carrying one is not recognised as a tag at all. This covers the rest: anything
-        legal but unrecognised is replaced rather than echoed into the element.
-        """
+    def test_an_invalid_width_with_injected_markup_still_renders_nothing(self) -> None:
+        """Nothing written for an unrecognised width ever reaches the page, injected or not."""
         result = _apply('[slideshow width="full<script>"][image url="/a.jpg"][/slideshow]')
-        assert "<script>" not in result
-        assert f'data-width="{DEFAULT_WIDTH}"' in result
+        assert result == ""

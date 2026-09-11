@@ -14,13 +14,13 @@ import inspect
 import logging
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Container, Iterator
 from dataclasses import dataclass
 from typing import ClassVar, Literal, cast, final, get_args
 
 from markupsafe import Markup, escape
 
-from platzky.shortcodes.urls import UrlNotPermitted
+from platzky.shortcodes.constraints import ANY_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,20 @@ class ShortcodeError(ValueError):
         self.position = position
 
 
+class ElementRefused(ValueError):
+    """Raised when a shortcode's own attributes make it impossible to render meaningfully.
+
+    A ``ValueError`` because the attribute is the bad input, and a sibling of
+    ``ShortcodeError`` rather than a subclass: that one is fatal by design, while this one
+    is caught per element by the parser, so one refused element costs its own tag and not
+    the page around it.
+
+    :class:`~platzky.shortcodes.urls.UrlNotPermitted` is the built-in specialisation for a
+    refused URL; a shortcode with a different reason to refuse itself can raise this
+    directly, or its own subclass.
+    """
+
+
 @dataclass
 class ShortcodeAttr:
     """Descriptor for a single shortcode attribute."""
@@ -76,6 +90,15 @@ class ShortcodeAttr:
     name: str
     description: str
     required: bool = False
+
+    #: What ``attrs.<name>`` returns when the attribute is left out or written empty.
+    default: str = ""
+
+    #: The values this attribute takes. A written value not ``in`` it drops the whole tag,
+    #: logged, the way a refused URL does; one that is reaches ``render`` unchanged. The
+    #: built-in ones are in :mod:`platzky.shortcodes.constraints`; any container of strings,
+    #: such as a ``frozenset``, will do.
+    constraints: Container[str] = ANY_TEXT
 
 
 class ShortcodeAttrs:
@@ -94,6 +117,26 @@ class ShortcodeAttrs:
         self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
         self.values: dict[str, str] = {}
 
+    def bind(self, values: dict[str, str]) -> "ShortcodeAttrs":
+        """Check one tag's or stored value's attributes against this schema.
+
+        Args:
+            values: Attribute values as written, keyed by name.
+
+        Returns:
+            A new ``ShortcodeAttrs`` with this schema, holding the values as written.
+
+        Raises:
+            ElementRefused: If a written value is not in its attribute's ``constraints``.
+        """
+        for name, value in values.items():
+            attr = self._schema.get(name)
+            if value and attr is not None and value not in attr.constraints:
+                raise ElementRefused(f"{name} {value!r} is not {attr.constraints}")
+        bound = ShortcodeAttrs(list(self))
+        bound.values = dict(values)
+        return bound
+
     def __iter__(self) -> Iterator[ShortcodeAttr]:
         """Iterate over the attribute schema (for the help-page template)."""
         return iter(self._schema.values())
@@ -109,17 +152,17 @@ class ShortcodeAttrs:
             name: Attribute name to look up.
 
         Returns:
-            Parsed value, or the declared default, or empty string.
+            The written value, or the declared default when it was left out or written empty.
 
         Raises:
             AttributeError: If name is not in the schema.
         """
         if name.startswith("_"):
             raise AttributeError(name)
+        if name in self._schema:
+            return self.values.get(name) or self._schema[name].default
         if name in self.values:
             return self.values[name]
-        if name in self._schema:
-            return ""
         raise AttributeError(f"No shortcode attribute {name!r}")
 
     def __eq__(self, other: object) -> bool:
@@ -217,21 +260,22 @@ class Shortcode(ABC):
             value: The stored value, as the application holds it.
 
         Returns:
-            HTML for the value, or nothing at all when its URL was refused.
+            HTML for the value, or nothing at all when the shortcode refused it.
         """
-        attrs = ShortcodeAttrs(list(self.attributes))
+        values: dict[str, str] = {}
         if isinstance(value, dict):
             d = cast(dict[str, object], value)
             declared = {a.name for a in self.attributes}
-            attrs.values = {k: str(v) for k, v in d.items() if k in declared and v is not None}
+            values = {k: str(v) for k, v in d.items() if k in declared and v is not None}
             content = d.get(self.content_key, d.get("value", ""))
         else:
             content = value
         try:
+            attrs = self.attributes.bind(values)
             # str() would strip the Markup and make a shortcode that still escapes
             # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
             return self.render(attrs, escape("" if content is None else content))
-        except UrlNotPermitted as refusal:
+        except ElementRefused as refusal:
             # The other way in, and it answers a refusal exactly as the parser does: this
             # value renders to nothing, and the caller's page is not the casualty.
             logger.warning("[%s] rendered nothing: %s.", self.name, refusal)
@@ -251,7 +295,9 @@ class Shortcode(ABC):
 
         **Escape every attribute where you interpolate it.** Attributes stay raw, because
         that escaping is an HTML-attribute-context obligation rather than a trust
-        judgement, and it applies just as much to a value an author typed.
+        judgement, and it applies just as much to a value an author typed. An attribute
+        arrives as written — its ``constraints`` only decide whether the tag renders at
+        all — and one left out or written empty arrives as its ``default``.
 
         A subclass may still annotate ``content`` as ``str`` — widening a parameter is
         allowed — and escaping it is a harmless no-op on a ``Markup``. The rule is

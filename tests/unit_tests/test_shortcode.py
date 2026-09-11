@@ -1,5 +1,6 @@
 """Tests for the shortcode parser."""
 
+import logging
 from collections.abc import Mapping
 
 import pytest
@@ -10,7 +11,15 @@ from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
 )
-from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
+from platzky.shortcodes import (
+    IntRange,
+    OneOf,
+    Shortcode,
+    ShortcodeAttr,
+    ShortcodeAttrs,
+    ShortcodeError,
+)
+from platzky.shortcodes.constraints import ANY_TEXT
 
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
@@ -183,6 +192,101 @@ def _attrs_with(sc: Shortcode, **values: str) -> ShortcodeAttrs:
     attrs = ShortcodeAttrs(list(sc.attributes))
     attrs.values = dict(values)
     return attrs
+
+
+def _box_sc() -> Shortcode:
+    """Build a shortcode with one constrained, defaulted attribute, echoing what render gets."""
+
+    class _SC(Shortcode):
+        name = "box"
+        description = "test"
+        attributes = ShortcodeAttrs(
+            [ShortcodeAttr("size", "desc", default="10", constraints=IntRange(1, 99))]
+        )
+
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            return f"[{attrs.size}|{content}]"
+
+    return _SC()
+
+
+class TestAttributeConstraints:
+    def test_a_left_out_attribute_gets_its_default(self) -> None:
+        assert _apply_shortcodes("[box]x[/box]", {"box": _box_sc()}) == "[10|x]"
+
+    def test_an_empty_attribute_gets_its_default(self) -> None:
+        assert _apply_shortcodes('[box size=""]x[/box]', {"box": _box_sc()}) == "[10|x]"
+
+    def test_a_passing_value_reaches_render_as_written(self) -> None:
+        assert _apply_shortcodes('[box size="07"]x[/box]', {"box": _box_sc()}) == "[07|x]"
+
+    def test_any_container_of_strings_works_as_constraints(self) -> None:
+        class _SC(Shortcode):
+            name = "tone"
+            description = "test"
+            attributes = ShortcodeAttrs(
+                [ShortcodeAttr("level", "desc", constraints=frozenset({"low"}))]
+            )
+
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+                return f"[{attrs.level}|{content}]"
+
+        assert _SC().render_value({"level": "low", "value": "x"}) == "[low|x]"
+        assert _SC().render_value({"level": "high", "value": "x"}) == ""
+
+    def test_a_refused_value_drops_only_its_own_tag(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING):
+            result = _apply_shortcodes('a [box size="big"]x[/box] b', {"box": _box_sc()})
+
+        assert result == "a  b"
+        expected = "[box] rendered nothing: size 'big' is not a whole number from 1 to 99"
+        assert expected in caplog.text
+
+    def test_a_stored_value_is_parsed_the_same_way(self) -> None:
+        sc = _box_sc()
+        assert sc.render_value({"size": "7", "value": "x"}) == "[7|x]"
+        assert sc.render_value({"size": "big", "value": "x"}) == ""
+
+    def test_binding_leaves_the_declared_schema_untouched(self) -> None:
+        sc = _box_sc()
+        assert sc.attributes.bind({"size": "5"}) == {"size": "5"}
+        assert sc.attributes.values == {}
+
+
+class TestIntRange:
+    @pytest.mark.parametrize("value", ["1", "07", "99"])
+    def test_takes_bare_digits_within_range(self, value: str) -> None:
+        assert value in IntRange(1, 99)
+
+    @pytest.mark.parametrize("value", ["0", "100", "seven", "7.5", "", " 7", "+7", "7_0", "²"])
+    def test_takes_nothing_else(self, value: str) -> None:
+        """Nothing is rewritten on the way, so a sign, space or separator is refused."""
+        assert value not in IntRange(1, 99)
+
+    def test_an_open_upper_bound_takes_any_larger_number(self) -> None:
+        assert "123456" in IntRange(1)
+
+    def test_describes_what_it_takes(self) -> None:
+        assert str(IntRange(1, 99)) == "a whole number from 1 to 99"
+        assert str(IntRange(1)) == "a whole number, at least 1"
+
+
+class TestOneOf:
+    def test_takes_a_declared_word(self) -> None:
+        assert "full" in OneOf("fit", "full")
+
+    @pytest.mark.parametrize("value", ["wide", "FULL", " full"])
+    def test_takes_nothing_else(self, value: str) -> None:
+        assert value not in OneOf("fit", "full")
+
+    def test_describes_its_choices_in_declared_order(self) -> None:
+        assert str(OneOf("info", "warning", "danger")) == "one of info, warning, danger"
+
+
+class TestAnyText:
+    def test_takes_anything_and_says_nothing(self) -> None:
+        assert "anything at all" in ANY_TEXT
+        assert str(ANY_TEXT) == ""
 
 
 class TestApplyShortcodes:

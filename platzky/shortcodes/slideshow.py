@@ -3,34 +3,20 @@
 import logging
 import re
 
-from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import IntRange, OneOf, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.figure import FIGURE_CSS_CLASS
 from platzky.shortcodes.shortcode import Shortcode
 
 logger = logging.getLogger(__name__)
 
-#: How long each slide is shown when the author says nothing.
 DEFAULT_INTERVAL_MS = 4000
-
-#: The floor is a safety limit rather than a matter of taste: below roughly this, a
-#: cross-fade stops reading as a transition and starts reading as a flash, and WCAG's
-#: three-flashes-per-second threshold is a seizure risk.
-MIN_INTERVAL_MS = 1500
+MIN_INTERVAL_MS = 1500  # seizure-safety floor (WCAG 2.3.1: at most three flashes a second)
 MAX_INTERVAL_MS = 60000
 
-#: What ``width`` accepts. ``"fit"`` shrink-wraps to the frames, which is the only thing
-#: that works for a slideshow of bare images: the first frame stays in normal flow at its
-#: natural size while the rest are laid over it, so a container wider than the picture puts
-#: them in different places. ``"full"`` spans whatever contains the slideshow, which is what
-#: a slideshow of [figure]s usually wants, those being blocks that fill it.
-WIDTHS = ("fit", "full")
 DEFAULT_WIDTH = "fit"
 
-#: How many slides the stylesheet can rotate. The animation is pure CSS, so each slide
-#: count needs its own keyframe timings and `nth-child` delays written out in
-#: `shortcodes.css`;
-#: four is where that stops being worth the bytes. More than this is not an error — the
-#: images simply render as an ordinary sequence, so nothing an author wrote disappears.
+# Not a free setting: shortcodes.css has one hand-written rule set per slide count (2-4).
+# Raising this without adding the matching CSS leaves larger slideshows unanimated, unlogged.
 MAX_SLIDES = 4
 
 #: Counts what the nested shortcodes produced. The parser renders and *joins* an element's
@@ -52,17 +38,15 @@ class SlideshowShortcode(Shortcode):
         [
             ShortcodeAttr(
                 "interval",
-                f"Milliseconds each slide is shown (default {DEFAULT_INTERVAL_MS}). An "
-                f"unparseable value falls back to the default; a value outside "
-                f"{MIN_INTERVAL_MS}-{MAX_INTERVAL_MS} is clamped to that range. Both are "
-                f"logged.",
-                required=False,
+                "Milliseconds each slide is shown.",
+                default=str(DEFAULT_INTERVAL_MS),
+                constraints=IntRange(MIN_INTERVAL_MS, MAX_INTERVAL_MS),
             ),
             ShortcodeAttr(
                 "width",
-                'Either "fit" (default, as wide as the frames) or "full" (spans its '
-                'container). An unrecognised value falls back to "fit" and is logged.',
-                required=False,
+                '"fit" is as wide as the frames; "full" spans its container.',
+                default=DEFAULT_WIDTH,
+                constraints=OneOf("fit", "full"),
             ),
         ]
     )
@@ -74,61 +58,6 @@ class SlideshowShortcode(Shortcode):
         "cross-fade."
     )
 
-    def _width(self, written: str) -> str:
-        """Read the width attribute, falling back rather than failing.
-
-        Args:
-            written: The attribute exactly as the author typed it, possibly empty.
-
-        Returns:
-            One of ``WIDTHS``.
-        """
-        if not written:
-            return DEFAULT_WIDTH
-        width = written.strip().lower()
-        if width not in WIDTHS:
-            logger.warning(
-                "[slideshow] width %r is not one of %s; using %r.",
-                written,
-                ", ".join(WIDTHS),
-                DEFAULT_WIDTH,
-            )
-            return DEFAULT_WIDTH
-        return width
-
-    def _interval(self, written: str) -> int:
-        """Read the interval attribute, falling back rather than failing.
-
-        An out-of-range or non-numeric interval is corrected and logged, never raised:
-        ``ShortcodeError`` is fatal by design, and a typo in one attribute should cost the
-        author a warning in the log, not the whole page a 500.
-
-        Args:
-            written: The attribute exactly as the author typed it, possibly empty.
-
-        Returns:
-            A duration in milliseconds, inside the permitted range.
-        """
-        if not written:
-            return DEFAULT_INTERVAL_MS
-        try:
-            interval = int(written)
-        except ValueError:
-            logger.warning(
-                "[slideshow] interval %r is not a number; using %d.", written, DEFAULT_INTERVAL_MS
-            )
-            return DEFAULT_INTERVAL_MS
-        clamped = max(MIN_INTERVAL_MS, min(MAX_INTERVAL_MS, interval))
-        if clamped != interval:
-            logger.warning(
-                "[slideshow] interval %d is outside %d-%d; using %d.",
-                interval,
-                MIN_INTERVAL_MS,
-                MAX_INTERVAL_MS,
-                clamped,
-            )
-        return clamped
-
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Wrap the images in a container the stylesheet knows how to rotate.
 
@@ -139,7 +68,8 @@ class SlideshowShortcode(Shortcode):
         images render as an ordinary sequence.
 
         Args:
-            attrs: Parsed attributes. Raw — escaped where interpolated.
+            attrs: Parsed attributes; ``interval`` and ``width`` already checked against
+                their ``constraints``.
             content: The nested shortcodes' already-rendered markup. Embedded as-is per the
                 ``render`` contract; its ``Markup`` type says the escaping decision is made.
 
@@ -159,14 +89,12 @@ class SlideshowShortcode(Shortcode):
                 slides,
                 MAX_SLIDES,
             )
-        interval = self._interval(attrs.interval)
-        width = self._width(attrs.width)
-        # Every interpolated value is constructed here rather than taken from the author:
-        # two integers and a word from WIDTHS, so none can carry a ';' or a '"' out of the
+        # slides is counted here, and interval and width only got past their constraints as
+        # bare digits and a known word, so none can carry a ';' or a '"' out of the
         # attribute it lands in.
         return (
-            f'<div class="slideshow" data-slides="{slides}" data-width="{width}" '
-            f'style="--platzky-slideshow-interval: {interval}ms">{content}</div>'
+            f'<div class="slideshow" data-slides="{slides}" data-width="{attrs.width}" '
+            f'style="--platzky-slideshow-interval: {attrs.interval}ms">{content}</div>'
         )
 
 

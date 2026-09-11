@@ -2,7 +2,7 @@
 
 from markupsafe import escape
 
-from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import IntRange, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
 from platzky.shortcodes.urls import IMAGE_URL_POLICY
 
@@ -20,8 +20,8 @@ class FigureShortcode(Shortcode):
                 "image", "Image URL (http/https or a path starting with /)", required=True
             ),
             ShortcodeAttr("alt", "Alt text", required=False),
-            ShortcodeAttr("width", "Width in pixels", required=False),
-            ShortcodeAttr("height", "Height in pixels", required=False),
+            ShortcodeAttr("width", "Width in pixels", constraints=IntRange(1)),
+            ShortcodeAttr("height", "Height in pixels", constraints=IntRange(1)),
         ]
     )
     example = (

@@ -57,17 +57,22 @@ def _build_shortcode_rst(shortcode: object) -> list[str]:
         lines += [
             "    .. list-table::",
             "       :header-rows: 1",
-            "       :widths: 20 15 65",
+            "       :widths: 20 10 15 55",
             "",
             "       * - Attribute",
             "         - Required",
+            "         - Default",
             "         - Description",
         ]
         for attr in attrs:
+            default = f"``{attr.default}``" if attr.default else "—"
+            rule = str(attr.constraints)
+            accepts = f" Must be {rule}; anything else renders nothing." if rule else ""
             lines += [
                 f"       * - ``{attr.name}``",
                 f"         - {'✓' if attr.required else '✗'}",
-                f"         - {attr.description}",
+                f"         - {default}",
+                f"         - {attr.description}{accepts}",
             ]
         lines.append("")
 
