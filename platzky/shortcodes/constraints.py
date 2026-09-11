@@ -6,13 +6,7 @@ sentence "must be …", which is how the refusal, the admin help page and the ge
 all describe it — empty for ``ANY_TEXT``, which rules nothing out.
 """
 
-import re
 from dataclasses import dataclass
-
-#: ASCII digits spelled out rather than ``\d``, which also matches Unicode decimal digits
-#: such as the Arabic-Indic and full-width forms. ``int`` reads those happily, so ``\d``
-#: would pass one through to a browser, which does not.
-_DIGITS_RE = re.compile(r"[0-9]+")
 
 
 class AnyText:
@@ -46,7 +40,10 @@ class IntRange:
         Returns:
             Whether it is bare digits, with no sign, space or separator, inside the range.
         """
-        if not isinstance(value, str) or not _DIGITS_RE.fullmatch(value):
+        # Both halves: ``isdigit`` is true of the Arabic-Indic and full-width digits too,
+        # and of superscripts, which ``int`` reads as numbers or a browser does not read
+        # at all. ``isascii`` leaves exactly the ten a width or a duration may be written in.
+        if not isinstance(value, str) or not (value.isascii() and value.isdigit()):
             return False
         number = int(value)
         return number >= self.low and (self.high is None or number <= self.high)
