@@ -55,8 +55,11 @@ describe('[slideshow] shortcode', () => {
 
   it('carries the interval the author asked for', () => {
     slideshowOf('rotating one').should(($el) => {
-      expect(computed($el, 'getPropertyValue') && $el[0].style.getPropertyValue('--platzky-slideshow-interval').trim())
-        .to.eq('4000ms');
+      const value = window
+        .getComputedStyle($el[0])
+        .getPropertyValue('--platzky-slideshow-interval')
+        .trim();
+      expect(value).to.eq('4000ms');
     });
   });
 

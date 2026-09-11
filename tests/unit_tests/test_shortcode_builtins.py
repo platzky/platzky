@@ -479,6 +479,14 @@ class TestFigureShortcode:
         )
         assert 'data-slides="3"' in result
 
+    def test_a_figure_and_a_bare_image_each_count_as_one_frame(self) -> None:
+        """Mixing forms should not undercount: one frame plus one bare image is two."""
+        result = _apply(
+            '[slideshow][figure][image url="/a.jpg"]One.[/figure]'
+            '[image url="/b.jpg"][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
 
 class TestSlideshowWidth:
     def test_defaults_to_fitting_its_frames(self) -> None:

@@ -38,7 +38,7 @@ MAX_SLIDES = 4
 #: a wrapper can learn how many things it wrapped — `render` receives one flat string,
 #: never a list.
 _IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
-_FIGURE_RE = re.compile(rf'<div class="{FIGURE_CSS_CLASS}">')
+_FIGURE_BLOCK_RE = re.compile(rf'<div class="{FIGURE_CSS_CLASS}">.*?</div>', re.DOTALL)
 
 
 class SlideshowShortcode(Shortcode):
@@ -137,11 +137,12 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        # [figure] wins when it is used: a frame holding a picture and its text is one
-        # slide, not two things, and counting images there would double it. Falling back
-        # to images keeps the plain form — a slideshow of nothing but pictures — working
-        # without an author having to wrap every one.
-        slides = len(_FIGURE_RE.findall(content)) or len(_IMG_RE.findall(content))
+        # A [figure] is one slide regardless of how many <img> tags it holds, so its
+        # block is counted once and then removed before counting bare images — otherwise
+        # a slideshow mixing [figure]s with plain images would undercount.
+        figure_blocks = _FIGURE_BLOCK_RE.findall(content)
+        bare_content = _FIGURE_BLOCK_RE.sub("", content)
+        slides = len(figure_blocks) + len(_IMG_RE.findall(bare_content))
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d frames but only %d can be rotated; showing them all "

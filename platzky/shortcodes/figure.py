@@ -4,13 +4,12 @@ from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs
 
 FIGURE_CSS_CLASS = "platzky-figure"
 
+
 class FigureShortcode(Shortcode):
     """A picture with the text that belongs beside it."""
 
     name = "figure"
-    description = (
-        "A picture with text beside it. Used in [slideshow] as single slide"
-    )
+    description = "A picture with text beside it. Used in [slideshow] as single slide"
     example = '[figure][image url="/a.jpg"]The first chapter.[/figure]'
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
