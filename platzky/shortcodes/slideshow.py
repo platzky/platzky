@@ -4,7 +4,7 @@ import logging
 import re
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes.figure import FIGURE_CLASS
+from platzky.shortcodes.figure import FIGURE_CSS_CLASS
 from platzky.shortcodes.shortcode import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ MAX_SLIDES = 4
 #: a wrapper can learn how many things it wrapped — `render` receives one flat string,
 #: never a list.
 _IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
-_FIGURE_RE = re.compile(rf'<div class="{FIGURE_CLASS}">')
+_FIGURE_RE = re.compile(rf'<div class="{FIGURE_CSS_CLASS}">')
 
 
 class SlideshowShortcode(Shortcode):

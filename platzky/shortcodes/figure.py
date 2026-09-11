@@ -2,22 +2,14 @@
 
 from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs
 
-#: The class the stylesheet lays out, and the marker ``[slideshow]`` counts to learn how
-#: many frames it wraps.
-#:
-#: Prefixed, unlike ``hero`` and ``slideshow``, because Bootstrap — which platzky loads on
-#: every page — already defines ``.figure`` as ``display: inline-block``. An unprefixed
-#: class would style every Bootstrap figure on the site and be styled by it in turn.
-FIGURE_CLASS = "platzky-figure"
-
+FIGURE_CSS_CLASS = "platzky-figure"
 
 class FigureShortcode(Shortcode):
     """A picture with the text that belongs beside it."""
 
     name = "figure"
     description = (
-        "A picture with text beside it. Also what a [slideshow] rotates: wrapped there, "
-        "the whole figure is one frame."
+        "A picture with text beside it. Used in [slideshow] as single slide"
     )
     example = '[figure][image url="/a.jpg"]The first chapter.[/figure]'
 
@@ -31,9 +23,9 @@ class FigureShortcode(Shortcode):
                 ``render`` contract.
 
         Returns:
-            The content wrapped in a ``<div>`` carrying ``FIGURE_CLASS``.
+            The content wrapped in a ``<div>`` carrying ``FIGURE_CSS_CLASS``.
         """
-        return f'<div class="{FIGURE_CLASS}">{content}</div>'
+        return f'<div class="{FIGURE_CSS_CLASS}">{content}</div>'
 
 
 figure_shortcode = FigureShortcode()
