@@ -26,6 +26,21 @@ const frameOf = (alt) =>
 
 const computed = ($el, property) => window.getComputedStyle($el[0])[property];
 
+// The element blog content actually scrolls inside. Its width is the viewport's less its
+// own scrollbar, which is the width a full-bleed slideshow must match: matching the
+// viewport instead is what made it overhang.
+const scrollingAncestor = (el) => {
+  let node = el.parentElement;
+  while (node && node !== el.ownerDocument.documentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  throw new Error('no scrolling ancestor found');
+};
+
 describe('[slideshow] shortcode', () => {
   beforeEach(() => {
     cy.visit('/blog/page/slideshow');
@@ -71,9 +86,11 @@ describe('[slideshow] shortcode', () => {
       expect(ms(computed($el, 'animationDelay'))).to.eq(0);
     });
     frameOf('rotating two').should(($el) => {
-      // Staggered by one interval, which is what puts the second slide on screen as the
-      // first leaves rather than alongside it.
-      expect(ms(computed($el, 'animationDelay'))).to.eq(4000);
+      // Staggered by one interval, and *negative*: the sign is what makes the first
+      // transition cross-fade like every later one. A positive delay would leave this
+      // frame with no animation applied until it expired, sitting at opacity 0 and then
+      // cutting in. See "never fades to blank between frames".
+      expect(ms(computed($el, 'animationDelay'))).to.eq(-4000);
     });
   });
 
@@ -120,6 +137,36 @@ describe('[slideshow] shortcode', () => {
     });
     frameOf('rotating two').should(($el) => {
       expect(Number(computed($el, 'opacity'))).to.be.greaterThan(0.8);
+    });
+  });
+
+  it('never fades to blank between frames', () => {
+    // The steady-state test above cannot see this: it samples only the moments when one
+    // frame is fully up and the other fully down. A frame whose animation is still waiting
+    // out a positive delay sits at the base opacity 0 and then jumps to its 0% keyframe, so
+    // the outgoing frame fades to nothing and the incoming one cuts in — a dissolve on
+    // paper, a blink in the browser. Sampling through the transition is the only way to
+    // tell the two apart.
+    const samples = [];
+    const sample = () =>
+      cy.get('img[alt="rotating one"]').then(($img) => {
+        const frames = [...$img[0].closest('.slideshow').children];
+        samples.push(frames.map((f) => Number(getComputedStyle(f).opacity)));
+      });
+    // Across one 4s interval, so a transition is certain to fall inside the window.
+    for (let i = 0; i < 24; i++) {
+      sample();
+      cy.wait(200);
+    }
+
+    cy.then(() => {
+      // Something is always on screen: the two frames hand over rather than both dimming.
+      samples.forEach(([first, second], i) => {
+        expect(first + second, `total opacity at sample ${i}`).to.be.greaterThan(0.9);
+      });
+      // And at least one sample caught them genuinely sharing the screen.
+      const overlapping = samples.filter(([first, second]) => first > 0.1 && second > 0.1);
+      expect(overlapping.length, 'samples with both frames partly visible').to.be.greaterThan(0);
     });
   });
 
@@ -272,8 +319,11 @@ describe('[slideshow] shortcode', () => {
       const slideshow = $el[0];
       expect(slideshow.getAttribute('data-width')).to.eq('full');
 
-      expect(slideshow.getBoundingClientRect().width, 'spans the viewport')
-        .to.be.closeTo(Cypress.config('viewportWidth'), 2);
+      // The scrollport, not the viewport: they differ by the scrolling element's own
+      // scrollbar, and spanning the viewport is what used to make the page scroll sideways.
+      const scrollport = scrollingAncestor(slideshow);
+      expect(slideshow.getBoundingClientRect().width, 'spans the scrollport')
+        .to.be.closeTo(scrollport.clientWidth, 2);
       expect(slideshow.getBoundingClientRect().width, 'wider than the column it sits in')
         .to.be.greaterThan(slideshow.parentElement.getBoundingClientRect().width);
 
@@ -284,13 +334,18 @@ describe('[slideshow] shortcode', () => {
     });
   });
 
-  it('breaks out without making the page scroll sideways', () => {
-    // The classic way a full-bleed element goes wrong: 100vw counts the scrollbar, so the
-    // element overhangs and the whole page gains a horizontal scrollbar. The negative
-    // margins avoid vw for the width, and this is what keeps it that way.
-    cy.document().then((doc) => {
-      expect(doc.documentElement.scrollWidth)
-        .to.be.at.most(Cypress.config('viewportWidth') + 1);
+  it('breaks out without making anything scroll sideways', () => {
+    // The classic way a full-bleed element goes wrong: it is 100vw, the scrollport is
+    // narrower by its own scrollbar, and the difference becomes a horizontal scrollbar.
+    //
+    // Asserting on document.documentElement cannot catch that here. html and body carry
+    // overflow: hidden, so the document can never report overflow; the scrolling element
+    // is <main>, and that is where the overhang lands. Measured before this was fixed:
+    // main.clientWidth 985, main.scrollWidth 993, while documentElement reported nothing.
+    cy.get('img[alt="rotating one"]').then(($img) => {
+      const scroller = scrollingAncestor($img[0].closest('.slideshow'));
+      expect(scroller.scrollWidth, `${scroller.tagName} scrolls sideways`)
+        .to.be.at.most(scroller.clientWidth);
     });
   });
 

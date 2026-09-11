@@ -143,7 +143,7 @@ class SlideshowShortcode(Shortcode):
         slides = len(_FIGURE_RE.findall(content)) or len(_IMG_RE.findall(content))
         if slides > MAX_SLIDES:
             logger.warning(
-                "[slideshow] wraps %d images but only %d can be rotated; showing them all "
+                "[slideshow] wraps %d frames but only %d can be rotated; showing them all "
                 "as a sequence instead.",
                 slides,
                 MAX_SLIDES,

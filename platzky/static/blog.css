@@ -440,18 +440,29 @@ footer .copyright {
    slideshow at well under half the screen on a wide display.
 
    The negative margins cancel the centring: 50% of this element's own containing block
-   less half the viewport, on each side, which lands its edges on the viewport's. That is
-   preferred over `width: 100vw` because 100vw counts the scrollbar and would overhang by
-   its width.
+   less half the width to span, on each side.
 
-   Safe for [figure] frames, which are blocks and fill whatever they are given; a bare
+   That width is measured in cqw, not vw, and the difference matters. Blog content scrolls
+   inside <main>, whose scrollport is narrower than the viewport by its own scrollbar, so
+   a vw-sized band overhangs by that much and main gains a sideways scroll. <article> is
+   declared a query container below purely so cqw means "main's scrollport" here. */
+
+/* Safe for [figure] frames, which are blocks and fill whatever they are given; a bare
    image is not, so it is centred below to line up with the stacked frames, which
    object-fit centres in the same box. Without that the picture would sit at the left on
-   one frame and jump to the middle on the next. */
+   one frame and jump to the middle on the next.
+
+   The container is <article> rather than <main>: a query container is also a containing
+   block for its positioned descendants, and article holds prose, while main holds whatever
+   an application puts on a page — goodmap's map and its fixed overlays among them. */
+article {
+    container-type: inline-size;
+}
+
 .slideshow[data-width="full"] {
     width: auto;
     max-width: none;
-    margin-inline: calc(50% - 50vw);
+    margin-inline: calc(50% - 50cqw);
 }
 
 .slideshow[data-width="full"] > img {
@@ -548,19 +559,43 @@ footer .copyright {
     animation-duration: calc(var(--platzky-slideshow-interval, 4000ms) * 4);
 }
 
-/* Scoped to the counts that actually animate, like the rules above: an unscoped delay is
+/* The delays are negative, which is what makes the very first transition cross-fade like
+   every later one. A positive delay leaves the frame with no animation applied until it
+   expires, so it sits at the base opacity: 0 above and then jumps to the 0% keyframe's
+   opacity: 1 — the outgoing frame fades to blank and the incoming one cuts in. A negative
+   delay starts the animation immediately, already that far through, so every frame is
+   mid-cycle from the first paint and the fade-out of one always overlaps the fade-in of
+   the next.
+
+   The value is -(N - k + 1) intervals for the kth frame of N, which is the positive delay
+   less one full cycle: the same phase, reached without waiting. The first frame needs
+   none, its phase already being zero.
+
+   Scoped to the counts that actually animate, like the rules above: an unscoped delay is
    inert on an image with no animation, but it still shows up in computed styles and would
    send whoever reads them next looking for a rotation that was never there. */
-.slideshow:is([data-slides="2"], [data-slides="3"], [data-slides="4"]) > *:nth-child(2) {
-    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 1);
+.slideshow[data-slides="2"] > *:nth-child(2) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -1);
 }
 
-.slideshow:is([data-slides="3"], [data-slides="4"]) > *:nth-child(3) {
-    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 2);
+.slideshow[data-slides="3"] > *:nth-child(2) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -2);
+}
+
+.slideshow[data-slides="3"] > *:nth-child(3) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -1);
+}
+
+.slideshow[data-slides="4"] > *:nth-child(2) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -3);
+}
+
+.slideshow[data-slides="4"] > *:nth-child(3) {
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -2);
 }
 
 .slideshow[data-slides="4"] > *:nth-child(4) {
-    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * 3);
+    animation-delay: calc(var(--platzky-slideshow-interval, 4000ms) * -1);
 }
 
 /* A reader who has stopped to look, or tabbed into the slideshow, is not helped by the

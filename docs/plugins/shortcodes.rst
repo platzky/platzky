@@ -96,7 +96,7 @@ The plugin's ``accepted_content_types`` decides where its shortcodes may be used
 
 **Built-in shortcodes**
 
-Platzky ships six shortcodes that are always available, registered by a built-in
+Platzky ships shortcodes that are always available, registered by a built-in
 transformer that runs ahead of any plugin:
 
 ``[image url="…" alt="…" width="…" height="…"]``
@@ -129,8 +129,10 @@ transformer that runs ahead of any plugin:
     ``width`` is ``"fit"`` (the default, as wide as the frames) or ``"full"``. ``"full"``
     spans the **page**, not the column the slideshow was written in: blog content sits in a
     centred column, so filling that would still leave a slideshow at under half the screen
-    on a wide display. It breaks out with negative margins rather than ``width: 100vw``,
-    since ``vw`` counts the scrollbar and would overhang by its width.
+    on a wide display. It breaks out with negative margins sized in ``cqw`` against
+    ``<article>``, which is declared a query container for the purpose. Not ``vw``: blog
+    content scrolls inside ``<main>``, whose scrollport is narrower than the viewport by its
+    own scrollbar, so a ``vw``-sized band overhangs and gives ``main`` a sideways scroll.
 
     ``"full"`` is meant for ``[figure]`` frames, which are blocks and fill what they are
     given. Bare images are not, so under ``"full"`` they are centred to line up
