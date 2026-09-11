@@ -82,14 +82,18 @@ def _gather_shortcodes_and_extensions(
     return shortcodes, extensions
 
 
+_builtin_shortcodes = get_builtin_shortcodes()
+_builtin_tag_list = ", ".join(f"[{name}]" for name in _builtin_shortcodes)
+
+
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
-    """Built-in image and link shortcodes, always registered for posts and pages."""
+    """Built-in shortcodes, always registered for posts and pages."""
 
     accepted_content_types: Mapping[ContentType, str] = {
-        POST: "Renders [image] and [link] tags an author wrote in a post.",
-        PAGE: "Renders [image] and [link] tags an author wrote in a page.",
+        POST: f"Renders the built-in shortcodes ({_builtin_tag_list}) an author wrote in a post.",
+        PAGE: f"Renders the built-in shortcodes ({_builtin_tag_list}) an author wrote in a page.",
     }
-    shortcodes = get_builtin_shortcodes()
+    shortcodes = _builtin_shortcodes
 
 
 def _url_encode(x: str) -> str:
