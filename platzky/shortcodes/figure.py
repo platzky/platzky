@@ -1,6 +1,10 @@
 """Built-in figure shortcode."""
 
-from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs
+from markupsafe import escape
+
+from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.urls import IMAGE_URL_POLICY
 
 FIGURE_CSS_CLASS = "platzky-figure"
 
@@ -10,33 +14,51 @@ class FigureShortcode(Shortcode):
 
     name = "figure"
     description = "A picture with text beside it. Used in [slideshow] as single slide"
+    attributes = ShortcodeAttrs(
+        [
+            ShortcodeAttr(
+                "image", "Image URL (http/https or a path starting with /)", required=True
+            ),
+            ShortcodeAttr("alt", "Alt text", required=False),
+            ShortcodeAttr("width", "Width in pixels", required=False),
+            ShortcodeAttr("height", "Height in pixels", required=False),
+        ]
+    )
     example = (
         '[slideshow interval="4000"]\n'
-        '  [figure][image url="/one.jpg" alt="…"]This is the first chapter.[/figure]\n'
-        '  [figure][image url="/two.jpg" alt="…"]This is the second.[/figure]\n'
+        '  [figure image="/one.jpg" alt="…"]This is the first chapter.[/figure]\n'
+        '  [figure image="/two.jpg" alt="…"]This is the second.[/figure]\n'
         "[/slideshow]"
     )
     notes = (
         'Renders a <div class="platzky-figure">. Used on its own, or as a "[slideshow]" '
-        'frame — wrapped in "[figure]", an image '
-        "and its caption count as a single frame; without it, each image in a "
-        '"[slideshow]" is its own frame. Inside a slideshow, every frame is sized to '
-        "match the first one, so keep frames similar in size."
+        'frame — a "[figure]" is always a single slide, however it is used. Without it, '
+        'each bare image in a "[slideshow]" is its own frame. Inside a slideshow, every '
+        "frame is sized to match the first one, so keep frames similar in size."
     )
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
-        """Wrap the content in a figure the stylesheet lays out.
+    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        """Wrap an image and its caption in a figure the stylesheet lays out.
 
         Args:
-            attrs: Unused — a figure takes no attributes. Timing belongs to the
-                ``[slideshow]`` around it, which is the thing that has a cycle.
-            content: The figure's contents, already rendered. Embedded as-is per the
-                ``render`` contract.
+            attrs: Parsed shortcode attributes (image, alt, width, height).
+            content: The caption, already rendered. Embedded as-is per the ``render``
+                contract.
 
         Returns:
-            The content wrapped in a ``<div>`` carrying ``FIGURE_CSS_CLASS``.
+            The image and caption wrapped in a ``<div>`` carrying ``FIGURE_CSS_CLASS``.
+
+        Raises:
+            UrlNotPermitted: If the image URL is missing, or not one the policy permits.
         """
-        return f'<div class="{FIGURE_CSS_CLASS}">{content}</div>'
+        IMAGE_URL_POLICY.check(attrs.image)
+        extra = ""
+        if width := escape(attrs.width):
+            extra += f' width="{width}"'
+        if height := escape(attrs.height):
+            extra += f' height="{height}"'
+        img = f'<img src="{escape(attrs.image)}" alt="{escape(attrs.alt)}"{extra}>'
+        return f'<div class="{FIGURE_CSS_CLASS}">{img}{content}</div>'
 
 
 figure_shortcode = FigureShortcode()

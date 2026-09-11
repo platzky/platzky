@@ -446,21 +446,28 @@ class TestSlideshowShortcode:
 
 
 class TestFigureShortcode:
-    def test_wraps_content_in_a_figure_div(self) -> None:
-        result = _apply("[figure]The first chapter.[/figure]")
-        assert result == '<div class="platzky-figure">The first chapter.</div>'
-
-    def test_holds_an_image_and_its_text_together(self) -> None:
-        result = _apply('[figure][image url="/a.jpg" alt="cover"]The first chapter.[/figure]')
+    def test_wraps_its_image_and_caption_in_a_figure_div(self) -> None:
+        result = _apply('[figure image="/a.jpg" alt="cover"]The first chapter.[/figure]')
         assert result == (
             '<div class="platzky-figure"><img src="/a.jpg" alt="cover">The first chapter.</div>'
         )
 
+    def test_alt_defaults_to_empty(self) -> None:
+        result = _apply('[figure image="/a.jpg"]The first chapter.[/figure]')
+        assert result == (
+            '<div class="platzky-figure"><img src="/a.jpg" alt="">The first chapter.</div>'
+        )
+
+    def test_missing_image_renders_nothing(self) -> None:
+        """The image is required: without one, a figure is dropped like a bare [image] is."""
+        result = _apply("[figure]No image here.[/figure]")
+        assert result == ""
+
     def test_a_frame_counts_as_one_slide_not_as_its_contents(self) -> None:
-        """A picture and its caption are one frame; counting images would double it."""
+        """A picture and its caption are one frame."""
         result = _apply(
-            '[slideshow][figure][image url="/a.jpg"]One.[/figure]'
-            '[figure][image url="/b.jpg"]Two.[/figure][/slideshow]'
+            '[slideshow][figure image="/a.jpg"]One.[/figure]'
+            '[figure image="/b.jpg"]Two.[/figure][/slideshow]'
         )
         assert 'data-slides="2"' in result
 
@@ -470,20 +477,10 @@ class TestFigureShortcode:
         assert 'data-slides="2"' in result
         assert 'class="platzky-figure"' not in result
 
-    def test_frames_win_over_the_images_inside_them(self) -> None:
-        """Three frames, five images between them — the frames are what rotate."""
-        result = _apply(
-            '[slideshow][figure][image url="/a.jpg"][image url="/b.jpg"][/figure]'
-            '[figure][image url="/c.jpg"][image url="/d.jpg"][/figure]'
-            '[figure][image url="/e.jpg"][/figure][/slideshow]'
-        )
-        assert 'data-slides="3"' in result
-
     def test_a_figure_and_a_bare_image_each_count_as_one_frame(self) -> None:
         """Mixing forms should not undercount: one frame plus one bare image is two."""
         result = _apply(
-            '[slideshow][figure][image url="/a.jpg"]One.[/figure]'
-            '[image url="/b.jpg"][/slideshow]'
+            '[slideshow][figure image="/a.jpg"]One.[/figure][image url="/b.jpg"][/slideshow]'
         )
         assert 'data-slides="2"' in result
 

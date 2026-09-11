@@ -4,15 +4,7 @@ from markupsafe import escape
 
 from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import UrlPolicy
-
-#: An image source has to be something the browser can download, so this policy permits only
-#: ``http`` and ``https``. ``mailto:`` and ``tel:`` hand off to another application instead,
-#: which makes them fine in a link but useless as an image source.
-#:
-#: It lives here and is not exported because this shortcode is its only consumer, unlike
-#: ``LINK_URL_POLICY``, which goodmap needs too.
-IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
+from platzky.shortcodes.urls import IMAGE_URL_POLICY
 
 
 class ImageShortcode(Shortcode):

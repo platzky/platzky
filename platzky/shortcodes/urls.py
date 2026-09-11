@@ -116,3 +116,9 @@ class UrlPolicy:
 #: For a URL a reader navigates to: the two that fetch a document, plus the two that hand
 #: off to another application.
 LINK_URL_POLICY = UrlPolicy(frozenset({"http", "https", "mailto", "tel"}))
+
+#: An image source has to be something the browser can download, so this policy permits only
+#: ``http`` and ``https``. ``mailto:`` and ``tel:`` hand off to another application instead,
+#: which makes them fine in a link but useless as an image source. Shared by ``[image]`` and
+#: ``[figure]``, the two shortcodes that render an ``<img>`` tag.
+IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
