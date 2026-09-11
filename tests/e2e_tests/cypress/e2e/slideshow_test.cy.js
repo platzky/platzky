@@ -1,4 +1,4 @@
-// The [slideshow] shortcode's rotation is pure CSS, living in static/blog.css rather than
+// The [slideshow] shortcode's rotation is pure CSS, living in static/shortcodes.css rather than
 // in the markup the shortcode returns. Unit tests can only see that markup, so everything
 // that decides whether the thing actually rotates -- that the stylesheet is loaded, that
 // its data-slides selectors match, that the interval custom property survives calc() -- is
@@ -61,7 +61,7 @@ describe('[slideshow] shortcode', () => {
   });
 
   it('is styled by the shipped stylesheet, not by the markup', () => {
-    // If blog.css were not loaded, or its data-slides selectors did not match what the
+    // If shortcodes.css were not loaded, or its data-slides selectors did not match what the
     // shortcode writes, every one of these would fall back to a static, opaque image and
     // the slideshow would silently be a stack of pictures.
     slideshowOf('rotating one').should(($el) => {
@@ -293,7 +293,7 @@ describe('[slideshow] shortcode', () => {
   });
 
   it('lets the page style its figures', () => {
-    // blog.css invites a site to override .platzky-figure, and the fixture page does it
+    // shortcodes.css invites a site to override .platzky-figure, and the fixture page does it
     // from its own `css` field. Each frame gets its own background, which is also what
     // makes the cross-fade legible in a screenshot when two book covers look alike.
     const backgrounds = [];

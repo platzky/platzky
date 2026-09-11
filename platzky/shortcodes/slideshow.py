@@ -27,7 +27,8 @@ WIDTHS = ("fit", "full")
 DEFAULT_WIDTH = "fit"
 
 #: How many slides the stylesheet can rotate. The animation is pure CSS, so each slide
-#: count needs its own keyframe timings and `nth-child` delays written out in `blog.css`;
+#: count needs its own keyframe timings and `nth-child` delays written out in
+#: `shortcodes.css`;
 #: four is where that stops being worth the bytes. More than this is not an error — the
 #: images simply render as an ordinary sequence, so nothing an author wrote disappears.
 MAX_SLIDES = 4
@@ -124,7 +125,7 @@ class SlideshowShortcode(Shortcode):
 
         The slide count is written onto the element rather than inferred in CSS, because
         the timings depend on it: with N slides each is shown for one Nth of the cycle, so
-        ``blog.css`` carries one rule set per supported count and keys them off
+        ``shortcodes.css`` carries one rule set per supported count and keys them off
         ``data-slides``. A count it has no rules for simply gets no animation, and the
         images render as an ordinary sequence.
 
