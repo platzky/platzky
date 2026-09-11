@@ -36,8 +36,9 @@ class LinkShortcode(Shortcode):
     )
     example = '[link url="https://example.com"]Click here[/link]'
     notes = (
-        'Use "sponsored" for affiliate and paid links. Tokens added automatically for '
-        'target="_blank" combine with, rather than replace, whatever rel is also given.'
+        'target="_blank" always adds noopener and noreferrer to rel, even when rel is '
+        'also set — your own tokens are kept, not overwritten. Use "sponsored" for '
+        "affiliate and paid links."
     )
 
     #: The URL policy this shortcode enforces. Declared rather than looked up so an
