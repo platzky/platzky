@@ -75,7 +75,6 @@ def register_directive(
     """
     app.add_directive(name, directive)
     return {
-        "version": "1.0",
         "parallel_read_safe": True,
         "parallel_write_safe": True,
     }
