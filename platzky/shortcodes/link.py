@@ -9,12 +9,10 @@ from platzky.shortcodes.shortcode import Shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
 
 #: The words a ``[link]`` tag's own ``rel`` attribute may contain. An allowlist, because
-#: ``rel`` is read by search engines and browsers, not just by a reader: ``sponsored`` and
-#: ``ugc`` are disclosures only the author writing the link can know to make (a paid link,
-#: someone else's content), and ``nofollow``/``noopener``/``noreferrer`` change real crawler
-#: or browser behaviour. A stray or misspelled word here is not as harmless as a typo in
-#: prose — it is a disclosure that silently did not happen — so it costs the tag, and the
-#: author finds out.
+#: ``rel`` is read by crawlers and browsers rather than by a reader: a misspelled word is a
+#: disclosure that silently did not happen, so it costs the tag and the author finds out.
+#: What each word means:
+#: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel
 PERMITTED_REL = ManyOf("sponsored", "nofollow", "ugc", "noopener", "noreferrer")
 
 
@@ -37,7 +35,8 @@ class LinkShortcode(Shortcode):
             ),
             ShortcodeAttr(
                 "rel",
-                "Relationship tokens, space separated.",
+                "Relationship tokens, space separated; what each word means: "
+                "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel.",
                 required=False,
                 constraints=PERMITTED_REL,
             ),
