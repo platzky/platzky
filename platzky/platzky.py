@@ -4,9 +4,10 @@ import logging
 import typing as t
 import urllib.parse
 from collections.abc import Awaitable, Iterable, Mapping, Sequence
+from functools import partial
 
 import jinja2.ext
-from flask import make_response, redirect, render_template, request, session
+from flask import make_response, redirect, render_template, request
 from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
@@ -24,6 +25,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.language_routing import LANG_CODE_ARG, language_home_url, served_languages
 from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
@@ -108,44 +110,6 @@ def _url_encode(x: str) -> str:
     return urllib.parse.quote(x, safe="")
 
 
-def _get_language_domain(config: Config, lang: str) -> t.Optional[str]:
-    """Get the domain associated with a language.
-
-    Args:
-        config: Application configuration
-        lang: Language code to look up
-
-    Returns:
-        Domain string if language has a dedicated domain, None otherwise
-    """
-    lang_cfg = config.languages.get(lang)
-    if lang_cfg is None:
-        return None
-    return lang_cfg.domain
-
-
-def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
-    """Get a safe redirect URL by validating the referrer.
-
-    Prevents open redirect vulnerabilities by only allowing same-host redirects.
-
-    Args:
-        referrer: The HTTP referrer header value
-        current_host: The current request host
-
-    Returns:
-        The referrer URL if safe, otherwise "/"
-    """
-    if not referrer:
-        return "/"
-
-    referrer_parsed = urllib.parse.urlparse(referrer)
-    # Only redirect to referrer if it's from the same host
-    if referrer_parsed.netloc == current_host:
-        return referrer
-    return "/"
-
-
 def _www_redirection_response(config: Config) -> t.Optional[Response]:
     """Handle WWW subdomain redirection based on configuration.
 
@@ -161,28 +125,18 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
 
 
 def _change_language_response(config: Config, lang: str) -> Response:
-    """Change the user's language preference.
-
-    If the language has a dedicated domain, redirects to that domain.
-    Otherwise, sets the language in the session and returns to the referrer.
+    """Redirect to the home page of a language.
 
     Args:
         config: Application configuration object
         lang: Language code to switch to
 
     Returns:
-        Redirect response to the language domain or referrer page, or 404 if invalid
+        Redirect to the language's home URL, or 404 if the language is not configured
     """
-    # Only allow configured languages
     if lang not in config.languages:
         return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
-
-    if new_domain := _get_language_domain(config, lang):
-        return redirect(f"{request.scheme}://{new_domain}", code=302)
-
-    session["language"] = lang
-    redirect_url = _get_safe_redirect_url(request.referrer, request.host)
-    return redirect(redirect_url)
+    return redirect(language_home_url(config, lang, request.scheme, request.host), code=302)
 
 
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
@@ -213,6 +167,7 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
         return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
     if endpoint == request.endpoint:
         return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    view_args = {name: value for name, value in view_args.items() if name != LANG_CODE_ARG}
     result = app.view_functions[endpoint](**view_args)
     if isinstance(result, Awaitable):
         raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
@@ -263,16 +218,13 @@ def create_engine(
 
     @app.route("/lang/<string:lang>", methods=["GET"])
     def change_language(lang: str) -> Response:
-        """Change the user's language preference.
-
-        If the language has a dedicated domain, redirects to that domain.
-        Otherwise, sets the language in the session and returns to the referrer.
+        """Redirect to the home page of a language.
 
         Args:
             lang: Language code to switch to
 
         Returns:
-            Redirect response to the language domain or referrer page, or 404 if invalid
+            Redirect to the language's home URL, or 404 if the language is not configured
         """
         return _change_language_response(config, lang)
 
@@ -284,6 +236,8 @@ def create_engine(
             Rendered HTML of the resolved destination, or the 404 page.
         """
         return _home_page_response(app, config)
+
+    app.localize_routes("home_page")
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -304,6 +258,10 @@ def create_engine(
             "current_flag": flag,
             "current_lang_country": country,
             "current_language": locale,
+            "default_language": config.default_language,
+            "language_home_url": partial(
+                language_home_url, config, scheme=request.scheme, host=request.host
+            ),
             "url_link": _url_encode,
             "menu_items": app.db.get_menu_items_in_lang(locale),
             "logo_url": app.db.get_logo_url(),
@@ -445,11 +403,14 @@ def create_app_from_config(
         content_transformer=engine.transform_content,
     )
     seo_blueprint = seo.create_seo_blueprint(
-        db=engine.db, config=engine.config, locale_func=engine.get_locale
+        db=engine.db,
+        config=engine.config,
+        language_prefixes=lambda: served_languages(config, request.host),
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
+    engine.localize_routes(blog_blueprint.name)
     engine.register_blueprint(seo_blueprint)
 
     Minify(app=engine, html=True, js=True, cssless=True)

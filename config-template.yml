@@ -7,7 +7,9 @@ SECRET_KEY: secret
 # flask_secretkey: YOU SHOULD CHANGE IT!!!
 
 ## -- Languages supported by application
-## -- First language would be used as default
+## -- DEFAULT_LANGUAGE is served at the site root (required with more than one language).
+## -- Other languages are served on their own `domain`, or under /<code>/ without one.
+DEFAULT_LANGUAGE: en
 LANGUAGES:
   en:
     name: English

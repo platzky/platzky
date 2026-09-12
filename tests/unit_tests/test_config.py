@@ -152,6 +152,81 @@ class TestBlogPrefix:
         assert config.blog_prefix == "/articles"
 
 
+_EN = {"name": "English", "flag": "gb", "country": "GB"}
+_PL = {"name": "polski", "flag": "pl", "country": "PL"}
+_DE = {"name": "Deutsch", "flag": "de", "country": "DE"}
+
+
+def _config_data(**overrides: object) -> dict[str, object]:
+    return {
+        "APP_NAME": "test",
+        "SECRET_KEY": "secret",
+        "DB": {"TYPE": "json", "DATA": {}},
+        **overrides,
+    }
+
+
+class TestLanguages:
+    """Tests for DEFAULT_LANGUAGE and the URL each language is served at."""
+
+    def test_default_language_is_required_with_several_languages(self) -> None:
+        with pytest.raises(ValidationError, match="DEFAULT_LANGUAGE is required"):
+            Config.model_validate(_config_data(LANGUAGES={"en": _EN, "pl": _PL}))
+
+    def test_default_language_is_implied_with_one_language(self) -> None:
+        config = Config.model_validate(_config_data(LANGUAGES={"pl": _PL}))
+        assert config.default_language == "pl"
+
+    def test_default_language_is_en_without_languages(self) -> None:
+        assert Config.model_validate(_config_data()).default_language == "en"
+
+    def test_default_language_must_be_configured(self) -> None:
+        with pytest.raises(ValidationError, match="not one of the configured LANGUAGES"):
+            Config.model_validate(
+                _config_data(DEFAULT_LANGUAGE="de", LANGUAGES={"en": _EN, "pl": _PL})
+            )
+
+    @pytest.mark.parametrize(
+        "other_domain", ["example.com", "EXAMPLE.com", "www.example.com", "example.com."]
+    )
+    def test_domains_must_be_unique(self, other_domain: str) -> None:
+        languages = {"en": {**_EN, "domain": "example.com"}, "pl": {**_PL, "domain": other_domain}}
+        with pytest.raises(ValidationError, match="share the domain"):
+            Config.model_validate(_config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages))
+
+    def test_default_language_needs_a_domain_when_another_has_one(self) -> None:
+        languages = {"en": _EN, "pl": {**_PL, "domain": "example.pl"}}
+        with pytest.raises(ValidationError, match="needs a domain"):
+            Config.model_validate(_config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages))
+
+    @pytest.mark.parametrize("code", ["admin", "static", "lang", "blog", "pl pl", "pl/x"])
+    def test_path_language_code_must_be_a_free_url_segment(self, code: str) -> None:
+        with pytest.raises(ValidationError, match="served under"):
+            Config.model_validate(
+                _config_data(DEFAULT_LANGUAGE="en", LANGUAGES={"en": _EN, code: _PL})
+            )
+
+    def test_path_language_code_must_not_collide_with_a_custom_blog_prefix(self) -> None:
+        with pytest.raises(ValidationError, match="served under"):
+            Config.model_validate(
+                _config_data(
+                    BLOG_PREFIX="/articles",
+                    DEFAULT_LANGUAGE="en",
+                    LANGUAGES={"en": _EN, "articles": _PL},
+                )
+            )
+
+    def test_path_languages_are_non_default_languages_without_a_domain(self) -> None:
+        languages = {
+            "en": {**_EN, "domain": "example.com"},
+            "pl": _PL,
+            "de": {**_DE, "domain": "example.de"},
+            "uk": {"name": "Ukrainian", "flag": "ua", "country": "UA"},
+        }
+        config = Config.model_validate(_config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages))
+        assert config.path_languages == ("pl", "uk")
+
+
 class TestFeatureFlagSet:
     """Tests for FeatureFlagSet."""
 

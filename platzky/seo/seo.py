@@ -4,10 +4,19 @@ import typing as t
 import urllib.parse
 from os.path import dirname
 
-from flask import Blueprint, Response, current_app, make_response, render_template, request
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    make_response,
+    render_template,
+    request,
+    url_for,
+)
 from werkzeug.routing import Rule
 
 from platzky.db.db import DB
+from platzky.language_routing import LANG_CODE_ARG
 
 INTERNAL_NAMESPACES = frozenset({"static", "seo", "admin", "login", "health", "api"})
 INTERNAL_PATH_PREFIXES = ("/lang/",)
@@ -15,7 +24,7 @@ INTERNAL_PATH_PREFIXES = ("/lang/",)
 
 def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
     """Return True if the route should be included in the sitemap."""
-    if not rule.methods or "GET" not in rule.methods or rule.arguments:
+    if not rule.methods or "GET" not in rule.methods or rule.arguments - {LANG_CODE_ARG}:
         return False
     namespace = rule.endpoint.split(".")[0]
     if namespace in INTERNAL_NAMESPACES:
@@ -25,14 +34,17 @@ def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) 
 
 
 def create_seo_blueprint(
-    db: DB, config: dict[str, t.Any], locale_func: t.Callable[[], str]
+    db: DB,
+    config: dict[str, t.Any],
+    language_prefixes: t.Callable[[], t.Mapping[str, str]],
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
     Args:
         db: Database instance for accessing blog content
         config: Configuration dictionary with SEO and blog settings
-        locale_func: Function that returns the current locale/language code
+        language_prefixes: Returns the languages served on the current host, mapped to their
+            URL prefix ("" or "/<code>")
 
     Returns:
         Configured Flask Blueprint for SEO functionality
@@ -62,7 +74,7 @@ def create_seo_blueprint(
         """Generate sitemap entries for all blog posts.
 
         Args:
-            host_base: Base URL of the website (e.g., 'https://example.com')
+            host_base: Base URL including any language prefix (e.g. 'https://example.com/uk')
             lang: Language code for posts to include
             db: Database instance for accessing blog posts
             blog_prefix: URL prefix for blog routes
@@ -84,13 +96,13 @@ def create_seo_blueprint(
     def sitemap() -> Response:
         """Route to dynamically generate a sitemap of your website/application.
 
-        lastmod and priority tags omitted on static pages.
-        lastmod included on dynamic content such as blog posts.
+        Lists every language served on the requesting host. lastmod and priority tags
+        omitted on static pages; lastmod included on dynamic content such as blog posts.
 
         Returns:
             XML response containing the sitemap
         """
-        lang = locale_func()
+        prefixes = language_prefixes()
 
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc
@@ -98,13 +110,23 @@ def create_seo_blueprint(
         extra_excluded = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
 
         # Static routes with static content
-        static_urls = [
-            {"loc": f"{host_base}{rule!s}"}
-            for rule in current_app.url_map.iter_rules()
-            if _is_public_route(rule, extra_excluded)
-        ]
+        static_urls: list[dict[str, str]] = []
+        for rule in current_app.url_map.iter_rules():
+            if not _is_public_route(rule, extra_excluded):
+                continue
+            if LANG_CODE_ARG not in rule.arguments:
+                static_urls.append({"loc": f"{host_base}{rule!s}"})
+                continue
+            for lang, prefix in prefixes.items():
+                if prefix:
+                    values: dict[str, t.Any] = {LANG_CODE_ARG: lang}
+                    static_urls.append({"loc": f"{host_base}{url_for(rule.endpoint, **values)}"})
 
-        dynamic_urls = get_blog_entries(host_base, lang, db, config["BLOG_PREFIX"])
+        dynamic_urls = [
+            entry
+            for lang, prefix in prefixes.items()
+            for entry in get_blog_entries(host_base + prefix, lang, db, config["BLOG_PREFIX"])
+        ]
 
         statics = list({v["loc"]: v for v in static_urls}.values())
         dynamics = list({v["loc"]: v for v in dynamic_urls}.values())
@@ -119,6 +141,3 @@ def create_seo_blueprint(
         return response
 
     return seo
-
-
-# TODO add tests which would check that sitemap is different for different languages

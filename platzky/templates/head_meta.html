@@ -2,9 +2,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 {% for lang_code in languages %}
-<link rel="alternate" hreflang="{{ lang_code }}" href="{{ request.base_url }}"/>
+<link rel="alternate" hreflang="{{ lang_code }}" href="{{ language_home_url(lang_code) }}"/>
 {% endfor %}
-<link rel="alternate" hreflang="x-default" href="{{ request.base_url }}"/>
+<link rel="alternate" hreflang="x-default" href="{{ language_home_url(default_language) }}"/>
 <link rel="shortcut icon" href="{{ favicon_url }}" type="image/x-icon">
 <link rel="canonical" href="{{ request.base_url }}"/>
 <link rel="stylesheet" href="{{ font.url }}">

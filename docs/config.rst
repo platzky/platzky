@@ -134,28 +134,43 @@ See :doc:`database` for more details on database backends.
 Localization Settings
 ~~~~~~~~~~~~~~~~~~~~~
 
+``DEFAULT_LANGUAGE``
+^^^^^^^^^^^^^^^^^^^^
+
+:Type: ``str``
+:Default: the only configured language, or ``"en"`` when none are configured
+
+Language served at the root of the site. Required when more than one language is
+configured, and must be one of the ``LANGUAGES`` keys.
+
+.. code-block:: yaml
+
+    DEFAULT_LANGUAGE: en
+
 ``LANGUAGES``
 ^^^^^^^^^^^^^
 
 :Type: ``dict[str, LanguageConfig]``
 :Default: ``{}``
 
-Supported languages for the application. The first language is used as the default.
+Supported languages for the application.
 
 Each language configuration includes:
 
 * ``name``: Display name of the language
 * ``flag``: Flag icon code (country code)
 * ``country``: Country code
-* ``domain`` (optional): Specific domain for this language
+* ``domain`` (optional): Domain that serves this language
 
 .. code-block:: yaml
 
+    DEFAULT_LANGUAGE: en
     LANGUAGES:
       en:
         name: English
         flag: uk
         country: GB
+        domain: example.com
       pl:
         name: polski
         flag: pl
@@ -164,15 +179,25 @@ Each language configuration includes:
         name: Deutsch
         flag: de
         country: DE
-        domain: example.de  # Optional: language-specific domain for redirects
+        domain: example.de
 
-When a language has a ``domain``, a fresh visitor (no language chosen yet) landing
-directly on that domain sees that language, taking priority over Accept-Language
-guessing. Matching ignores port, case, and a trailing dot, so ``domain: example.de``
-matches requests to ``example.de``, ``EXAMPLE.DE``, ``example.de:8443``, or
-``example.de.``. Include a port in ``domain`` (e.g. ``domain: example.de:5000``) if
-the language's domain is only reachable on a non-standard port, such as in local or
-staging setups.
+The language of a page is decided by its URL alone, so every language has exactly one
+address that search engines can index:
+
+* ``DEFAULT_LANGUAGE`` is served at the root of the site (``example.com/``).
+* A language with a ``domain`` is served at the root of that domain (``example.de/``).
+* Any other language is served under its code (``example.com/pl/``). This covers the
+  homepage and the blog; an application can serve its own blueprint the same way with
+  ``engine.localize_routes("<blueprint name>")``.
+
+Domains must be unique, and once any other language has a ``domain`` the default language
+needs one too, so pages on the other domains can link back to it. Matching ignores case, a
+trailing dot, and a leading ``www.``. A ``domain`` without a port matches any port; include
+a port (e.g. ``domain: example.de:5000``) to match only that port, as in local or staging
+setups.
+
+The language switcher and the ``hreflang`` tags link to each language's home page, and
+``/lang/<code>`` redirects there.
 
 ``TRANSLATION_DIRECTORIES``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -424,16 +449,18 @@ Here's a complete configuration example for a production application:
       DATABASE_NAME: myblog
 
     # Multi-language support
+    DEFAULT_LANGUAGE: en
     LANGUAGES:
       en:
         name: English
         flag: uk
         country: GB
+        domain: myblog.com
       de:
         name: Deutsch
         flag: de
         country: DE
-        domain: myblog.de  # Optional: redirect to this domain when switching to German
+        domain: myblog.de  # German is served at myblog.de
 
     # URLs
     USE_WWW: true
