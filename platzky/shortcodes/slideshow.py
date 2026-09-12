@@ -80,9 +80,8 @@ class SlideshowShortcode(Shortcode):
                 their ``constraints``.
             content: The frames' already-rendered markup. Embedded as-is per the ``render``
                 contract; its ``Markup`` type says the escaping decision is made.
-            children: One entry per frame, which is what makes the count right: a
-                ``[figure]`` is one frame however much markup it holds, and a caption that
-                renders a ``<div>`` of its own adds none.
+            children: One entry per frame, so a ``[figure]`` counts once however much
+                markup it holds.
 
         Returns:
             A ``<div class="slideshow">`` wrapping the content.

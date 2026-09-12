@@ -287,25 +287,17 @@ class Shortcode(ABC):
         content: Markup,
         children: Sequence[Markup],  # noqa: ARG002
     ) -> str:
-        """Render an element from the children it wrapped, each already rendered.
+        """Render an element from its already-rendered children.
 
-        What the parser calls; ``render`` is what it forwards to. The default ignores the
-        pieces and renders the joined content, which is what all but a wrapper wants —
-        ``content`` is the same string either way, so a shortcode that never overrides this
-        cannot tell the difference.
-
-        Override it when what a shortcode emits depends on how many things it wrapped:
-        ``[slideshow]`` writes the slide count onto its element, and the joined string
-        cannot be counted without guessing at the markup its children produced — which is
-        wrong as soon as a child renders a ``<div>`` of its own.
+        What the parser calls. The default forwards to ``render``, ignoring the pieces;
+        override it when the output depends on how many children there were, the way
+        ``[slideshow]`` writes its slide count.
 
         Args:
-            attrs: Parsed shortcode attributes, as ``render`` receives them.
-            content: Every child joined, text and elements alike: the ``render`` argument,
-                unchanged.
-            children: The rendered element children, one entry each, in document order.
-                Text between them is not an entry, nor is an element that refused itself
-                and rendered nothing.
+            attrs: Parsed shortcode attributes.
+            content: Every child joined — what ``render`` receives.
+            children: One entry per element child, in document order. Text between them is
+                not an entry, nor is a child that refused itself and rendered nothing.
 
         Returns:
             Replacement HTML string.
