@@ -22,7 +22,7 @@
     <div class="row">
       <div class="col-lg-8 col-md-10 mx-auto post-content text-center">
         <p>{{ _("The page you were looking for may have been moved, renamed, or never existed.") }}</p>
-        <a href="/" class="btn btn-primary">{{ _("Back to homepage") }}</a>
+        <a href="{{ url_for('home_page') }}" class="btn btn-primary">{{ _("Back to homepage") }}</a>
       </div>
     </div>
   </div>

@@ -17,11 +17,12 @@ from flask import (
     Blueprint,
     Flask,
     Response,
+    abort,
     current_app,
+    has_request_context,
     jsonify,
     make_response,
     request,
-    session,
 )
 from flask_babel import Babel
 
@@ -30,6 +31,7 @@ from platzky.config import Config
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag, StripContentHtml
+from platzky.language_routing import LANG_CODE_ARG, dedicated_language, resolve_locale
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
@@ -113,6 +115,8 @@ class Engine(Flask):
         )
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
+        self._platzky_config = config
+        self._localized_endpoints: set[str] = set()
         self.db = db
         self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
@@ -135,6 +139,7 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
         self._register_default_health_endpoints()
+        self._register_language_url_processors()
 
         self.cms_modules: list[CmsModule] = []
 
@@ -375,42 +380,57 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the current locale based on session, host domain, or browser preferences."""
-        languages = self.config.get("LANGUAGES", {})
+        """Return the language of the current request, derived from its host and path only."""
+        return resolve_locale(self._platzky_config, request.host, request.path)
 
-        session_lang = session.get("language")
-        if isinstance(session_lang, str) and session_lang in languages:
-            lang = session_lang
-        else:
-            lang = self._language_for_host(languages, request.host) or (
-                request.accept_languages.best_match(languages.keys()) or "en"
-            )
+    def localize_routes(self, name: str) -> None:
+        """Also serve the routes of an endpoint or blueprint under each path language's prefix.
 
-        session["language"] = lang
-        return lang
+        Call it after the routes are registered. While a request is in a path language,
+        ``url_for`` builds these endpoints under that language's prefix.
 
-    @staticmethod
-    def _language_for_host(languages: dict[str, Any], host: str) -> Optional[str]:
-        """Return the language code whose dedicated domain matches host, if any.
-
-        A language's own domain takes priority over Accept-Language guessing so a
-        fresh visitor (no session yet) landing directly on that domain sees the
-        language it represents, rather than whatever their browser prefers.
+        Args:
+            name: An endpoint name, or a blueprint name to localize all of its endpoints.
         """
-        host_without_port = host.split(":", 1)[0].rstrip(".").lower()
-        host_with_port = host.rstrip(".").lower()
-        for lang, cfg in languages.items():
-            domain = cfg.get("domain")
-            if not isinstance(domain, str):
+        codes = self._platzky_config.path_languages
+        if not codes:
+            return
+        converter = "any(" + ", ".join(f"'{code}'" for code in codes) + ")"
+        for rule in list(self.url_map.iter_rules()):
+            if rule.endpoint != name and not rule.endpoint.startswith(f"{name}."):
                 continue
-            normalized_domain = domain.rstrip(".").lower()
-            # A domain with an explicit port must match the host's port exactly; a
-            # domain without one matches regardless of port (e.g. behind a proxy
-            # that forwards on a non-standard port).
-            host_to_compare = host_with_port if ":" in normalized_domain else host_without_port
-            if normalized_domain == host_to_compare:
-                return lang
-        return None
+            if LANG_CODE_ARG in rule.arguments:
+                continue
+            self.add_url_rule(
+                f"/<{converter}:{LANG_CODE_ARG}>{rule.rule}",
+                provide_automatic_options=getattr(rule, "provide_automatic_options", None),
+                **rule.get_empty_kwargs(),
+            )
+            self._localized_endpoints.add(rule.endpoint)
+
+    def _register_language_url_processors(self) -> None:
+        """Strip the language prefix from matched URLs and add it back when building them."""
+
+        @self.url_value_preprocessor
+        def pop_lang_code(_endpoint: Optional[str], values: Optional[dict[str, Any]]) -> None:
+            """Drop the language from view arguments; path languages exist on the main host only."""
+            if not values or values.pop(LANG_CODE_ARG, None) is None:
+                return
+            if dedicated_language(self._platzky_config, request.host):
+                abort(404)
+
+        @self.url_defaults
+        def inject_lang_code(endpoint: str, values: dict[str, Any]) -> None:
+            """Build localized endpoints under the prefix of the current path language."""
+            if (
+                endpoint not in self._localized_endpoints
+                or LANG_CODE_ARG in values
+                or not has_request_context()
+            ):
+                return
+            locale = self.get_locale()
+            if locale in self._platzky_config.path_languages:
+                values[LANG_CODE_ARG] = locale
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.

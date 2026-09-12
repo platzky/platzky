@@ -5,11 +5,30 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from platzky import create_app_from_config
-from platzky.config import Config, LanguageConfig
+from platzky.config import Config
+from platzky.engine import Engine
 from platzky.platzky import (
     create_app,
     create_engine,
 )
+
+_EN = {"name": "English", "flag": "gb", "country": "GB"}
+_DE = {"name": "German", "flag": "de", "country": "DE"}
+_UK = {"name": "Ukrainian", "flag": "ua", "country": "UA"}
+
+
+def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
+    config = Config.model_validate(
+        {
+            "APP_NAME": "test",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": False,
+            "DEFAULT_LANGUAGE": "en",
+            "LANGUAGES": languages,
+            "DB": {"TYPE": "json", "DATA": {}},
+        }
+    )
+    return create_engine(config, MagicMock())
 
 
 class TestPlatzky:
@@ -17,73 +36,50 @@ class TestPlatzky:
     def mock_db(self) -> MagicMock:
         return MagicMock()
 
-    def test_change_language_with_domain(self, mock_db: MagicMock):
-        """Test the change_language function when a domain is specified."""
-        mock_config = MagicMock()
-        mock_config.languages = {
-            "en": LanguageConfig(name="English", flag="gb", country="GB", domain="example.com"),
-            "de": LanguageConfig(name="German", flag="de", country="DE", domain="example.de"),
-        }
-
-        app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = (
-            False  # NOSONAR - CSRF intentionally disabled in test context
+    def test_change_language_to_domain_language_redirects_to_its_domain(self):
+        """Switching to a language with its own domain redirects to that domain's root."""
+        app = _engine_with_languages(
+            {"en": {**_EN, "domain": "example.com"}, "de": {**_DE, "domain": "example.de"}}
         )
+        response = app.test_client().get("/lang/de")
+        assert response.status_code == 302
+        assert response.headers.get("Location") == "http://example.de/"
 
-        with app.test_request_context():
-            mock_config.use_www = False
-            app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
-            response = app.test_client().get("/lang/de", follow_redirects=False)
-            assert response.status_code == 302
-            assert response.headers.get("Location") == "http://example.de"
+    def test_change_language_to_path_language_redirects_to_its_prefix(self):
+        """Switching to a language without a domain redirects to its prefix on the main host."""
+        app = _engine_with_languages({"en": _EN, "de": _DE})
+        response = app.test_client().get("/lang/de")
+        assert response.status_code == 302
+        assert response.headers.get("Location") == "http://localhost/de/"
 
-    def test_change_language_without_domain(self, mock_db: MagicMock):
-        """Test the change_language function when no domain is specified."""
-        mock_config = MagicMock()
-        mock_config.languages = {
-            "en": LanguageConfig(name="English", flag="gb", country="GB", domain=None),
-            "de": LanguageConfig(name="German", flag="de", country="DE", domain=None),
-        }
-
-        app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = (
-            False  # NOSONAR - CSRF intentionally disabled in test context
+    def test_change_language_to_default_language_ignores_the_referrer(self):
+        """Switching back to the default language goes to its home, not the referring page."""
+        app = _engine_with_languages({"en": _EN, "de": _DE})
+        response = app.test_client().get(
+            "/lang/en", headers={"Referer": "http://localhost/de/blog/foo"}
         )
+        assert response.headers.get("Location") == "http://localhost/"
 
-        with app.test_request_context():
-            mock_config.use_www = False
-            app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
-            response = app.test_client().get("/lang/de", follow_redirects=False)
-            assert response.status_code == 302
-            # When request.referrer is None, it should redirect to "/" instead
-            assert response.headers.get("Location") == "/"
-
-    def test_change_language_invalid_locale(self, mock_db: MagicMock):
-        """Test that invalid language codes return 404."""
-        mock_config = MagicMock()
-        mock_config.languages = {
-            "en": LanguageConfig(name="English", flag="gb", country="GB", domain=None),
-            "de": LanguageConfig(name="German", flag="de", country="DE", domain=None),
-        }
-
-        app = create_engine(mock_config, mock_db)
-        app.config["WTF_CSRF_ENABLED"] = (
-            False  # NOSONAR - CSRF intentionally disabled in test context
+    def test_change_language_from_a_domain_language_host_goes_to_the_main_domain(self):
+        """From another language's domain, a path language is reached via the default's domain."""
+        app = _engine_with_languages(
+            {
+                "en": {**_EN, "domain": "example.com"},
+                "de": {**_DE, "domain": "example.de"},
+                "uk": _UK,
+            }
         )
+        response = app.test_client().get("/lang/uk", headers={"Host": "example.de"})
+        assert response.headers.get("Location") == "http://example.com/uk/"
 
-        with app.test_request_context():
-            mock_config.use_www = False
-            app.secret_key = "test_secret_key"  # NOSONAR - hardcoded secret acceptable in tests
-
-            # Verify that session language does not get set to invalid language
-            with app.test_client() as client:
-                response = client.get("/lang/invalid_lang", follow_redirects=False)
-                assert response.status_code == 404
-
-                # Check that the invalid language was NOT set in session
-                with client.session_transaction() as sess:
-                    # Session might have a default language, but shouldn't be 'invalid_lang'
-                    assert sess.get("language") != "invalid_lang"
+    def test_change_language_invalid_locale(self):
+        """Test that invalid language codes return 404 and store nothing in the session."""
+        app = _engine_with_languages({"en": _EN, "de": _DE})
+        with app.test_client() as client:
+            response = client.get("/lang/invalid_lang")
+            assert response.status_code == 404
+            with client.session_transaction() as sess:
+                assert "language" not in sess
 
     def test_url_link(self, mock_db: MagicMock):
         """Test the url_link function."""

@@ -2,6 +2,7 @@ from typing import Any, cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
+from flask import url_for
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
@@ -107,13 +108,16 @@ def test_www_redirects(use_www: bool):
 
 
 def _build_home_page_test_app(
-    site_content: dict[str, Any], languages: dict[str, Any] | None = None
+    site_content: dict[str, Any],
+    languages: dict[str, Any] | None = None,
+    default_language: str | None = None,
 ):
     config_data = {
         "APP_NAME": "testingApp",
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": default_language,
         "LANGUAGES": languages or {},
         "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
     }
@@ -188,41 +192,52 @@ def test_home_page_falls_back_to_blog_index_when_not_configured():
     assert b"Latest post" in response.data
 
 
-def test_home_page_resolves_per_locale_path():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": {"default": "/blog/page/about", "pl": "/blog/page/o-nas"},
-            "pages": [
-                {
-                    "title": "About us",
-                    "slug": "about",
-                    "contentInMarkdown": "Hello there",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-                {
-                    "title": "O nas",
-                    "slug": "o-nas",
-                    "contentInMarkdown": "Witaj",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-            ],
-        },
-        languages={
-            "en": {"name": "English", "flag": "us", "country": "US"},
-            "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
-        },
-    )
-    # Separate clients avoid the language session cookie from one request
-    # leaking into the other and masking the per-locale resolution.
-    default_response = app.test_client().get("/", headers={"Accept-Language": "en"})
-    assert default_response.status_code == 200
-    assert b"Hello there" in default_response.data
+_BILINGUAL_LANGUAGES = {
+    "en": {"name": "English", "flag": "us", "country": "US"},
+    "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
+}
+_ABOUT_PAGES = [
+    {
+        "title": "About us",
+        "slug": "about",
+        "contentInMarkdown": "Hello there",
+        "author": "author",
+        "excerpt": "excerpt",
+    },
+    {
+        "title": "O nas",
+        "slug": "o-nas",
+        "contentInMarkdown": "Witaj",
+        "author": "author",
+        "excerpt": "excerpt",
+    },
+]
 
-    pl_response = app.test_client().get("/", headers={"Accept-Language": "pl"})
-    assert pl_response.status_code == 200
-    assert b"Witaj" in pl_response.data
+
+def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") -> Engine:
+    return _build_home_page_test_app(
+        {
+            "home_page_path": {"default": "/blog/page/about", "pl": pl_home_path},
+            "pages": _ABOUT_PAGES,
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_home_page_ignores_accept_language():
+    app = _build_bilingual_home_page_test_app()
+    response = app.test_client().get("/", headers={"Accept-Language": "pl"})
+    assert response.status_code == 200
+    assert b"Hello there" in response.data
+
+
+@pytest.mark.parametrize("pl_home_path", ["/blog/page/o-nas", "/pl/blog/page/o-nas"])
+def test_home_page_resolves_path_language_home(pl_home_path: str):
+    app = _build_bilingual_home_page_test_app(pl_home_path)
+    response = app.test_client().get("/pl/")
+    assert response.status_code == 200
+    assert b"Witaj" in response.data
 
 
 def test_home_page_404s_when_configured_path_does_not_resolve():
@@ -304,6 +319,7 @@ def _build_dedicated_domain_test_app() -> Engine:
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
             "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
             "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
@@ -315,9 +331,8 @@ def _build_dedicated_domain_test_app() -> Engine:
 
 
 def test_locale_defaults_to_the_language_whose_domain_is_being_visited():
-    # Regression test: a fresh visitor (no session yet) landing directly on a
-    # language's dedicated domain should see that language, not "en" via the
-    # Accept-Language fallback.
+    # Regression test: a visitor landing directly on a language's dedicated domain
+    # should see that language, not the default one.
     app = _build_dedicated_domain_test_app()
     response = app.test_client().get("/", headers={"Host": "pl.example.com"})
     soup = BeautifulSoup(response.data, "html.parser")
@@ -334,6 +349,7 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
             "en": {
                 "name": "English",
@@ -367,8 +383,9 @@ def test_locale_does_not_match_domain_on_a_different_port():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
-            "en": {"name": "English", "flag": "gb", "country": "GB"},
+            "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "example.com"},
             "pl": {
                 "name": "polski",
                 "flag": "pl",
@@ -380,9 +397,7 @@ def test_locale_does_not_match_domain_on_a_different_port():
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
-    response = app.test_client().get(
-        "/", headers={"Host": "pl.example.com:6000", "Accept-Language": "en"}
-    )
+    response = app.test_client().get("/", headers={"Host": "pl.example.com:6000"})
     soup = BeautifulSoup(response.data, "html.parser")
     language_menu = soup.find("span", class_="language-indicator-text")
     assert isinstance(language_menu, Tag)
@@ -621,3 +636,167 @@ def test_is_enabled_with_flag_on():
     app = create_app_from_config(config)
 
     assert app.is_enabled(FakeLogin) is True
+
+
+def _language_indicator(response: TestResponse) -> str:
+    soup = BeautifulSoup(response.data, "html.parser")
+    indicator = soup.find("span", class_="language-indicator-text")
+    assert isinstance(indicator, Tag)
+    return indicator.get_text()
+
+
+def _hreflang_urls(response: TestResponse) -> dict[str, str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    return {
+        str(link.get("hreflang")): str(link.get("href"))
+        for link in soup.find_all("link")
+        if link.get("hreflang")
+    }
+
+
+def _link_hrefs(response: TestResponse) -> list[str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    return [str(a.get("href")) for a in soup.find_all("a")]
+
+
+def test_path_language_prefix_sets_the_locale(test_app: Engine):
+    response = test_app.test_client().get("/pl/blog/page/test")
+    assert response.status_code == 200
+    assert _language_indicator(response) == "pl"
+
+
+def test_accept_language_does_not_change_the_locale(test_app: Engine):
+    response = test_app.test_client().get("/blog/page/test", headers={"Accept-Language": "pl"})
+    assert _language_indicator(response) == "en"
+
+
+def test_anonymous_page_view_sets_no_cookie(test_app: Engine):
+    response = test_app.test_client().get("/pl/blog/page/test")
+    assert "Set-Cookie" not in response.headers
+
+
+@pytest.mark.parametrize("path", ["/en/", "/xx/", "/en/blog/page/test"])
+def test_only_path_languages_have_a_prefix(test_app: Engine, path: str):
+    assert test_app.test_client().get(path).status_code == 404
+
+
+def test_url_for_follows_the_language_of_the_request(test_app: Engine):
+    with test_app.test_request_context("/pl/blog/"):
+        assert url_for("blog.get_post", post_slug="x") == "/pl/blog/x"
+        assert url_for("static", filename="blog.css") == "/static/blog.css"
+        assert url_for("home_page", lang_code=None) == "/"
+    with test_app.test_request_context("/blog/"):
+        assert url_for("blog.get_post", post_slug="x") == "/blog/x"
+
+
+def _post(slug: str, title: str, language: str) -> dict[str, Any]:
+    return {
+        "title": title,
+        "slug": slug,
+        "language": language,
+        "excerpt": "excerpt",
+        "author": "author",
+        "tags": [],
+        "contentInMarkdown": title,
+        "date": "2021-02-19",
+        "comments": [],
+    }
+
+
+def _build_bilingual_blog_test_app() -> Engine:
+    return _build_home_page_test_app(
+        {
+            "posts": [
+                _post("english-post", "English post", "en"),
+                _post("polski-wpis", "Polski wpis", "pl"),
+            ]
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_path_language_blog_lists_its_posts_under_its_prefix():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/")
+    assert response.status_code == 200
+    assert b"Polski wpis" in response.data
+    assert b"English post" not in response.data
+    hrefs = _link_hrefs(response)
+    assert "/pl/blog/polski-wpis" in hrefs
+    assert "/pl/" in hrefs
+
+
+def test_default_language_blog_links_are_unprefixed():
+    response = _build_bilingual_blog_test_app().test_client().get("/blog/")
+    assert b"English post" in response.data
+    assert b"Polski wpis" not in response.data
+    hrefs = _link_hrefs(response)
+    assert "/blog/english-post" in hrefs
+    assert "/" in hrefs
+
+
+def test_path_language_post_submits_comments_under_its_prefix():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/polski-wpis")
+    assert response.status_code == 200
+    form = BeautifulSoup(response.data, "html.parser").find("form")
+    assert isinstance(form, Tag)
+    assert form.get("action") == "/pl/blog/polski-wpis"
+
+
+def test_path_language_feed_links_to_prefixed_posts():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/feed")
+    assert response.status_code == 200
+    assert b"http://localhost/pl/blog/polski-wpis" in response.data
+
+
+def _build_three_language_test_app(use_www: bool = False) -> Engine:
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": use_www,
+            "BLOG_PREFIX": "/blog",
+            "DEFAULT_LANGUAGE": "en",
+            "LANGUAGES": {
+                "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "example.com"},
+                "pl": {"name": "polski", "flag": "pl", "country": "PL"},
+                "de": {"name": "Deutsch", "flag": "de", "country": "DE", "domain": "example.de"},
+            },
+            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": _ABOUT_PAGES}}},
+        }
+    )
+    return create_app_from_config(config)
+
+
+@pytest.mark.parametrize(("host", "status"), [("example.com", 200), ("example.de", 404)])
+def test_path_languages_are_served_on_the_main_host_only(host: str, status: int):
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/pl/blog/page/about", headers={"Host": host})
+    assert response.status_code == status
+
+
+@pytest.mark.parametrize("host", ["example.com", "example.de"])
+def test_hreflang_links_point_at_each_language_home(host: str):
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/blog/page/about", headers={"Host": host})
+    assert _hreflang_urls(response) == {
+        "en": "http://example.com/",
+        "pl": "http://example.com/pl/",
+        "de": "http://example.de/",
+        "x-default": "http://example.com/",
+    }
+
+
+def test_www_host_resolves_to_its_language():
+    app = _build_three_language_test_app(use_www=True)
+    response = app.test_client().get("/blog/page/about", headers={"Host": "www.example.de"})
+    assert _language_indicator(response) == "de"
+    assert _hreflang_urls(response)["pl"] == "http://www.example.com/pl/"
+
+
+@pytest.mark.parametrize(("host", "lists_pl"), [("example.com", True), ("example.de", False)])
+def test_sitemap_lists_path_languages_on_the_main_host_only(host: str, lists_pl: bool):
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/sitemap.xml", headers={"Host": host})
+    assert f"http://{host}/blog/" in response.text
+    assert (f"http://{host}/pl/blog/" in response.text) is lists_pl
