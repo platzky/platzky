@@ -90,8 +90,8 @@ Two consequences worth knowing:
 
 Nothing sorts or prioritises the pipeline: a site owner who needs a particular order gets
 it by ordering the config keys. A plugin cannot request a position, and built-in
-shortcodes are registered ahead of every plugin, so ``[image]``, ``[link]`` and ``[hero]``
-cannot be displaced.
+shortcodes are registered ahead of every plugin, so no built-in tag can be displaced;
+:doc:`shortcodes` lists them all.
 
 .. _declaring-scope:
 

@@ -82,7 +82,7 @@ Declare ``shortcodes`` as a class variable:
 
     from collections.abc import Mapping
     from typing import ClassVar
-    from markupsafe import escape
+    from markupsafe import Markup, escape
     from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
     from platzky.shortcodes import OneOf, Shortcode, ShortcodeAttrs, ShortcodeAttr
 
@@ -99,7 +99,7 @@ Declare ``shortcodes`` as a class variable:
         ])
         example = '[alert type="warning"]Watch out![/alert]'
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
             # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
             return f'<div class="alert alert-{escape(attrs.type)}">{content}</div>'
 
@@ -124,6 +124,12 @@ lowercased. :class:`~platzky.shortcodes.constraints.IntRange` and
 works too, such as a ``frozenset``. Both fields appear on the admin help page and in the
 reference below.
 
+**Notes that belong to no single attribute.** ``notes`` is a class variable for behaviour a
+one-line ``description`` cannot carry — how two attributes interact, what an out-of-range
+value does, anything a content author needs before writing the tag. Both the admin help
+page and the generated reference below read it, so write plain prose: it takes no shortcode
+syntax and no reST markup of its own.
+
 **Built-in shortcodes**
 
 Platzky ships shortcodes that are always available, registered by a built-in
@@ -134,20 +140,39 @@ actually accepts:
 
 .. shortcode-reference::
 
-``[image]`` and ``[link]`` accept ``http``/``https`` URLs and paths rooted at ``/``, and
-nothing else. A bare relative path such as ``photo.jpg`` is refused because it resolves
-against whichever page happens to be showing the content; ``//host/path`` is refused
-because it carries no scheme yet is external anyway; every other scheme is refused, which
-is what keeps ``javascript:`` and ``data:`` out.
+``[image]`` and ``[figure]`` accept ``http``/``https`` URLs and paths rooted at ``/``.
+``[link]`` accepts those plus ``mailto:`` and ``tel:``, which hand off to another
+application instead of fetching a document — ordinary in a link, useless as an image
+source. Nothing else passes: a bare relative path such as ``photo.jpg`` is refused because
+it resolves against whichever page happens to be showing the content; ``//host/path`` is
+refused because it carries no scheme yet is external anyway; every other scheme is
+refused, which is what keeps ``javascript:`` and ``data:`` out.
 
-**A tag whose URL is missing or refused renders nothing, and logs why.** An image with no
-source is not an image, and ``<img src="">`` is worse than an absence — it draws a broken
-icon, and several browsers resolve the empty source against the current page and fetch the
-document a second time. ``[link]`` drops its text along with the tag, since link text is
-written to be clicked and reads as a mistake when left stranded in prose. The log is the
-only trace either leaves, because nobody can see an absence. The same holds for any value
-outside an attribute's ``constraints``, such as ``width="100%"`` on ``[image]``, which takes a
-whole number of pixels.
+**A tag whose URL is missing or refused renders nothing, and logs why.** ``[image]`` and
+``[figure]`` both drop the whole element: an image with no source is not an image, and
+``<img src="">`` is worse than an absence — it draws a broken icon, and several browsers
+resolve the empty source against the current page and fetch the document a second time.
+``[link]`` drops its text along with the tag, since link text is written to be clicked and
+reads as a mistake when left stranded in prose. The log is the only trace any of them
+leaves, because nobody can see an absence. The same holds for any value outside an
+attribute's ``constraints``, such as ``width="100%"`` on ``[image]``, which takes a whole
+number of pixels.
+
+**``[figure]`` and ``[slideshow]``.** ``[figure]`` pairs a picture with the text beside it,
+emitting a ``<div class="platzky-figure">``. ``[slideshow]`` cross-fades between the frames
+it wraps on a timer, in CSS alone with no JavaScript: ``interval`` is how many milliseconds
+each frame is shown, floored at 1500 because a faster rotation runs at the limit of three
+flashes a second that WCAG 2.3.1 sets, and ``width`` is either ``fit``, as wide as the
+frames, or ``full``, spanning its container. The rotation pauses on hover and on focus,
+and under ``prefers-reduced-motion: reduce`` the frames still rotate but without the
+cross-fade.
+
+A frame is a bare ``[image]`` or a ``[figure]``, and a ``[figure]`` counts as one frame
+however much markup it holds — which is what ``[slideshow]`` overrides ``render_children``
+for. It writes the frame count onto the element as ``data-slides`` because the timings
+depend on it: with N frames each is shown for one Nth of the cycle, so ``shortcodes.css``
+carries one rule set per supported count. Four frames rotate at most; a slideshow wrapping
+more renders them as an ordinary sequence, logged, rather than dropping the extras.
 
 All the built-in shortcodes are granted ``POST`` and ``PAGE`` only — ``[hero]`` emits a
 ``<div class="hero">`` header block, which only makes sense in a document body, so the
@@ -391,4 +416,5 @@ for them. A stored value is data and nobody vouched for it, so ``render_value`` 
 the content before calling ``render`` — exactly what ``transform_content`` does for
 unvouched prose. ``render`` therefore embeds its ``content`` directly on both paths, and
 escapes each attribute where it interpolates it, since attributes out of a stored value
+arrive raw exactly as a tag's do.
 
