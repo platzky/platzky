@@ -158,20 +158,22 @@ class TestLinkShortcode:
         result = _apply(
             '[link url="https://example.com" rel="sponsored" target="_blank"]Buy[/link]'
         )
-        assert 'rel="noopener noreferrer sponsored"' in result
+        assert 'rel="sponsored noopener noreferrer"' in result
 
-    def test_unknown_rel_tokens_are_dropped_without_losing_the_link(self) -> None:
-        """One mistyped word costs its own token, not the whole link."""
-        result = _apply('[link url="https://example.com" rel="sponsred nofollow"]Buy[/link]')
-        assert 'rel="nofollow"' in result
-        assert "sponsred" not in result
+    def test_an_unknown_rel_token_drops_the_link(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A misspelled token is a disclosure that did not happen; the author has to see it."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[link url="https://example.com" rel="sponsred nofollow"]Buy[/link]')
 
-    def test_rel_that_allowlists_nothing_emits_no_attribute(self) -> None:
-        result = _apply('[link url="https://example.com" rel="evil"]x[/link]')
-        assert "rel=" not in result
+        assert result == ""
+        assert "[link] rendered nothing" in caplog.text
 
-    def test_rel_is_case_insensitive(self) -> None:
-        assert 'rel="sponsored"' in _apply('[link url="https://e.com" rel="SPONSORED"]x[/link]')
+    def test_a_rel_of_nothing_but_unknown_words_drops_the_link(self) -> None:
+        assert _apply('[link url="https://example.com" rel="evil"]x[/link]') == ""
+
+    def test_rel_is_matched_exactly(self) -> None:
+        """A constraint checks rather than rewrites, so the lowercase spelling is the one."""
+        assert _apply('[link url="https://e.com" rel="SPONSORED"]x[/link]') == ""
 
     def test_relative_url_allowed(self) -> None:
         result = _apply('[link url="/about"]About[/link]')

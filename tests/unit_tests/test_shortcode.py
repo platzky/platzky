@@ -13,6 +13,7 @@ from platzky.plugin.content_transformer import (
 )
 from platzky.shortcodes import (
     IntRange,
+    ManyOf,
     OneOf,
     Shortcode,
     ShortcodeAttr,
@@ -281,6 +282,19 @@ class TestOneOf:
 
     def test_describes_its_choices_in_declared_order(self) -> None:
         assert str(OneOf("info", "warning", "danger")) == "one of info, warning, danger"
+
+
+class TestManyOf:
+    @pytest.mark.parametrize("value", ["sponsored", "sponsored nofollow", "ugc  sponsored"])
+    def test_takes_any_run_of_declared_words(self, value: str) -> None:
+        assert value in ManyOf("sponsored", "nofollow", "ugc")
+
+    @pytest.mark.parametrize("value", ["evil", "sponsored evil", "SPONSORED"])
+    def test_refuses_the_whole_value_for_one_unknown_word(self, value: str) -> None:
+        assert value not in ManyOf("sponsored", "nofollow", "ugc")
+
+    def test_describes_its_choices_in_declared_order(self) -> None:
+        assert str(ManyOf("sponsored", "nofollow")) == "words from sponsored, nofollow"
 
 
 class TestAnyText:

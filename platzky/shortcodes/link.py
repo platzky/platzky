@@ -4,9 +4,18 @@ from typing import ClassVar
 
 from markupsafe import escape
 
-from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import ManyOf, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
+
+#: The words a ``[link]`` tag's own ``rel`` attribute may contain. An allowlist, because
+#: ``rel`` is read by search engines and browsers, not just by a reader: ``sponsored`` and
+#: ``ugc`` are disclosures only the author writing the link can know to make (a paid link,
+#: someone else's content), and ``nofollow``/``noopener``/``noreferrer`` change real crawler
+#: or browser behaviour. A stray or misspelled word here is not as harmless as a typo in
+#: prose — it is a disclosure that silently did not happen — so it costs the tag, and the
+#: author finds out.
+PERMITTED_REL = ManyOf("sponsored", "nofollow", "ugc", "noopener", "noreferrer")
 
 
 class LinkShortcode(Shortcode):
@@ -28,9 +37,9 @@ class LinkShortcode(Shortcode):
             ),
             ShortcodeAttr(
                 "rel",
-                "Relationship tokens, space separated: sponsored, nofollow, ugc, noopener, "
-                "noreferrer. Other tokens are dropped; the link still renders.",
+                "Relationship tokens, space separated.",
                 required=False,
+                constraints=PERMITTED_REL,
             ),
         ]
     )
@@ -54,22 +63,6 @@ class LinkShortcode(Shortcode):
     #: ``javascript:`` out of every deployment rather than out of the careful ones.
     url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
 
-    #: The words a ``[link]`` tag's own ``rel`` attribute is allowed to contain. An
-    #: allowlist, because ``rel`` is read by search engines and browsers, not just by a
-    #: reader: ``sponsored``/``ugc`` are disclosures only the author writing the link can
-    #: know to make (a paid link, someone else's content), and ``nofollow``/``noopener``/
-    #: ``noreferrer`` change real crawler or browser behaviour — a stray or misspelled word
-    #: here is not as harmless as a typo in prose.
-    #:
-    #: Unknown tokens are dropped, not refused: one mistyped word should cost its own token,
-    #: not the whole link.
-    #:
-    #: Declared as a ClassVar beside ``url_policy`` for the same reason: an application with
-    #: links platzky's do not describe can widen it by subclassing.
-    permitted_rel: ClassVar[frozenset[str]] = frozenset(
-        {"sponsored", "nofollow", "ugc", "noopener", "noreferrer"}
-    )
-
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
         """Render an anchor tag, refusing a URL the policy does not permit.
 
@@ -91,16 +84,18 @@ class LinkShortcode(Shortcode):
             UrlNotPermitted: If the URL is missing, or not one the policy permits.
         """
         self.url_policy.check(attrs.url)
-        target_value = str(attrs.target or "")
-        target_attr = f' target="{escape(target_value)}"' if target_value else ""
-        tokens = {t for t in str(attrs.rel or "").lower().split() if t in self.permitted_rel}
+        target = attrs.target
+        target_attr = f' target="{escape(target)}"' if target else ""
+        rel = attrs.rel
         # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new
-        # context too and needs the same rel. Unioned with whatever the author asked for
-        # rather than replacing it: an author adding rel="sponsored" to a _blank link is
+        # context too and needs the same rel. Added to whatever the author asked for
+        # rather than replacing it: an author writing rel="sponsored" on a _blank link is
         # disclosing an affiliation, not volunteering to drop the opener protections.
-        if target_value.lower() == "_blank":
-            tokens |= {"noopener", "noreferrer"}
-        rel_attr = f' rel="{" ".join(sorted(tokens))}"' if tokens else ""
+        if target.lower() == "_blank":
+            rel = f"{rel} noopener noreferrer".strip()
+        # Embedded as written rather than escaped: PERMITTED_REL admits those five words
+        # and the spaces between them, so there is no quote to break out of the attribute.
+        rel_attr = f' rel="{rel}"' if rel else ""
         return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{content}</a>'
 
 

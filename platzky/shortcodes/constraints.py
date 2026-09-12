@@ -55,6 +55,35 @@ class IntRange:
         return f"a whole number from {self.low} to {self.high}"
 
 
+class ManyOf:
+    """Any number of words from a fixed set, space separated, each matched exactly."""
+
+    def __init__(self, *choices: str) -> None:
+        """Declare the accepted words, in the order they should be listed.
+
+        Args:
+            choices: Every accepted word.
+        """
+        self.choices = choices
+
+    def __contains__(self, value: object) -> bool:
+        """Accept a run of declared words, in any order and any number.
+
+        Args:
+            value: The attribute as written.
+
+        Returns:
+            Whether every whitespace-separated word in it was declared.
+        """
+        if not isinstance(value, str):
+            return False
+        return all(word in self.choices for word in value.split())
+
+    def __str__(self) -> str:
+        """Describe the accepted values."""
+        return f"words from {', '.join(self.choices)}"
+
+
 class OneOf:
     """A fixed set of words, matched exactly."""
 

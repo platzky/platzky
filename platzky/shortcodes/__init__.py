@@ -1,6 +1,6 @@
 """Shortcode package for blog post content."""
 
-from platzky.shortcodes.constraints import IntRange, OneOf
+from platzky.shortcodes.constraints import IntRange, ManyOf, OneOf
 from platzky.shortcodes.shortcode import (
     ElementRefused,
     Shortcode,
@@ -15,6 +15,7 @@ __all__ = [
     "LINK_URL_POLICY",
     "ElementRefused",
     "IntRange",
+    "ManyOf",
     "OneOf",
     "Shortcode",
     "ShortcodeAttr",
