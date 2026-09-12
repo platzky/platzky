@@ -1,10 +1,11 @@
 """Built-in slideshow shortcode."""
 
 import logging
-import re
+from collections.abc import Sequence
+
+from markupsafe import Markup
 
 from platzky.shortcodes import IntRange, OneOf, ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes.figure import FIGURE_CSS_CLASS
 from platzky.shortcodes.shortcode import Shortcode
 
 logger = logging.getLogger(__name__)
@@ -18,13 +19,6 @@ DEFAULT_WIDTH = "fit"
 # Not a free setting: shortcodes.css has one hand-written rule set per slide count (2-4).
 # Raising this without adding the matching CSS leaves larger slideshows unanimated, unlogged.
 MAX_SLIDES = 4
-
-#: Counts what the nested shortcodes produced. The parser renders and *joins* an element's
-#: children before the parent ever runs, so counting markers in that string is the only way
-#: a wrapper can learn how many things it wrapped — `render` receives one flat string,
-#: never a list.
-_IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
-_FIGURE_BLOCK_RE = re.compile(rf'<div class="{FIGURE_CSS_CLASS}">.*?</div>', re.DOTALL)
 
 
 class SlideshowShortcode(Shortcode):
@@ -59,29 +53,41 @@ class SlideshowShortcode(Shortcode):
     )
 
     def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Wrap the images in a container the stylesheet knows how to rotate.
+        """Wrap a stored value, whose content is one frame rather than a sequence of them.
+
+        Args:
+            attrs: Parsed attributes, as ``render_children`` takes them.
+            content: The stored value's content, escaped by ``render_value`` on the way in.
+
+        Returns:
+            A ``<div class="slideshow">`` wrapping the content.
+        """
+        return self.render_children(attrs, Markup(content), (Markup(content),) if content else ())
+
+    def render_children(
+        self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
+    ) -> str:
+        """Wrap the frames in a container the stylesheet knows how to rotate.
 
         The slide count is written onto the element rather than inferred in CSS, because
         the timings depend on it: with N slides each is shown for one Nth of the cycle, so
         ``shortcodes.css`` carries one rule set per supported count and keys them off
         ``data-slides``. A count it has no rules for simply gets no animation, and the
-        images render as an ordinary sequence.
+        frames render as an ordinary sequence.
 
         Args:
             attrs: Parsed attributes; ``interval`` and ``width`` already checked against
                 their ``constraints``.
-            content: The nested shortcodes' already-rendered markup. Embedded as-is per the
-                ``render`` contract; its ``Markup`` type says the escaping decision is made.
+            content: The frames' already-rendered markup. Embedded as-is per the ``render``
+                contract; its ``Markup`` type says the escaping decision is made.
+            children: One entry per frame, which is what makes the count right: a
+                ``[figure]`` is one frame however much markup it holds, and a caption that
+                renders a ``<div>`` of its own adds none.
 
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        # A [figure] is one slide regardless of how many <img> tags it holds, so its
-        # block is counted once and then removed before counting bare images — otherwise
-        # a slideshow mixing [figure]s with plain images would undercount.
-        figure_blocks = _FIGURE_BLOCK_RE.findall(content)
-        bare_content = _FIGURE_BLOCK_RE.sub("", content)
-        slides = len(figure_blocks) + len(_IMG_RE.findall(bare_content))
+        slides = len(children)
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d frames but only %d can be rotated; showing them all "
@@ -89,7 +95,7 @@ class SlideshowShortcode(Shortcode):
                 slides,
                 MAX_SLIDES,
             )
-        # slides is counted here, and interval and width only got past their constraints as
+        # slides is a length, and interval and width only got past their constraints as
         # bare digits and a known word, so none can carry a ';' or a '"' out of the
         # attribute it lands in.
         return (

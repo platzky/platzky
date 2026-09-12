@@ -14,7 +14,7 @@ import inspect
 import logging
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Container, Iterator
+from collections.abc import Container, Iterator, Sequence
 from dataclasses import dataclass
 from typing import ClassVar, Literal, cast, final, get_args
 
@@ -280,6 +280,37 @@ class Shortcode(ABC):
             # value renders to nothing, and the caller's page is not the casualty.
             logger.warning("[%s] rendered nothing: %s.", self.name, refusal)
             return ""
+
+    def render_children(
+        self,
+        attrs: ShortcodeAttrs,
+        content: Markup,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
+        """Render an element from the children it wrapped, each already rendered.
+
+        What the parser calls; ``render`` is what it forwards to. The default ignores the
+        pieces and renders the joined content, which is what all but a wrapper wants —
+        ``content`` is the same string either way, so a shortcode that never overrides this
+        cannot tell the difference.
+
+        Override it when what a shortcode emits depends on how many things it wrapped:
+        ``[slideshow]`` writes the slide count onto its element, and the joined string
+        cannot be counted without guessing at the markup its children produced — which is
+        wrong as soon as a child renders a ``<div>`` of its own.
+
+        Args:
+            attrs: Parsed shortcode attributes, as ``render`` receives them.
+            content: Every child joined, text and elements alike: the ``render`` argument,
+                unchanged.
+            children: The rendered element children, one entry each, in document order.
+                Text between them is not an entry, nor is an element that refused itself
+                and rendered nothing.
+
+        Returns:
+            Replacement HTML string.
+        """
+        return self.render(attrs, content)
 
     @abstractmethod
     def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:

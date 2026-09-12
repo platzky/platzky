@@ -451,10 +451,15 @@ class TestSlideshowShortcode:
         assert "javascript:" not in result
 
     def test_nested_shortcodes_are_rendered_before_the_wrapper_sees_them(self) -> None:
-        """The wrapper receives one flat string of already-rendered markup, never a list."""
+        """The wrapper is handed markup its children already produced, one entry each."""
         result = _apply('[slideshow][link url="https://e.com"]x[/link][/slideshow]')
         assert '<a href="https://e.com">x</a>' in result
-        assert 'data-slides="0"' in result
+        assert 'data-slides="1"' in result
+
+    def test_text_between_the_frames_is_not_a_frame(self) -> None:
+        """Only elements are counted, since only elements are what the stylesheet rotates."""
+        result = _apply('[slideshow] [image url="/a.jpg"] and [image url="/b.jpg"] [/slideshow]')
+        assert 'data-slides="2"' in result
 
 
 class TestFigureShortcode:
@@ -491,6 +496,22 @@ class TestFigureShortcode:
         result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
         assert 'data-slides="2"' in result
         assert 'class="platzky-figure"' not in result
+
+    def test_a_caption_that_renders_its_own_div_adds_no_frame(self) -> None:
+        """Counting markup ended the frame at the caption's ``</div>`` and overcounted."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]cap [hero]x[/hero][/figure]'
+            '[figure image="/b.jpg"]Two.[/figure][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
+    def test_raw_html_in_a_caption_adds_no_frame(self) -> None:
+        """An ``[html]`` body is verbatim, so no stripping pass can save a count from it."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]cap [html]<div>x</div>[/html]'
+            ' [image url="/b.jpg"][/figure][/slideshow]'
+        )
+        assert 'data-slides="1"' in result
 
     def test_a_figure_and_a_bare_image_each_count_as_one_frame(self) -> None:
         """Mixing forms should not undercount: one frame plus one bare image is two."""

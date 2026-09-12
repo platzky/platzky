@@ -87,13 +87,17 @@ def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     return re.compile(rf"\[/({names})\]|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
 
 
-def _render_element(shortcode: Shortcode, raw_attrs: str, content: str) -> str:
+def _render_element(
+    shortcode: Shortcode, raw_attrs: str, content: str, children: Sequence[Markup]
+) -> str:
     """Render one element with its parsed attributes and already-rendered content.
 
     Args:
         shortcode: The shortcode to render.
         raw_attrs: The attribute text as written in the opening tag.
         content: What the element wraps, with nested elements already rendered.
+        children: The same, kept as one entry per element child — what a wrapper counts
+            rather than scanning ``content`` for markup its children happened to produce.
 
     Returns:
         The shortcode's replacement HTML, or nothing at all when it refused itself.
@@ -103,7 +107,7 @@ def _render_element(shortcode: Shortcode, raw_attrs: str, content: str) -> str:
         # Markup truthfully: the content was either vouched for by its caller or escaped at
         # the boundary, and anything added since came from a permitted plugin. The type is
         # what tells a shortcode author not to escape it again.
-        return shortcode.render(attrs, Markup(content))
+        return shortcode.render_children(attrs, Markup(content), children)
     except ElementRefused as refusal:
         # One element, not the page: an author's typo costs its own tag. Logged because an
         # author cannot see an absence, and named by tag so they can find which one.
@@ -383,17 +387,35 @@ def _filter_around_html(text: str, filters: Sequence[Callable[[str], str]]) -> s
     return text
 
 
+def _render_node(node: _Node) -> str:
+    """Render one node to HTML, innermost element first.
+
+    An element's children are rendered one at a time rather than as a joined string, so
+    the element can be told how many things it wrapped. Text between them is joined into
+    ``content`` like everything else, but is not one of the children: a wrapper counts
+    elements, which is what a stylesheet addresses.
+
+    Args:
+        node: The node to render.
+
+    Returns:
+        The node's HTML.
+    """
+    if isinstance(node, _Text):
+        return node.text
+    if isinstance(node, _RawElement):
+        return _render_element(node.shortcode, node.raw_attrs, node.content, ())
+    rendered = [(child, _render_node(child)) for child in node.children]
+    content = "".join(html for _, html in rendered)
+    children = tuple(
+        Markup(html) for child, html in rendered if html and not isinstance(child, _Text)
+    )
+    return _render_element(node.shortcode, node.raw_attrs, content, children)
+
+
 def _render(nodes: Sequence[_Node]) -> str:
     """Render parsed nodes to HTML, innermost element first."""
-    rendered: list[str] = []
-    for node in nodes:
-        if isinstance(node, _Text):
-            rendered.append(node.text)
-        elif isinstance(node, _RawElement):
-            rendered.append(_render_element(node.shortcode, node.raw_attrs, node.content))
-        else:
-            rendered.append(_render_element(node.shortcode, node.raw_attrs, _render(node.children)))
-    return "".join(rendered)
+    return "".join(_render_node(node) for node in nodes)
 
 
 def render_document(

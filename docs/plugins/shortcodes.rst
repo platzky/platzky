@@ -40,6 +40,22 @@ A shortcode declares which shape it is, and the parser holds authors to it::
     shortcodes, not ``STRIP_CONTENT_HTML``. The built-in ``[html]`` is the one in tree;
     ``[latex]`` or ``[mermaid]`` would want the same.
 
+**A wrapper is told what it wrapped.** ``render`` receives its children as one joined
+string, because that is what almost every shortcode embeds. A shortcode whose output
+depends on *how many* things it wrapped overrides
+:meth:`~platzky.shortcodes.shortcode.Shortcode.render_children` instead, which is handed
+the same string plus one entry per rendered element child::
+
+    def render_children(self, attrs, content, children):
+        return f'<div class="gallery" data-items="{len(children)}">{content}</div>'
+
+Counting markup in the joined string instead would be guessing: a child that renders a
+``<div>`` of its own, or an author's ``[html]`` block, changes the count without changing
+what was wrapped. Text between the children is in ``content`` but is not one of them, and
+neither is a child that refused itself, so the count matches the elements a stylesheet
+can address. The default implementation forwards to ``render``, so a shortcode that does
+not override it sees no difference.
+
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
 nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
 and the character it was written at. Neither has a rendering that is not a guess about
