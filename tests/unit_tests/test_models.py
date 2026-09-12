@@ -150,3 +150,14 @@ class TestCssField:
     def test_style_breakout_is_rejected_case_and_whitespace_insensitive(self):
         with pytest.raises(ValidationError):
             make_post(css="</STYLE  ><script>alert(1)</script>")
+
+
+class TestFooterField:
+    def test_default_is_none_so_the_site_footer_applies(self):
+        assert make_post().footer is None
+
+    def test_empty_string_is_kept_distinct_from_none(self):
+        assert make_post(footer="").footer == ""
+
+    def test_is_loaded_from_data(self):
+        assert Post.model_validate(make_post_data(footer="Own footer")).footer == "Own footer"

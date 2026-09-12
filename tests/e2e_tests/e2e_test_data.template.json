@@ -4,6 +4,10 @@
         "en": "This is not only blogging platform",
         "pl": "To nie tylko platforma do blogowania"
     },
+    "footer": {
+        "en": "[link url=\"/blog/\"]English footer[/link]",
+        "pl": "[link url=\"/blog/\"]Polska stopka[/link]"
+    },
     "posts": [
       {
         "title": "The Fellowship of the Ring",
@@ -126,6 +130,7 @@
         "author": "autor",
         "slug": "strona",
         "contentInMarkdown": "zawartość strony",
+        "footer": "Stopka strony",
         "excerpt": "fragment strony",
         "coverImage": {
           "alternateText": "tekst alternatywny strony",

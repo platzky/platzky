@@ -100,6 +100,15 @@ class TestJsonDb:
         assert db.get_app_description("de") == "Deutsche Beschreibung"
         assert db.get_app_description("fr") == ""
 
+    def test_get_footer(self):
+        db = Json(MemoryStore({"site_content": {"footer": {"en": "Footer", "pl": "Stopka"}}}))
+        assert db.get_footer("en") == "Footer"
+        assert db.get_footer("pl") == "Stopka"
+        assert db.get_footer("fr") == ""
+
+    def test_get_footer_not_configured(self, db: Json):
+        assert db.get_footer("en") == ""
+
     def test_get_all_posts(self, db: Json):
         posts = db.get_all_posts("en")
         assert len(posts) == 1

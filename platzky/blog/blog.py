@@ -11,7 +11,7 @@ from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
-from platzky.content_types import PAGE, POST
+from platzky.content_types import FOOTER, PAGE, POST
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
@@ -146,6 +146,23 @@ def create_blog_blueprint(
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
+    def footer_override(content: Post) -> dict[str, Markup]:
+        """Return the ``footer`` template argument for content that sets its own footer.
+
+        An explicitly passed ``footer`` wins over the site-wide one from the context processor.
+
+        Args:
+            content: The post or page being rendered.
+
+        Returns:
+            ``{"footer": rendered}`` when the content sets a footer (empty hides it), or an
+            empty dict to keep the site-wide footer.
+        """
+        if content.footer is None:
+            return {}
+        # Markup vouches, as for a post body.
+        return {"footer": Markup(content_transformer(Markup(content.footer), FOOTER))}
+
     @blog.route("/<post_slug>", methods=["GET"])
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
@@ -165,6 +182,7 @@ def create_blog_blueprint(
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
+            **footer_override(post),
         )
 
     @blog.route("/page/<path:page_slug>", methods=["GET"])
@@ -186,6 +204,7 @@ def create_blog_blueprint(
             # Markup vouches, as for a post body.
             content=content_transformer(Markup(page.contentInMarkdown), PAGE),
             cover_image=cover_image_url,
+            **footer_override(page),
         )
 
     @blog.route("/tag/<path:tag>", methods=["GET"])

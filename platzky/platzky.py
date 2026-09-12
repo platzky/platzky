@@ -10,6 +10,7 @@ from flask import make_response, redirect, render_template, request, session
 from flask.typing import ResponseReturnValue
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
+from markupsafe import Markup
 from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.wrappers import Response
 
@@ -19,7 +20,7 @@ from platzky.config import (
     Config,
     languages_dict,
 )
-from platzky.content_types import PAGE, POST, ContentType
+from platzky.content_types import FOOTER, PAGE, POST, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
@@ -87,11 +88,12 @@ _builtin_tag_list = ", ".join(f"[{name}]" for name in _builtin_shortcodes)
 
 
 class _BuiltinShortcodeTransformer(ContentTransformerPluginBase):
-    """Built-in shortcodes, always registered for posts and pages."""
+    """Built-in shortcodes, always registered for posts, pages and footers."""
 
     accepted_content_types: Mapping[ContentType, str] = {
         POST: f"Renders the built-in shortcodes ({_builtin_tag_list}) an author wrote in a post.",
         PAGE: f"Renders the built-in shortcodes ({_builtin_tag_list}) an author wrote in a page.",
+        FOOTER: f"Renders the built-in shortcodes ({_builtin_tag_list}) written in a footer.",
     }
     shortcodes = _builtin_shortcodes
 
@@ -330,6 +332,19 @@ def create_engine(
             Dictionary with dynamic_head content for injection into page head
         """
         return {"dynamic_head": app.dynamic_head}
+
+    @app.context_processor
+    def site_footer() -> dict[str, Markup]:
+        """Provide the site-wide footer, rendered for the current locale, to all templates.
+
+        Returns:
+            Dictionary with the rendered footer; empty when none is configured
+        """
+        text = app.db.get_footer(app.get_locale())
+        if not text:
+            return {"footer": Markup("")}
+        # Markup vouches: the footer is written by someone with CMS write access.
+        return {"footer": Markup(app.transform_content(Markup(text), FOOTER))}
 
     @app.errorhandler(404)
     def page_not_found(_e: HTTPException) -> tuple[str, int]:

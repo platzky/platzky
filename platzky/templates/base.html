@@ -118,6 +118,12 @@
     </div>
   </div>
 
+  {% if self.footer() | trim %}
+  <footer class="row g-0" id="footer-row">
+    {% block footer %}{{ footer }}{% endblock %}
+  </footer>
+  {% endif %}
+
 </div>
 </body>
 </html>
