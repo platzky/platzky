@@ -113,7 +113,7 @@ def _render_element(
         The shortcode's replacement HTML, or nothing at all when it refused itself.
     """
     try:
-        attrs = shortcode.attributes.bind(dict(_ATTR_RE.findall(raw_attrs)))
+        attrs = shortcode.attributes.accept(dict(_ATTR_RE.findall(raw_attrs)))
         # Markup truthfully: the content was either vouched for by its caller or escaped at
         # the boundary, and anything added since came from a permitted plugin. The type is
         # what tells a shortcode author not to escape it again.

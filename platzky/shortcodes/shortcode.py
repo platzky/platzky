@@ -117,14 +117,16 @@ class ShortcodeAttrs:
         self._schema: dict[str, ShortcodeAttr] = {a.name: a for a in attrs}
         self.values: dict[str, str] = {}
 
-    def bind(self, values: dict[str, str]) -> "ShortcodeAttrs":
-        """Check one tag's or stored value's attributes against this schema.
+    def accept(self, values: dict[str, str]) -> "ShortcodeAttrs":
+        """Accept one tag's or stored value's attributes, or refuse the element.
 
         Args:
             values: Attribute values as written, keyed by name.
 
         Returns:
-            A new ``ShortcodeAttrs`` with this schema, holding the values as written.
+            A new ``ShortcodeAttrs`` with this schema, holding the values as written. The
+            declared schema is left untouched, since it is shared by every render of this
+            shortcode.
 
         Raises:
             ElementRefused: If a written value is not in its attribute's ``constraints``.
@@ -133,9 +135,9 @@ class ShortcodeAttrs:
             attr = self._schema.get(name)
             if value and attr is not None and value not in attr.constraints:
                 raise ElementRefused(f"{name} {value!r} is not {attr.constraints}")
-        bound = ShortcodeAttrs(list(self))
-        bound.values = dict(values)
-        return bound
+        accepted = ShortcodeAttrs(list(self))
+        accepted.values = dict(values)
+        return accepted
 
     def __iter__(self) -> Iterator[ShortcodeAttr]:
         """Iterate over the attribute schema (for the help-page template)."""
@@ -271,7 +273,7 @@ class Shortcode(ABC):
         else:
             content = value
         try:
-            attrs = self.attributes.bind(values)
+            attrs = self.attributes.accept(values)
             # str() would strip the Markup and make a shortcode that still escapes
             # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
             # No children: a stored value is a body, not parsed structure.

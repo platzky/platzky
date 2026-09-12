@@ -283,9 +283,9 @@ class TestAttributeConstraints:
         assert sc.render_value({"size": "7", "value": "x"}) == "[7|x]"
         assert sc.render_value({"size": "big", "value": "x"}) == ""
 
-    def test_binding_leaves_the_declared_schema_untouched(self) -> None:
+    def test_accepting_leaves_the_declared_schema_untouched(self) -> None:
         sc = _box_sc()
-        assert sc.attributes.bind({"size": "5"}) == {"size": "5"}
+        assert sc.attributes.accept({"size": "5"}) == {"size": "5"}
         assert sc.attributes.values == {}
 
 
