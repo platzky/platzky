@@ -4,7 +4,7 @@ Content Transformer Plugins
 .. versionadded:: 1.5.0
 
 Platzky's own content types are :data:`platzky.content_types.BUILTIN_CONTENT_TYPES`
-— ``"post"``, ``"page"``, ``"comment"``. An application built on platzky adds its
+— ``"post"``, ``"page"``, ``"comment"``, ``"footer"``. An application built on platzky adds its
 own kinds (see :ref:`new-content-types`), and plugins opt in to those the same way.
 
 .. code-block:: python
@@ -181,7 +181,8 @@ say — asks it rather than reading the plugin's attribute directly:
 New content types
 -----------------
 
-Platzky produces posts, pages and comments — ``POST``, ``PAGE``, ``COMMENT`` in
+Platzky produces posts, pages, comments and footers — ``POST``, ``PAGE``, ``COMMENT``,
+``FOOTER`` in
 :mod:`platzky.content_types`. An application or plugin with its own kind of content
 names its own and registers it. A shop, say, storing a short piece of text against each
 product:

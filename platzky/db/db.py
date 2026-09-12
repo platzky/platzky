@@ -59,6 +59,19 @@ class DB(ABC):
         """
         pass
 
+    def get_footer(self, lang: str) -> str:  # noqa: ARG002
+        """Retrieve the site-wide footer content for a specific language.
+
+        Not abstract: a backend without footer support shows no footer.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            Footer content in shortcode markup, or empty string if not configured
+        """
+        return ""
+
     @abstractmethod
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.

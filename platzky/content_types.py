@@ -24,9 +24,10 @@ ContentType = str
 POST: ContentType = "post"
 PAGE: ContentType = "page"
 COMMENT: ContentType = "comment"
+FOOTER: ContentType = "footer"
 
 #: The content types platzky itself hands to transformers.
-BUILTIN_CONTENT_TYPES: frozenset[ContentType] = frozenset({POST, PAGE, COMMENT})
+BUILTIN_CONTENT_TYPES: frozenset[ContentType] = frozenset({POST, PAGE, COMMENT, FOOTER})
 
 
 class _AllContentTypes(str):

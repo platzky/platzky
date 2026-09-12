@@ -29,6 +29,11 @@ body {
   overflow: hidden;
 }
 
+/* Keeps its natural height; #main-row gives up the space instead. */
+#footer-row {
+  flex-shrink: 0;
+}
+
 /* Portal target for overlays that must escape #main-row's stacking context.
    Spans the content area: the left panel is excluded whenever it takes up
    layout width (--left-panel-width, set below), and the fallback covers the

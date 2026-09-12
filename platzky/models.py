@@ -126,6 +126,8 @@ class Post(BaseModel):
         css: Optional CSS rendered inline in this post/page's own <head>, scoped to
             this content only — can target the masthead, hero blocks, paragraphs,
             or anything else on the page
+        footer: Optional footer for this post/page, in shortcode markup. None shows the
+            site-wide footer, an empty string shows no footer
     """
 
     author: str
@@ -139,6 +141,7 @@ class Post(BaseModel):
     tags: list[str] = Field(default_factory=list)
     date: DateTimeField | None = None
     css: CssField = ""
+    footer: str | None = None
 
     def __lt__(self, other: object) -> bool:
         """Compare posts by date for sorting.

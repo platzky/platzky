@@ -345,6 +345,11 @@ def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
     mock_client.execute.assert_called_once()
 
 
+def test_get_footer_is_not_supported_and_queries_nothing(graph_ql_db: GraphQL, mock_client: Mock):
+    assert graph_ql_db.get_footer("en") == ""
+    mock_client.execute.assert_not_called()
+
+
 def test_get_favicon_url(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {"favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}]}
     mock_client.execute.return_value = mock_response

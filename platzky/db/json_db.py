@@ -77,6 +77,18 @@ class Json(DB):
         description = self._get_site_content().get("app_description", {})
         return description.get(lang, "")
 
+    def get_footer(self, lang: str) -> str:
+        """Retrieve the site-wide footer content for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            Footer content or empty string if not found
+        """
+        footer = self._get_site_content().get("footer", {})
+        return footer.get(lang, "")
+
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
 

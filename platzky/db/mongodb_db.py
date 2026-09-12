@@ -85,6 +85,20 @@ class MongoDB(DB):
             return site_config["app_description"].get(lang, "")
         return ""
 
+    def get_footer(self, lang: str) -> str:
+        """Retrieve the site-wide footer content for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            Footer content or empty string if not found
+        """
+        site_config = self._get_site_config()
+        if site_config and "footer" in site_config:
+            return site_config["footer"].get(lang, "")
+        return ""
+
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
 

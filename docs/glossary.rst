@@ -45,8 +45,8 @@ decides what*. The terms are defined once here and used consistently everywhere 
       registry, and it — not a plugin — decides routing.
 
    content type
-      The name of a kind of content: platzky's own ``"post"``, ``"page"`` and
-      ``"comment"``, or one an :term:`application` brings for content platzky has no
+      The name of a kind of content: platzky's own ``"post"``, ``"page"``,
+      ``"comment"`` and ``"footer"``, or one an :term:`application` brings for content platzky has no
       concept of (see :ref:`new-content-types`). The vocabulary is open and a content type
       is just its name, so a plugin can accept a kind of content without importing the
       package that brought it.
