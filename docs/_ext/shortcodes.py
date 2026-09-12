@@ -54,10 +54,9 @@ def _attribute_table_rst(shortcode: object) -> list[str]:
     lines = [
         "    .. list-table::",
         "       :header-rows: 1",
-        "       :widths: 20 10 15 55",
+        "       :widths: 20 20 60",
         "",
         "       * - Attribute",
-        "         - Required",
         "         - Default",
         "         - Description",
     ]
@@ -67,7 +66,6 @@ def _attribute_table_rst(shortcode: object) -> list[str]:
         accepts = f" Must be {rule}; anything else renders nothing." if rule else ""
         lines += [
             f"       * - ``{attr.name}``",
-            f"         - {'✓' if attr.required else '✗'}",
             f"         - {default}",
             f"         - {attr.description}{accepts}",
         ]

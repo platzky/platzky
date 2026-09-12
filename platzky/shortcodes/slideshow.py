@@ -62,18 +62,12 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        return self.render_children(attrs, Markup(content), (Markup(content),) if content else ())
+        return self._container(attrs, Markup(content), 1 if content else 0)
 
     def render_children(
         self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
     ) -> str:
-        """Wrap the frames in a container the stylesheet knows how to rotate.
-
-        The slide count is written onto the element rather than inferred in CSS, because
-        the timings depend on it: with N slides each is shown for one Nth of the cycle, so
-        ``shortcodes.css`` carries one rule set per supported count and keys them off
-        ``data-slides``. A count it has no rules for simply gets no animation, and the
-        frames render as an ordinary sequence.
+        """Wrap the frames an author nested in the tag.
 
         Args:
             attrs: Parsed attributes; ``interval`` and ``width`` already checked against
@@ -86,7 +80,26 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        slides = len(children)
+        return self._container(attrs, content, len(children))
+
+    def _container(self, attrs: ShortcodeAttrs, content: Markup, slides: int) -> str:
+        """Wrap the frames in a container the stylesheet knows how to rotate.
+
+        The slide count is written onto the element rather than inferred in CSS, because
+        the timings depend on it: with N slides each is shown for one Nth of the cycle, so
+        ``shortcodes.css`` carries one rule set per supported count and keys them off
+        ``data-slides``. A count it has no rules for simply gets no animation, and the
+        frames render as an ordinary sequence.
+
+        Args:
+            attrs: Parsed attributes; ``interval`` and ``width`` already checked against
+                their ``constraints``.
+            content: The frames' already-rendered markup.
+            slides: How many frames ``content`` holds.
+
+        Returns:
+            A ``<div class="slideshow">`` wrapping the content.
+        """
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d frames but only %d can be rotated; showing them all "
