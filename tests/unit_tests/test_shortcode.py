@@ -1,7 +1,7 @@
 """Tests for the shortcode parser."""
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import pytest
 from markupsafe import Markup
@@ -49,7 +49,12 @@ def _sc(tag: str) -> Shortcode:
         name = tag
         description = "test"
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        def render(
+            self,
+            attrs: ShortcodeAttrs,  # noqa: ARG002
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[RENDERED:{tag}:{content}]"
 
     return _SC()
@@ -89,7 +94,12 @@ class TestShortcodeSubclassing:
 
         class _AbstractSC(Shortcode):
             @abstractmethod
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str: ...
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],
+            ) -> str: ...
 
         assert issubclass(_AbstractSC, Shortcode)
 
@@ -129,7 +139,12 @@ def _echo_sc(tag: str, *attr_names: str) -> Shortcode:
         description = "test"
         attributes = ShortcodeAttrs([ShortcodeAttr(n, "desc") for n in attr_names])
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        def render(
+            self,
+            attrs: ShortcodeAttrs,
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[{sorted(attrs.values.items())}|{content}]"
 
     return _SC()
@@ -165,7 +180,12 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return f"[{content}]"
 
         assert _SC().render_value({"code": "SAVE20"}) == "[SAVE20]"
@@ -176,14 +196,19 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return f"[{content}]"
 
         assert _SC().render_value({"value": "SAVE20"}) == "[SAVE20]"
 
     def test_field_and_tag_rendering_are_the_same_html(self) -> None:
         sc = _echo_sc("mytag", "color")
-        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"))
+        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"), ())
         from_field = sc.render_value({"color": "red", "value": "X"})
         assert from_tag == from_field
 
@@ -205,7 +230,12 @@ def _box_sc() -> Shortcode:
             [ShortcodeAttr("size", "desc", default="10", constraints=IntRange(1, 99))]
         )
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        def render(
+            self,
+            attrs: ShortcodeAttrs,
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[{attrs.size}|{content}]"
 
     return _SC()
@@ -229,7 +259,12 @@ class TestAttributeConstraints:
                 [ShortcodeAttr("level", "desc", constraints=frozenset({"low"}))]
             )
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return f"[{attrs.level}|{content}]"
 
         assert _SC().render_value({"level": "low", "value": "x"}) == "[low|x]"
@@ -329,7 +364,12 @@ class TestApplyShortcodes:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 calls.append((attrs, content))
                 return "<img>"
 
@@ -343,7 +383,12 @@ class TestApplyShortcodes:
             name = "foo"
             description = "test"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 received.append(attrs)
                 return ""
 
@@ -395,7 +440,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         shortcodes: dict[str, Shortcode] = {"img": _ImgSC()}
@@ -436,7 +486,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         assert _apply_shortcodes("a [img] b", {"img": _ImgSC()}) == "a <img> b"
@@ -449,7 +504,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         block = _sc("box")
@@ -465,7 +525,12 @@ def _raw_sc(tag: str) -> Shortcode:
         description = "test"
         kind = "raw"
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        def render(
+            self,
+            attrs: ShortcodeAttrs,  # noqa: ARG002
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[RAW:{content}]"
 
     return _SC()

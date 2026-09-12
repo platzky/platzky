@@ -40,21 +40,20 @@ A shortcode declares which shape it is, and the parser holds authors to it::
     shortcodes, not ``STRIP_CONTENT_HTML``. The built-in ``[html]`` is the one in tree;
     ``[latex]`` or ``[mermaid]`` would want the same.
 
-**A wrapper is told what it wrapped.** ``render`` receives its children as one joined
-string, because that is what almost every shortcode embeds. A shortcode whose output
-depends on *how many* things it wrapped overrides
-:meth:`~platzky.shortcodes.shortcode.Shortcode.render_children` instead, which is handed
-the same string plus one entry per rendered element child::
+**A wrapper is told what it wrapped.** :meth:`~platzky.shortcodes.shortcode.Shortcode.render`
+receives what it wrapped twice over: joined into one string as ``content``, which is what
+almost every shortcode embeds, and as ``children``, one entry per rendered element child,
+which a shortcode whose output depends on *how many* things it wrapped counts instead::
 
-    def render_children(self, attrs, content, children):
+    def render(self, attrs, content, children):
         return f'<div class="gallery" data-items="{len(children)}">{content}</div>'
 
 Counting markup in the joined string instead would be guessing: a child that renders a
 ``<div>`` of its own, or an author's ``[html]`` block, changes the count without changing
 what was wrapped. Text between the children is in ``content`` but is not one of them, and
 neither is a child that refused itself, so the count matches the elements a stylesheet
-can address. The default implementation forwards to ``render``, so a shortcode that does
-not override it sees no difference.
+can address. Most shortcodes ignore ``children`` entirely, and it is empty for a stored
+value, which has no parsed structure — see :ref:`Rendering a stored value <value-rendering>`.
 
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
 nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
@@ -80,7 +79,7 @@ Declare ``shortcodes`` as a class variable:
 
 .. code-block:: python
 
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from typing import ClassVar
     from markupsafe import Markup, escape
     from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
@@ -99,7 +98,9 @@ Declare ``shortcodes`` as a class variable:
         ])
         example = '[alert type="warning"]Watch out![/alert]'
 
-        def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
+        def render(
+            self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
+        ) -> str:
             # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
             return f'<div class="alert alert-{escape(attrs.type)}">{content}</div>'
 
@@ -168,8 +169,8 @@ and under ``prefers-reduced-motion: reduce`` the frames still rotate but without
 cross-fade.
 
 A frame is a bare ``[image]`` or a ``[figure]``, and a ``[figure]`` counts as one frame
-however much markup it holds — which is what ``[slideshow]`` overrides ``render_children``
-for. It writes the frame count onto the element as ``data-slides`` because the timings
+however much markup it holds — which is what ``[slideshow]`` reads ``children`` for. It
+writes the frame count onto the element as ``data-slides`` because the timings
 depend on it: with N frames each is shown for one Nth of the cycle, so ``shortcodes.css``
 carries one rule set per supported count. Four frames rotate at most; a slideshow wrapping
 more renders them as an ordinary sequence, logged, rather than dropping the extras.
@@ -187,7 +188,7 @@ Two rules, and they do not vary by shortcode:
 
 .. code-block:: python
 
-    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
         kind = attrs.type
         return f'<div class="alert alert-{escape(kind)}">{content}</div>'
         #                                 ^^^^^^^^^^^^   attribute — always escape

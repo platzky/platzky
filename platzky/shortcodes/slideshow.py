@@ -52,22 +52,14 @@ class SlideshowShortcode(Shortcode):
         "cross-fade."
     )
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-        """Wrap a stored value, whose content is one frame rather than a sequence of them.
+    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
+        """Wrap the frames in a container the stylesheet knows how to rotate.
 
-        Args:
-            attrs: Parsed attributes, as ``render_children`` takes them.
-            content: The stored value's content, escaped by ``render_value`` on the way in.
-
-        Returns:
-            A ``<div class="slideshow">`` wrapping the content.
-        """
-        return self._container(attrs, Markup(content), 1 if content else 0)
-
-    def render_children(
-        self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
-    ) -> str:
-        """Wrap the frames an author nested in the tag.
+        The slide count is written onto the element rather than inferred in CSS, because
+        the timings depend on it: with N slides each is shown for one Nth of the cycle, so
+        ``shortcodes.css`` carries one rule set per supported count and keys them off
+        ``data-slides``. A count it has no rules for simply gets no animation, and the
+        frames render as an ordinary sequence.
 
         Args:
             attrs: Parsed attributes; ``interval`` and ``width`` already checked against
@@ -80,26 +72,9 @@ class SlideshowShortcode(Shortcode):
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        return self._container(attrs, content, len(children))
-
-    def _container(self, attrs: ShortcodeAttrs, content: Markup, slides: int) -> str:
-        """Wrap the frames in a container the stylesheet knows how to rotate.
-
-        The slide count is written onto the element rather than inferred in CSS, because
-        the timings depend on it: with N slides each is shown for one Nth of the cycle, so
-        ``shortcodes.css`` carries one rule set per supported count and keys them off
-        ``data-slides``. A count it has no rules for simply gets no animation, and the
-        frames render as an ordinary sequence.
-
-        Args:
-            attrs: Parsed attributes; ``interval`` and ``width`` already checked against
-                their ``constraints``.
-            content: The frames' already-rendered markup.
-            slides: How many frames ``content`` holds.
-
-        Returns:
-            A ``<div class="slideshow">`` wrapping the content.
-        """
+        # A stored value arrives with no children, since nobody wrote tags to nest: its
+        # content is the single frame.
+        slides = len(children) if children else (1 if content else 0)
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d frames but only %d can be rotated; showing them all "

@@ -274,38 +274,16 @@ class Shortcode(ABC):
             attrs = self.attributes.bind(values)
             # str() would strip the Markup and make a shortcode that still escapes
             # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
-            return self.render(attrs, escape("" if content is None else content))
+            # No children: a stored value is a body, not parsed structure.
+            return self.render(attrs, escape("" if content is None else content), ())
         except ElementRefused as refusal:
             # The other way in, and it answers a refusal exactly as the parser does: this
             # value renders to nothing, and the caller's page is not the casualty.
             logger.warning("[%s] rendered nothing: %s.", self.name, refusal)
             return ""
 
-    def render_children(
-        self,
-        attrs: ShortcodeAttrs,
-        content: Markup,
-        children: Sequence[Markup],  # noqa: ARG002
-    ) -> str:
-        """Render an element from its already-rendered children.
-
-        What the parser calls. The default forwards to ``render``, ignoring the pieces;
-        override it when the output depends on how many children there were, the way
-        ``[slideshow]`` writes its slide count.
-
-        Args:
-            attrs: Parsed shortcode attributes.
-            content: Every child joined — what ``render`` receives.
-            children: One entry per element child, in document order. Text between them is
-                not an entry, nor is a child that refused itself and rendered nothing.
-
-        Returns:
-            Replacement HTML string.
-        """
-        return self.render(attrs, content)
-
     @abstractmethod
-    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
         """Render the shortcode tag and return the replacement HTML.
 
         **Embed ``content`` directly; never escape it.** Its type says why: ``Markup``
@@ -332,6 +310,10 @@ class Shortcode(ABC):
             attrs: Parsed shortcode attributes with dot-access and default fallback. Raw —
                 escape at the point of use.
             content: Inner content between opening and closing tags. Already safe to embed.
+            children: One entry per element child, in document order — what a wrapper counts
+                rather than scanning ``content`` for markup its children happened to produce.
+                Text between them is not an entry, nor is a child that refused itself and
+                rendered nothing. Empty for a stored value, which has no parsed structure.
 
         Returns:
             Replacement HTML string.

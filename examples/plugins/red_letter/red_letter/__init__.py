@@ -6,7 +6,7 @@ Two features:
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import ClassVar
 
 from markupsafe import Markup
@@ -26,7 +26,12 @@ class _RedShortcode(Shortcode):
     description = "Render content in red."
     example = "[red]danger[/red]"
 
-    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,  # noqa: ARG002
+        content: Markup,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Wrap content in a red span.
 
         Embedded, not escaped. The pipeline runs every filter before it renders any tag,
@@ -41,6 +46,7 @@ class _RedShortcode(Shortcode):
             content: Inner content. ``Markup`` because the escaping decision was already
                 taken upstream — escaped if nobody vouched for it, left as written if the
                 caller did.
+            children: Unused — the span wraps whatever it was given.
 
         Returns:
             Content wrapped in ``<span style="color:red">``.

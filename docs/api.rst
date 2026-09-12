@@ -54,6 +54,9 @@ Shortcodes
    :members:
    :special-members: __init__
 
+.. automodule:: platzky.shortcodes.builtins
+   :members:
+
 .. automodule:: platzky.shortcodes.parser
    :members:
    :special-members: __init__
