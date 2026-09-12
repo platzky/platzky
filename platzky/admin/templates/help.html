@@ -33,7 +33,6 @@
           <thead>
             <tr>
               <th>Name</th>
-              <th>Required</th>
               <th>Default</th>
               <th>Description</th>
             </tr>
@@ -42,13 +41,17 @@
             {% for attr in shortcode.attributes %}
             <tr>
               <td><code>{{ attr.name }}</code></td>
-              <td><span class="{{ 'text-success' if attr.required else 'text-danger' }}">{{ "✓" if attr.required else "✗" }}</span></td>
-              <td>{{ attr.default if attr.default is not none else "—" }}</td>
-              <td>{{ attr.description }}</td>
+              <td>{{ attr.default or "—" }}</td>
+              {% set rule = attr.constraints | string %}
+              <td>{{ attr.description }}{% if rule %} Must be {{ rule }}; anything else renders nothing.{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
+        {% endif %}
+
+        {% if shortcode.notes %}
+        <p class="text-muted small mb-0">{{ shortcode.notes }}</p>
         {% endif %}
       </div>
     </div>

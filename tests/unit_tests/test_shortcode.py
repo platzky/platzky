@@ -1,6 +1,7 @@
 """Tests for the shortcode parser."""
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Mapping, Sequence
 
 import pytest
 from markupsafe import Markup
@@ -10,7 +11,16 @@ from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
 )
-from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
+from platzky.shortcodes import (
+    IntRange,
+    ManyOf,
+    OneOf,
+    Shortcode,
+    ShortcodeAttr,
+    ShortcodeAttrs,
+    ShortcodeError,
+)
+from platzky.shortcodes.constraints import ANY_TEXT
 
 
 def _apply_shortcodes(content: str, shortcodes: dict[str, Shortcode]) -> str:
@@ -39,7 +49,12 @@ def _sc(tag: str) -> Shortcode:
         name = tag
         description = "test"
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        def render(
+            self,
+            attrs: ShortcodeAttrs,  # noqa: ARG002
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[RENDERED:{tag}:{content}]"
 
     return _SC()
@@ -79,7 +94,12 @@ class TestShortcodeSubclassing:
 
         class _AbstractSC(Shortcode):
             @abstractmethod
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str: ...
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],
+            ) -> str: ...
 
         assert issubclass(_AbstractSC, Shortcode)
 
@@ -119,7 +139,12 @@ def _echo_sc(tag: str, *attr_names: str) -> Shortcode:
         description = "test"
         attributes = ShortcodeAttrs([ShortcodeAttr(n, "desc") for n in attr_names])
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+        def render(
+            self,
+            attrs: ShortcodeAttrs,
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[{sorted(attrs.values.items())}|{content}]"
 
     return _SC()
@@ -155,7 +180,12 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return f"[{content}]"
 
         assert _SC().render_value({"code": "SAVE20"}) == "[SAVE20]"
@@ -166,14 +196,19 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return f"[{content}]"
 
         assert _SC().render_value({"value": "SAVE20"}) == "[SAVE20]"
 
     def test_field_and_tag_rendering_are_the_same_html(self) -> None:
         sc = _echo_sc("mytag", "color")
-        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"))
+        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"), ())
         from_field = sc.render_value({"color": "red", "value": "X"})
         assert from_tag == from_field
 
@@ -183,6 +218,124 @@ def _attrs_with(sc: Shortcode, **values: str) -> ShortcodeAttrs:
     attrs = ShortcodeAttrs(list(sc.attributes))
     attrs.values = dict(values)
     return attrs
+
+
+def _box_sc() -> Shortcode:
+    """Build a shortcode with one constrained, defaulted attribute, echoing what render gets."""
+
+    class _SC(Shortcode):
+        name = "box"
+        description = "test"
+        attributes = ShortcodeAttrs(
+            [ShortcodeAttr("size", "desc", default="10", constraints=IntRange(1, 99))]
+        )
+
+        def render(
+            self,
+            attrs: ShortcodeAttrs,
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
+            return f"[{attrs.size}|{content}]"
+
+    return _SC()
+
+
+class TestAttributeConstraints:
+    def test_a_left_out_attribute_gets_its_default(self) -> None:
+        assert _apply_shortcodes("[box]x[/box]", {"box": _box_sc()}) == "[10|x]"
+
+    def test_an_empty_attribute_gets_its_default(self) -> None:
+        assert _apply_shortcodes('[box size=""]x[/box]', {"box": _box_sc()}) == "[10|x]"
+
+    def test_a_passing_value_reaches_render_as_written(self) -> None:
+        assert _apply_shortcodes('[box size="07"]x[/box]', {"box": _box_sc()}) == "[07|x]"
+
+    def test_any_container_of_strings_works_as_constraints(self) -> None:
+        class _SC(Shortcode):
+            name = "tone"
+            description = "test"
+            attributes = ShortcodeAttrs(
+                [ShortcodeAttr("level", "desc", constraints=frozenset({"low"}))]
+            )
+
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
+                return f"[{attrs.level}|{content}]"
+
+        assert _SC().render_value({"level": "low", "value": "x"}) == "[low|x]"
+        assert _SC().render_value({"level": "high", "value": "x"}) == ""
+
+    def test_a_refused_value_drops_only_its_own_tag(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING):
+            result = _apply_shortcodes('a [box size="big"]x[/box] b', {"box": _box_sc()})
+
+        assert result == "a  b"
+        expected = "[box] rendered nothing: size 'big' is not a whole number from 1 to 99"
+        assert expected in caplog.text
+
+    def test_a_stored_value_is_parsed_the_same_way(self) -> None:
+        sc = _box_sc()
+        assert sc.render_value({"size": "7", "value": "x"}) == "[7|x]"
+        assert sc.render_value({"size": "big", "value": "x"}) == ""
+
+    def test_accepting_leaves_the_declared_schema_untouched(self) -> None:
+        sc = _box_sc()
+        assert sc.attributes.accept({"size": "5"}) == {"size": "5"}
+        assert sc.attributes.values == {}
+
+
+class TestIntRange:
+    @pytest.mark.parametrize("value", ["1", "07", "99"])
+    def test_takes_bare_digits_within_range(self, value: str) -> None:
+        assert value in IntRange(1, 99)
+
+    @pytest.mark.parametrize("value", ["0", "100", "seven", "7.5", "", " 7", "+7", "7_0", "²"])
+    def test_takes_nothing_else(self, value: str) -> None:
+        """Nothing is rewritten on the way, so a sign, space or separator is refused."""
+        assert value not in IntRange(1, 99)
+
+    def test_an_open_upper_bound_takes_any_larger_number(self) -> None:
+        assert "123456" in IntRange(1)
+
+    def test_describes_what_it_takes(self) -> None:
+        assert str(IntRange(1, 99)) == "a whole number from 1 to 99"
+        assert str(IntRange(1)) == "a whole number, at least 1"
+
+
+class TestOneOf:
+    def test_takes_a_declared_word(self) -> None:
+        assert "full" in OneOf("fit", "full")
+
+    @pytest.mark.parametrize("value", ["wide", "FULL", " full"])
+    def test_takes_nothing_else(self, value: str) -> None:
+        assert value not in OneOf("fit", "full")
+
+    def test_describes_its_choices_in_declared_order(self) -> None:
+        assert str(OneOf("info", "warning", "danger")) == "one of info, warning, danger"
+
+
+class TestManyOf:
+    @pytest.mark.parametrize("value", ["sponsored", "sponsored nofollow", "ugc  sponsored"])
+    def test_takes_any_run_of_declared_words(self, value: str) -> None:
+        assert value in ManyOf("sponsored", "nofollow", "ugc")
+
+    @pytest.mark.parametrize("value", ["evil", "sponsored evil", "SPONSORED"])
+    def test_refuses_the_whole_value_for_one_unknown_word(self, value: str) -> None:
+        assert value not in ManyOf("sponsored", "nofollow", "ugc")
+
+    def test_describes_its_choices_in_declared_order(self) -> None:
+        assert str(ManyOf("sponsored", "nofollow")) == "words from sponsored, nofollow"
+
+
+class TestAnyText:
+    def test_takes_anything_and_says_nothing(self) -> None:
+        assert "anything at all" in ANY_TEXT
+        assert str(ANY_TEXT) == ""
 
 
 class TestApplyShortcodes:
@@ -211,7 +364,12 @@ class TestApplyShortcodes:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 calls.append((attrs, content))
                 return "<img>"
 
@@ -225,7 +383,12 @@ class TestApplyShortcodes:
             name = "foo"
             description = "test"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 received.append(attrs)
                 return ""
 
@@ -277,7 +440,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         shortcodes: dict[str, Shortcode] = {"img": _ImgSC()}
@@ -318,7 +486,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         assert _apply_shortcodes("a [img] b", {"img": _ImgSC()}) == "a <img> b"
@@ -331,7 +504,12 @@ class TestTagMatching:
             description = "test"
             kind = "void"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,  # noqa: ARG002
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 return "<img>"
 
         block = _sc("box")
@@ -347,7 +525,12 @@ def _raw_sc(tag: str) -> Shortcode:
         description = "test"
         kind = "raw"
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+        def render(
+            self,
+            attrs: ShortcodeAttrs,  # noqa: ARG002
+            content: str,
+            children: Sequence[Markup],  # noqa: ARG002
+        ) -> str:
             return f"[RAW:{content}]"
 
     return _SC()

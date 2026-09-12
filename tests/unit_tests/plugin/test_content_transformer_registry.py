@@ -5,7 +5,7 @@ takes the plugins on dispatch, so the routing rules are exercised directly.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import ClassVar
 
 import pytest
@@ -23,7 +23,12 @@ class _ShoutShortcode(Shortcode):
     name = "shout"
     description = "Upper-case content."
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,  # noqa: ARG002
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Return content in upper case."""
         return content.upper()
 
@@ -51,7 +56,12 @@ class _WrapShortcode(Shortcode):
         [ShortcodeAttr("tone", "Tone of voice", required=False)]
     )
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(
+        self,
+        attrs: ShortcodeAttrs,
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Wrap content in a span carrying the tone."""
         return f'<span class="{escape(attrs.tone)}">{content}</span>'
 
@@ -522,7 +532,12 @@ class TestDispatch:
                 name = "promo"
                 description = "Exercised by tests."
 
-                def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+                def render(
+                    self,
+                    attrs: ShortcodeAttrs,  # noqa: ARG002
+                    content: str,
+                    children: Sequence[Markup],  # noqa: ARG002
+                ) -> str:
                     """Wrap content in a marker identifying which plugin rendered it."""
                     return f"<{marker}>{content}</{marker}>"
 
@@ -589,7 +604,12 @@ class _CodeShortcode(Shortcode):
     kind = "raw"
     description = "Show content without parsing it."
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,  # noqa: ARG002
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Wrap the verbatim body in a pre block."""
         return f"<pre>{content}</pre>"
 

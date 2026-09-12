@@ -1,12 +1,20 @@
 """Built-in link shortcode."""
 
+from collections.abc import Sequence
 from typing import ClassVar
 
-from markupsafe import escape
+from markupsafe import Markup, escape
 
-from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from platzky.shortcodes import ManyOf, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlPolicy
+
+#: The words a ``[link]`` tag's own ``rel`` attribute may contain. An allowlist, because
+#: ``rel`` is read by crawlers and browsers rather than by a reader: a misspelled word is a
+#: disclosure that silently did not happen, so it costs the tag and the author finds out.
+#: What each word means:
+#: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel
+PERMITTED_REL = ManyOf("sponsored", "nofollow", "ugc", "noopener", "noreferrer")
 
 
 class LinkShortcode(Shortcode):
@@ -21,10 +29,26 @@ class LinkShortcode(Shortcode):
                 "Target URL (http/https/mailto/tel or a relative path starting with /)",
                 required=True,
             ),
-            ShortcodeAttr("target", 'Link target, e.g. "_blank"', required=False),
+            ShortcodeAttr(
+                "target",
+                'Link target, e.g. "_blank" — automatically adds rel="noopener noreferrer"',
+                required=False,
+            ),
+            ShortcodeAttr(
+                "rel",
+                "Relationship tokens, space separated; what each word means: "
+                "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel.",
+                required=False,
+                constraints=PERMITTED_REL,
+            ),
         ]
     )
     example = '[link url="https://example.com"]Click here[/link]'
+    notes = (
+        'target="_blank" always adds noopener and noreferrer to rel, even when rel is '
+        'also set — your own tokens are kept, not overwritten. Use "sponsored" for '
+        "affiliate and paid links."
+    )
 
     #: The URL policy this shortcode enforces. Declared rather than looked up so an
     #: application can widen it by subclassing, for links that mean something platzky's do
@@ -39,7 +63,12 @@ class LinkShortcode(Shortcode):
     #: ``javascript:`` out of every deployment rather than out of the careful ones.
     url_policy: ClassVar[UrlPolicy] = LINK_URL_POLICY
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:
+    def render(
+        self,
+        attrs: ShortcodeAttrs,
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Render an anchor tag, refusing a URL the policy does not permit.
 
         A link with no destination is not a link, and its text is usually written to be
@@ -50,8 +79,9 @@ class LinkShortcode(Shortcode):
         escaped here.
 
         Args:
-            attrs: Parsed shortcode attributes (url, target).
+            attrs: Parsed shortcode attributes (url, target, rel).
             content: Link text.
+            children: Unused — the anchor wraps whatever text it was given.
 
         Returns:
             An ``<a>`` tag.
@@ -60,11 +90,18 @@ class LinkShortcode(Shortcode):
             UrlNotPermitted: If the URL is missing, or not one the policy permits.
         """
         self.url_policy.check(attrs.url)
-        target_value = str(attrs.target or "")
-        target_attr = f' target="{escape(target_value)}"' if target_value else ""
+        target = attrs.target
+        target_attr = f' target="{escape(target)}"' if target else ""
+        rel = attrs.rel
         # Browsing context names are ASCII case-insensitive, so `_BLANK` opens a new
-        # context too and needs the same rel.
-        rel_attr = ' rel="noopener noreferrer"' if target_value.lower() == "_blank" else ""
+        # context too and needs the same rel. Added to whatever the author asked for
+        # rather than replacing it: an author writing rel="sponsored" on a _blank link is
+        # disclosing an affiliation, not volunteering to drop the opener protections.
+        if target.lower() == "_blank":
+            rel = f"{rel} noopener noreferrer".strip()
+        # Embedded as written rather than escaped: PERMITTED_REL admits those five words
+        # and the spaces between them, so there is no quote to break out of the attribute.
+        rel_attr = f' rel="{rel}"' if rel else ""
         return f'<a href="{escape(attrs.url)}"{target_attr}{rel_attr}>{content}</a>'
 
 

@@ -1,18 +1,12 @@
 """Built-in image shortcode."""
 
-from markupsafe import escape
+from collections.abc import Sequence
 
-from platzky.shortcodes import ShortcodeAttr, ShortcodeAttrs
+from markupsafe import Markup, escape
+
+from platzky.shortcodes import IntRange, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import UrlPolicy
-
-#: An image source has to be something the browser can download, so this policy permits only
-#: ``http`` and ``https``. ``mailto:`` and ``tel:`` hand off to another application instead,
-#: which makes them fine in a link but useless as an image source.
-#:
-#: It lives here and is not exported because this shortcode is its only consumer, unlike
-#: ``LINK_URL_POLICY``, which goodmap needs too.
-IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))
+from platzky.shortcodes.urls import IMAGE_URL_POLICY
 
 
 class ImageShortcode(Shortcode):
@@ -24,14 +18,19 @@ class ImageShortcode(Shortcode):
         [
             ShortcodeAttr("url", "Image URL (http/https or a path starting with /)", required=True),
             ShortcodeAttr("alt", "Alt text", required=False),
-            ShortcodeAttr("width", "Width in pixels", required=False),
-            ShortcodeAttr("height", "Height in pixels", required=False),
+            ShortcodeAttr("width", "Width in pixels", constraints=IntRange(1)),
+            ShortcodeAttr("height", "Height in pixels", constraints=IntRange(1)),
         ]
     )
     example = '[image url="https://example.com/photo.jpg" alt="A photo"]'
     kind = "void"
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,
+        content: str,  # noqa: ARG002
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Render an img tag, refusing a source the policy does not permit.
 
         An image without a source is not an image, and ``<img src="">`` is worse than
@@ -42,6 +41,7 @@ class ImageShortcode(Shortcode):
         Args:
             attrs: Parsed shortcode attributes (url, alt, width, height).
             content: Unused — image is a void element.
+            children: Unused, and always empty — a void element wraps nothing.
 
         Returns:
             An ``<img>`` tag.

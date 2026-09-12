@@ -40,6 +40,21 @@ A shortcode declares which shape it is, and the parser holds authors to it::
     shortcodes, not ``STRIP_CONTENT_HTML``. The built-in ``[html]`` is the one in tree;
     ``[latex]`` or ``[mermaid]`` would want the same.
 
+**A wrapper is told what it wrapped.** :meth:`~platzky.shortcodes.shortcode.Shortcode.render`
+receives what it wrapped twice over: joined into one string as ``content``, which is what
+almost every shortcode embeds, and as ``children``, one entry per rendered element child,
+which a shortcode whose output depends on *how many* things it wrapped counts instead::
+
+    def render(self, attrs, content, children):
+        return f'<div class="gallery" data-items="{len(children)}">{content}</div>'
+
+Counting markup in the joined string instead would be guessing: a child that renders a
+``<div>`` of its own, or an author's ``[html]`` block, changes the count without changing
+what was wrapped. Text between the children is in ``content`` but is not one of them, and
+neither is a child that refused itself, so the count matches the elements a stylesheet
+can address. Most shortcodes ignore ``children`` entirely, and it is empty for a stored
+value, which has no parsed structure — see :ref:`Rendering a stored value <value-rendering>`.
+
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
 nothing, both raise :class:`~platzky.shortcodes.shortcode.ShortcodeError` naming the tag
 and the character it was written at. Neither has a rendering that is not a guess about
@@ -64,24 +79,30 @@ Declare ``shortcodes`` as a class variable:
 
 .. code-block:: python
 
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from typing import ClassVar
-    from markupsafe import escape
+    from markupsafe import Markup, escape
     from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
-    from platzky.shortcodes import Shortcode, ShortcodeAttrs, ShortcodeAttr
+    from platzky.shortcodes import OneOf, Shortcode, ShortcodeAttrs, ShortcodeAttr
 
     class _AlertShortcode(Shortcode):
         name = "alert"
         description = "Render content inside a Bootstrap alert box."
         attributes = ShortcodeAttrs([
-            ShortcodeAttr("type", "Alert type: info, warning, danger", required=False),
+            ShortcodeAttr(
+                "type",
+                "Alert style",
+                default="info",
+                constraints=OneOf("info", "warning", "danger"),
+            ),
         ])
         example = '[alert type="warning"]Watch out![/alert]'
 
-        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
-            kind = attrs.type or "info"
+        def render(
+            self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
+        ) -> str:
             # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
-            return f'<div class="alert alert-{escape(kind)}">{content}</div>'
+            return f'<div class="alert alert-{escape(attrs.type)}">{content}</div>'
 
     class AlertPlugin(ContentTransformerPluginBase):
         """Adds an [alert] shortcode for Bootstrap alert boxes."""
@@ -94,42 +115,69 @@ Declare ``shortcodes`` as a class variable:
 The plugin's ``accepted_content_types`` decides where its shortcodes may be used; see
 :ref:`declaring-scope`.
 
+**Attribute values.** ``default`` is what ``attrs.type`` returns when an author leaves the
+attribute out or writes it empty. ``constraints`` holds the values the attribute takes: a
+written value not in it makes the whole tag render nothing, logged with the attribute and
+what it takes, so ``[alert type="purple"]`` costs its own tag and not the page. A value
+that passes reaches ``render`` exactly as written — ``type="WARNING"`` is refused, not
+lowercased. :class:`~platzky.shortcodes.constraints.IntRange` and
+:class:`~platzky.shortcodes.constraints.OneOf` ship with platzky; any container of strings
+works too, such as a ``frozenset``. Both fields appear on the admin help page and in the
+reference below.
+
+**Notes that belong to no single attribute.** ``notes`` is a class variable for behaviour a
+one-line ``description`` cannot carry — how two attributes interact, what an out-of-range
+value does, anything a content author needs before writing the tag. Both the admin help
+page and the generated reference below read it, so write plain prose: it takes no shortcode
+syntax and no reST markup of its own.
+
 **Built-in shortcodes**
 
-Platzky ships four shortcodes that are always available, registered by a built-in
-transformer that runs ahead of any plugin:
+Platzky ships shortcodes that are always available, registered by a built-in
+transformer that runs ahead of any plugin. The tag, attributes, and example below come
+straight from each :class:`~platzky.shortcodes.shortcode.Shortcode` class — see
+:mod:`platzky.shortcodes.builtins` — so this reference cannot drift from what the code
+actually accepts:
 
-``[image url="…" alt="…" width="…" height="…"]``
-    Embeds an ``<img>`` tag. ``url`` is required. Void — no closing tag.
+.. shortcode-reference::
 
-``[link url="…" target="…"]text[/link]``
-    Creates an ``<a>`` tag. ``url`` is required; ``target="_blank"`` automatically
-    adds ``rel="noopener noreferrer"``.
+``[image]`` and ``[figure]`` accept ``http``/``https`` URLs and paths rooted at ``/``.
+``[link]`` accepts those plus ``mailto:`` and ``tel:``, which hand off to another
+application instead of fetching a document — ordinary in a link, useless as an image
+source. Nothing else passes: a bare relative path such as ``photo.jpg`` is refused because
+it resolves against whichever page happens to be showing the content; ``//host/path`` is
+refused because it carries no scheme yet is external anyway; every other scheme is
+refused, which is what keeps ``javascript:`` and ``data:`` out.
 
-``[hero]…[/hero]``
-    Wraps its content in a ``<div class="hero">`` header block, anywhere in the body.
+**A tag whose URL is missing or refused renders nothing, and logs why.** ``[image]`` and
+``[figure]`` both drop the whole element: an image with no source is not an image, and
+``<img src="">`` is worse than an absence — it draws a broken icon, and several browsers
+resolve the empty source against the current page and fetch the document a second time.
+``[link]`` drops its text along with the tag, since link text is written to be clicked and
+reads as a mistake when left stranded in prose. The log is the only trace any of them
+leaves, because nobody can see an absence. The same holds for any value outside an
+attribute's ``constraints``, such as ``width="100%"`` on ``[image]``, which takes a whole
+number of pixels.
 
-``[html]…[/html]``
-    Emits its content exactly as written. Raw, so a shortcode written inside is displayed
-    rather than rendered — this is how to document a tag without invoking it — no text
-    filter reaches in to rewrite it, and the HTML in it survives ``STRIP_CONTENT_HTML``.
+**``[figure]`` and ``[slideshow]``.** ``[figure]`` pairs a picture with the text beside it,
+emitting a ``<div class="platzky-figure">``. ``[slideshow]`` cross-fades between the frames
+it wraps on a timer, in CSS alone with no JavaScript: ``interval`` is how many milliseconds
+each frame is shown, floored at 1500 because a faster rotation runs at the limit of three
+flashes a second that WCAG 2.3.1 sets, and ``width`` is either ``fit``, as wide as the
+frames, or ``full``, spanning its container. The rotation pauses on hover and on focus,
+and under ``prefers-reduced-motion: reduce`` the frames still rotate but without the
+cross-fade.
 
-``[image]`` and ``[link]`` accept ``http``/``https`` URLs and paths rooted at ``/``, and
-nothing else. A bare relative path such as ``photo.jpg`` is refused because it resolves
-against whichever page happens to be showing the content; ``//host/path`` is refused
-because it carries no scheme yet is external anyway; every other scheme is refused, which
-is what keeps ``javascript:`` and ``data:`` out.
+A frame is a bare ``[image]`` or a ``[figure]``, and a ``[figure]`` counts as one frame
+however much markup it holds — which is what ``[slideshow]`` reads ``children`` for. It
+writes the frame count onto the element as ``data-slides`` because the timings
+depend on it: with N frames each is shown for one Nth of the cycle, so ``shortcodes.css``
+carries one rule set per supported count. Four frames rotate at most; a slideshow wrapping
+more renders them as an ordinary sequence, logged, rather than dropping the extras.
 
-**A tag whose URL is missing or refused renders nothing, and logs why.** An image with no
-source is not an image, and ``<img src="">`` is worse than an absence — it draws a broken
-icon, and several browsers resolve the empty source against the current page and fetch the
-document a second time. ``[link]`` drops its text along with the tag, since link text is
-written to be clicked and reads as a mistake when left stranded in prose. The log is the
-only trace either leaves, because nobody can see an absence.
-
-All four are granted ``POST`` and ``PAGE`` only — ``[hero]`` emits a ``<div class="hero">``
-header block, which only makes sense in a document body, so the built-in transformer names
-its types rather than claiming to suit any kind of content.
+All the built-in shortcodes are granted ``POST`` and ``PAGE`` only — ``[hero]`` emits a
+``<div class="hero">`` header block, which only makes sense in a document body, so the
+built-in transformer names its types rather than claiming to suit any kind of content.
 
 Shortcodes are documented for content authors on the admin *Help* page
 (``/admin/help``).
@@ -140,8 +188,8 @@ Two rules, and they do not vary by shortcode:
 
 .. code-block:: python
 
-    def render(self, attrs: ShortcodeAttrs, content: Markup) -> str:
-        kind = attrs.type or "info"
+    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
+        kind = attrs.type
         return f'<div class="alert alert-{escape(kind)}">{content}</div>'
         #                                 ^^^^^^^^^^^^   attribute — always escape
         #                                                 ^^^^^^^   content — never escape
@@ -369,4 +417,5 @@ for them. A stored value is data and nobody vouched for it, so ``render_value`` 
 the content before calling ``render`` — exactly what ``transform_content`` does for
 unvouched prose. ``render`` therefore embeds its ``content`` directly on both paths, and
 escapes each attribute where it interpolates it, since attributes out of a stored value
+arrive raw exactly as a tag's do.
 

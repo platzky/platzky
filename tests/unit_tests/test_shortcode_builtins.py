@@ -1,4 +1,4 @@
-"""Tests for built-in shortcodes (image, link, hero, html)."""
+"""Tests for built-in shortcodes (image, link, hero, html, slideshow)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from platzky.plugin.content_transformer import (
 from platzky.shortcodes.builtins import get_builtin_shortcodes
 from platzky.shortcodes.image import image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
+from platzky.shortcodes.slideshow import DEFAULT_WIDTH, MAX_SLIDES
 from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
 
 
@@ -60,6 +61,19 @@ class TestImageShortcode:
         assert result.startswith("<img")
         assert "width" not in result
         assert "height" not in result
+
+    @pytest.mark.parametrize("attr", ["width", "height"])
+    def test_a_size_that_is_not_whole_pixels_renders_nothing(
+        self, attr: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """``100%`` is not a valid HTML width; emitting it would only look like it worked."""
+        with caplog.at_level(logging.WARNING):
+            assert _apply(f'[image url="/x.jpg" {attr}="100%"]') == ""
+
+        assert f"[image] rendered nothing: {attr} '100%'" in caplog.text
+
+    def test_a_stored_size_is_checked_the_same_way(self) -> None:
+        assert image_shortcode.render_value({"url": "/x.jpg", "width": "wide"}) == ""
 
     def test_missing_url_renders_nothing_and_logs(self, caplog: pytest.LogCaptureFixture) -> None:
         """An image with no source is not an image, and nobody can see an absence."""
@@ -134,6 +148,32 @@ class TestLinkShortcode:
 
     def test_missing_url_renders_nothing(self) -> None:
         assert _apply("[link]text[/link]") == ""
+
+    def test_rel_tokens_are_emitted(self) -> None:
+        result = _apply('[link url="https://example.com" rel="sponsored"]Buy[/link]')
+        assert 'rel="sponsored"' in result
+
+    def test_rel_unions_with_the_rel_that_blank_forces(self) -> None:
+        """Disclosing an affiliation is not volunteering to drop opener protection."""
+        result = _apply(
+            '[link url="https://example.com" rel="sponsored" target="_blank"]Buy[/link]'
+        )
+        assert 'rel="sponsored noopener noreferrer"' in result
+
+    def test_an_unknown_rel_token_drops_the_link(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A misspelled token is a disclosure that did not happen; the author has to see it."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[link url="https://example.com" rel="sponsred nofollow"]Buy[/link]')
+
+        assert result == ""
+        assert "[link] rendered nothing" in caplog.text
+
+    def test_a_rel_of_nothing_but_unknown_words_drops_the_link(self) -> None:
+        assert _apply('[link url="https://example.com" rel="evil"]x[/link]') == ""
+
+    def test_rel_is_matched_exactly(self) -> None:
+        """A constraint checks rather than rewrites, so the lowercase spelling is the one."""
+        assert _apply('[link url="https://e.com" rel="SPONSORED"]x[/link]') == ""
 
     def test_relative_url_allowed(self) -> None:
         result = _apply('[link url="/about"]About[/link]')
@@ -356,3 +396,156 @@ class TestHtmlShortcode:
 
         with pytest.raises(ShortcodeError, match=r"\[html\] is never closed"):
             _apply("[html]forever")
+
+
+class TestSlideshowShortcode:
+    def test_wraps_nested_images_and_counts_them(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert result.startswith('<div class="slideshow" data-slides="2"')
+        assert '<img src="/a.jpg" alt="">' in result
+        assert '<img src="/b.jpg" alt="">' in result
+
+    def test_default_interval_when_unspecified(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert "--platzky-slideshow-interval: 4000ms" in result
+
+    def test_interval_attribute_is_used(self) -> None:
+        result = _apply('[slideshow interval="2500"][image url="/a.jpg"][/slideshow]')
+        assert "--platzky-slideshow-interval: 2500ms" in result
+
+    @pytest.mark.parametrize("written", ["100", "999999"])
+    def test_out_of_range_interval_drops_the_whole_slideshow(
+        self, written: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The floor is a seizure-risk threshold: outside the range costs the whole tag."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply(f'[slideshow interval="{written}"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
+
+    def test_unparseable_interval_drops_the_whole_slideshow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A typo in one attribute must not take the whole page down — just its own tag."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[slideshow interval="soon"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
+
+    def test_more_slides_than_can_rotate_still_render(self) -> None:
+        """A count the stylesheet has no rules for renders as a plain sequence.
+
+        The failure to avoid is a missing CSS rule silently hiding an image someone wrote,
+        so the count is reported honestly and the stacking rules simply do not match it.
+        """
+        images = "".join(f'[image url="/{n}.jpg"]' for n in range(MAX_SLIDES + 1))
+        result = _apply(f"[slideshow]{images}[/slideshow]")
+        assert f'data-slides="{MAX_SLIDES + 1}"' in result
+        for n in range(MAX_SLIDES + 1):
+            assert f'src="/{n}.jpg"' in result
+
+    def test_a_refused_image_url_is_not_counted_as_a_slide(self) -> None:
+        """The parser drops a refused element, so the count reflects what survived."""
+        result = _apply(
+            '[slideshow][image url="/a.jpg"][image url="javascript:alert(1)"][/slideshow]'
+        )
+        assert 'data-slides="1"' in result
+        assert "javascript:" not in result
+
+    def test_nested_shortcodes_are_rendered_before_the_wrapper_sees_them(self) -> None:
+        """The wrapper is handed markup its children already produced, one entry each."""
+        result = _apply('[slideshow][link url="https://e.com"]x[/link][/slideshow]')
+        assert '<a href="https://e.com">x</a>' in result
+        assert 'data-slides="1"' in result
+
+    def test_text_between_the_frames_is_not_a_frame(self) -> None:
+        """Only elements are counted, since only elements are what the stylesheet rotates."""
+        result = _apply('[slideshow] [image url="/a.jpg"] and [image url="/b.jpg"] [/slideshow]')
+        assert 'data-slides="2"' in result
+
+
+class TestFigureShortcode:
+    def test_wraps_its_image_and_caption_in_a_figure_div(self) -> None:
+        result = _apply('[figure image="/a.jpg" alt="cover"]The first chapter.[/figure]')
+        assert result == (
+            '<div class="platzky-figure"><img src="/a.jpg" alt="cover">The first chapter.</div>'
+        )
+
+    def test_alt_defaults_to_empty(self) -> None:
+        result = _apply('[figure image="/a.jpg"]The first chapter.[/figure]')
+        assert result == (
+            '<div class="platzky-figure"><img src="/a.jpg" alt="">The first chapter.</div>'
+        )
+
+    def test_missing_image_renders_nothing(self) -> None:
+        """The image is required: without one, a figure is dropped like a bare [image] is."""
+        result = _apply("[figure]No image here.[/figure]")
+        assert result == ""
+
+    def test_a_size_that_is_not_whole_pixels_renders_nothing(self) -> None:
+        assert _apply('[figure image="/a.jpg" height="tall"]Caption.[/figure]') == ""
+
+    def test_a_frame_counts_as_one_slide_not_as_its_contents(self) -> None:
+        """A picture and its caption are one frame."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]One.[/figure]'
+            '[figure image="/b.jpg"]Two.[/figure][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
+    def test_bare_images_still_count_as_frames_of_their_own(self) -> None:
+        """The plain form keeps working: a slideshow of nothing but pictures needs no wrapper."""
+        result = _apply('[slideshow][image url="/a.jpg"][image url="/b.jpg"][/slideshow]')
+        assert 'data-slides="2"' in result
+        assert 'class="platzky-figure"' not in result
+
+    def test_a_caption_that_renders_its_own_div_adds_no_frame(self) -> None:
+        """Counting markup ended the frame at the caption's ``</div>`` and overcounted."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]cap [hero]x[/hero][/figure]'
+            '[figure image="/b.jpg"]Two.[/figure][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
+    def test_raw_html_in_a_caption_adds_no_frame(self) -> None:
+        """An ``[html]`` body is verbatim, so no stripping pass can save a count from it."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]cap [html]<div>x</div>[/html]'
+            ' [image url="/b.jpg"][/figure][/slideshow]'
+        )
+        assert 'data-slides="1"' in result
+
+    def test_a_figure_and_a_bare_image_each_count_as_one_frame(self) -> None:
+        """Mixing forms should not undercount: one frame plus one bare image is two."""
+        result = _apply(
+            '[slideshow][figure image="/a.jpg"]One.[/figure][image url="/b.jpg"][/slideshow]'
+        )
+        assert 'data-slides="2"' in result
+
+
+class TestSlideshowWidth:
+    def test_defaults_to_fitting_its_frames(self) -> None:
+        result = _apply('[slideshow][image url="/a.jpg"][/slideshow]')
+        assert f'data-width="{DEFAULT_WIDTH}"' in result
+
+    def test_full_spans_its_container(self) -> None:
+        result = _apply('[slideshow width="full"][image url="/a.jpg"][/slideshow]')
+        assert 'data-width="full"' in result
+
+    def test_width_is_matched_exactly(self) -> None:
+        """Nothing is rewritten on the way, so ``FULL`` is refused rather than lowercased."""
+        assert _apply('[slideshow width="FULL"][image url="/a.jpg"][/slideshow]') == ""
+
+    def test_an_unknown_width_drops_the_whole_slideshow(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """One mistyped attribute should cost a log line and its own tag, not the page."""
+        with caplog.at_level(logging.WARNING):
+            result = _apply('[slideshow width="wide"][image url="/a.jpg"][/slideshow]')
+        assert result == ""
+        assert "[slideshow] rendered nothing" in caplog.text
+
+    def test_an_invalid_width_with_injected_markup_still_renders_nothing(self) -> None:
+        """Nothing written for an unrecognised width ever reaches the page, injected or not."""
+        result = _apply('[slideshow width="full<script>"][image url="/a.jpg"][/slideshow]')
+        assert result == ""

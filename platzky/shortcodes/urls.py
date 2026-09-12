@@ -8,6 +8,8 @@ from enum import Enum
 from typing import NoReturn
 from urllib.parse import urlparse
 
+from platzky.shortcodes.shortcode import ElementRefused
+
 #: RFC 3986's scheme grammar, lowercased: the shape ``urlparse`` returns in ``.scheme``.
 _SCHEME_AS_PARSED = re.compile(r"[a-z][a-z0-9+.\-]*")
 
@@ -26,12 +28,11 @@ class UrlFault(Enum):
     RELATIVE_PATH = "a relative path resolves against whichever page shows it"
 
 
-class UrlNotPermitted(ValueError):
+class UrlNotPermitted(ElementRefused):
     """Raised when a URL may not be used in the position a policy guards.
 
-    A ``ValueError`` because the URL is the bad input, and a sibling of ``ShortcodeError``
-    rather than a subclass: that one is fatal by design, while this one is caught per
-    element, so one refused URL costs its own tag and not the page around it.
+    The ``ElementRefused`` specialisation for a URL specifically: the fault is always one
+    of ``UrlFault``, and the message always names what the policy would have accepted.
     """
 
     def __init__(self, fault: UrlFault, permitted: str) -> None:
@@ -116,3 +117,9 @@ class UrlPolicy:
 #: For a URL a reader navigates to: the two that fetch a document, plus the two that hand
 #: off to another application.
 LINK_URL_POLICY = UrlPolicy(frozenset({"http", "https", "mailto", "tel"}))
+
+#: An image source has to be something the browser can download, so this policy permits only
+#: ``http`` and ``https``. ``mailto:`` and ``tel:`` hand off to another application instead,
+#: which makes them fine in a link but useless as an image source. Shared by ``[image]`` and
+#: ``[figure]``, the two shortcodes that render an ``<img>`` tag.
+IMAGE_URL_POLICY = UrlPolicy(frozenset({"http", "https"}))

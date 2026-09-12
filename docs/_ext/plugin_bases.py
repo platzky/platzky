@@ -13,8 +13,7 @@ Usage in RST::
 
 import inspect
 
-from docutils import nodes
-from docutils.statemachine import StringList
+from _shared import generated_reference_run, register_directive
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
 
@@ -61,28 +60,22 @@ def _build_rst(plugin_bases: tuple[type, ...]) -> list[str]:
     return lines
 
 
+def _build_all_bases_rst() -> list[str]:
+    """Import the plugin base classes and build RST lines documenting all of them."""
+    from platzky.plugin import PLUGIN_BASES
+
+    return _build_rst(PLUGIN_BASES)
+
+
 class PluginBasesDirective(SphinxDirective):
     """Directive to auto-generate plugin base class documentation."""
 
     has_content = False
     required_arguments = 0
     optional_arguments = 0
-
-    def run(self) -> list[nodes.Node]:
-        """Generate plugin base class documentation nodes."""
-        from platzky.plugin import PLUGIN_BASES
-
-        rst_lines = _build_rst(PLUGIN_BASES)
-        node = nodes.container()
-        self.state.nested_parse(StringList(rst_lines), self.content_offset, node)
-        return [node]
+    run = generated_reference_run(_build_all_bases_rst, "Plugin base classes")
 
 
 def setup(app: Sphinx) -> dict[str, object]:
     """Register the plugin-bases directive with Sphinx."""
-    app.add_directive("plugin-bases", PluginBasesDirective)
-    return {
-        "version": "1.0",
-        "parallel_read_safe": True,
-        "parallel_write_safe": True,
-    }
+    return register_directive(app, "plugin-bases", PluginBasesDirective)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 from unittest import mock
 
@@ -226,7 +226,12 @@ class _ShoutShortcode(Shortcode):
     name = "shout"
     description = "Upper-case content."
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,  # noqa: ARG002
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Return content in upper case."""
         return content.upper()
 
@@ -253,7 +258,7 @@ class TestContentTransformerPluginBase:
     def test_override_registers_shortcode(self) -> None:
         f = ShoutFilter({})
         assert "shout" in f.shortcodes
-        assert f.shortcodes["shout"].render(ShortcodeAttrs([]), Markup("hello")) == "HELLO"
+        assert f.shortcodes["shout"].render(ShortcodeAttrs([]), Markup("hello"), ()) == "HELLO"
 
     def test_filters_registered_under_capability_key(
         self, base_config_data: dict[str, Any]
@@ -268,7 +273,12 @@ class TestContentTransformerPluginBase:
             name = "atag"
             description = "wrap in A"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 """Wrap content in A()."""
                 return f"A({content})"
 
@@ -276,7 +286,12 @@ class TestContentTransformerPluginBase:
             name = "btag"
             description = "wrap in B"
 
-            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+            def render(
+                self,
+                attrs: ShortcodeAttrs,  # noqa: ARG002
+                content: str,
+                children: Sequence[Markup],  # noqa: ARG002
+            ) -> str:
                 """Wrap content in B()."""
                 return f"B({content})"
 

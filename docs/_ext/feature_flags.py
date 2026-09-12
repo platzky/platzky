@@ -13,13 +13,9 @@ descriptions, types, defaults, and YAML examples.
 
 from __future__ import annotations
 
-from docutils import nodes
-from docutils.statemachine import StringList
+from _shared import generated_reference_run, register_directive
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
-from sphinx.util.logging import getLogger
-
-logger = getLogger(__name__)
 
 
 def _default_display_value(default: bool) -> str:
@@ -66,51 +62,25 @@ def _build_flag_rst(flag: object) -> list[str]:
     return lines
 
 
+def _build_all_flags_rst() -> list[str]:
+    """Import the built-in flags and build RST lines documenting all of them."""
+    from platzky.feature_flags import BUILTIN_FLAGS
+
+    rst_lines: list[str] = []
+    for flag in sorted(BUILTIN_FLAGS, key=lambda f: f.alias):
+        rst_lines.extend(_build_flag_rst(flag))
+    return rst_lines
+
+
 class FeatureFlagsDirective(SphinxDirective):
     """Directive to auto-generate feature flags documentation."""
 
     has_content = False
     required_arguments = 0
     optional_arguments = 0
-
-    def run(self) -> list[nodes.Node]:
-        """Generate feature flags documentation nodes."""
-        try:
-            from platzky.feature_flags import BUILTIN_FLAGS
-        except ImportError as e:
-            logger.warning(
-                "Could not import BUILTIN_FLAGS: %s. "
-                "Feature flags documentation will not be generated. "
-                "Ensure platzky is installed in the documentation build environment.",
-                e,
-            )
-            warning = nodes.warning()
-            warning += nodes.paragraph(
-                text="Feature flags documentation could not be generated. "
-                "See build logs for details."
-            )
-            return [warning]
-
-        rst_lines: list[str] = []
-        for flag in sorted(BUILTIN_FLAGS, key=lambda f: f.alias):
-            rst_lines.extend(_build_flag_rst(flag))
-
-        node = nodes.container()
-        self.state.nested_parse(
-            StringList(rst_lines),
-            self.content_offset,
-            node,
-        )
-
-        return [node]
+    run = generated_reference_run(_build_all_flags_rst, "Feature flags")
 
 
 def setup(app: Sphinx) -> dict[str, object]:
     """Register the feature-flags directive with Sphinx."""
-    app.add_directive("feature-flags", FeatureFlagsDirective)
-
-    return {
-        "version": "1.0",
-        "parallel_read_safe": True,
-        "parallel_write_safe": True,
-    }
+    return register_directive(app, "feature-flags", FeatureFlagsDirective)

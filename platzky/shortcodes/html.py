@@ -1,5 +1,9 @@
 """Built-in html shortcode."""
 
+from collections.abc import Sequence
+
+from markupsafe import Markup
+
 from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs
 
 
@@ -24,13 +28,26 @@ class HtmlShortcode(Shortcode):
     kind = "raw"
     description = "Emit content exactly as written, parsing neither shortcodes nor HTML in it."
     example = '[html]<img src="/photo.jpg">[/html]'
+    notes = (
+        "Raw, so a shortcode tag written inside is shown literally rather than invoked — "
+        "this is how to document a tag without triggering it. No text filter reaches "
+        "inside either. Actual HTML written inside is rendered as HTML on the page, and "
+        'stays that way even where "STRIP_CONTENT_HTML" would otherwise strip it from '
+        "the rest of the post."
+    )
 
-    def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
+    def render(
+        self,
+        attrs: ShortcodeAttrs,  # noqa: ARG002
+        content: str,
+        children: Sequence[Markup],  # noqa: ARG002
+    ) -> str:
         """Return the body unchanged.
 
         Args:
             attrs: Unused — html takes no attributes.
             content: Everything between the tags, exactly as written.
+            children: Unused, and always empty — a raw body is never parsed into nodes.
 
         Returns:
             That content, unchanged.
