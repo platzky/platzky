@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, cast, final, get_args
 
 from markupsafe import Markup, escape
+from typing_extensions import override
 
 from platzky.shortcodes.constraints import ANY_TEXT
 
@@ -189,6 +190,99 @@ class ShortcodeAttrs:
     __hash__ = None  # type: ignore[assignment]
 
 
+class ChildPolicy(ABC):
+    """What a shortcode accepts between its tags, for a wrapper whose structure is the point.
+
+    Checked by the parser, which is where a child's identity still exists — ``render`` is
+    handed children already rendered to markup. A policy is asked about a tag name rather
+    than a parsed node, so the parser's node types stay its own.
+    """
+
+    @abstractmethod
+    def permits_tag(self, tag: str) -> bool:
+        """Whether an element child written as ``[tag]`` may stay.
+
+        Args:
+            tag: The child's shortcode name, without brackets.
+
+        Returns:
+            True if the child may stay.
+        """
+
+    @abstractmethod
+    def permits_text(self) -> bool:
+        """Whether text other than whitespace may sit among the children.
+
+        Whitespace is never asked about: it is how an author lays tags out over several
+        lines, not something they wrote.
+
+        Returns:
+            True if a run of text may stay.
+        """
+
+    @property
+    @abstractmethod
+    def permitted(self) -> str:
+        """What this policy accepts, phrased for the tail of a refusal message."""
+
+
+@dataclass(frozen=True)
+class AnyChildren(ChildPolicy):
+    """Accepts any child and any text: the default, for a shortcode holding free content."""
+
+    @override
+    def permits_tag(self, tag: str) -> bool:
+        """Accept every tag."""
+        return True
+
+    @override
+    def permits_text(self) -> bool:
+        """Accept text."""
+        return True
+
+    @property
+    @override
+    def permitted(self) -> str:
+        """Name what is accepted."""
+        return "any child"
+
+
+@dataclass(frozen=True)
+class OnlyChildren(ChildPolicy):
+    """Accepts the named tags and nothing else — no other element, and no stray text.
+
+    An empty set therefore accepts no element child at all. Refusing text as well is the
+    point of declaring a structure: a wrapper that silently rendered a stray word beside
+    its frames would give an author no clue why the result looked wrong.
+    """
+
+    tags: frozenset[str]
+
+    @override
+    def permits_tag(self, tag: str) -> bool:
+        """Accept a tag this policy names.
+
+        Args:
+            tag: The child's shortcode name, without brackets.
+
+        Returns:
+            True if the tag was named.
+        """
+        return tag in self.tags
+
+    @override
+    def permits_text(self) -> bool:
+        """Refuse text, which is not one of the named tags."""
+        return False
+
+    @property
+    @override
+    def permitted(self) -> str:
+        """Name the accepted tags, or say that nothing is accepted."""
+        named = ", ".join(f"[{tag}]" for tag in sorted(self.tags))
+        return f"only {named}" if named else "no children"
+
+
 class Shortcode(ABC):
     """Base class for a registered shortcode tag. Subclass and implement ``render``."""
 
@@ -211,18 +305,11 @@ class Shortcode(ABC):
     #: as well, so an application storing a bare value needs no declaration.
     content_key: ClassVar[str] = "content"
 
-    #: What this shortcode accepts as its element children, for a wrapper whose structure
-    #: is the point — ``[slideshow]``, whose every frame is a ``[figure]``. Read it as the
-    #: sentence it spells: restricted to ``None`` is not restricted at all, the default,
-    #: and takes any child and any text; restricted to ``frozenset({"figure"})`` takes
-    #: those and nothing else; restricted to ``frozenset()`` takes no element child at all.
-    #:
-    #: A restricted element refuses itself when it holds anything else, text that is not
-    #: whitespace included: a wrapper that silently rendered a stray word as a frame would
-    #: give an author no clue why the result looked wrong. Checked by the parser, which is
-    #: where a child's identity still exists -- ``render`` sees children already rendered
-    #: to markup.
-    children_restricted_to: ClassVar[frozenset[str] | None] = None
+    #: What this shortcode accepts between its tags. ``AnyChildren()``, the default, takes
+    #: anything; ``OnlyChildren(frozenset({"figure"}))`` takes those tags and nothing else,
+    #: stray text included. An element holding something its policy refuses renders nothing
+    #: and says so in the log.
+    child_policy: ClassVar[ChildPolicy] = AnyChildren()
 
     #: Whether a closing tag is expected. The default wraps content, because most
     #: shortcodes do and because it is the safe default to get wrong: a block shortcode

@@ -18,7 +18,12 @@ from html.parser import HTMLParser
 
 from markupsafe import Markup
 
-from platzky.shortcodes.shortcode import ElementRefused, Shortcode, ShortcodeError
+from platzky.shortcodes.shortcode import (
+    ChildPolicy,
+    ElementRefused,
+    Shortcode,
+    ShortcodeError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -395,36 +400,36 @@ def _filter_around_html(text: str, filters: Sequence[Callable[[str], str]]) -> s
     return text
 
 
-def _is_permitted_child(child: _Node, permitted: frozenset[str]) -> bool:
-    """Whether a child is one its parent's ``children_restricted_to`` allows.
+def _is_permitted_child(child: _Node, policy: ChildPolicy) -> bool:
+    """Whether a child is one its parent's ``child_policy`` allows.
 
     Args:
         child: The child node to judge.
-        permitted: Tag names the parent accepts.
+        policy: What the parent accepts between its tags.
 
     Returns:
-        True if the child may stay. Whitespace text is always allowed — it is how an
-        author lays tags out over several lines, not something they wrote.
+        True if the child may stay. Whitespace text is allowed whatever the policy — it is
+        how an author lays tags out over several lines, not something they wrote.
     """
-    return not child.text.strip() if isinstance(child, _Text) else child.shortcode.name in permitted
+    return (
+        (not child.text.strip() or policy.permits_text())
+        if isinstance(child, _Text)
+        else policy.permits_tag(child.shortcode.name)
+    )
 
 
 def _unpermitted_children(node: _Element) -> tuple[_Node, ...]:
-    """Collect the children an element's ``children_restricted_to`` does not allow.
+    """Collect the children an element's ``child_policy`` does not allow.
 
     Args:
         node: The element to check, with its children still parsed rather than rendered.
 
     Returns:
-        Every offending child, in document order. Empty when the element declares no
-        restriction, or holds nothing that breaks it.
+        Every offending child, in document order. Empty when the policy accepts everything
+        the element holds.
     """
-    permitted = node.shortcode.children_restricted_to
-    return tuple(
-        child
-        for child in node.children
-        if permitted is not None and not _is_permitted_child(child, permitted)
-    )
+    policy = node.shortcode.child_policy
+    return tuple(child for child in node.children if not _is_permitted_child(child, policy))
 
 
 def _describe_child(child: _Node) -> str:
@@ -459,9 +464,9 @@ def _render_node(node: _Node) -> str:
         # wrapper whose structure the author still got wrong, rendered as if it were right.
         # Every offender is named, so one log line is one trip back to the content.
         logger.warning(
-            "[%s] rendered nothing: it accepts only %s as children, and holds %s.",
+            "[%s] rendered nothing: it accepts %s, and holds %s.",
             node.shortcode.name,
-            ", ".join(f"[{name}]" for name in sorted(node.shortcode.children_restricted_to or ())),
+            node.shortcode.child_policy.permitted,
             ", ".join(_describe_child(child) for child in unpermitted),
         )
         return ""

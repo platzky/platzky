@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from markupsafe import Markup
 
 from platzky.shortcodes import IntRange, OneOf, ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.shortcode import OnlyChildren, Shortcode
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class SlideshowShortcode(Shortcode):
             ),
         ]
     )
-    children_restricted_to = frozenset({"figure"})
+    child_policy = OnlyChildren(frozenset({"figure"}))
     example = (
         '[slideshow interval="4000"]\n'
         '  [figure image="/a.jpg"]The first slide.[/figure]\n'
