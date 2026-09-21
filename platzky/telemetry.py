@@ -4,8 +4,9 @@ import atexit
 import socket
 import uuid
 from typing import TYPE_CHECKING, Optional
+from urllib.parse import urlparse
 
-from platzky.config import TelemetryConfig
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -17,6 +18,82 @@ _MISSING_EXPORTERS_MSG = (
     "Telemetry is enabled but no exporters are configured. "
     "Set endpoint or console_export=True to export traces."
 )
+_INVALID_ENDPOINT_FORMAT_MSG = (
+    "Invalid endpoint: '{}'. Must be host:port or [http|https]://host[:port]"
+)
+_INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http or https"
+_MISSING_HOSTNAME_MSG = "Invalid endpoint: '{}'. Missing hostname"
+_INVALID_ENDPOINT_PORT_MSG = "Invalid endpoint: '{}'. Port must be an integer between 1 and 65535"
+
+
+def _check_endpoint(endpoint: str) -> None:
+    """Raise ValueError unless endpoint is host:port or http(s)://host[:port].
+
+    Args:
+        endpoint: Endpoint string to check; IPv6 hosts must be bracketed, e.g. [::1]:4317
+    """
+    has_scheme = "://" in endpoint
+    try:
+        parsed = urlparse(endpoint if has_scheme else f"//{endpoint}")
+    except ValueError as e:  # unbalanced IPv6 brackets
+        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint)) from e
+    try:
+        port = parsed.port
+    except ValueError as e:  # non-integer or out of 0-65535
+        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint)) from e
+
+    if has_scheme and parsed.scheme not in ("http", "https"):
+        raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
+    if not has_scheme and (port is None or endpoint.startswith("/")):
+        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint))
+    if not parsed.hostname:
+        raise ValueError(_MISSING_HOSTNAME_MSG.format(endpoint))
+    if port == 0:
+        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint))
+
+
+class TelemetryConfig(BaseModel):
+    """OpenTelemetry configuration for application tracing.
+
+    Attributes:
+        enabled: Enable or disable telemetry tracing
+        endpoint: OTLP gRPC endpoint (e.g., localhost:4317 or http://localhost:4317)
+        console_export: Export traces to console for debugging
+        timeout: Timeout in seconds for exporter (default: 10)
+        deployment_environment: Deployment environment (e.g., production, staging, dev)
+        service_instance_id: Service instance ID (auto-generated if not provided)
+        flush_on_request: Flush spans after each request (default: True, may impact latency)
+        flush_timeout_ms: Timeout in milliseconds for per-request flush (default: 5000)
+        instrument_logging: Enable automatic logging instrumentation (default: True)
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = False
+    endpoint: Optional[str] = None
+    console_export: bool = False
+    timeout: int = Field(default=10, gt=0)
+    deployment_environment: Optional[str] = None
+    service_instance_id: Optional[str] = None
+    flush_on_request: bool = True
+    flush_timeout_ms: int = Field(default=5000, gt=0)
+    instrument_logging: bool = True
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: Optional[str]) -> Optional[str]:
+        """Validate endpoint URL format.
+
+        Accepts OTLP/gRPC spec-compliant formats:
+        - host:port (e.g., localhost:4317, [::1]:4317)
+        - http://host[:port]
+        - https://host[:port]
+
+        Note: grpc:// scheme is NOT supported per OTLP spec and will be rejected.
+        """
+        if v is not None:
+            _check_endpoint(v)
+        return v
 
 
 def setup_telemetry(app: "Engine", telemetry_config: TelemetryConfig) -> Optional["Tracer"]:

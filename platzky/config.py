@@ -5,7 +5,6 @@ This module defines all configuration models and parsing logic for the applicati
 
 import sys
 import typing as t
-from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15,6 +14,7 @@ from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHM
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
 from platzky.feature_flags_wrapper import FeatureFlagSet
+from platzky.telemetry import TelemetryConfig
 
 
 class LanguageConfig(BaseModel):
@@ -38,40 +38,6 @@ class LanguageConfig(BaseModel):
 Languages = dict[str, LanguageConfig]
 LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
 
-# Validation error messages
-_INVALID_ENDPOINT_FORMAT_MSG = (
-    "Invalid endpoint: '{}'. Must be host:port or [http|https]://host[:port]"
-)
-_INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http or https"
-_MISSING_HOSTNAME_MSG = "Invalid endpoint: '{}'. Missing hostname"
-_INVALID_ENDPOINT_PORT_MSG = "Invalid endpoint: '{}'. Port must be an integer between 1 and 65535"
-
-
-def _check_endpoint(endpoint: str) -> None:
-    """Raise ValueError unless endpoint is host:port or http(s)://host[:port].
-
-    Args:
-        endpoint: Endpoint string to check; IPv6 hosts must be bracketed, e.g. [::1]:4317
-    """
-    has_scheme = "://" in endpoint
-    try:
-        parsed = urlparse(endpoint if has_scheme else f"//{endpoint}")
-    except ValueError as e:  # unbalanced IPv6 brackets
-        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint)) from e
-    try:
-        port = parsed.port
-    except ValueError as e:  # non-integer or out of 0-65535
-        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint)) from e
-
-    if has_scheme and parsed.scheme not in ("http", "https"):
-        raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
-    if not has_scheme and (port is None or endpoint.startswith("/")):
-        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint))
-    if not parsed.hostname:
-        raise ValueError(_MISSING_HOSTNAME_MSG.format(endpoint))
-    if port == 0:
-        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint))
-
 
 def languages_dict(languages: Languages) -> LanguagesMapping:
     """Convert Languages configuration to a mapping dictionary.
@@ -88,50 +54,6 @@ def languages_dict(languages: Languages) -> LanguagesMapping:
         name: {k: v for k, v in lang.model_dump().items() if v is not None}
         for name, lang in languages.items()
     }
-
-
-class TelemetryConfig(BaseModel):
-    """OpenTelemetry configuration for application tracing.
-
-    Attributes:
-        enabled: Enable or disable telemetry tracing
-        endpoint: OTLP gRPC endpoint (e.g., localhost:4317 or http://localhost:4317)
-        console_export: Export traces to console for debugging
-        timeout: Timeout in seconds for exporter (default: 10)
-        deployment_environment: Deployment environment (e.g., production, staging, dev)
-        service_instance_id: Service instance ID (auto-generated if not provided)
-        flush_on_request: Flush spans after each request (default: True, may impact latency)
-        flush_timeout_ms: Timeout in milliseconds for per-request flush (default: 5000)
-        instrument_logging: Enable automatic logging instrumentation (default: True)
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    enabled: bool = False
-    endpoint: t.Optional[str] = None
-    console_export: bool = False
-    timeout: int = Field(default=10, gt=0)
-    deployment_environment: t.Optional[str] = None
-    service_instance_id: t.Optional[str] = None
-    flush_on_request: bool = True
-    flush_timeout_ms: int = Field(default=5000, gt=0)
-    instrument_logging: bool = True
-
-    @field_validator("endpoint")
-    @classmethod
-    def validate_endpoint(cls, v: t.Optional[str]) -> t.Optional[str]:
-        """Validate endpoint URL format.
-
-        Accepts OTLP/gRPC spec-compliant formats:
-        - host:port (e.g., localhost:4317, [::1]:4317)
-        - http://host[:port]
-        - https://host[:port]
-
-        Note: grpc:// scheme is NOT supported per OTLP spec and will be rejected.
-        """
-        if v is not None:
-            _check_endpoint(v)
-        return v
 
 
 _DEFAULT_ALLOWED_MIME_TYPES: frozenset[str] = frozenset(

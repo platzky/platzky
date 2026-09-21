@@ -8,8 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from platzky.config import TelemetryConfig
-from platzky.telemetry import setup_telemetry
+from platzky.telemetry import TelemetryConfig, setup_telemetry
 
 
 @pytest.fixture
