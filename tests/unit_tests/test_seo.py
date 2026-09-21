@@ -1,7 +1,7 @@
 import secrets
 from unittest.mock import MagicMock
 
-from flask import Blueprint, Flask
+from flask import Blueprint, Flask, request
 from flask_wtf.csrf import CSRFProtect
 
 from platzky.models import Comment, Image, Post
@@ -97,6 +97,43 @@ def test_sitemap_includes_blog_posts():
     response = app.test_client().get("/prefix/sitemap.xml")
     assert response.status_code == 200
     assert "http://localhost/blog/slug" in response.text
+
+
+def test_sitemap_lists_posts_in_current_language():
+    config = {"SEO_PREFIX": "/prefix", "BLOG_PREFIX": "/blog"}
+    posts_by_lang = {
+        lang: [
+            Post.model_validate(
+                {
+                    "title": f"{lang} post",
+                    "slug": f"{lang}-post",
+                    "language": lang,
+                    "author": "author",
+                    "contentInMarkdown": "content",
+                    "excerpt": "excerpt",
+                    "coverImage": {"url": "/img.png"},
+                }
+            )
+        ]
+        for lang in ("en", "pl")
+    }
+    db_mock = MagicMock()
+    db_mock.get_all_posts.side_effect = posts_by_lang.__getitem__
+
+    seo_blueprint = seo.create_seo_blueprint(
+        db_mock, config, lambda: request.args.get("lang", "en")
+    )
+    app = _make_test_flask_app()
+    app.register_blueprint(seo_blueprint)
+    client = app.test_client()
+
+    en_sitemap = client.get("/prefix/sitemap.xml?lang=en").text
+    pl_sitemap = client.get("/prefix/sitemap.xml?lang=pl").text
+
+    assert "http://localhost/blog/en-post" in en_sitemap
+    assert "http://localhost/blog/pl-post" not in en_sitemap
+    assert "http://localhost/blog/pl-post" in pl_sitemap
+    assert "http://localhost/blog/en-post" not in pl_sitemap
 
 
 class TestSitemapFiltering:

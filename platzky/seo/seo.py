@@ -119,6 +119,3 @@ def create_seo_blueprint(
         return response
 
     return seo
-
-
-# TODO add tests which would check that sitemap is different for different languages
