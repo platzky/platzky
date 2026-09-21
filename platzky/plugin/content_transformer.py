@@ -8,7 +8,7 @@ from collections.abc import Iterable, Mapping
 from typing import ClassVar, cast
 
 import jinja2.ext
-from markupsafe import escape
+from markupsafe import Markup, escape
 
 from platzky.content_types import ALL_CONTENT_TYPES, ContentType
 from platzky.plugin.plugin import PluginBase
@@ -258,7 +258,7 @@ class ContentTransformerRegistry:
         content_type: ContentType,
         *,
         strip_html: bool = False,
-    ) -> str:
+    ) -> Markup:
         """Run every permitted transformer over the content, in order.
 
         Transformers chain their output, so a failing transformer aborts the chain rather
@@ -286,7 +286,10 @@ class ContentTransformerRegistry:
                 boundary, raw bodies included.
 
         Returns:
-            The content after every permitted transformer has run.
+            The content after every permitted transformer has run, as ``Markup``: whatever
+            the caller vouched for was embedded as written, and whatever they did not was
+            escaped at the boundary, so the result is safe to embed either way and no
+            caller has to assert that again.
         """
         # Whether anyone vouched decides three separate things, so read it before escaping
         # flattens the Markup away: what gets escaped, whose mistakes get reported, and
@@ -326,7 +329,7 @@ class ContentTransformerRegistry:
                 content_type,
                 ", ".join(sorted(set(removed))),
             )
-        return rendered
+        return Markup(rendered)
 
     def shortcodes_for(
         self, plugins: Iterable[ContentTransformerPluginBase], content_type: ContentType

@@ -48,18 +48,6 @@ def create_blog_blueprint(
         template_folder=f"{dirname(__file__)}/../templates",
     )
 
-    @blog.app_template_filter()
-    def markdown(text: str) -> Markup:
-        """Template filter to render markdown text as safe HTML.
-
-        Args:
-            text: Markdown text to be rendered
-
-        Returns:
-            Markup object containing safe HTML
-        """
-        return Markup(text)
-
     @blog.errorhandler(404)
     def page_not_found(_e: HTTPException) -> tuple[str, int]:
         """Handle 404 Not Found errors in blog routes.

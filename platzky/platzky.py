@@ -148,6 +148,31 @@ def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
     return "/"
 
 
+def _rendered_footer(app: Engine, content: str) -> Markup:
+    """Render footer markup for a template, or nothing at all if it cannot be rendered.
+
+    Args:
+        app: The application, for its content transformers.
+        content: The footer as an author wrote it, in shortcode markup.
+
+    Returns:
+        The rendered footer, empty when a shortcode in it is malformed.
+    """
+    # Only someone with CMS access can write the footer, so its HTML is embedded as
+    # written. Passing a plain str instead would escape the author's tags into visible
+    # text, and would have the shortcode parser treat their mistakes as a stranger's.
+    authored = Markup(content)
+    try:
+        rendered = app.transform_content(authored, FOOTER)
+    except ShortcodeError:
+        # This is called on every page render, so one malformed tag would otherwise 500
+        # the whole site, the 404 handler included. Drop the footer instead; the log names
+        # the bracket at fault.
+        logger.exception("Site-wide footer could not be rendered; showing no footer")
+        rendered = Markup("")
+    return rendered
+
+
 def _www_redirection_response(config: Config) -> t.Optional[Response]:
     """Handle WWW subdomain redirection based on configuration.
 
@@ -342,17 +367,8 @@ def create_engine(
             ``footer_collapsible``, whether readers may collapse it
         """
         footer = app.db.get_footer(app.get_locale())
-        try:
-            # Markup vouches: the footer is written by someone with CMS write access.
-            rendered = Markup(app.transform_content(Markup(footer.content), FOOTER))
-        except ShortcodeError:
-            # This runs on every render, so a malformed footer would otherwise 500 every
-            # page on the site, the 404 handler included. Drop the footer instead: the
-            # log names the bracket at fault, and the rest of the site stays up.
-            logger.exception("Site-wide footer could not be rendered; showing no footer")
-            rendered = Markup("")
         return {
-            "footer": rendered,
+            "footer": _rendered_footer(app, footer.content),
             "footer_collapsible": footer.collapsible,
         }
 
