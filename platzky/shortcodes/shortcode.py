@@ -305,10 +305,7 @@ class Shortcode(ABC):
     #: as well, so an application storing a bare value needs no declaration.
     content_key: ClassVar[str] = "content"
 
-    #: What this shortcode accepts between its tags. ``AnyChildren()``, the default, takes
-    #: anything; ``OnlyChildren(frozenset({"figure"}))`` takes those tags and nothing else,
-    #: stray text included. An element holding something its policy refuses renders nothing
-    #: and says so in the log.
+    #: What this shortcode accepts between its tags.
     child_policy: ClassVar[ChildPolicy] = AnyChildren()
 
     #: Whether a closing tag is expected. The default wraps content, because most
