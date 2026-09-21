@@ -1,9 +1,10 @@
 """GitHub-based JSON database implementation."""
 
+import base64
 import json
+from urllib.parse import quote
 
 import requests
-from github import Github
 from pydantic import Field
 
 from platzky.db.db import DBConfig
@@ -62,26 +63,35 @@ class GithubJsonDb(JsonDB):
             path_to_file: Path to the JSON file within the repository
         """
         self.branch_name = branch_name
-        self.repo = Github(github_token).get_repo(repo_name)
         self.file_path = path_to_file
 
         try:
-            file_content = self.repo.get_contents(self.file_path, ref=self.branch_name)
+            response = requests.get(
+                f"https://api.github.com/repos/{repo_name}/contents/{quote(self.file_path)}",
+                params={"ref": self.branch_name},
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                timeout=40,
+            )
+            response.raise_for_status()
+            file_content = response.json()
 
             if isinstance(file_content, list):
                 raise ValueError(f"Path '{self.file_path}' points to a directory, not a file")
 
-            if file_content.content:
-                raw_data = file_content.decoded_content.decode("utf-8")
+            if file_content.get("content"):
+                raw_data = base64.b64decode(file_content["content"]).decode("utf-8")
             else:
-                download_url = file_content.download_url
-                response = requests.get(download_url, timeout=40)
-                response.raise_for_status()
-                raw_data = response.text
+                download_response = requests.get(file_content["download_url"], timeout=40)
+                download_response.raise_for_status()
+                raw_data = download_response.text
 
             self.data = json.loads(raw_data)
 
-        except (json.JSONDecodeError, requests.RequestException) as e:
+        except json.JSONDecodeError as e:
             raise ValueError(f"Error parsing JSON content: {e}")
         except Exception as e:
             raise ValueError(f"Error retrieving GitHub content: {e}")
