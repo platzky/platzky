@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.15](https://github.com/platzky/platzky/compare/v2.0.0-alpha.14...v2.0.0-alpha.15) (2026-09-21)
+
+
+### Features
+
+* footer added ([#299](https://github.com/platzky/platzky/issues/299)) ([e327bfe](https://github.com/platzky/platzky/commit/e327bfe8373c04b91dbbd9b15d8520ae3a2ba293))
+* slideshow shortcode added ([#296](https://github.com/platzky/platzky/issues/296)) ([6aa9a7b](https://github.com/platzky/platzky/commit/6aa9a7ba849d41569412a8b7c4c85ae4ea30d221))
+
+
+### Bug Fixes
+
+* stricter endpoint check ([#302](https://github.com/platzky/platzky/issues/302)) ([9bc16d6](https://github.com/platzky/platzky/commit/9bc16d6b5e88f5f8cebe83c4b47f0c882b7f1a9b))
+
 ## [2.0.0-alpha.14](https://github.com/platzky/platzky/compare/v2.0.0-alpha.13...v2.0.0-alpha.14) (2026-09-03)
 
 
