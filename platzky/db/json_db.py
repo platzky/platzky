@@ -112,7 +112,6 @@ class Json(DB):
             raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
 
-    # TODO: Add test for non-existing page
     def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
