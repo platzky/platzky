@@ -31,7 +31,7 @@ MAX_SLIDES = 4
 
 
 class SlideshowShortcode(Shortcode):
-    """Rotate between the frames it wraps, on a timer, using no JavaScript."""
+    """Rotate between the frames it wraps, on a timer."""
 
     name = "slideshow"
     description = "Rotate between the [figure]s inside it. Rotates up to four."
