@@ -125,7 +125,9 @@ def test_telemetry_config_valid_endpoint_formats():
     """Test TelemetryConfig accepts OTLP spec-compliant endpoint formats."""
     valid_endpoints = [
         "localhost:4317",  # host:port
+        "[::1]:4317",  # bracketed IPv6 host:port
         "http://localhost:4317",  # http scheme
+        "http://[::1]:4317",  # http scheme with IPv6 host
         "https://telemetry.example.com:4318",  # https with port
     ]
 
@@ -142,8 +144,32 @@ def test_telemetry_config_valid_endpoint_formats():
         ("https://", "Missing hostname"),  # malformed - no hostname
         ("https://:4317", "Missing hostname"),  # no hostname
         ("/just/a/path", "Invalid endpoint"),  # just a path, no host:port
+        ("localhost", "Must be host:port"),  # no port
+        ("localhost:", "Must be host:port"),  # empty port
+        (":4317", "Missing hostname"),  # host:port without host
+        ("localhost:abc", "Port must be"),  # non-numeric port
+        ("localhost:0", "Port must be"),  # port below range
+        ("localhost:65536", "Port must be"),  # port above range
+        ("https://localhost:99999", "Port must be"),  # out of range with scheme
+        ("::1:4317", "Invalid endpoint"),  # unbracketed IPv6 (message varies by Python version)
+        ("[::1:4317", "Must be host:port"),  # unbalanced IPv6 bracket
     ],
-    ids=["bad_scheme", "grpc_scheme", "malformed", "no_hostname", "just_path"],
+    ids=[
+        "bad_scheme",
+        "grpc_scheme",
+        "malformed",
+        "no_hostname",
+        "just_path",
+        "no_port",
+        "empty_port",
+        "host_port_no_host",
+        "non_numeric_port",
+        "port_zero",
+        "port_too_high",
+        "scheme_port_too_high",
+        "unbracketed_ipv6",
+        "unbalanced_bracket",
+    ],
 )
 def test_telemetry_config_invalid_endpoint(invalid_endpoint: str, error_match: str):
     """Test TelemetryConfig rejects invalid endpoint formats."""

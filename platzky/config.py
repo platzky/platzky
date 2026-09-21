@@ -5,6 +5,7 @@ This module defines all configuration models and parsing logic for the applicati
 
 import sys
 import typing as t
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -43,6 +44,33 @@ _INVALID_ENDPOINT_FORMAT_MSG = (
 )
 _INVALID_ENDPOINT_SCHEME_MSG = "Invalid endpoint scheme: '{}'. Must be http or https"
 _MISSING_HOSTNAME_MSG = "Invalid endpoint: '{}'. Missing hostname"
+_INVALID_ENDPOINT_PORT_MSG = "Invalid endpoint: '{}'. Port must be an integer between 1 and 65535"
+
+
+def _check_endpoint(endpoint: str) -> None:
+    """Raise ValueError unless endpoint is host:port or http(s)://host[:port].
+
+    Args:
+        endpoint: Endpoint string to check; IPv6 hosts must be bracketed, e.g. [::1]:4317
+    """
+    has_scheme = "://" in endpoint
+    try:
+        parsed = urlparse(endpoint if has_scheme else f"//{endpoint}")
+    except ValueError as e:  # unbalanced IPv6 brackets
+        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint)) from e
+    try:
+        port = parsed.port
+    except ValueError as e:  # non-integer or out of 0-65535
+        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint)) from e
+
+    if has_scheme and parsed.scheme not in ("http", "https"):
+        raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
+    if not has_scheme and (port is None or endpoint.startswith("/")):
+        raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(endpoint))
+    if not parsed.hostname:
+        raise ValueError(_MISSING_HOSTNAME_MSG.format(endpoint))
+    if port == 0:
+        raise ValueError(_INVALID_ENDPOINT_PORT_MSG.format(endpoint))
 
 
 def languages_dict(languages: Languages) -> LanguagesMapping:
@@ -95,35 +123,14 @@ class TelemetryConfig(BaseModel):
         """Validate endpoint URL format.
 
         Accepts OTLP/gRPC spec-compliant formats:
-        - host:port (e.g., localhost:4317)
+        - host:port (e.g., localhost:4317, [::1]:4317)
         - http://host[:port]
         - https://host[:port]
 
         Note: grpc:// scheme is NOT supported per OTLP spec and will be rejected.
         """
-        if v is None:
-            return v
-
-        from urllib.parse import urlparse
-
-        # Check if it has a scheme (contains ://)
-        if "://" not in v:
-            # Must be host:port format - validate it has a colon
-            if ":" in v and not v.startswith("/"):
-                return v
-            raise ValueError(_INVALID_ENDPOINT_FORMAT_MSG.format(v))
-
-        # Parse URL with scheme
-        parsed = urlparse(v)
-
-        # Validate scheme (only http/https per OTLP spec, grpc is NOT supported)
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError(_INVALID_ENDPOINT_SCHEME_MSG.format(parsed.scheme))
-
-        # Validate hostname exists
-        if not parsed.hostname:
-            raise ValueError(_MISSING_HOSTNAME_MSG.format(v))
-
+        if v is not None:
+            _check_endpoint(v)
         return v
 
 
@@ -351,11 +358,17 @@ class Config(BaseModel):
             Validated Config instance
 
         Raises:
-            SystemExit: If config file is not found
+            SystemExit: If config file is missing, unreadable, or not valid YAML
         """
         try:
             with open(path, "r") as f:
                 return cls.model_validate(yaml.safe_load(f))
         except FileNotFoundError:
             print(f"Config file not found: {path}", file=sys.stderr)
+            raise SystemExit(1)
+        except OSError as e:
+            print(f"Cannot read config file {path}: {e}", file=sys.stderr)
+            raise SystemExit(1)
+        except yaml.YAMLError as e:
+            print(f"Invalid YAML in config file {path}: {e}", file=sys.stderr)
             raise SystemExit(1)

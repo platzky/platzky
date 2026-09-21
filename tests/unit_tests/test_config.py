@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -233,3 +235,22 @@ def test_parse_non_existing_config_file() -> None:
     """Assure that parsing a non-existing config file raises an error and exits application."""
     with pytest.raises(SystemExit):
         Config.parse_yaml("non-existing-file.yml")
+
+
+def test_parse_invalid_yaml_config_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Assure that malformed YAML exits application with a clear message."""
+    config_file = tmp_path / "config.yml"
+    config_file.write_text("APP_NAME: [unclosed")
+
+    with pytest.raises(SystemExit):
+        Config.parse_yaml(str(config_file))
+
+    assert "Invalid YAML in config file" in capsys.readouterr().err
+
+
+def test_parse_unreadable_config_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Assure that a config path which cannot be read exits application with a clear message."""
+    with pytest.raises(SystemExit):
+        Config.parse_yaml(str(tmp_path))
+
+    assert "Cannot read config file" in capsys.readouterr().err
