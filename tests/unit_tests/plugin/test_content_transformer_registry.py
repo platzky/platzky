@@ -11,7 +11,12 @@ from typing import ClassVar
 import pytest
 from markupsafe import Markup, escape
 
-from platzky.content_types import ALL_CONTENT_TYPES, BUILTIN_CONTENT_TYPES, ContentType
+from platzky.content_types import (
+    ALL_CONTENT_TYPES,
+    BUILTIN_CONTENT_TYPES,
+    CmsAuthored,
+    ContentType,
+)
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
@@ -243,7 +248,7 @@ class TestTrustBoundary:
         plugin = ShoutPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
-        result = registry.transform_content([plugin], Markup("<em>hi</em>"), "post")
+        result = registry.transform_content([plugin], CmsAuthored("<em>hi</em>"), "post")
 
         assert result == "<em>hi</em>"
 
@@ -298,7 +303,7 @@ class TestTrustBoundary:
         plugin = AttrPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
-        unclosed = Markup("[wrap]hi")
+        unclosed = CmsAuthored("[wrap]hi")
 
         with pytest.raises(ShortcodeError):
             registry.transform_content([plugin], unclosed, "post")
@@ -308,7 +313,9 @@ class TestTrustBoundary:
         plugin = ShoutPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
-        assert registry.transform_content([plugin], Markup("[shout]hi[/shout]"), "post") == "HI"
+        assert (
+            registry.transform_content([plugin], CmsAuthored("[shout]hi[/shout]"), "post") == "HI"
+        )
 
 
 class TestStripContentHtml:
@@ -320,7 +327,7 @@ class TestStripContentHtml:
         plugin = ShoutPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
-        assert registry.transform_content([plugin], Markup('a <img src="x">'), "post") == (
+        assert registry.transform_content([plugin], CmsAuthored('a <img src="x">'), "post") == (
             'a <img src="x">'
         )
 
@@ -331,7 +338,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup('a <b>bold</b> and <img src="x">'), "post", strip_html=True
+            [plugin], CmsAuthored('a <b>bold</b> and <img src="x">'), "post", strip_html=True
         )
 
         assert result == "a bold and "
@@ -345,7 +352,7 @@ class TestStripContentHtml:
 
         with caplog.at_level(logging.WARNING):
             registry.transform_content(
-                [plugin], Markup('<b>x</b> <img src="y">'), "post", strip_html=True
+                [plugin], CmsAuthored('<b>x</b> <img src="y">'), "post", strip_html=True
             )
 
         assert "Removed 2 HTML tag(s) from post content" in caplog.text
@@ -358,7 +365,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         with caplog.at_level(logging.WARNING):
-            registry.transform_content([plugin], Markup("just words"), "post", strip_html=True)
+            registry.transform_content([plugin], CmsAuthored("just words"), "post", strip_html=True)
 
         assert "Removed" not in caplog.text
 
@@ -370,7 +377,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup('<img alt="a > b" src="/a.png">clean'), "post", strip_html=True
+            [plugin], CmsAuthored('<img alt="a > b" src="/a.png">clean'), "post", strip_html=True
         )
 
         assert result == "clean"
@@ -383,7 +390,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup("[shout]hi[/shout]"), "post", strip_html=True
+            [plugin], CmsAuthored("[shout]hi[/shout]"), "post", strip_html=True
         )
 
         assert result == "HI"
@@ -401,7 +408,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup('[wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
+            [plugin], CmsAuthored('[wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
         )
 
         assert result == '<span class="loud">hi</span>'
@@ -413,7 +420,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup('<b>x</b> [wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
+            [plugin], CmsAuthored('<b>x</b> [wrap tone="loud"]hi[/wrap]'), "post", strip_html=True
         )
 
         assert result == 'x <span class="loud">hi</span>'
@@ -426,7 +433,7 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup('[code]<img src="/a.png">[/code]'), "post", strip_html=True
+            [plugin], CmsAuthored('[code]<img src="/a.png">[/code]'), "post", strip_html=True
         )
 
         assert result == '<pre><img src="/a.png"></pre>'
@@ -449,7 +456,10 @@ class TestStripContentHtml:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], Markup("<b>x</b> [code]<i>y</i>[/code] <b>z</b>"), "post", strip_html=True
+            [plugin],
+            CmsAuthored("<b>x</b> [code]<i>y</i>[/code] <b>z</b>"),
+            "post",
+            strip_html=True,
         )
 
         assert result == "x <pre><i>y</i></pre> z"
@@ -463,7 +473,7 @@ class TestStripContentHtml:
 
         with caplog.at_level(logging.WARNING):
             registry.transform_content(
-                [plugin], Markup("<b>x</b> [code]<i>y</i>[/code]"), "post", strip_html=True
+                [plugin], CmsAuthored("<b>x</b> [code]<i>y</i>[/code]"), "post", strip_html=True
             )
 
         assert "Removed 1 HTML tag(s) from post content (b)" in caplog.text
@@ -652,7 +662,7 @@ class TestFiltersNeverSeeRenderedMarkup:
             registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [wrap, letters], Markup('[wrap tone="loud"]hi[/wrap] and a plan'), "post"
+            [wrap, letters], CmsAuthored('[wrap tone="loud"]hi[/wrap] and a plan'), "post"
         )
 
         assert result == '<span class="loud">hi</span> <i>a</i>nd <i>a</i> pl<i>a</i>n'
@@ -665,7 +675,7 @@ class TestFiltersNeverSeeRenderedMarkup:
         registry.grant(letters, frozenset({"post"}))
 
         result = registry.transform_content(
-            [letters], Markup('<a title="a > b">and a word</a>'), "post"
+            [letters], CmsAuthored('<a title="a > b">and a word</a>'), "post"
         )
 
         # The 'a' inside the title attribute is untouched; both in the text are wrapped.
@@ -680,7 +690,7 @@ class TestFiltersNeverSeeRenderedMarkup:
             registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [code, letters], Markup("[code]a [wrap]x[/wrap][/code] a"), "post"
+            [code, letters], CmsAuthored("[code]a [wrap]x[/wrap][/code] a"), "post"
         )
 
         assert result == "<pre>a [wrap]x[/wrap]</pre> <i>a</i>"

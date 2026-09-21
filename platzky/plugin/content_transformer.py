@@ -10,7 +10,7 @@ from typing import ClassVar, cast
 import jinja2.ext
 from markupsafe import Markup, escape
 
-from platzky.content_types import ALL_CONTENT_TYPES, ContentType
+from platzky.content_types import ALL_CONTENT_TYPES, CmsAuthored, ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
@@ -292,9 +292,14 @@ class ContentTransformerRegistry:
             caller has to assert that again.
         """
         # Whether anyone vouched decides three separate things, so read it before escaping
-        # flattens the Markup away: what gets escaped, whose mistakes get reported, and
+        # flattens the type away: what gets escaped, whose mistakes get reported, and
         # whether there is any authored HTML left for the site owner to strip.
-        vouched = hasattr(content, "__html__")
+        #
+        # Only CmsAuthored counts, not any Markup: Markup means "already escaped, render as
+        # is", which a caller can reach for to fix a display bug, and that is not the same
+        # claim as "someone with CMS access wrote this". Asking for the narrower type makes
+        # the claim deliberate, and keeps a stray Markup from widening what is trusted.
+        vouched = isinstance(content, CmsAuthored)
         # escape() is a no-op on anything carrying __html__, so this is the whole rule.
         # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
         # a bare tag in untrusted content still fires — harmlessly, since what it wraps is

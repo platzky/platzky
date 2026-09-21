@@ -7,9 +7,8 @@ from collections.abc import Mapping
 from typing import ClassVar
 
 import pytest
-from markupsafe import Markup
 
-from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, CmsAuthored, ContentType
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
@@ -39,7 +38,7 @@ def _apply(content: str) -> str:
     plugin = _BuiltinTestPlugin({})
     registry = ContentTransformerRegistry(BUILTIN_CONTENT_TYPES)
     registry.grant(plugin, frozenset({POST}))
-    return registry.transform_content([plugin], Markup(content), POST)
+    return registry.transform_content([plugin], CmsAuthored(content), POST)
 
 
 class TestImageShortcode:

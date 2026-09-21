@@ -7,11 +7,10 @@ from os.path import dirname
 from typing import TypeVar
 
 from flask import Blueprint, abort, make_response, render_template, request
-from markupsafe import Markup
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
-from platzky.content_types import PAGE, POST
+from platzky.content_types import PAGE, POST, CmsAuthored
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
@@ -149,7 +148,7 @@ def create_blog_blueprint(
             "post.html",
             post=post,
             # Markup vouches: a post body is written by someone with CMS write access.
-            content=content_transformer(Markup(post.contentInMarkdown), POST),
+            content=content_transformer(CmsAuthored(post.contentInMarkdown), POST),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -172,7 +171,7 @@ def create_blog_blueprint(
             title=page.title,
             css=page.css,
             # Markup vouches, as for a post body.
-            content=content_transformer(Markup(page.contentInMarkdown), PAGE),
+            content=content_transformer(CmsAuthored(page.contentInMarkdown), PAGE),
             cover_image=cover_image_url,
         )
 

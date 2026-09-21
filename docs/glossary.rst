@@ -69,10 +69,12 @@ decides what*. The terms are defined once here and used consistently everywhere 
 
    vouching
       Asserting that content came from someone with write access, by passing it as
-      ``Markup`` rather than ``str``. Only the caller knows a piece of content's
-      provenance, so vouching is a deliberate act and plain ``str`` is treated as hostile
-      and escaped. Vouched content is also parsed strictly: whoever wrote a malformed tag
-      can go and fix it.
+      :class:`~platzky.content_types.CmsAuthored` rather than ``str``. Only the caller
+      knows a piece of content's provenance, so vouching is a deliberate act and plain
+      ``str`` is treated as hostile and escaped. A bare ``Markup`` does not vouch either:
+      it means "already escaped, render as is", which is a different claim from "someone
+      with CMS access wrote this". Vouched content is also parsed strictly: whoever wrote
+      a malformed tag can go and fix it.
 
    content transformer
       A plugin subclassing
