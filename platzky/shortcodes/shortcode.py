@@ -199,8 +199,8 @@ class ChildPolicy(ABC):
     """
 
     @abstractmethod
-    def may_contain_tag(self, tag: str) -> bool:
-        """Whether an element child written as ``[tag]`` may sit inside this shortcode.
+    def is_tag_allowed(self, tag: str) -> bool:
+        """Whether an element child written as ``[tag]`` is allowed by this policy.
 
         Args:
             tag: The child's shortcode name, without brackets.
@@ -210,8 +210,8 @@ class ChildPolicy(ABC):
         """
 
     @abstractmethod
-    def may_contain_text(self) -> bool:
-        """Whether text other than whitespace may sit among the children.
+    def is_text_allowed(self) -> bool:
+        """Whether text other than whitespace is allowed among the children.
 
         Whitespace is never asked about: it is how an author lays tags out over several
         lines, not something they wrote.
@@ -231,12 +231,12 @@ class AnyChildren(ChildPolicy):
     """Accepts any child and any text: the default, for a shortcode holding free content."""
 
     @override
-    def may_contain_tag(self, tag: str) -> bool:
+    def is_tag_allowed(self, tag: str) -> bool:
         """Accept every tag."""
         return True
 
     @override
-    def may_contain_text(self) -> bool:
+    def is_text_allowed(self) -> bool:
         """Accept text."""
         return True
 
@@ -259,7 +259,7 @@ class OnlyChildren(ChildPolicy):
     tags: frozenset[str]
 
     @override
-    def may_contain_tag(self, tag: str) -> bool:
+    def is_tag_allowed(self, tag: str) -> bool:
         """Accept a tag this policy names.
 
         Args:
@@ -271,7 +271,7 @@ class OnlyChildren(ChildPolicy):
         return tag in self.tags
 
     @override
-    def may_contain_text(self) -> bool:
+    def is_text_allowed(self) -> bool:
         """Refuse text, which is not one of the named tags."""
         return False
 

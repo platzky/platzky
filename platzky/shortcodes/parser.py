@@ -412,9 +412,9 @@ def _is_child_allowed(child: _Node, policy: ChildPolicy) -> bool:
         how an author lays tags out over several lines, not something they wrote.
     """
     return (
-        (not child.text.strip() or policy.may_contain_text())
+        (not child.text.strip() or policy.is_text_allowed())
         if isinstance(child, _Text)
-        else policy.may_contain_tag(child.shortcode.name)
+        else policy.is_tag_allowed(child.shortcode.name)
     )
 
 

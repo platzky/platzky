@@ -574,23 +574,23 @@ class TestRawKind:
 class TestChildPolicy:
     def test_any_children_accepts_every_tag_and_text(self):
         policy = AnyChildren()
-        assert policy.may_contain_tag("figure") is True
-        assert policy.may_contain_tag("anything-at-all") is True
-        assert policy.may_contain_text() is True
+        assert policy.is_tag_allowed("figure") is True
+        assert policy.is_tag_allowed("anything-at-all") is True
+        assert policy.is_text_allowed() is True
 
     def test_only_children_accepts_the_named_tags(self):
         policy = OnlyChildren(frozenset({"figure"}))
-        assert policy.may_contain_tag("figure") is True
-        assert policy.may_contain_tag("image") is False
+        assert policy.is_tag_allowed("figure") is True
+        assert policy.is_tag_allowed("image") is False
 
     def test_only_children_refuses_text(self):
         """Declaring a structure means a stray word is as wrong as a stray tag."""
-        assert OnlyChildren(frozenset({"figure"})).may_contain_text() is False
+        assert OnlyChildren(frozenset({"figure"})).is_text_allowed() is False
 
     def test_only_children_of_nothing_accepts_nothing(self):
         policy = OnlyChildren(frozenset())
-        assert policy.may_contain_tag("figure") is False
-        assert policy.may_contain_text() is False
+        assert policy.is_tag_allowed("figure") is False
+        assert policy.is_text_allowed() is False
 
     def test_allowed_names_the_tags_in_a_stable_order(self):
         assert OnlyChildren(frozenset({"image", "figure"})).allowed == "only [figure], [image]"
