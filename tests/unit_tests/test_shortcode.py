@@ -574,29 +574,29 @@ class TestRawKind:
 class TestChildPolicy:
     def test_any_children_accepts_every_tag_and_text(self):
         policy = AnyChildren()
-        assert policy.permits_tag("figure") is True
-        assert policy.permits_tag("anything-at-all") is True
-        assert policy.permits_text() is True
+        assert policy.may_contain_tag("figure") is True
+        assert policy.may_contain_tag("anything-at-all") is True
+        assert policy.may_contain_text() is True
 
     def test_only_children_accepts_the_named_tags(self):
         policy = OnlyChildren(frozenset({"figure"}))
-        assert policy.permits_tag("figure") is True
-        assert policy.permits_tag("image") is False
+        assert policy.may_contain_tag("figure") is True
+        assert policy.may_contain_tag("image") is False
 
     def test_only_children_refuses_text(self):
         """Declaring a structure means a stray word is as wrong as a stray tag."""
-        assert OnlyChildren(frozenset({"figure"})).permits_text() is False
+        assert OnlyChildren(frozenset({"figure"})).may_contain_text() is False
 
     def test_only_children_of_nothing_accepts_nothing(self):
         policy = OnlyChildren(frozenset())
-        assert policy.permits_tag("figure") is False
-        assert policy.permits_text() is False
+        assert policy.may_contain_tag("figure") is False
+        assert policy.may_contain_text() is False
 
-    def test_permitted_names_the_tags_in_a_stable_order(self):
-        assert OnlyChildren(frozenset({"image", "figure"})).permitted == "only [figure], [image]"
+    def test_allowed_names_the_tags_in_a_stable_order(self):
+        assert OnlyChildren(frozenset({"image", "figure"})).allowed == "only [figure], [image]"
 
-    def test_permitted_says_so_when_nothing_is_accepted(self):
-        assert OnlyChildren(frozenset()).permitted == "no children"
+    def test_allowed_says_so_when_nothing_is_accepted(self):
+        assert OnlyChildren(frozenset()).allowed == "no children"
 
-    def test_permitted_of_any_children_names_no_restriction(self):
-        assert AnyChildren().permitted == "any child"
+    def test_allowed_of_any_children_names_no_restriction(self):
+        assert AnyChildren().allowed == "any child"

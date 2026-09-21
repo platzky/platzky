@@ -199,8 +199,8 @@ class ChildPolicy(ABC):
     """
 
     @abstractmethod
-    def permits_tag(self, tag: str) -> bool:
-        """Whether an element child written as ``[tag]`` may stay.
+    def may_contain_tag(self, tag: str) -> bool:
+        """Whether an element child written as ``[tag]`` may sit inside this shortcode.
 
         Args:
             tag: The child's shortcode name, without brackets.
@@ -210,7 +210,7 @@ class ChildPolicy(ABC):
         """
 
     @abstractmethod
-    def permits_text(self) -> bool:
+    def may_contain_text(self) -> bool:
         """Whether text other than whitespace may sit among the children.
 
         Whitespace is never asked about: it is how an author lays tags out over several
@@ -222,8 +222,8 @@ class ChildPolicy(ABC):
 
     @property
     @abstractmethod
-    def permitted(self) -> str:
-        """What this policy accepts, phrased for the tail of a refusal message."""
+    def allowed(self) -> str:
+        """What this policy allows, phrased for the tail of a refusal message."""
 
 
 @dataclass(frozen=True)
@@ -231,18 +231,18 @@ class AnyChildren(ChildPolicy):
     """Accepts any child and any text: the default, for a shortcode holding free content."""
 
     @override
-    def permits_tag(self, tag: str) -> bool:
+    def may_contain_tag(self, tag: str) -> bool:
         """Accept every tag."""
         return True
 
     @override
-    def permits_text(self) -> bool:
+    def may_contain_text(self) -> bool:
         """Accept text."""
         return True
 
     @property
     @override
-    def permitted(self) -> str:
+    def allowed(self) -> str:
         """Name what is accepted."""
         return "any child"
 
@@ -259,7 +259,7 @@ class OnlyChildren(ChildPolicy):
     tags: frozenset[str]
 
     @override
-    def permits_tag(self, tag: str) -> bool:
+    def may_contain_tag(self, tag: str) -> bool:
         """Accept a tag this policy names.
 
         Args:
@@ -271,13 +271,13 @@ class OnlyChildren(ChildPolicy):
         return tag in self.tags
 
     @override
-    def permits_text(self) -> bool:
+    def may_contain_text(self) -> bool:
         """Refuse text, which is not one of the named tags."""
         return False
 
     @property
     @override
-    def permitted(self) -> str:
+    def allowed(self) -> str:
         """Name the accepted tags, or say that nothing is accepted."""
         named = ", ".join(f"[{tag}]" for tag in sorted(self.tags))
         return f"only {named}" if named else "no children"

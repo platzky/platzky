@@ -400,7 +400,7 @@ def _filter_around_html(text: str, filters: Sequence[Callable[[str], str]]) -> s
     return text
 
 
-def _is_permitted_child(child: _Node, policy: ChildPolicy) -> bool:
+def _is_child_allowed(child: _Node, policy: ChildPolicy) -> bool:
     """Whether a child is one its parent's ``child_policy`` allows.
 
     Args:
@@ -412,13 +412,13 @@ def _is_permitted_child(child: _Node, policy: ChildPolicy) -> bool:
         how an author lays tags out over several lines, not something they wrote.
     """
     return (
-        (not child.text.strip() or policy.permits_text())
+        (not child.text.strip() or policy.may_contain_text())
         if isinstance(child, _Text)
-        else policy.permits_tag(child.shortcode.name)
+        else policy.may_contain_tag(child.shortcode.name)
     )
 
 
-def _unpermitted_children(node: _Element) -> tuple[_Node, ...]:
+def _disallowed_children(node: _Element) -> tuple[_Node, ...]:
     """Collect the children an element's ``child_policy`` does not allow.
 
     Args:
@@ -429,7 +429,7 @@ def _unpermitted_children(node: _Element) -> tuple[_Node, ...]:
         the element holds.
     """
     policy = node.shortcode.child_policy
-    return tuple(child for child in node.children if not _is_permitted_child(child, policy))
+    return tuple(child for child in node.children if not _is_child_allowed(child, policy))
 
 
 def _describe_child(child: _Node) -> str:
@@ -459,15 +459,15 @@ def _render_node(node: _Node) -> str:
         return node.text
     if isinstance(node, _RawElement):
         return _render_element(node.shortcode, node.raw_attrs, node.content, ())
-    if unpermitted := _unpermitted_children(node):
+    if disallowed := _disallowed_children(node):
         # Refused whole rather than per child: dropping only the offenders would leave a
         # wrapper whose structure the author still got wrong, rendered as if it were right.
         # Every offender is named, so one log line is one trip back to the content.
         logger.warning(
             "[%s] rendered nothing: it accepts %s, and holds %s.",
             node.shortcode.name,
-            node.shortcode.child_policy.permitted,
-            ", ".join(_describe_child(child) for child in unpermitted),
+            node.shortcode.child_policy.allowed,
+            ", ".join(_describe_child(child) for child in disallowed),
         )
         return ""
     rendered = [(child, _render_node(child)) for child in node.children]
