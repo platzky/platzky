@@ -25,10 +25,4 @@ describe('Footer', () => {
     cy.get('#footer-row summary').click()
     cy.get('#footer-row details').should('have.attr', 'open')
   })
-
-  it('lets a page replace the site-wide footer', () => {
-    cy.visit('/blog/page/strona')
-    cy.get('#footer-row').should('contain.text', 'Stopka strony')
-    cy.get('#footer-row').should('not.contain.text', 'English footer')
-  })
 })

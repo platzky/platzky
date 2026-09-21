@@ -4,17 +4,17 @@
 // its data-slides selectors match, that the interval custom property survives calc() -- is
 // only observable in a browser. That is what this file is for.
 //
-// The test data has a page with three slideshows -- one rotating pair of [figure] frames,
-// one with more images than the stylesheet has timings for, and one of bare images wrapped
-// in a disclosed affiliate link -- plus a [figure] written on its own, outside any.
+// The test data has a page with several slideshows -- one rotating pair of [figure] frames,
+// one with more frames than the stylesheet has timings for, one wrapped in a disclosed
+// affiliate link, and one holding a bare [image], which the figures-only rule refuses --
+// plus a [figure] written on its own, outside any.
 
 const ms = (value) => (value.endsWith('ms') ? parseFloat(value) : parseFloat(value) * 1000);
 
 const slideshowOf = (alt) => cy.get(`img[alt="${alt}"]`).closest('.slideshow');
 
-// What actually rotates is the slideshow's direct child, which is a [figure] frame when
-// one is used and the bare image otherwise. Tests assert against the frame, not the picture,
-// so they hold for both shapes.
+// What actually rotates is the slideshow's direct child, which is always a [figure] frame.
+// Tests assert against the frame rather than the picture inside it.
 const frameOf = (alt) =>
   cy.get(`img[alt="${alt}"]`).then(($img) => {
     const slideshow = $img[0].closest('.slideshow');
@@ -100,28 +100,18 @@ describe('[slideshow] shortcode', () => {
   it('a second slideshow keeps its own interval', () => {
     // Two slideshows on one page: the interval is a custom property on each element, so a
     // second one must not inherit the first's. Only a second instance can show that.
-    cy.get('img[alt="promo one"]').should(($el) => {
+    frameOf('promo one').should(($el) => {
       expect(ms(computed($el, 'animationDuration'))).to.eq(4000);
     });
   });
 
-  it('rotates bare images the same way it rotates figure frames', () => {
-    // The affiliate slideshow is the page's only *animating* bare-image one, so it carries
-    // the whole no-[figure] path: without this, converting the rotating slideshow to frames
-    // would have left that form's stacking and geometry untested.
-    slideshowOf('promo one').then(($el) => {
-      const [first, second] = [...$el[0].children];
-      expect(first.tagName, 'a bare image is its own frame').to.eq('IMG');
-      [first, second].forEach((frame, i) => {
-        expect(getComputedStyle(frame).gridRowStart, `frame ${i + 1} row`).to.eq('1');
-        expect(getComputedStyle(frame).gridColumnStart, `frame ${i + 1} column`).to.eq('1');
-      });
-
-      const boxes = [first, second].map((f) => f.getBoundingClientRect());
-      ['x', 'y', 'width', 'height'].forEach((side) => {
-        expect(Math.round(boxes[1][side]), side).to.eq(Math.round(boxes[0][side]));
-      });
-    });
+  it('renders nothing at all when a frame is not a figure', () => {
+    // Every frame is a [figure]; a bare image is refused, and the whole slideshow with it,
+    // so an author meets an absence rather than a half-built rotation. The word before the
+    // tag is still on the page, which is how we know the content loaded and the slideshow
+    // is what went.
+    cy.contains('Refused').should('exist');
+    cy.get('img[alt="refused one"]').should('not.exist');
   });
 
   it('actually cross-fades from one slide to the next', () => {
@@ -248,7 +238,7 @@ describe('[slideshow] shortcode', () => {
     // A [figure] exists so a caption can travel with its image. Measured rather than
     // asserted on the CSS, because "beside" is a fact about where the text ended up.
     cy.get('img[alt="rotating one"]').then(($img) => {
-      const caption = $img[0].closest('.platzky-figure').querySelector('.platzky-figure-text');
+      const caption = $img[0].closest('.platzky-figure').querySelector('.platzky-figure-caption');
       const picture = $img[0].getBoundingClientRect();
       // Text starts to the right of the picture and overlaps it vertically.
       const words = [...caption.childNodes]
@@ -271,7 +261,7 @@ describe('[slideshow] shortcode', () => {
     // caption containing a link would have broken the same way.
     cy.get('img[alt="rotating one"]').then(($img) => {
       const figure = $img[0].closest('.platzky-figure');
-      const caption = figure.querySelector('.platzky-figure-text');
+      const caption = figure.querySelector('.platzky-figure-caption');
       expect(getComputedStyle(figure).display).to.not.eq('flex');
       expect(getComputedStyle(caption).display).to.not.eq('flex');
       // The pieces of the word abut: no gap is inserted between a text node and the span
@@ -301,7 +291,7 @@ describe('[slideshow] shortcode', () => {
       expect(getComputedStyle($img[0]).float).to.eq('left');
 
       const picture = $img[0].getBoundingClientRect();
-      const text = [...figure.querySelector('.platzky-figure-text').childNodes]
+      const text = [...figure.querySelector('.platzky-figure-caption').childNodes]
         .filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
         .map((n) => {
           const r = document.createRange();
