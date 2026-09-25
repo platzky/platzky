@@ -1,7 +1,7 @@
 """Tests for the shortcode parser."""
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
 import pytest
 from markupsafe import Markup
@@ -13,6 +13,7 @@ from platzky.plugin.content_transformer import (
 )
 from platzky.shortcodes import (
     AnyChildren,
+    Content,
     IntRange,
     ManyOf,
     OneOf,
@@ -51,12 +52,7 @@ def _sc(tag: str) -> Shortcode:
         name = tag
         description = "test"
 
-        def render(
-            self,
-            attrs: ShortcodeAttrs,  # noqa: ARG002
-            content: str,
-            children: Sequence[Markup],  # noqa: ARG002
-        ) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
             return f"[RENDERED:{tag}:{content}]"
 
     return _SC()
@@ -96,12 +92,7 @@ class TestShortcodeSubclassing:
 
         class _AbstractSC(Shortcode):
             @abstractmethod
-            def render(
-                self,
-                attrs: ShortcodeAttrs,
-                content: str,
-                children: Sequence[Markup],
-            ) -> str: ...
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str: ...
 
         assert issubclass(_AbstractSC, Shortcode)
 
@@ -141,12 +132,7 @@ def _echo_sc(tag: str, *attr_names: str) -> Shortcode:
         description = "test"
         attributes = ShortcodeAttrs([ShortcodeAttr(n, "desc") for n in attr_names])
 
-        def render(
-            self,
-            attrs: ShortcodeAttrs,
-            content: str,
-            children: Sequence[Markup],  # noqa: ARG002
-        ) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
             return f"[{sorted(attrs.values.items())}|{content}]"
 
     return _SC()
@@ -182,12 +168,7 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(
-                self,
-                attrs: ShortcodeAttrs,  # noqa: ARG002
-                content: str,
-                children: Sequence[Markup],  # noqa: ARG002
-            ) -> str:
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 return f"[{content}]"
 
         assert _SC().render_value({"code": "SAVE20"}) == "[SAVE20]"
@@ -198,19 +179,14 @@ class TestRenderField:
             description = "test"
             content_key = "code"
 
-            def render(
-                self,
-                attrs: ShortcodeAttrs,  # noqa: ARG002
-                content: str,
-                children: Sequence[Markup],  # noqa: ARG002
-            ) -> str:
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
                 return f"[{content}]"
 
         assert _SC().render_value({"value": "SAVE20"}) == "[SAVE20]"
 
     def test_field_and_tag_rendering_are_the_same_html(self) -> None:
         sc = _echo_sc("mytag", "color")
-        from_tag = sc.render(_attrs_with(sc, color="red"), Markup("X"), ())
+        from_tag = sc.render(_attrs_with(sc, color="red"), Content("X"))
         from_field = sc.render_value({"color": "red", "value": "X"})
         assert from_tag == from_field
 
@@ -232,12 +208,7 @@ def _box_sc() -> Shortcode:
             [ShortcodeAttr("size", "desc", default="10", constraints=IntRange(1, 99))]
         )
 
-        def render(
-            self,
-            attrs: ShortcodeAttrs,
-            content: str,
-            children: Sequence[Markup],  # noqa: ARG002
-        ) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:
             return f"[{attrs.size}|{content}]"
 
     return _SC()
@@ -261,12 +232,7 @@ class TestAttributeConstraints:
                 [ShortcodeAttr("level", "desc", constraints=frozenset({"low"}))]
             )
 
-            def render(
-                self,
-                attrs: ShortcodeAttrs,
-                content: str,
-                children: Sequence[Markup],  # noqa: ARG002
-            ) -> str:
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
                 return f"[{attrs.level}|{content}]"
 
         assert _SC().render_value({"level": "low", "value": "x"}) == "[low|x]"
@@ -366,12 +332,7 @@ class TestApplyShortcodes:
             description = "test"
             kind = "void"
 
-            def render(
-                self,
-                attrs: ShortcodeAttrs,
-                content: str,
-                children: Sequence[Markup],  # noqa: ARG002
-            ) -> str:
+            def render(self, attrs: ShortcodeAttrs, content: str) -> str:
                 calls.append((attrs, content))
                 return "<img>"
 
@@ -389,7 +350,6 @@ class TestApplyShortcodes:
                 self,
                 attrs: ShortcodeAttrs,
                 content: str,  # noqa: ARG002
-                children: Sequence[Markup],  # noqa: ARG002
             ) -> str:
                 received.append(attrs)
                 return ""
@@ -446,7 +406,6 @@ class TestTagMatching:
                 self,
                 attrs: ShortcodeAttrs,  # noqa: ARG002
                 content: str,  # noqa: ARG002
-                children: Sequence[Markup],  # noqa: ARG002
             ) -> str:
                 return "<img>"
 
@@ -492,7 +451,6 @@ class TestTagMatching:
                 self,
                 attrs: ShortcodeAttrs,  # noqa: ARG002
                 content: str,  # noqa: ARG002
-                children: Sequence[Markup],  # noqa: ARG002
             ) -> str:
                 return "<img>"
 
@@ -510,7 +468,6 @@ class TestTagMatching:
                 self,
                 attrs: ShortcodeAttrs,  # noqa: ARG002
                 content: str,  # noqa: ARG002
-                children: Sequence[Markup],  # noqa: ARG002
             ) -> str:
                 return "<img>"
 
@@ -527,12 +484,7 @@ def _raw_sc(tag: str) -> Shortcode:
         description = "test"
         kind = "raw"
 
-        def render(
-            self,
-            attrs: ShortcodeAttrs,  # noqa: ARG002
-            content: str,
-            children: Sequence[Markup],  # noqa: ARG002
-        ) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: str) -> str:  # noqa: ARG002
             return f"[RAW:{content}]"
 
     return _SC()
@@ -600,3 +552,41 @@ class TestChildPolicy:
 
     def test_allowed_of_any_children_names_no_restriction(self):
         assert AnyChildren().allowed == "any child"
+
+
+class TestContent:
+    """What ``content.elements`` holds, which is the count a wrapper renders from."""
+
+    @staticmethod
+    def _counting_sc(tag: str) -> Shortcode:
+        """Build a shortcode reporting how many element children it was handed."""
+
+        class _SC(Shortcode):
+            name = tag
+            description = "test"
+
+            def render(self, attrs: ShortcodeAttrs, content: Content) -> str:  # noqa: ARG002
+                return f"[{len(content.elements)}:{content}]"
+
+        return _SC()
+
+    def test_a_wrapper_is_handed_one_entry_per_element_child(self) -> None:
+        result = _apply_shortcodes(
+            "[wrap]a[inner]x[/inner] b [inner]y[/inner][/wrap]",
+            {"wrap": self._counting_sc("wrap"), "inner": _sc("inner")},
+        )
+        assert result == "[2:a[RENDERED:inner:x] b [RENDERED:inner:y]]"
+
+    def test_a_stored_value_has_no_elements(self) -> None:
+        """A value is a body rather than parsed structure, so there is nothing to count."""
+        assert self._counting_sc("wrap").render_value("x") == "[0:x]"
+
+    def test_markup_operations_return_content_without_the_entries(self) -> None:
+        """The documented catch: only the instance ``render`` is handed carries them."""
+        content = Content("<i>x</i>", elements=[Markup("<i>x</i>")])
+        assert content.elements == (Markup("<i>x</i>"),)
+        assert content.strip().elements == ()
+
+    def test_the_encoding_argument_is_still_the_encoding(self) -> None:
+        """``elements`` is keyword-only, so it cannot be mistaken for ``Markup``'s own."""
+        assert Content(b"caf\xc3\xa9", "utf-8") == "café"

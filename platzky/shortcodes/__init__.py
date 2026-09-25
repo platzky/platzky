@@ -4,6 +4,7 @@ from platzky.shortcodes.constraints import IntRange, ManyOf, OneOf
 from platzky.shortcodes.shortcode import (
     AnyChildren,
     ChildPolicy,
+    Content,
     ElementRefused,
     OnlyChildren,
     Shortcode,
@@ -18,6 +19,7 @@ __all__ = [
     "LINK_URL_POLICY",
     "AnyChildren",
     "ChildPolicy",
+    "Content",
     "ElementRefused",
     "IntRange",
     "ManyOf",

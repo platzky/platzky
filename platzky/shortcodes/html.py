@@ -1,10 +1,6 @@
 """Built-in html shortcode."""
 
-from collections.abc import Sequence
-
-from markupsafe import Markup
-
-from platzky.shortcodes.shortcode import Shortcode, ShortcodeAttrs
+from platzky.shortcodes.shortcode import Content, Shortcode, ShortcodeAttrs
 
 
 class HtmlShortcode(Shortcode):
@@ -39,15 +35,13 @@ class HtmlShortcode(Shortcode):
     def render(
         self,
         attrs: ShortcodeAttrs,  # noqa: ARG002
-        content: str,
-        children: Sequence[Markup],  # noqa: ARG002
+        content: Content,
     ) -> str:
         """Return the body unchanged.
 
         Args:
             attrs: Unused — html takes no attributes.
             content: Everything between the tags, exactly as written.
-            children: Unused, and always empty — a raw body is never parsed into nodes.
 
         Returns:
             That content, unchanged.

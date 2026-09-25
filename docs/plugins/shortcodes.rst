@@ -41,18 +41,19 @@ A shortcode declares which shape it is, and the parser holds authors to it::
     ``[latex]`` or ``[mermaid]`` would want the same.
 
 **A wrapper is told what it wrapped.** :meth:`~platzky.shortcodes.shortcode.Shortcode.render`
-receives what it wrapped twice over: joined into one string as ``content``, which is what
-almost every shortcode embeds, and as ``children``, one entry per rendered element child,
-which a shortcode whose output depends on *how many* things it wrapped counts instead::
+receives what it wrapped as ``content``, a :class:`~platzky.shortcodes.shortcode.Content`:
+markup joined into one string, which is what almost every shortcode embeds, that also keeps
+``content.elements``, one entry per rendered element child, for a shortcode whose output
+depends on *how many* things it wrapped::
 
-    def render(self, attrs, content, children):
-        return f'<div class="gallery" data-items="{len(children)}">{content}</div>'
+    def render(self, attrs, content):
+        return f'<div class="gallery" data-items="{len(content.elements)}">{content}</div>'
 
 Counting markup in the joined string instead would be guessing: a child that renders a
 ``<div>`` of its own, or an author's ``[html]`` block, changes the count without changing
 what was wrapped. Text between the children is in ``content`` but is not one of them, and
 neither is a child that refused itself, so the count matches the elements a stylesheet
-can address. Most shortcodes ignore ``children`` entirely, and it is empty for a stored
+can address. Most shortcodes ignore ``elements`` entirely, and it is empty for a stored
 value, which has no parsed structure — see :ref:`Rendering a stored value <value-rendering>`.
 
 **Malformed tags are reported.** A tag that is never closed, and a closing tag that closes
@@ -79,11 +80,11 @@ Declare ``shortcodes`` as a class variable:
 
 .. code-block:: python
 
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
     from typing import ClassVar
-    from markupsafe import Markup, escape
+    from markupsafe import escape
     from platzky import ALL_CONTENT_TYPES, ContentTransformerPluginBase, ContentType
-    from platzky.shortcodes import OneOf, Shortcode, ShortcodeAttrs, ShortcodeAttr
+    from platzky.shortcodes import Content, OneOf, Shortcode, ShortcodeAttrs, ShortcodeAttr
 
     class _AlertShortcode(Shortcode):
         name = "alert"
@@ -98,9 +99,7 @@ Declare ``shortcodes`` as a class variable:
         ])
         example = '[alert type="warning"]Watch out![/alert]'
 
-        def render(
-            self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]
-        ) -> str:
+        def render(self, attrs: ShortcodeAttrs, content: Content) -> str:
             # content is embedded as-is; only the attribute is escaped. See "Escaping" below.
             return f'<div class="alert alert-{escape(attrs.type)}">{content}</div>'
 
@@ -186,7 +185,7 @@ Two rules, and they do not vary by shortcode:
 
 .. code-block:: python
 
-    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Content) -> str:
         kind = attrs.type
         return f'<div class="alert alert-{escape(kind)}">{content}</div>'
         #                                 ^^^^^^^^^^^^   attribute — always escape

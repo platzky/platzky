@@ -20,6 +20,7 @@ from markupsafe import Markup
 
 from platzky.shortcodes.shortcode import (
     ChildPolicy,
+    Content,
     ElementRefused,
     Shortcode,
     ShortcodeError,
@@ -103,7 +104,7 @@ def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
 
 
 def _render_element(
-    shortcode: Shortcode, raw_attrs: str, content: str, children: Sequence[Markup]
+    shortcode: Shortcode, raw_attrs: str, content: str, elements: Sequence[Markup]
 ) -> str:
     """Render one element with its parsed attributes and already-rendered content.
 
@@ -111,7 +112,7 @@ def _render_element(
         shortcode: The shortcode to render.
         raw_attrs: The attribute text as written in the opening tag.
         content: What the element wraps, with nested elements already rendered.
-        children: The same, kept as one entry per element child — what a wrapper counts
+        elements: The same, kept as one entry per element child — what a wrapper counts
             rather than scanning ``content`` for markup its children happened to produce.
 
     Returns:
@@ -122,7 +123,7 @@ def _render_element(
         # Markup truthfully: the content was either vouched for by its caller or escaped at
         # the boundary, and anything added since came from a permitted plugin. The type is
         # what tells a shortcode author not to escape it again.
-        return shortcode.render(attrs, Markup(content), children)
+        return shortcode.render(attrs, Content(content, elements=elements))
     except ElementRefused as refusal:
         # One element, not the page: an author's typo costs its own tag. Logged because an
         # author cannot see an absence, and named by tag so they can find which one.
@@ -472,10 +473,10 @@ def _render_node(node: _Node) -> str:
         return ""
     rendered = [(child, _render_node(child)) for child in node.children]
     content = "".join(html for _, html in rendered)
-    children = tuple(
+    elements = tuple(
         Markup(html) for child, html in rendered if html and not isinstance(child, _Text)
     )
-    return _render_element(node.shortcode, node.raw_attrs, content, children)
+    return _render_element(node.shortcode, node.raw_attrs, content, elements)
 
 
 def _render(nodes: Sequence[_Node]) -> str:

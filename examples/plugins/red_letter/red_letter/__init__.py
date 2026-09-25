@@ -6,14 +6,12 @@ Two features:
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import ClassVar
-
-from markupsafe import Markup
 
 from platzky.content_types import PAGE, POST, ContentType
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
-from platzky.shortcodes import ShortcodeAttrs
+from platzky.shortcodes import Content, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
 
 _A_RE = re.compile(r"a")
@@ -29,8 +27,7 @@ class _RedShortcode(Shortcode):
     def render(
         self,
         attrs: ShortcodeAttrs,  # noqa: ARG002
-        content: Markup,
-        children: Sequence[Markup],  # noqa: ARG002
+        content: Content,
     ) -> str:
         """Wrap content in a red span.
 
@@ -46,7 +43,6 @@ class _RedShortcode(Shortcode):
             content: Inner content. ``Markup`` because the escaping decision was already
                 taken upstream — escaped if nobody vouched for it, left as written if the
                 caller did.
-            children: Unused — the span wraps whatever it was given.
 
         Returns:
             Content wrapped in ``<span style="color:red">``.
