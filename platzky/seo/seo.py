@@ -23,14 +23,21 @@ INTERNAL_PATH_PREFIXES = ("/lang/",)
 
 
 def _is_public_route(rule: Rule, extra_excluded_prefixes: tuple[str, ...] = ()) -> bool:
-    """Return True if the route should be included in the sitemap."""
-    if not rule.methods or "GET" not in rule.methods or rule.arguments - {LANG_CODE_ARG}:
-        return False
-    namespace = rule.endpoint.split(".")[0]
-    if namespace in INTERNAL_NAMESPACES:
-        return False
-    path = str(rule)
-    return not any(path.startswith(p) for p in INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
+    """Return True if the route should be included in the sitemap.
+
+    Args:
+        rule: A registered URL rule.
+        extra_excluded_prefixes: Further paths to leave out, from ``SITEMAP_EXCLUDED_PREFIXES``.
+
+    Returns:
+        Whether crawlers can fetch the route (GET), it stands for a known set of URLs (no view
+        arguments besides the language), and it is neither internal nor excluded.
+    """
+    fetchable = "GET" in (rule.methods or ())
+    enumerable = rule.arguments <= {LANG_CODE_ARG}
+    internal = rule.endpoint.split(".")[0] in INTERNAL_NAMESPACES
+    excluded = str(rule).startswith(INTERNAL_PATH_PREFIXES + extra_excluded_prefixes)
+    return fetchable and enumerable and not internal and not excluded
 
 
 def _route_paths(rule: Rule, prefixes: t.Mapping[str, str]) -> list[str]:
