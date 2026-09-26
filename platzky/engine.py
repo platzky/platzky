@@ -56,7 +56,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.sitemap import SitemapEntries, SitemapEntry, check_sitemap_route
+from platzky.sitemap import SitemapEntries, SitemapEntry, is_route_allowed_in_sitemap
 
 logger = logging.getLogger(__name__)
 
@@ -421,19 +421,16 @@ class Engine(Flask):
                 ``url_for`` builds it under the current language's prefix.
                 ``sitemap``: lists the route in ``sitemap.xml``, in every language it is served
                 in: ``True`` for a route without URL variables, or a function returning its
-                ``SitemapEntry`` values in a given language.
-
-        Raises:
-            ValueError: If the sitemap could not list the route: it does not answer ``GET``,
-                or ``sitemap=True`` is given for a route with URL variables.
+                ``SitemapEntry`` URLs in a given language. A route the sitemap cannot list is
+                logged and left out of it, but still served.
         """
         multilang = bool(options.pop("multilang", False))
         sitemap = options.pop("sitemap", None)
-        if sitemap:
-            check_sitemap_route(rule, cast("Iterable[str] | None", options.get("methods")), sitemap)
+        methods = cast("Iterable[str] | None", options.get("methods"))
+        in_sitemap = bool(sitemap) and is_route_allowed_in_sitemap(rule, methods, sitemap)
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if sitemap:
+        if in_sitemap:
             self.sitemap_entries[name] = (
                 cast(SitemapEntries, sitemap)
                 if callable(sitemap)

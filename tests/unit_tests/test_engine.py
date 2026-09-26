@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Any, cast
 
@@ -773,14 +774,18 @@ def test_sitemap_lists_posts_in_each_language_with_their_date():
 
 
 @pytest.mark.parametrize(
-    ("rule", "methods", "error"),
+    ("rule", "methods", "warning"),
     [
-        ("/books/<isbn>", ["GET"], "URL variables"),
+        ("/books/<isbn>", ["GET"], "has URL variables"),
         ("/books/order", ["POST"], "does not answer GET"),
     ],
 )
-def test_sitemap_route_that_cannot_be_listed_is_rejected(
-    test_app: Engine, rule: str, methods: list[str], error: str
+def test_sitemap_route_that_cannot_be_listed_is_logged_and_left_out(
+    test_app: Engine,
+    caplog: pytest.LogCaptureFixture,
+    rule: str,
+    methods: list[str],
+    warning: str,
 ):
     books = Blueprint("books", __name__)
 
@@ -788,8 +793,11 @@ def test_sitemap_route_that_cannot_be_listed_is_rejected(
     def view(**_kwargs: str) -> str:
         return "book"
 
-    with pytest.raises(ValueError, match=error):
+    with caplog.at_level(logging.WARNING, logger="platzky.sitemap"):
         test_app.register_blueprint(books)
+
+    assert warning in caplog.text
+    assert "books.view" not in test_app.sitemap_entries
 
 
 def test_url_for_follows_the_language_of_the_request(test_app: Engine):

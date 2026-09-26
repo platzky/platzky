@@ -144,9 +144,9 @@ the host that serves it:
     def book(isbn):
         ...
 
-``sitemap=True`` on a route with variables, or ``sitemap`` on a route without ``GET``, is
-rejected when the route is registered. A site owner can still hide listed URLs with
-``SITEMAP_EXCLUDED_PREFIXES``.
+A route the sitemap cannot list, one without ``GET`` or one with variables given
+``sitemap=True``, is still served but left out of the sitemap, with a warning in the log when
+it is registered. A site owner can still hide listed URLs with ``SITEMAP_EXCLUDED_PREFIXES``.
 
 Packaging a Plugin
 ------------------
