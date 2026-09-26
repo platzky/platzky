@@ -96,12 +96,12 @@ Other routes stay at their plain path, served only in the default language. Pass
 
 .. code-block:: python
 
-    @shop.route("/", multilang=True)
+    @books.route("/", multilang=True)
     def index():
         ...
 
-    @shop.route("/webhook")  # no multilang: no /pl/shop/webhook
-    def webhook():
+    @books.route("/isbn-lookup")  # no multilang: no /pl/books/isbn-lookup
+    def isbn_lookup():
         ...
 
 The view is then also served as ``/<code>/…``. While a request is in a domainless language,

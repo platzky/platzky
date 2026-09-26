@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.db.json_stores import MemoryStore, ReadOnlyStore
-from platzky.models import Footer, MenuItem, Page, Post
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 
 
 class TestJsonDbConfig:
@@ -99,6 +99,19 @@ class TestJsonDb:
         assert db.get_app_description("en") == "English description"
         assert db.get_app_description("de") == "Deutsche Beschreibung"
         assert db.get_app_description("fr") == ""
+
+    def test_get_blog_meta(self):
+        blog_meta = {
+            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+            "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
+        }
+        db = Json(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
+        assert db.get_blog_meta("en") == PageMeta(**blog_meta["en"])
+        assert db.get_blog_meta("pl").title == "Notatki"
+        assert db.get_blog_meta("fr") == PageMeta()
+
+    def test_get_blog_meta_not_configured(self, db: Json):
+        assert db.get_blog_meta("en") == PageMeta()
 
     def test_get_footer(self):
         footer = {"content": {"en": "Footer", "pl": "Stopka"}}

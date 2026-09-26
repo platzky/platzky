@@ -5,7 +5,7 @@ import pytest
 
 from platzky.db.exceptions import NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
-from platzky.models import Footer, MenuItem, Post
+from platzky.models import Footer, MenuItem, PageMeta, Post
 
 
 class TestMongoDbConfig:
@@ -87,6 +87,18 @@ class TestMongoDB:
     def test_get_app_description_no_data(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = None
         assert db.get_app_description("en") == ""
+
+    def test_get_blog_meta(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = {
+            "_id": "config",
+            "blog_meta": {"en": {"title": "Reading notes", "description": "On Tolkien."}},
+        }
+        assert db.get_blog_meta("en") == PageMeta(title="Reading notes", description="On Tolkien.")
+        assert db.get_blog_meta("pl") == PageMeta()
+
+    def test_get_blog_meta_no_data(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = None
+        assert db.get_blog_meta("en") == PageMeta()
 
     def test_get_footer(self, db: MongoDB):
         mock_find_one = cast(Mock, db.site_content.find_one)

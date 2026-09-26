@@ -4,6 +4,10 @@
         "en": "This is not only blogging platform",
         "pl": "To nie tylko platforma do blogowania"
     },
+    "blog_meta": {
+        "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+        "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."}
+    },
     "footer": {
         "content": {
             "en": "[link url=\"/blog/\"]English footer[/link]",

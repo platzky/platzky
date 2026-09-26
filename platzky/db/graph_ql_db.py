@@ -12,7 +12,7 @@ from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Footer, MenuItem, Page, Post
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -415,6 +415,21 @@ class GraphQL(DB):
             return self.client.execute(logo)["logos"][0]["logo"]["image"]["url"]
         except IndexError:
             return ""
+
+    @override
+    def get_blog_meta(self, lang: str) -> PageMeta:
+        """Retrieve the blog index's title and description for a specific language.
+
+        The CMS schema has no blog meta content type, so this queries nothing and the blog
+        index uses its default title and the site's description.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl'), unused
+
+        Returns:
+            An empty blog meta
+        """
+        return PageMeta()
 
     @override
     def get_footer(self, lang: str) -> Footer:

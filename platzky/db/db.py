@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from platzky.models import Footer, MenuItem, Page, Post
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -53,6 +53,17 @@ class DB(ABC):
     @abstractmethod
     def get_app_description(self, lang: str) -> str:
         """Retrieve the application description for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
+        pass
+
+    @abstractmethod
+    def get_blog_meta(self, lang: str) -> PageMeta:
+        """Retrieve the blog index's title and description for a specific language.
+
+        A backend without blog meta support returns an empty ``PageMeta()``.
 
         Args:
             lang: Language code (e.g., 'en', 'pl')

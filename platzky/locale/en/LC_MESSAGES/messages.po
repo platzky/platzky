@@ -18,17 +18,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: platzky/platzky.py:160
+#: platzky/platzky.py:165
 #, python-format
 msgid "This site is also available in %(language)s."
 msgstr ""
 
-#: platzky/platzky.py:161
+#: platzky/platzky.py:166
 #, python-format
 msgid "Switch to %(language)s"
 msgstr ""
 
-#: platzky/platzky.py:162
+#: platzky/platzky.py:167
 msgid "Close"
 msgstr ""
 
@@ -74,18 +74,16 @@ msgstr ""
 msgid "Show footer"
 msgstr ""
 
-#: platzky/templates/blog.html:5
-msgid ""
-"Find out our tips and tricks about email marketing. We prepared some soft"
-" and some hard skills here. Ready to dive in?"
-msgstr ""
-
-#: platzky/templates/blog.html:7
+#: platzky/templates/blog.html:9
 msgid "You're interested in"
 msgstr ""
 
-#: platzky/templates/blog.html:7
+#: platzky/templates/blog.html:9
 msgid "We're here to serve you:"
+msgstr ""
+
+#: platzky/templates/blog.html:15
+msgid "Blog"
 msgstr ""
 
 #: platzky/templates/post.html:47

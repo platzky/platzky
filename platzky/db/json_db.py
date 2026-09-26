@@ -11,7 +11,7 @@ from typing_extensions import override
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import DBError, NotFoundError
 from platzky.db.json_stores import JsonStore, MemoryStore
-from platzky.models import Footer, MenuItem, Page, Post
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,18 @@ class Json(DB):
         """
         description = self._get_site_content().get("app_description", {})
         return description.get(lang, "")
+
+    @override
+    def get_blog_meta(self, lang: str) -> PageMeta:
+        """Retrieve the blog index's title and description for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            The blog meta, empty if none is configured for the language
+        """
+        return PageMeta(**self._get_site_content().get("blog_meta", {}).get(lang, {}))
 
     @override
     def get_footer(self, lang: str) -> Footer:

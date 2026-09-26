@@ -71,7 +71,7 @@ def create_blog_blueprint(
         if not posts:
             abort(404)
         posts_sorted = sorted(posts, reverse=True)
-        return render_template("blog.html", posts=posts_sorted)
+        return render_template("blog.html", posts=posts_sorted, blog_meta=db.get_blog_meta(lang))
 
     @blog.route("/feed", methods=["GET"], multilang=True)
     def get_feed() -> Response:
@@ -187,6 +187,8 @@ def create_blog_blueprint(
         """
         lang = locale_func()
         posts = db.get_posts_by_tag(tag, lang)
-        return render_template("blog.html", posts=posts, subtitle=f" - tag: {tag}")
+        return render_template(
+            "blog.html", posts=posts, subtitle=f" - tag: {tag}", blog_meta=db.get_blog_meta(lang)
+        )
 
     return blog

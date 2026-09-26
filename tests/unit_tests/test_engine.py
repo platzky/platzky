@@ -701,32 +701,32 @@ def test_default_language_prefix_redirects_to_the_unprefixed_page(
     assert response.location == location
 
 
-def _register_shop(app: Engine) -> None:
-    shop = Blueprint("shop", __name__, url_prefix="/shop")
+def _register_books(app: Engine) -> None:
+    books = Blueprint("books", __name__, url_prefix="/books")
 
-    @shop.route("/", multilang=True)
+    @books.route("/", multilang=True)
     def index() -> str:
-        return f"{app.get_locale()} {url_for('shop.index')} {url_for('shop.webhook')}"
+        return f"{app.get_locale()} {url_for('books.index')} {url_for('books.isbn_lookup')}"
 
-    @shop.route("/webhook")
-    def webhook() -> str:
-        return "webhook"
+    @books.route("/isbn-lookup")
+    def isbn_lookup() -> str:
+        return "978-0-261-10221-7"
 
-    app.register_blueprint(shop)
+    app.register_blueprint(books)
 
 
 def test_multilang_view_is_served_in_domainless_languages(test_app: Engine):
-    _register_shop(test_app)
+    _register_books(test_app)
     client = test_app.test_client()
-    assert client.get("/shop/").text == "en /shop/ /shop/webhook"
-    assert client.get("/pl/shop/").text == "pl /pl/shop/ /shop/webhook"
+    assert client.get("/books/").text == "en /books/ /books/isbn-lookup"
+    assert client.get("/pl/books/").text == "pl /pl/books/ /books/isbn-lookup"
 
 
 def test_view_without_multilang_has_no_language_prefix(test_app: Engine):
-    _register_shop(test_app)
+    _register_books(test_app)
     client = test_app.test_client()
-    assert client.get("/shop/webhook").status_code == 200
-    assert client.get("/pl/shop/webhook").status_code == 404
+    assert client.get("/books/isbn-lookup").status_code == 200
+    assert client.get("/pl/books/isbn-lookup").status_code == 404
 
 
 def test_url_for_follows_the_language_of_the_request(test_app: Engine):
@@ -773,6 +773,53 @@ def test_domainless_language_blog_lists_its_posts_under_its_prefix():
     hrefs = _link_hrefs(response)
     assert "/pl/blog/polski-wpis" in hrefs
     assert "/pl/" in hrefs
+
+
+def _blog_head(response: TestResponse) -> tuple[str, str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    title = soup.find("title")
+    description = soup.find("meta", attrs={"name": "description"})
+    assert isinstance(title, Tag) and isinstance(description, Tag)
+    return title.get_text(strip=True), str(description.get("content")).strip()
+
+
+def test_blog_index_has_meta_in_its_language():
+    app = _build_home_page_test_app(
+        {
+            "posts": [
+                _post("the-hobbit", "The Hobbit", "en"),
+                _post("hobbit", "Hobbit", "pl"),
+            ],
+            "blog_meta": {
+                "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+                "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
+            },
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+    client = app.test_client()
+    assert _blog_head(client.get("/blog/")) == (
+        "Reading notes – testingApp",  # noqa: RUF001
+        "Notes on Tolkien's books.",
+    )
+    assert _blog_head(client.get("/pl/blog/")) == (
+        "Notatki – testingApp",  # noqa: RUF001
+        "Notatki o książkach Tolkiena.",
+    )
+
+
+def test_blog_index_without_meta_uses_defaults():
+    app = _build_home_page_test_app(
+        {
+            "posts": [_post("the-hobbit", "The Hobbit", "en")],
+            "app_description": {"en": "A site about Tolkien's books."},
+        },
+    )
+    assert _blog_head(app.test_client().get("/blog/")) == (
+        "Blog – testingApp",  # noqa: RUF001
+        "A site about Tolkien's books.",
+    )
 
 
 def test_default_language_blog_links_are_unprefixed():
