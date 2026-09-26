@@ -16,7 +16,7 @@ from flask import (
 from werkzeug.routing import Rule
 
 from platzky.db.db import DB
-from platzky.language_routing import LANG_CODE_ARG
+from platzky.language_routing import LANG_CODE_ARG, SiteLanguages, served_languages
 
 INTERNAL_NAMESPACES = frozenset({"static", "seo", "admin", "login", "health", "api"})
 INTERNAL_PATH_PREFIXES = ("/lang/",)
@@ -75,15 +75,15 @@ def _blog_entries(host_base: str, lang: str, db: DB, blog_prefix: str) -> list[d
 def create_seo_blueprint(
     db: DB,
     config: dict[str, t.Any],
-    language_prefixes: t.Callable[[], t.Mapping[str, str]],
+    languages: SiteLanguages,
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
     Args:
         db: Database instance for accessing blog content
         config: Configuration dictionary with SEO and blog settings
-        language_prefixes: Returns the languages served on the current host, mapped to their
-            URL prefix ("" or "/<code>")
+        languages: The site's languages; the sitemap lists those served on the requesting
+            host
 
     Returns:
         Configured Flask Blueprint for SEO functionality
@@ -117,7 +117,7 @@ def create_seo_blueprint(
         Returns:
             XML response containing the sitemap
         """
-        prefixes = language_prefixes()
+        prefixes = served_languages(languages, request.host)
 
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc

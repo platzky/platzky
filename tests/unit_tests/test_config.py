@@ -244,7 +244,7 @@ class TestLanguages:
             "uk": {"name": "Ukrainian", "flag": "ua", "country": "UA"},
         }
         config = Config.model_validate(_config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages))
-        assert config.domainless_languages == ("pl", "uk")
+        assert config.site_languages.domainless_languages == ("pl", "uk")
 
 
 class TestFeatureFlagSet:

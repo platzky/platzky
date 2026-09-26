@@ -4,8 +4,12 @@ from unittest.mock import MagicMock
 from flask import Blueprint, Flask
 from flask_wtf.csrf import CSRFProtect
 
+from platzky.language_routing import SiteLanguages
 from platzky.models import Comment, Image, Post
 from platzky.seo import seo
+
+_ENGLISH_ONLY = SiteLanguages(domains={"en": None}, default="en")
+_ENGLISH_AND_UKRAINIAN = SiteLanguages(domains={"en": None, "uk": None}, default="en")
 
 
 def _make_test_flask_app() -> Flask:
@@ -18,7 +22,7 @@ def _make_test_flask_app() -> Flask:
 def _make_seo_app(
     extra_blueprints: list[Blueprint] | None = None,
     sitemap_excluded_prefixes: list[str] | None = None,
-    language_prefixes: dict[str, str] | None = None,
+    languages: SiteLanguages = _ENGLISH_ONLY,
     post_slugs: dict[str, list[str]] | None = None,
 ) -> Flask:
     """Build a minimal Flask app with the SEO blueprint and optional extra blueprints."""
@@ -39,8 +43,7 @@ def _make_seo_app(
     db_mock = MagicMock()
     db_mock.get_all_posts.side_effect = posts_in
 
-    prefixes = language_prefixes or {"en": ""}
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: prefixes)
+    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, languages)
     app = _make_test_flask_app()
     for bp in extra_blueprints or []:
         app.register_blueprint(bp)
@@ -53,7 +56,7 @@ def test_robots_txt():
     config_mock = MagicMock()
     config_mock.__getitem__.return_value = "/prefix"
 
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: {"en": ""})
+    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, _ENGLISH_ONLY)
     app = _make_test_flask_app()
     app.config.update({"DEBUG": True})
     app.register_blueprint(seo_blueprint)
@@ -98,7 +101,7 @@ def test_sitemap_includes_blog_posts():
         )
     ]
 
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: {"en": ""})
+    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, _ENGLISH_ONLY)
     app = _make_test_flask_app()
     app.register_blueprint(seo_blueprint)
 
@@ -109,7 +112,7 @@ def test_sitemap_includes_blog_posts():
 
 def test_sitemap_lists_posts_of_every_language_served_on_the_host():
     app = _make_seo_app(
-        language_prefixes={"en": "", "uk": "/uk"},
+        languages=_ENGLISH_AND_UKRAINIAN,
         post_slugs={"en": ["en-slug"], "uk": ["uk-slug"]},
     )
     response = app.test_client().get("/prefix/sitemap.xml")
@@ -137,12 +140,16 @@ class TestSitemapFiltering:
         def about(lang_code: str | None = None) -> str:
             return lang_code or "about"
 
-        main_host = _make_seo_app([public_bp], language_prefixes={"en": "", "uk": "/uk"})
+        main_host = _make_seo_app([public_bp], languages=_ENGLISH_AND_UKRAINIAN)
         response = main_host.test_client().get("/prefix/sitemap.xml")
         assert "http://localhost/about" in response.text
         assert "http://localhost/uk/about" in response.text
 
-        domain_host = _make_seo_app([public_bp], language_prefixes={"de": ""})
+        # The test client's host is localhost, so here it is German's own domain.
+        german_domain = SiteLanguages(
+            domains={"en": "example.com", "uk": None, "de": "localhost"}, default="en"
+        )
+        domain_host = _make_seo_app([public_bp], languages=german_domain)
         response = domain_host.test_client().get("/prefix/sitemap.xml")
         assert "http://localhost/about" in response.text
         assert "/uk/about" not in response.text

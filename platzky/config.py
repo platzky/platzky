@@ -293,11 +293,6 @@ class Config(BaseModel):
             default=self.default_language,
         )
 
-    @property
-    def domainless_languages(self) -> tuple[str, ...]:
-        """Codes of the languages without their own domain, served under ``/<lang_code>/``."""
-        return self.site_languages.domainless_languages
-
     @field_validator("feature_flags", mode="before")
     @classmethod
     def validate_feature_flags(cls, v: FeatureFlagSet | dict[str, bool] | None) -> FeatureFlagSet:

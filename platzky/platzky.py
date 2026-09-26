@@ -31,7 +31,6 @@ from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
     language_url,
-    served_languages,
 )
 from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
@@ -553,7 +552,7 @@ def create_app_from_config(
     seo_blueprint = seo.create_seo_blueprint(
         db=engine.db,
         config=engine.config,
-        language_prefixes=lambda: served_languages(config.site_languages, request.host),
+        languages=config.site_languages,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
