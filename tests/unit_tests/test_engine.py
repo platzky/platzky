@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup, Tag
 from flask import Blueprint, url_for
 from werkzeug.test import TestResponse
 
-from platzky import multilang
 from platzky.config import Config
 from platzky.db.json_db import Json
 from platzky.engine import Engine
@@ -705,8 +704,7 @@ def test_default_language_prefix_redirects_to_the_unprefixed_page(
 def _register_shop(app: Engine) -> None:
     shop = Blueprint("shop", __name__, url_prefix="/shop")
 
-    @shop.route("/")
-    @multilang
+    @shop.route("/", multilang=True)
     def index() -> str:
         return f"{app.get_locale()} {url_for('shop.index')} {url_for('shop.webhook')}"
 

@@ -31,7 +31,6 @@ from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
     language_url,
-    multilang,
     served_languages,
 )
 from platzky.login import login
@@ -314,10 +313,6 @@ def create_engine(
         """
         return _change_language_response(config, lang)
 
-    domainful = any_converter(config.site_languages.domainful_languages)
-
-    @app.route(f"/<{domainful}:lang>/", defaults={"path": ""}, methods=["GET"])
-    @app.route(f"/<{domainful}:lang>/<path:path>", methods=["GET"])
     def domainful_language_prefix(lang: str, path: str) -> Response:
         """Redirect a URL prefixed with a language that is served without a prefix.
 
@@ -330,8 +325,20 @@ def create_engine(
         """
         return app.redirect_to_language(lang, f"/{path}")
 
-    @app.route("/", methods=["GET"])
-    @multilang
+    domainful = config.site_languages.domainful_languages
+    if domainful:
+        prefix = f"/<{any_converter(domainful)}:lang>"
+        app.add_url_rule(
+            f"{prefix}/",
+            view_func=domainful_language_prefix,
+            defaults={"path": ""},
+            methods=["GET"],
+        )
+        app.add_url_rule(
+            f"{prefix}/<path:path>", view_func=domainful_language_prefix, methods=["GET"]
+        )
+
+    @app.route("/", methods=["GET"], multilang=True)
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage, falling back to the blog index.
 

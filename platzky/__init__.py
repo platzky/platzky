@@ -10,7 +10,6 @@ from platzky.feature_flags import BUILTIN_FLAGS as BUILTIN_FLAGS
 from platzky.feature_flags import FakeLogin as FakeLogin
 from platzky.feature_flags import FeatureFlag as FeatureFlag
 from platzky.feature_flags_wrapper import FeatureFlagSet as FeatureFlagSet
-from platzky.language_routing import multilang as multilang
 from platzky.notification_topics import NotificationTopic as NotificationTopic
 from platzky.platzky import create_app_from_config as create_app_from_config
 from platzky.platzky import create_engine as create_engine

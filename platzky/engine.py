@@ -38,7 +38,6 @@ from platzky.feature_flags import FeatureFlag, StripContentHtml
 from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
-    is_multilang,
     language_url,
     resolve_locale,
     served_languages,
@@ -405,17 +404,21 @@ class Engine(Flask):
         provide_automatic_options: Optional[bool] = None,
         **options: object,
     ) -> None:
-        """Register a route; for a ``multilang`` view, also under each domainless language's prefix.
+        """Register a route; with ``multilang=True``, also under each domainless language's prefix.
 
         Args:
             rule: The URL rule.
             endpoint: The endpoint name; the view's name by default.
             view_func: The view function.
             provide_automatic_options: Whether to add an automatic ``OPTIONS`` response.
-            **options: Further options for the underlying ``Rule``.
+            **options: Further options for the underlying ``Rule``, plus ``multilang``: whether
+                the view renders in every language (it reads ``get_locale()``), so it is also
+                served under ``/<lang_code>/`` and ``url_for`` builds it under the current
+                language's prefix.
         """
+        multilang = bool(options.pop("multilang", False))
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
-        if view_func is not None and is_multilang(view_func):
+        if multilang and view_func is not None:
             self._localized_endpoints.add(endpoint or view_func.__name__)
             lang_codes = self._platzky_config.domainless_languages
             if lang_codes:
@@ -473,10 +476,10 @@ class Engine(Flask):
         @self.url_value_preprocessor
         def pop_lang_code(_endpoint: Optional[str], values: Optional[dict[str, Any]]) -> None:
             """Drop the language from view arguments; where it isn't served, redirect to it."""
+            languages = self._platzky_config.site_languages
             lang_code = values.pop(LANG_CODE_ARG, None) if values else None
-            served = served_languages(self._platzky_config.site_languages, request.host)
-            if lang_code and lang_code not in served:
-                path = request.path.removeprefix(f"/{lang_code}")
+            if lang_code and lang_code not in served_languages(languages, request.host):
+                path = request.path.removeprefix(languages.url_prefix(lang_code))
                 abort(self.redirect_to_language(lang_code, path))
 
         @self.url_defaults

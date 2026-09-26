@@ -6,6 +6,7 @@ This module defines all configuration models and parsing logic for the applicati
 import re
 import sys
 import typing as t
+from functools import cached_property
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -245,7 +246,7 @@ class Config(BaseModel):
 
         Raises:
             ValueError: If the default language is not configured, two languages share a
-                domain, another language has a domain while the default does not, or a path
+                domain, another language has a domain while the default does not, or a
                 language's code cannot be used as a URL segment.
         """
         if not self.languages:
@@ -273,16 +274,16 @@ class Config(BaseModel):
             )
         prefix_segments = {p.strip("/").split("/")[0] for p in (self.blog_prefix, self.seo_prefix)}
         reserved = RESERVED_PATH_SEGMENTS | (prefix_segments - {""})
-        for lang_code in self.domainless_languages:
+        for lang_code in self.languages:
             if lang_code in reserved or not _PATH_SEGMENT.fullmatch(lang_code):
                 raise ValueError(
-                    f"Language {lang_code!r} has no domain, so it is served under /{lang_code}/; "
-                    "its code must use only letters, digits, '-' or '_' and must not be one of: "
+                    f"Language code {lang_code!r} is used as a URL segment (/{lang_code}/), so it "
+                    "must use only letters, digits, '-' or '_' and must not be one of: "
                     f"{', '.join(sorted(reserved))}"
                 )
         return self
 
-    @property
+    @cached_property
     def site_languages(self) -> SiteLanguages:
         """The configured languages as URL routing sees them."""
         return SiteLanguages(

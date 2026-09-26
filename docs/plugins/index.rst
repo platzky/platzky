@@ -90,20 +90,17 @@ Serving Routes in Every Language
 --------------------------------
 
 A language without its own ``domain`` is served under its code (``/pl/…``), but only on
-views marked with ``platzky.multilang``, as the built-in homepage and blog views are.
-Other routes stay at their plain path, served only in the default language. Mark a view
-that renders per language (it reads ``get_locale()``) below its ``route`` decorator:
+routes registered with ``multilang=True``, as the built-in homepage and blog routes are.
+Other routes stay at their plain path, served only in the default language. Pass it to
+``route`` for a view that renders per language (it reads ``get_locale()``):
 
 .. code-block:: python
 
-    from platzky import multilang
-
-    @shop.route("/")
-    @multilang
+    @shop.route("/", multilang=True)
     def index():
         ...
 
-    @shop.route("/webhook")  # not marked: no /pl/shop/webhook
+    @shop.route("/webhook")  # no multilang: no /pl/shop/webhook
     def webhook():
         ...
 

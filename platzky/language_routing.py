@@ -8,33 +8,10 @@ under ``/<code>/`` on the main host.
 import typing as t
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 
 LANG_CODE_ARG = "lang_code"
 RESERVED_PATH_SEGMENTS = frozenset({"lang", "static", "admin", "login", "health", "api"})
-
-_MULTILANG_ATTR = "platzky_multilang"
-View = t.TypeVar("View", bound=t.Callable[..., t.Any])
-
-
-def multilang(view: View) -> View:
-    """Serve a view in every language: also under ``/<code>/`` for each domainless language.
-
-    Place it below the ``route`` decorator. While a request is in a domainless language, ``url_for``
-    builds the view's URL under that language's prefix.
-
-    Args:
-        view: The view function to mark.
-
-    Returns:
-        The same view, marked.
-    """
-    setattr(view, _MULTILANG_ATTR, True)
-    return view
-
-
-def is_multilang(view: t.Callable[..., t.Any]) -> bool:
-    """Return whether ``view`` was marked with ``multilang``."""
-    return getattr(view, _MULTILANG_ATTR, False)
 
 
 @dataclass(frozen=True)
@@ -49,7 +26,7 @@ class SiteLanguages:
     domains: Mapping[str, str | None]
     default: str
 
-    @property
+    @cached_property
     def domainless_languages(self) -> tuple[str, ...]:
         """Codes of the languages without their own domain, served under ``/<lang_code>/``.
 
@@ -62,7 +39,7 @@ class SiteLanguages:
             if domain is None and lang_code != self.default
         )
 
-    @property
+    @cached_property
     def domainful_languages(self) -> tuple[str, ...]:
         """Codes of the languages served at the root of a host, never under ``/<lang_code>/``.
 
@@ -72,8 +49,8 @@ class SiteLanguages:
         """
         return tuple(
             lang_code
-            for lang_code in dict.fromkeys([self.default, *self.domains])
-            if lang_code not in self.domainless_languages
+            for lang_code, domain in self.domains.items()
+            if domain is not None or lang_code == self.default
         )
 
     def url_prefix(self, lang_code: str) -> str:

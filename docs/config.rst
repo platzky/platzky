@@ -194,7 +194,7 @@ address that search engines can index:
 * A language with a ``domain`` is served at the root of that domain (``example.de/``).
 * Any other language is served under its code (``example.com/pl/``). This covers the
   homepage and the blog; an application or plugin can serve its own views the same way by
-  marking them with ``@multilang`` (see :ref:`plugin-localized-routes`).
+  registering them with ``multilang=True`` (see :ref:`plugin-localized-routes`).
 
 A language's code used as a prefix where that language isn't served permanently redirects to
 where it is: ``example.com/en/blog/`` to ``example.com/blog/``, ``example.com/de/blog/`` to

@@ -214,7 +214,17 @@ class TestLanguages:
     @pytest.mark.parametrize("lang_code", ["admin", "static", "lang", "blog", "pl pl", "pl/x"])
     def test_domainless_language_code_must_be_a_free_url_segment(self, lang_code: str) -> None:
         data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES={"en": _EN, lang_code: _PL})
-        with pytest.raises(ValidationError, match="served under"):
+        with pytest.raises(ValidationError, match="used as a URL segment"):
+            Config.model_validate(data)
+
+    @pytest.mark.parametrize("lang_code", ["api", "pl'x"])
+    def test_language_code_with_a_domain_must_be_a_free_url_segment(self, lang_code: str) -> None:
+        languages = {
+            "en": {**_EN, "domain": "example.com"},
+            lang_code: {**_PL, "domain": "example.pl"},
+        }
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages)
+        with pytest.raises(ValidationError, match="used as a URL segment"):
             Config.model_validate(data)
 
     def test_domainless_language_code_must_not_collide_with_a_custom_blog_prefix(self) -> None:
@@ -223,7 +233,7 @@ class TestLanguages:
             DEFAULT_LANGUAGE="en",
             LANGUAGES={"en": _EN, "articles": _PL},
         )
-        with pytest.raises(ValidationError, match="served under"):
+        with pytest.raises(ValidationError, match="used as a URL segment"):
             Config.model_validate(data)
 
     def test_domainless_languages_are_non_default_languages_without_a_domain(self) -> None:
