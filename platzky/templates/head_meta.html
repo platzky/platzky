@@ -1,10 +1,12 @@
 <!-- Required meta tags -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-{% for lang_code in languages %}
-<link rel="alternate" hreflang="{{ lang_code }}" href="{{ request.base_url }}"/>
+{% if language_alternates %}
+{% for lang_code, url in language_alternates.items() %}
+<link rel="alternate" hreflang="{{ lang_code }}" href="{{ url }}"/>
 {% endfor %}
-<link rel="alternate" hreflang="x-default" href="{{ request.base_url }}"/>
+<link rel="alternate" hreflang="x-default" href="{{ language_alternates[default_language] }}"/>
+{% endif %}
 <link rel="shortcut icon" href="{{ favicon_url }}" type="image/x-icon">
 <link rel="canonical" href="{{ request.base_url }}"/>
 <link rel="stylesheet" href="{{ font.url }}">

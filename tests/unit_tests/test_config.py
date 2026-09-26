@@ -156,6 +156,97 @@ class TestBlogPrefix:
         assert config.blog_prefix == "/articles"
 
 
+_EN = {"name": "English", "flag": "gb", "country": "GB"}
+_PL = {"name": "polski", "flag": "pl", "country": "PL"}
+_DE = {"name": "Deutsch", "flag": "de", "country": "DE"}
+
+
+def _config_data(**overrides: object) -> dict[str, object]:
+    return {
+        "APP_NAME": "test",
+        "SECRET_KEY": "secret",
+        "DB": {"TYPE": "json", "DATA": {}},
+        **overrides,
+    }
+
+
+class TestLanguages:
+    """Tests for DEFAULT_LANGUAGE and the URL each language is served at."""
+
+    def test_default_language_is_the_first_of_several_languages(self) -> None:
+        config = Config.model_validate(_config_data(LANGUAGES={"pl": _PL, "de": _DE}))
+        assert config.default_language == "pl"
+
+    def test_default_language_is_the_first_even_when_en_is_configured(self) -> None:
+        config = Config.model_validate(_config_data(LANGUAGES={"pl": _PL, "en": _EN}))
+        assert config.default_language == "pl"
+
+    def test_default_language_is_implied_with_one_language(self) -> None:
+        config = Config.model_validate(_config_data(LANGUAGES={"pl": _PL}))
+        assert config.default_language == "pl"
+
+    def test_default_language_is_en_without_languages(self) -> None:
+        assert Config.model_validate(_config_data()).default_language == "en"
+
+    def test_default_language_must_be_configured(self) -> None:
+        data = _config_data(DEFAULT_LANGUAGE="de", LANGUAGES={"en": _EN, "pl": _PL})
+        with pytest.raises(ValidationError, match="not one of the configured LANGUAGES"):
+            Config.model_validate(data)
+
+    def test_domain_must_be_lowercase(self) -> None:
+        languages = {"en": {**_EN, "domain": "Example.com"}}
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages)
+        with pytest.raises(ValidationError, match="must be lowercase"):
+            Config.model_validate(data)
+
+    def test_domains_must_be_unique(self) -> None:
+        languages = {"en": {**_EN, "domain": "example.com"}, "pl": {**_PL, "domain": "example.com"}}
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages)
+        with pytest.raises(ValidationError, match="share the domain"):
+            Config.model_validate(data)
+
+    def test_default_language_needs_a_domain_when_another_has_one(self) -> None:
+        languages = {"en": _EN, "pl": {**_PL, "domain": "example.pl"}}
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages)
+        with pytest.raises(ValidationError, match="needs a domain"):
+            Config.model_validate(data)
+
+    @pytest.mark.parametrize("lang_code", ["admin", "static", "lang", "blog", "pl pl", "pl/x"])
+    def test_domainless_language_code_must_be_a_free_url_segment(self, lang_code: str) -> None:
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES={"en": _EN, lang_code: _PL})
+        with pytest.raises(ValidationError, match="used as a URL segment"):
+            Config.model_validate(data)
+
+    @pytest.mark.parametrize("lang_code", ["api", "pl'x"])
+    def test_language_code_with_a_domain_must_be_a_free_url_segment(self, lang_code: str) -> None:
+        languages = {
+            "en": {**_EN, "domain": "example.com"},
+            lang_code: {**_PL, "domain": "example.pl"},
+        }
+        data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages)
+        with pytest.raises(ValidationError, match="used as a URL segment"):
+            Config.model_validate(data)
+
+    def test_domainless_language_code_must_not_collide_with_a_custom_blog_prefix(self) -> None:
+        data = _config_data(
+            BLOG_PREFIX="/articles",
+            DEFAULT_LANGUAGE="en",
+            LANGUAGES={"en": _EN, "articles": _PL},
+        )
+        with pytest.raises(ValidationError, match="used as a URL segment"):
+            Config.model_validate(data)
+
+    def test_domainless_languages_are_non_default_languages_without_a_domain(self) -> None:
+        languages = {
+            "en": {**_EN, "domain": "example.com"},
+            "pl": _PL,
+            "de": {**_DE, "domain": "example.de"},
+            "uk": {"name": "Ukrainian", "flag": "ua", "country": "UA"},
+        }
+        config = Config.model_validate(_config_data(DEFAULT_LANGUAGE="en", LANGUAGES=languages))
+        assert config.site_languages.domainless_languages == ("pl", "uk")
+
+
 class TestFeatureFlagSet:
     """Tests for FeatureFlagSet."""
 

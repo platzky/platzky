@@ -5,7 +5,7 @@ import pytest
 
 from platzky.db.exceptions import NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
-from platzky.models import Footer, MenuItem, Post
+from platzky.models import Footer, MenuItem, PageMeta, Post
 
 
 class TestMongoDbConfig:
@@ -87,6 +87,18 @@ class TestMongoDB:
     def test_get_app_description_no_data(self, db: MongoDB):
         cast(Mock, db.site_content.find_one).return_value = None
         assert db.get_app_description("en") == ""
+
+    def test_get_blog_meta(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = {
+            "_id": "config",
+            "blog_meta": {"en": {"title": "Reading notes", "description": "On Tolkien."}},
+        }
+        assert db.get_blog_meta("en") == PageMeta(title="Reading notes", description="On Tolkien.")
+        assert db.get_blog_meta("pl") == PageMeta()
+
+    def test_get_blog_meta_no_data(self, db: MongoDB):
+        cast(Mock, db.site_content.find_one).return_value = None
+        assert db.get_blog_meta("en") == PageMeta()
 
     def test_get_footer(self, db: MongoDB):
         mock_find_one = cast(Mock, db.site_content.find_one)
@@ -202,6 +214,25 @@ class TestMongoDB:
 
         with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
+
+    def test_get_all_pages(self, db: MongoDB):
+        mock_find = cast(Mock, db.pages.find)
+        mock_find.return_value = [
+            {
+                "title": "About Tolkien",
+                "slug": "about-tolkien",
+                "author": "Test Author",
+                "contentInMarkdown": "# About",
+                "excerpt": "excerpt",
+                "language": "en",
+                "coverImage": {"url": "/images/tolkien.jpg"},
+            }
+        ]
+
+        pages = db.get_all_pages("en")
+
+        assert [page.slug for page in pages] == ["about-tolkien"]
+        mock_find.assert_called_once_with({"language": "en"})
 
     def test_get_page(self, db: MongoDB):
         # Mock page data

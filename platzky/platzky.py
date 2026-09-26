@@ -4,10 +4,12 @@ import logging
 import typing as t
 import urllib.parse
 from collections.abc import Awaitable, Iterable, Mapping, Sequence
+from functools import partial
 
 import jinja2.ext
-from flask import make_response, redirect, render_template, request, session
+from flask import make_response, redirect, render_template, request
 from flask.typing import ResponseReturnValue
+from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
@@ -25,6 +27,11 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.language_routing import (
+    LANG_CODE_ARG,
+    any_converter,
+    language_url,
+)
 from platzky.login import login
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
@@ -113,44 +120,6 @@ def _url_encode(x: str) -> str:
     return urllib.parse.quote(x, safe="")
 
 
-def _get_language_domain(config: Config, lang: str) -> t.Optional[str]:
-    """Get the domain associated with a language.
-
-    Args:
-        config: Application configuration
-        lang: Language code to look up
-
-    Returns:
-        Domain string if language has a dedicated domain, None otherwise
-    """
-    lang_cfg = config.languages.get(lang)
-    if lang_cfg is None:
-        return None
-    return lang_cfg.domain
-
-
-def _get_safe_redirect_url(referrer: t.Optional[str], current_host: str) -> str:
-    """Get a safe redirect URL by validating the referrer.
-
-    Prevents open redirect vulnerabilities by only allowing same-host redirects.
-
-    Args:
-        referrer: The HTTP referrer header value
-        current_host: The current request host
-
-    Returns:
-        The referrer URL if safe, otherwise "/"
-    """
-    if not referrer:
-        return "/"
-
-    referrer_parsed = urllib.parse.urlparse(referrer)
-    # Only redirect to referrer if it's from the same host
-    if referrer_parsed.netloc == current_host:
-        return referrer
-    return "/"
-
-
 def _rendered_footer(app: Engine, content: str) -> Markup:
     """Render footer markup for a template, or nothing at all if it cannot be rendered.
 
@@ -176,6 +145,53 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
     return rendered
 
 
+def _language_suggestion(config: Config, lang: str, url: str) -> dict[str, str]:
+    """Return the texts and link of a popup suggesting a language, written in that language.
+
+    Args:
+        config: Application configuration.
+        lang: Code of the suggested language.
+        url: Where the popup's link leads.
+
+    Returns:
+        The link ``url``, the ``message``, and the labels of the ``switch`` link and the
+        ``close`` button.
+    """
+    name = config.languages[lang].name
+    with force_locale(lang):
+        return {
+            "url": url,
+            "message": gettext("This site is also available in %(language)s.", language=name),
+            "switch": gettext("Switch to %(language)s", language=name),
+            "close": gettext("Close"),
+        }
+
+
+def _language_suggestions(
+    config: Config, locale: str, alternates: Mapping[str, str]
+) -> dict[str, dict[str, str]]:
+    """Return a popup suggesting each configured language other than the current page's.
+
+    Args:
+        config: Application configuration.
+        locale: Language of the current page.
+        alternates: URLs of the current page in each language, if it has equivalents.
+
+    Returns:
+        Language codes mapped to their popups.
+    """
+    return {
+        lang: _language_suggestion(
+            config,
+            lang,
+            alternates.get(lang)
+            or language_url(config.site_languages, lang, request.scheme, request.host),
+        )
+        for lang in config.languages
+        if lang != locale
+    }
+
+
 def _www_redirection_response(config: Config) -> t.Optional[Response]:
     """Handle WWW subdomain redirection based on configuration.
 
@@ -191,28 +207,20 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
 
 
 def _change_language_response(config: Config, lang: str) -> Response:
-    """Change the user's language preference.
-
-    If the language has a dedicated domain, redirects to that domain.
-    Otherwise, sets the language in the session and returns to the referrer.
+    """Redirect to the home page of a language.
 
     Args:
         config: Application configuration object
         lang: Language code to switch to
 
     Returns:
-        Redirect response to the language domain or referrer page, or 404 if invalid
+        Redirect to the language's home URL, or 404 if the language is not configured
     """
-    # Only allow configured languages
     if lang not in config.languages:
         return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
-
-    if new_domain := _get_language_domain(config, lang):
-        return redirect(f"{request.scheme}://{new_domain}", code=302)
-
-    session["language"] = lang
-    redirect_url = _get_safe_redirect_url(request.referrer, request.host)
-    return redirect(redirect_url)
+    return redirect(
+        language_url(config.site_languages, lang, request.scheme, request.host), code=302
+    )
 
 
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
@@ -243,6 +251,7 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
         return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
     if endpoint == request.endpoint:
         return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+    view_args = {name: value for name, value in view_args.items() if name != LANG_CODE_ARG}
     result = app.view_functions[endpoint](**view_args)
     if isinstance(result, Awaitable):
         raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
@@ -293,20 +302,42 @@ def create_engine(
 
     @app.route("/lang/<string:lang>", methods=["GET"])
     def change_language(lang: str) -> Response:
-        """Change the user's language preference.
-
-        If the language has a dedicated domain, redirects to that domain.
-        Otherwise, sets the language in the session and returns to the referrer.
+        """Redirect to the home page of a language.
 
         Args:
             lang: Language code to switch to
 
         Returns:
-            Redirect response to the language domain or referrer page, or 404 if invalid
+            Redirect to the language's home URL, or 404 if the language is not configured
         """
         return _change_language_response(config, lang)
 
-    @app.route("/", methods=["GET"])
+    def domainful_language_prefix(lang: str, path: str) -> Response:
+        """Redirect a URL prefixed with a language that is served without a prefix.
+
+        Args:
+            lang: Code of the default language, or of a language with its own domain
+            path: The URL path after the language prefix
+
+        Returns:
+            Permanent redirect to the page where that language is served
+        """
+        return app.redirect_to_language(lang, f"/{path}")
+
+    domainful = config.site_languages.domainful_languages
+    if domainful:
+        prefix = f"/<{any_converter(domainful)}:lang>"
+        app.add_url_rule(
+            f"{prefix}/",
+            view_func=domainful_language_prefix,
+            defaults={"path": ""},
+            methods=["GET"],
+        )
+        app.add_url_rule(
+            f"{prefix}/<path:path>", view_func=domainful_language_prefix, methods=["GET"]
+        )
+
+    @app.route("/", methods=["GET"], multilang=True, sitemap=True)
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage, falling back to the blog index.
 
@@ -327,6 +358,7 @@ def create_engine(
         lang = config.languages.get(locale)
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
+        alternates = app.language_urls()
         return {
             "app_name": config.app_name,
             "app_description": app.db.get_app_description(locale) or config.app_name,
@@ -334,6 +366,12 @@ def create_engine(
             "current_flag": flag,
             "current_lang_country": country,
             "current_language": locale,
+            "default_language": config.default_language,
+            "language_url": partial(
+                language_url, config.site_languages, scheme=request.scheme, host=request.host
+            ),
+            "language_alternates": alternates,
+            "language_suggestions": _language_suggestions(config, locale, alternates),
             "url_link": _url_encode,
             "menu_items": app.db.get_menu_items_in_lang(locale),
             "logo_url": app.db.get_logo_url(),
@@ -512,7 +550,9 @@ def create_app_from_config(
         content_transformer=engine.transform_content,
     )
     seo_blueprint = seo.create_seo_blueprint(
-        db=engine.db, config=engine.config, locale_func=engine.get_locale
+        config=engine.config,
+        languages=config.site_languages,
+        sitemap_entries=engine.sitemap_entries,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)

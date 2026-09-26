@@ -18,6 +18,20 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+#: platzky/platzky.py:165
+#, python-format
+msgid "This site is also available in %(language)s."
+msgstr ""
+
+#: platzky/platzky.py:166
+#, python-format
+msgid "Switch to %(language)s"
+msgstr ""
+
+#: platzky/platzky.py:167
+msgid "Close"
+msgstr ""
+
 #: platzky/admin/templates/admin.html:4
 msgid "This is the admin page. You can manage your posts here."
 msgstr ""
@@ -44,49 +58,47 @@ msgstr ""
 msgid "Back to homepage"
 msgstr ""
 
-#: platzky/templates/base.html:75
+#: platzky/templates/base.html:80
 msgid "Language switch icon, used to change the language of the website"
 msgstr ""
 
-#: platzky/templates/base.html:98
+#: platzky/templates/base.html:103
 msgid "Close left panel"
 msgstr ""
 
-#: platzky/templates/base.html:127
+#: platzky/templates/base.html:128
 msgid "Hide footer"
 msgstr ""
 
-#: platzky/templates/base.html:128
+#: platzky/templates/base.html:129
 msgid "Show footer"
 msgstr ""
 
-#: platzky/templates/blog.html:5
-msgid ""
-"Find out our tips and tricks about email marketing. We prepared some soft"
-" and some hard skills here. Ready to dive in?"
-msgstr ""
-
-#: platzky/templates/blog.html:7
+#: platzky/templates/blog.html:9
 msgid "You're interested in"
 msgstr ""
 
-#: platzky/templates/blog.html:7
+#: platzky/templates/blog.html:9
 msgid "We're here to serve you:"
 msgstr ""
 
-#: platzky/templates/post.html:46
+#: platzky/templates/blog.html:15
+msgid "Blog"
+msgstr ""
+
+#: platzky/templates/post.html:47
 msgid "Leave your comment here:"
 msgstr ""
 
-#: platzky/templates/post.html:63
+#: platzky/templates/post.html:64
 msgid "Your comment has been sent for moderation"
 msgstr ""
 
-#: platzky/templates/post.html:71
+#: platzky/templates/post.html:72
 msgid "Comments"
 msgstr ""
 
-#: platzky/templates/post.html:79
+#: platzky/templates/post.html:80
 msgid "said"
 msgstr ""
 

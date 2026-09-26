@@ -84,6 +84,66 @@ plugin registers its own routes and needs the Engine from inside a view function
         current_engine().notify("Webhook received", topic="general")
         return "", 204
 
+.. _plugin-localized-routes:
+
+Serving Routes in Every Language
+--------------------------------
+
+A language without its own ``domain`` is served under its code (``/pl/…``), but only on
+routes registered with ``multilang=True``, as the built-in homepage and blog routes are.
+Other routes stay at their plain path, served only in the default language. Pass it to
+``route`` for a view that renders per language (it reads ``get_locale()``):
+
+.. code-block:: python
+
+    @books.route("/", multilang=True)
+    def index():
+        ...
+
+    @books.route("/isbn-lookup")  # no multilang: no /pl/books/isbn-lookup
+    def isbn_lookup():
+        ...
+
+The view is then also served as ``/<code>/…``. While a request is in a domainless language,
+``url_for`` builds its URL with that prefix and ``get_locale()`` returns the language. Views
+without view arguments also get ``hreflang`` links to their version in every language.
+
+.. _plugin-sitemap-routes:
+
+Listing Routes in the Sitemap
+-----------------------------
+
+``sitemap.xml`` lists only the routes registered with the ``sitemap`` option, in every
+language the requesting host serves; with ``multilang=True`` a page is listed once per
+language. The built-in homepage, blog index, posts and CMS pages use it too.
+
+For a route without URL variables, pass ``sitemap=True``:
+
+.. code-block:: python
+
+    @books.route("/", multilang=True, sitemap=True)
+    def index():
+        ...
+
+For a route with variables, pass a function that, given a language code, returns a
+``SitemapEntry`` per page: the variables' values and, when known, the page's last change:
+
+.. code-block:: python
+
+    from platzky.sitemap import SitemapEntry
+
+    def books_in(lang: str) -> list[SitemapEntry]:
+        return [SitemapEntry({"isbn": book.isbn}, book.updated) for book in shelf.books(lang)]
+
+    @books.route("/<isbn>", multilang=True, sitemap=books_in)
+    def book(isbn):
+        ...
+
+The sitemap builds each URL with ``url_for``, so it follows the route wherever it is
+mounted. ``sitemap=True`` on a route with variables, or ``sitemap`` on a route without
+``GET``, is rejected when the route is registered. A site owner can still hide listed URLs
+with ``SITEMAP_EXCLUDED_PREFIXES``.
+
 Packaging a Plugin
 ------------------
 

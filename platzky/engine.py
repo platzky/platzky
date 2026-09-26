@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -17,20 +17,31 @@ from flask import (
     Blueprint,
     Flask,
     Response,
+    abort,
     current_app,
+    has_request_context,
     jsonify,
     make_response,
+    redirect,
     request,
-    session,
 )
+from flask import typing as ft
 from flask_babel import Babel
 from markupsafe import Markup
+from werkzeug.wrappers import Response as BaseResponse
 
 from platzky.attachment import Attachment, create_attachment
 from platzky.config import Config
 from platzky.content_types import BUILTIN_CONTENT_TYPES, ContentType
 from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag, StripContentHtml
+from platzky.language_routing import (
+    LANG_CODE_ARG,
+    any_converter,
+    language_url,
+    resolve_locale,
+    served_languages,
+)
 from platzky.models import CmsModule
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
@@ -43,6 +54,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
+from platzky.sitemap import SitemapEntries, sitemap_entries_for
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +126,9 @@ class Engine(Flask):
         )
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
+        self._platzky_config = config
+        self._localized_endpoints: set[str] = set()
+        self.sitemap_entries: dict[str, SitemapEntries] = {}
         self.db = db
         self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
@@ -136,6 +151,7 @@ class Engine(Flask):
             default_translation_directories=babel_translation_directories,
         )
         self._register_default_health_endpoints()
+        self._register_language_url_processors()
 
         self.cms_modules: list[CmsModule] = []
 
@@ -379,42 +395,120 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the current locale based on session, host domain, or browser preferences."""
-        languages = self.config.get("LANGUAGES", {})
+        """Return the language of the current request, derived from its host and path only."""
+        return resolve_locale(self._platzky_config.site_languages, request.host, request.path)
 
-        session_lang = session.get("language")
-        if isinstance(session_lang, str) and session_lang in languages:
-            lang = session_lang
-        else:
-            lang = self._language_for_host(languages, request.host) or (
-                request.accept_languages.best_match(languages.keys()) or "en"
-            )
+    def add_url_rule(
+        self,
+        rule: str,
+        endpoint: Optional[str] = None,
+        view_func: Optional[ft.RouteCallable] = None,
+        provide_automatic_options: Optional[bool] = None,
+        **options: object,
+    ) -> None:
+        """Register a route, with platzky's own options for languages and the sitemap.
 
-        session["language"] = lang
-        return lang
+        Args:
+            rule: The URL rule.
+            endpoint: The endpoint name; the view's name by default.
+            view_func: The view function.
+            provide_automatic_options: Whether to add an automatic ``OPTIONS`` response.
+            **options: Further options for the underlying ``Rule``, plus:
+                ``multilang``: whether the view renders in every language (it reads
+                ``get_locale()``), so it is also served under ``/<lang_code>/`` and
+                ``url_for`` builds it under the current language's prefix.
+                ``sitemap``: lists the route in ``sitemap.xml``, in every language it is served
+                in: ``True`` for a route without URL variables, or a function returning its
+                ``SitemapEntry`` values in a given language.
 
-    @staticmethod
-    def _language_for_host(languages: dict[str, Any], host: str) -> Optional[str]:
-        """Return the language code whose dedicated domain matches host, if any.
-
-        A language's own domain takes priority over Accept-Language guessing so a
-        fresh visitor (no session yet) landing directly on that domain sees the
-        language it represents, rather than whatever their browser prefers.
+        Raises:
+            ValueError: If the sitemap could not list the route: it does not answer ``GET``,
+                or ``sitemap=True`` is given for a route with URL variables.
         """
-        host_without_port = host.split(":", 1)[0].rstrip(".").lower()
-        host_with_port = host.rstrip(".").lower()
-        for lang, cfg in languages.items():
-            domain = cfg.get("domain")
-            if not isinstance(domain, str):
-                continue
-            normalized_domain = domain.rstrip(".").lower()
-            # A domain with an explicit port must match the host's port exactly; a
-            # domain without one matches regardless of port (e.g. behind a proxy
-            # that forwards on a non-standard port).
-            host_to_compare = host_with_port if ":" in normalized_domain else host_without_port
-            if normalized_domain == host_to_compare:
-                return lang
-        return None
+        multilang = bool(options.pop("multilang", False))
+        sitemap = options.pop("sitemap", None)
+        methods = cast("Iterable[str] | None", options.get("methods"))
+        entries = sitemap_entries_for(rule, methods, sitemap) if sitemap else None
+        super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
+        name = endpoint or (view_func.__name__ if view_func is not None else "")
+        if entries is not None:
+            self.sitemap_entries[name] = entries
+        if multilang and view_func is not None:
+            self._localized_endpoints.add(name)
+            lang_codes = self._platzky_config.site_languages.domainless_languages
+            if lang_codes:
+                super().add_url_rule(
+                    f"/<{any_converter(lang_codes)}:{LANG_CODE_ARG}>{rule}",
+                    endpoint,
+                    view_func,
+                    provide_automatic_options,
+                    **options,
+                )
+
+    def redirect_to_language(self, lang_code: str, path: str) -> BaseResponse:
+        """Permanently redirect to a page at the address where a language is served.
+
+        Args:
+            lang_code: Language to redirect to.
+            path: Path of the page without any language prefix.
+
+        Returns:
+            A 308 redirect to ``path`` in that language, keeping the method, body and query string.
+        """
+        url = language_url(
+            self._platzky_config.site_languages, lang_code, request.scheme, request.host, path
+        )
+        query = request.query_string.decode()
+        return redirect(f"{url}?{query}" if query else url, code=308)
+
+    def language_urls(self) -> dict[str, str]:
+        """Return the absolute URL of the current page in each configured language.
+
+        Only localized routes without view arguments, such as the home page or the blog index,
+        serve the same page in every language; content pages (posts, pages, tags) differ per
+        language, so they have no equivalents.
+
+        Returns:
+            Language codes mapped to URLs, or an empty dict when the page has no equivalents.
+        """
+        config = self._platzky_config
+        translated = request.endpoint in self._localized_endpoints and not request.view_args
+        languages = config.languages if translated else {}
+        path = self._path_without_language()
+        return {
+            lang: language_url(config.site_languages, lang, request.scheme, request.host, path)
+            for lang in languages
+        }
+
+    def _path_without_language(self) -> str:
+        """Return the request path without the prefix of its language, if it has one."""
+        prefixes = served_languages(self._platzky_config.site_languages, request.host)
+        return request.path.removeprefix(prefixes.get(self.get_locale(), ""))
+
+    def _register_language_url_processors(self) -> None:
+        """Strip the language prefix from matched URLs and add it back when building them."""
+
+        @self.url_value_preprocessor
+        def pop_lang_code(_endpoint: Optional[str], values: Optional[dict[str, Any]]) -> None:
+            """Drop the language from view arguments; where it isn't served, redirect to it."""
+            languages = self._platzky_config.site_languages
+            lang_code = values.pop(LANG_CODE_ARG, None) if values else None
+            if lang_code and lang_code not in served_languages(languages, request.host):
+                path = request.path.removeprefix(languages.url_prefix(lang_code))
+                abort(self.redirect_to_language(lang_code, path))
+
+        @self.url_defaults
+        def inject_lang_code(endpoint: str, values: dict[str, Any]) -> None:
+            """Build localized endpoints under the prefix of the current domainless language."""
+            if (
+                endpoint not in self._localized_endpoints
+                or LANG_CODE_ARG in values
+                or not has_request_context()
+            ):
+                return
+            locale = self.get_locale()
+            if locale in self._platzky_config.site_languages.domainless_languages:
+                values[LANG_CODE_ARG] = locale
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.

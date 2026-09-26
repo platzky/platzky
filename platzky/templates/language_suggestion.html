@@ -1,0 +1,48 @@
+{# Hidden popups suggesting other languages. The script shows the one for the language the
+   browser prefers, unless it prefers the current one or the visitor closed it before. #}
+{% if language_suggestions %}
+<div id="language-suggestion" data-current="{{ current_language }}">
+  {% for lang_code, suggestion in language_suggestions.items() %}
+  <div class="language-suggestion" role="dialog" aria-label="{{ suggestion.message }}"
+       lang="{{ lang_code }}" data-lang="{{ lang_code }}" hidden>
+    <span>{{ suggestion.message }}</span>
+    <a class="btn btn-primary btn-sm" href="{{ suggestion.url }}">{{ suggestion.switch }}</a>
+    <button type="button" class="btn-close" aria-label="{{ suggestion.close }}"></button>
+  </div>
+  {% endfor %}
+</div>
+<script>
+  (function () {
+    var dismissed = "platzky_language_suggestion=dismissed";
+    if (document.cookie.split("; ").indexOf(dismissed) !== -1) {
+      return;
+    }
+    var root = document.getElementById("language-suggestion");
+    var popups = Array.from(root.querySelectorAll("[data-lang]"));
+    var langCodes = [root.dataset.current].concat(popups.map(function (popup) {
+      return popup.dataset.lang;
+    }));
+    var tags = navigator.languages && navigator.languages.length
+      ? navigator.languages : [navigator.language];
+    var preferred;
+    for (var i = 0; i < tags.length && !preferred; i++) {
+      var tag = String(tags[i]).toLowerCase();
+      preferred = langCodes.find(function (langCode) {
+        langCode = langCode.toLowerCase();
+        return langCode === tag || langCode === tag.split("-")[0];
+      });
+    }
+    var popup = popups.find(function (candidate) {
+      return candidate.dataset.lang === preferred;
+    });
+    if (!popup) {
+      return;
+    }
+    popup.hidden = false;
+    popup.querySelector(".btn-close").addEventListener("click", function () {
+      document.cookie = dismissed + "; path=/; max-age=31536000; SameSite=Lax";
+      popup.hidden = true;
+    });
+  })();
+</script>
+{% endif %}

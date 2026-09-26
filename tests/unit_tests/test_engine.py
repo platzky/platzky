@@ -1,7 +1,9 @@
+from datetime import date
 from typing import Any, cast
 
 import pytest
 from bs4 import BeautifulSoup, Tag
+from flask import Blueprint, url_for
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
@@ -10,6 +12,7 @@ from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
+from platzky.sitemap import SitemapEntry
 from tests.unit_tests.fake_app import test_app
 
 test_app = test_app
@@ -107,7 +110,9 @@ def test_www_redirects(use_www: bool):
 
 
 def _build_home_page_test_app(
-    site_content: dict[str, Any], languages: dict[str, Any] | None = None
+    site_content: dict[str, Any],
+    languages: dict[str, Any] | None = None,
+    default_language: str | None = None,
 ):
     config_data = {
         "APP_NAME": "testingApp",
@@ -117,6 +122,8 @@ def _build_home_page_test_app(
         "LANGUAGES": languages or {},
         "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
     }
+    if default_language is not None:
+        config_data["DEFAULT_LANGUAGE"] = default_language
     config = Config.model_validate(config_data)
     return create_app_from_config(config)
 
@@ -188,41 +195,52 @@ def test_home_page_falls_back_to_blog_index_when_not_configured():
     assert b"Latest post" in response.data
 
 
-def test_home_page_resolves_per_locale_path():
-    app = _build_home_page_test_app(
-        {
-            "home_page_path": {"default": "/blog/page/about", "pl": "/blog/page/o-nas"},
-            "pages": [
-                {
-                    "title": "About us",
-                    "slug": "about",
-                    "contentInMarkdown": "Hello there",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-                {
-                    "title": "O nas",
-                    "slug": "o-nas",
-                    "contentInMarkdown": "Witaj",
-                    "author": "author",
-                    "excerpt": "excerpt",
-                },
-            ],
-        },
-        languages={
-            "en": {"name": "English", "flag": "us", "country": "US"},
-            "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
-        },
-    )
-    # Separate clients avoid the language session cookie from one request
-    # leaking into the other and masking the per-locale resolution.
-    default_response = app.test_client().get("/", headers={"Accept-Language": "en"})
-    assert default_response.status_code == 200
-    assert b"Hello there" in default_response.data
+_BILINGUAL_LANGUAGES = {
+    "en": {"name": "English", "flag": "us", "country": "US"},
+    "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
+}
+_ABOUT_PAGES = [
+    {
+        "title": "About us",
+        "slug": "about",
+        "contentInMarkdown": "Hello there",
+        "author": "author",
+        "excerpt": "excerpt",
+    },
+    {
+        "title": "O nas",
+        "slug": "o-nas",
+        "contentInMarkdown": "Witaj",
+        "author": "author",
+        "excerpt": "excerpt",
+    },
+]
 
-    pl_response = app.test_client().get("/", headers={"Accept-Language": "pl"})
-    assert pl_response.status_code == 200
-    assert b"Witaj" in pl_response.data
+
+def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") -> Engine:
+    return _build_home_page_test_app(
+        {
+            "home_page_path": {"default": "/blog/page/about", "pl": pl_home_path},
+            "pages": _ABOUT_PAGES,
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_home_page_ignores_accept_language():
+    app = _build_bilingual_home_page_test_app()
+    response = app.test_client().get("/", headers={"Accept-Language": "pl"})
+    assert response.status_code == 200
+    assert b"Hello there" in response.data
+
+
+@pytest.mark.parametrize("pl_home_path", ["/blog/page/o-nas", "/pl/blog/page/o-nas"])
+def test_home_page_resolves_domainless_language_home(pl_home_path: str):
+    app = _build_bilingual_home_page_test_app(pl_home_path)
+    response = app.test_client().get("/pl/")
+    assert response.status_code == 200
+    assert b"Witaj" in response.data
 
 
 def test_home_page_404s_when_configured_path_does_not_resolve():
@@ -267,7 +285,7 @@ def test_that_404_page_title_includes_app_name(test_app: Engine):
     ("tag", "subtag", "value"), [("link", "hreflang", "en"), ("html", "lang", "en-GB")]
 )
 def test_that_tag_has_proper_value(test_app: Engine, tag: str, subtag: str, value: str):
-    response = test_app.test_client().get("/")
+    response = test_app.test_client().get("/blog/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert getattr(soup, tag) is not None
     assert getattr(soup, tag).get(subtag) == value
@@ -304,6 +322,7 @@ def _build_dedicated_domain_test_app() -> Engine:
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
             "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
             "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
@@ -315,9 +334,8 @@ def _build_dedicated_domain_test_app() -> Engine:
 
 
 def test_locale_defaults_to_the_language_whose_domain_is_being_visited():
-    # Regression test: a fresh visitor (no session yet) landing directly on a
-    # language's dedicated domain should see that language, not "en" via the
-    # Accept-Language fallback.
+    # Regression test: a visitor landing directly on a language's dedicated domain
+    # should see that language, not the default one.
     app = _build_dedicated_domain_test_app()
     response = app.test_client().get("/", headers={"Host": "pl.example.com"})
     soup = BeautifulSoup(response.data, "html.parser")
@@ -334,6 +352,7 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
             "en": {
                 "name": "English",
@@ -367,8 +386,9 @@ def test_locale_does_not_match_domain_on_a_different_port():
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
-            "en": {"name": "English", "flag": "gb", "country": "GB"},
+            "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "example.com"},
             "pl": {
                 "name": "polski",
                 "flag": "pl",
@@ -380,13 +400,17 @@ def test_locale_does_not_match_domain_on_a_different_port():
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
-    response = app.test_client().get(
-        "/", headers={"Host": "pl.example.com:6000", "Accept-Language": "en"}
-    )
+    response = app.test_client().get("/", headers={"Host": "pl.example.com:6000"})
     soup = BeautifulSoup(response.data, "html.parser")
     language_menu = soup.find("span", class_="language-indicator-text")
     assert isinstance(language_menu, Tag)
     assert language_menu.get_text() == "en"
+
+
+def test_domain_without_a_port_does_not_match_a_host_with_one():
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/blog/", headers={"Host": "example.de:5000"})
+    assert _language_indicator(response) == "en"
 
 
 def test_that_language_switch_has_proper_aria_label_text(test_app: Engine):
@@ -620,3 +644,437 @@ def test_is_enabled_with_flag_on():
     app = create_app_from_config(config, development=True)
 
     assert app.is_enabled(FakeLogin) is True
+
+
+def _language_indicator(response: TestResponse) -> str:
+    soup = BeautifulSoup(response.data, "html.parser")
+    indicator = soup.find("span", class_="language-indicator-text")
+    assert isinstance(indicator, Tag)
+    return indicator.get_text()
+
+
+def _hreflang_urls(response: TestResponse) -> dict[str, str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    return {
+        str(link.get("hreflang")): str(link.get("href"))
+        for link in soup.find_all("link")
+        if link.get("hreflang")
+    }
+
+
+def _link_hrefs(response: TestResponse) -> list[str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    return [str(a.get("href")) for a in soup.find_all("a")]
+
+
+def test_domainless_language_prefix_sets_the_locale(test_app: Engine):
+    response = test_app.test_client().get("/pl/blog/page/test")
+    assert response.status_code == 200
+    assert _language_indicator(response) == "pl"
+
+
+def test_accept_language_does_not_change_the_locale(test_app: Engine):
+    response = test_app.test_client().get("/blog/page/test", headers={"Accept-Language": "pl"})
+    assert _language_indicator(response) == "en"
+
+
+def test_anonymous_page_view_sets_no_cookie(test_app: Engine):
+    response = test_app.test_client().get("/pl/blog/page/test")
+    assert "Set-Cookie" not in response.headers
+
+
+@pytest.mark.parametrize("path", ["/xx/", "/xx/blog/page/test"])
+def test_unknown_language_prefix_is_not_found(test_app: Engine, path: str):
+    assert test_app.test_client().get(path).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("path", "location"),
+    [
+        ("/en/", "http://localhost/"),
+        ("/en/blog/page/test", "http://localhost/blog/page/test"),
+        ("/en/blog/?page=2", "http://localhost/blog/?page=2"),
+    ],
+)
+def test_default_language_prefix_redirects_to_the_unprefixed_page(
+    test_app: Engine, path: str, location: str
+):
+    response = test_app.test_client().get(path)
+    assert response.status_code == 308
+    assert response.location == location
+
+
+def _register_books(app: Engine) -> None:
+    books = Blueprint("books", __name__, url_prefix="/books")
+
+    @books.route("/", multilang=True, sitemap=True)
+    def index() -> str:
+        return f"{app.get_locale()} {url_for('books.index')} {url_for('books.isbn_lookup')}"
+
+    @books.route("/isbn-lookup")
+    def isbn_lookup() -> str:
+        return "978-0-261-10221-7"
+
+    app.register_blueprint(books)
+
+
+def test_multilang_view_is_served_in_domainless_languages(test_app: Engine):
+    _register_books(test_app)
+    client = test_app.test_client()
+    assert client.get("/books/").text == "en /books/ /books/isbn-lookup"
+    assert client.get("/pl/books/").text == "pl /pl/books/ /books/isbn-lookup"
+
+
+def test_view_without_multilang_has_no_language_prefix(test_app: Engine):
+    _register_books(test_app)
+    client = test_app.test_client()
+    assert client.get("/books/isbn-lookup").status_code == 200
+    assert client.get("/pl/books/isbn-lookup").status_code == 404
+
+
+def test_sitemap_lists_routes_registered_for_it_in_every_language(test_app: Engine):
+    _register_books(test_app)
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/books/" in sitemap
+    assert "http://localhost/pl/books/" in sitemap
+    assert "isbn-lookup" not in sitemap
+
+
+def test_sitemap_lists_cms_pages_but_not_the_feed(test_app: Engine):
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/blog/page/test" in sitemap
+    assert "/feed" not in sitemap
+
+
+def test_sitemap_lists_a_route_with_variables_through_its_entries(test_app: Engine):
+    books = Blueprint("books", __name__, url_prefix="/books")
+
+    def books_in(lang: str) -> list[SitemapEntry]:
+        return [SitemapEntry({"isbn": f"hobbit-{lang}"}, date(1937, 9, 21))]
+
+    @books.route("/<isbn>", multilang=True, sitemap=books_in)
+    def book(isbn: str) -> str:
+        return isbn
+
+    test_app.register_blueprint(books)
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/books/hobbit-en</loc>" in sitemap
+    assert "<loc>http://localhost/pl/books/hobbit-pl</loc>" in sitemap
+    assert "<lastmod>1937-09-21</lastmod>" in sitemap
+
+
+def test_sitemap_lists_posts_in_each_language_with_their_date():
+    app = _build_bilingual_blog_test_app()
+    sitemap = app.test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/blog/english-post</loc>" in sitemap
+    assert "<loc>http://localhost/pl/blog/polski-wpis</loc>" in sitemap
+    assert "<lastmod>2021-02-19</lastmod>" in sitemap
+
+
+@pytest.mark.parametrize(
+    ("rule", "methods", "error"),
+    [
+        ("/books/<isbn>", ["GET"], "URL variables"),
+        ("/books/order", ["POST"], "does not answer GET"),
+    ],
+)
+def test_sitemap_route_that_cannot_be_listed_is_rejected(
+    test_app: Engine, rule: str, methods: list[str], error: str
+):
+    books = Blueprint("books", __name__)
+
+    @books.route(rule, methods=methods, sitemap=True)
+    def view(**_kwargs: str) -> str:
+        return "book"
+
+    with pytest.raises(ValueError, match=error):
+        test_app.register_blueprint(books)
+
+
+def test_url_for_follows_the_language_of_the_request(test_app: Engine):
+    with test_app.test_request_context("/pl/blog/"):
+        assert url_for("blog.get_post", post_slug="x") == "/pl/blog/x"
+        assert url_for("static", filename="blog.css") == "/static/blog.css"
+        assert url_for("home_page", lang_code=None) == "/"
+    with test_app.test_request_context("/blog/"):
+        assert url_for("blog.get_post", post_slug="x") == "/blog/x"
+
+
+def _post(slug: str, title: str, language: str) -> dict[str, Any]:
+    return {
+        "title": title,
+        "slug": slug,
+        "language": language,
+        "excerpt": "excerpt",
+        "author": "author",
+        "tags": [],
+        "contentInMarkdown": title,
+        "date": "2021-02-19",
+        "comments": [],
+    }
+
+
+def _build_bilingual_blog_test_app() -> Engine:
+    return _build_home_page_test_app(
+        {
+            "posts": [
+                _post("english-post", "English post", "en"),
+                _post("polski-wpis", "Polski wpis", "pl"),
+            ]
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_domainless_language_blog_lists_its_posts_under_its_prefix():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/")
+    assert response.status_code == 200
+    assert b"Polski wpis" in response.data
+    assert b"English post" not in response.data
+    hrefs = _link_hrefs(response)
+    assert "/pl/blog/polski-wpis" in hrefs
+    assert "/pl/" in hrefs
+
+
+def _blog_head(response: TestResponse) -> tuple[str, str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    title = soup.find("title")
+    description = soup.find("meta", attrs={"name": "description"})
+    assert isinstance(title, Tag) and isinstance(description, Tag)
+    return title.get_text(strip=True), str(description.get("content")).strip()
+
+
+def test_blog_index_has_meta_in_its_language():
+    app = _build_home_page_test_app(
+        {
+            "posts": [
+                _post("the-hobbit", "The Hobbit", "en"),
+                _post("hobbit", "Hobbit", "pl"),
+            ],
+            "blog_meta": {
+                "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+                "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
+            },
+        },
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+    client = app.test_client()
+    assert _blog_head(client.get("/blog/")) == (
+        "Reading notes – testingApp",  # noqa: RUF001
+        "Notes on Tolkien's books.",
+    )
+    assert _blog_head(client.get("/pl/blog/")) == (
+        "Notatki – testingApp",  # noqa: RUF001
+        "Notatki o książkach Tolkiena.",
+    )
+
+
+def test_blog_index_without_meta_uses_defaults():
+    app = _build_home_page_test_app(
+        {
+            "posts": [_post("the-hobbit", "The Hobbit", "en")],
+            "app_description": {"en": "A site about Tolkien's books."},
+        },
+    )
+    assert _blog_head(app.test_client().get("/blog/")) == (
+        "Blog – testingApp",  # noqa: RUF001
+        "A site about Tolkien's books.",
+    )
+
+
+def test_default_language_blog_links_are_unprefixed():
+    response = _build_bilingual_blog_test_app().test_client().get("/blog/")
+    assert b"English post" in response.data
+    assert b"Polski wpis" not in response.data
+    hrefs = _link_hrefs(response)
+    assert "/blog/english-post" in hrefs
+    assert "/" in hrefs
+
+
+def test_domainless_language_post_submits_comments_under_its_prefix():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/polski-wpis")
+    assert response.status_code == 200
+    form = BeautifulSoup(response.data, "html.parser").find("form")
+    assert isinstance(form, Tag)
+    assert form.get("action") == "/pl/blog/polski-wpis"
+
+
+def test_domainless_language_feed_links_to_prefixed_posts():
+    response = _build_bilingual_blog_test_app().test_client().get("/pl/blog/feed")
+    assert response.status_code == 200
+    assert b"http://localhost/pl/blog/polski-wpis" in response.data
+
+
+def _build_three_language_test_app() -> Engine:
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": False,
+            "BLOG_PREFIX": "/blog",
+            "DEFAULT_LANGUAGE": "en",
+            "LANGUAGES": {
+                "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "example.com"},
+                "pl": {"name": "polski", "flag": "pl", "country": "PL"},
+                "de": {"name": "Deutsch", "flag": "de", "country": "DE", "domain": "example.de"},
+            },
+            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": _ABOUT_PAGES}}},
+        }
+    )
+    return create_app_from_config(config)
+
+
+def test_domainless_language_is_served_on_the_main_host():
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/pl/blog/page/about", headers={"Host": "example.com"})
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("host", "path", "location"),
+    [
+        ("example.de", "/en/blog/", "http://example.com/blog/"),
+        ("example.com", "/de/blog/", "http://example.de/blog/"),
+        ("example.com", "/de/blog/?page=2", "http://example.de/blog/?page=2"),
+        ("example.de", "/pl/blog/page/about", "http://example.com/pl/blog/page/about"),
+    ],
+)
+def test_language_prefix_redirects_to_where_the_language_is_served(
+    host: str, path: str, location: str
+):
+    app = _build_three_language_test_app()
+    response = app.test_client().get(path, headers={"Host": host})
+    assert response.status_code == 308
+    assert response.location == location
+
+
+def test_language_prefix_redirect_keeps_the_request_method():
+    app = _build_three_language_test_app()
+    response = app.test_client().post("/pl/blog/some-post", headers={"Host": "example.de"})
+    assert response.status_code == 308
+    assert response.location == "http://example.com/pl/blog/some-post"
+
+
+def test_sitemap_omits_the_default_language_prefix():
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/sitemap.xml", headers={"Host": "example.com"})
+    assert "http://example.com/en/" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("host", "path"),
+    [("example.com", "/blog/"), ("example.com", "/pl/blog/"), ("example.de", "/blog/")],
+)
+def test_hreflang_links_point_at_the_same_page_in_each_language(host: str, path: str):
+    app = _build_three_language_test_app()
+    response = app.test_client().get(path, headers={"Host": host})
+    assert _hreflang_urls(response) == {
+        "en": "http://example.com/blog/",
+        "pl": "http://example.com/pl/blog/",
+        "de": "http://example.de/blog/",
+        "x-default": "http://example.com/blog/",
+    }
+
+
+def test_content_pages_have_no_hreflang_links():
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/blog/page/about", headers={"Host": "example.com"})
+    assert _hreflang_urls(response) == {}
+
+
+def _language_suggestion_urls(response: TestResponse) -> dict[str, str]:
+    soup = BeautifulSoup(response.data, "html.parser")
+    urls: dict[str, str] = {}
+    for popup in soup.select(".language-suggestion"):
+        link = popup.find("a")
+        assert isinstance(link, Tag)
+        urls[str(popup.get("lang"))] = str(link.get("href"))
+    return urls
+
+
+def test_single_language_site_suggests_no_language():
+    app = _build_home_page_test_app(
+        {"pages": _ABOUT_PAGES},
+        languages={"en": _BILINGUAL_LANGUAGES["en"]},
+        default_language="en",
+    )
+    response = app.test_client().get("/blog/page/about")
+    assert _language_suggestion_urls(response) == {}
+
+
+@pytest.mark.parametrize(
+    ("host", "path", "expected"),
+    [
+        (
+            "example.com",
+            "/blog/",
+            {"pl": "http://example.com/pl/blog/", "de": "http://example.de/blog/"},
+        ),
+        (
+            "example.de",
+            "/blog/",
+            {"en": "http://example.com/blog/", "pl": "http://example.com/pl/blog/"},
+        ),
+        (
+            "example.com",
+            "/pl/blog/",
+            {"en": "http://example.com/blog/", "de": "http://example.de/blog/"},
+        ),
+    ],
+)
+def test_language_suggestion_offers_the_same_page_in_other_languages(
+    host: str, path: str, expected: dict[str, str]
+):
+    app = _build_three_language_test_app()
+    response = app.test_client().get(path, headers={"Host": host})
+    assert _language_suggestion_urls(response) == expected
+
+
+def test_language_suggestion_offers_home_pages_for_content_pages():
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/blog/page/about", headers={"Host": "example.com"})
+    assert _language_suggestion_urls(response) == {
+        "pl": "http://example.com/pl/",
+        "de": "http://example.de/",
+    }
+
+
+def test_www_domains_serve_and_link_their_languages():
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": True,
+            "DEFAULT_LANGUAGE": "en",
+            "LANGUAGES": {
+                "en": {
+                    "name": "English",
+                    "flag": "gb",
+                    "country": "GB",
+                    "domain": "www.example.com",
+                },
+                "pl": {"name": "polski", "flag": "pl", "country": "PL"},
+                "de": {
+                    "name": "Deutsch",
+                    "flag": "de",
+                    "country": "DE",
+                    "domain": "www.example.de",
+                },
+            },
+            "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+        }
+    )
+    client = create_app_from_config(config).test_client()
+    response = client.get("/blog/", headers={"Host": "www.example.de"})
+    assert _language_indicator(response) == "de"
+    assert _hreflang_urls(response)["pl"] == "http://www.example.com/pl/blog/"
+
+
+@pytest.mark.parametrize(("host", "lists_pl"), [("example.com", True), ("example.de", False)])
+def test_sitemap_lists_domainless_languages_on_the_main_host_only(host: str, lists_pl: bool):
+    app = _build_three_language_test_app()
+    response = app.test_client().get("/sitemap.xml", headers={"Host": host})
+    assert f"http://{host}/blog/" in response.text
+    assert (f"http://{host}/pl/blog/" in response.text) is lists_pl

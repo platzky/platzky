@@ -11,6 +11,10 @@ USE_WWW: false
 # How much detail goes into the logs: DEBUG, INFO, WARNING, ERROR or CRITICAL.
 #LOG_LEVEL: INFO
 
+# Served at the site root; defaults to the first language, otherwise to en. Other languages are
+# served on their own `domain` (written exactly as served, www. included), or under /<code>/
+# without one.
+#DEFAULT_LANGUAGE: en
 LANGUAGES:
   en:
     name: English

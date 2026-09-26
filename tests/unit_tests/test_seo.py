@@ -1,226 +1,124 @@
 import secrets
-from unittest.mock import MagicMock
+from collections.abc import Mapping
+from datetime import date
 
-from flask import Blueprint, Flask, request
+from flask import Blueprint, Flask
 from flask_wtf.csrf import CSRFProtect
 
-from platzky.models import Comment, Image, Post
+from platzky.language_routing import SiteLanguages
 from platzky.seo import seo
+from platzky.sitemap import SitemapEntries, SitemapEntry, single_url
 
-
-def _make_test_flask_app() -> Flask:
-    app = Flask(__name__)
-    app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
-    CSRFProtect(app)
-    return app
+_ENGLISH_ONLY = SiteLanguages(domains={"en": None}, default="en")
+_ENGLISH_AND_UKRAINIAN = SiteLanguages(domains={"en": None, "uk": None}, default="en")
 
 
 def _make_seo_app(
-    extra_blueprints: list[Blueprint] | None = None,
+    blueprints: list[Blueprint] | None = None,
+    sitemap_entries: Mapping[str, SitemapEntries] | None = None,
+    languages: SiteLanguages = _ENGLISH_ONLY,
     sitemap_excluded_prefixes: list[str] | None = None,
 ) -> Flask:
-    """Build a minimal Flask app with the SEO blueprint and optional extra blueprints."""
-    config = {
-        "SEO_PREFIX": "/prefix",
-        "BLOG_PREFIX": "/blog",
-        "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes or [],
-    }
-    config_mock = MagicMock()
-    config_mock.__getitem__.side_effect = config.__getitem__
-    config_mock.get.side_effect = config.get
-
-    db_mock = MagicMock()
-    db_mock.get_all_posts.return_value = []
-
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = _make_test_flask_app()
-    for bp in extra_blueprints or []:
-        app.register_blueprint(bp)
-    app.register_blueprint(seo_blueprint)
+    """Build a minimal Flask app with the SEO blueprint and the given blueprints."""
+    config = {"SEO_PREFIX": "/prefix", "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes}
+    app = Flask(__name__)
+    app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
+    CSRFProtect(app)
+    for blueprint in blueprints or []:
+        app.register_blueprint(blueprint)
+    app.register_blueprint(seo.create_seo_blueprint(config, languages, sitemap_entries or {}))
     return app
 
 
+def _books_blueprint() -> Blueprint:
+    """A blueprint with a fixed page, a page per book, and both also under /uk/."""
+    books = Blueprint("books", __name__)
+
+    @books.route("/books/")
+    @books.route("/<any('uk'):lang_code>/books/")
+    def index(lang_code: str | None = None) -> str:
+        return lang_code or "books"
+
+    @books.route("/books/<isbn>")
+    @books.route("/<any('uk'):lang_code>/books/<isbn>")
+    def book(isbn: str, lang_code: str | None = None) -> str:
+        return f"{isbn} {lang_code or ''}"
+
+    @books.route("/about")
+    def about() -> str:
+        return "about"
+
+    return books
+
+
+def _books_in(lang: str) -> list[SitemapEntry]:
+    isbn = {"en": "978-0261102217", "uk": "978-6177585"}.get(lang, "978-3608939842")
+    return [SitemapEntry({"isbn": isbn}, date(1937, 9, 21))]
+
+
+def _sitemap(app: Flask) -> str:
+    return app.test_client().get("/prefix/sitemap.xml").text
+
+
 def test_robots_txt():
-    db_mock = MagicMock()
-    config_mock = MagicMock()
-    config_mock.__getitem__.return_value = "/prefix"
-
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = _make_test_flask_app()
+    app = _make_seo_app()
     app.config.update({"DEBUG": True})
-    app.register_blueprint(seo_blueprint)
-
     response = app.test_client().get("/prefix/robots.txt")
     assert response.status_code == 200
     assert "Sitemap: https://localhost/sitemap.xml" in response.text
 
 
-def test_sitemap_includes_blog_posts():
-    config = {
-        "SEO_PREFIX": "/prefix",
-        "BLOG_PREFIX": "/blog",
-        "SITEMAP_EXCLUDED_PREFIXES": [],
-    }
-    config_mock = MagicMock()
-    config_mock.__getitem__.side_effect = config.__getitem__
-    config_mock.get.side_effect = config.get
-
-    db_mock = MagicMock()
-    db_mock.get_all_posts.return_value = [
-        Post(
-            title="title",
-            language="en",
-            slug="slug",
-            tags=["tag/1"],
-            contentInMarkdown="content",
-            date="2021-02-19",  # type: ignore[arg-type]  # Testing backward compatibility with string dates
-            author="author",
-            excerpt="excerpt",
-            coverImage=Image(
-                alternateText="text which is alternative",
-                url="https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
-            ),
-            comments=[
-                Comment(
-                    date="2021-02-19T00:00:00",  # type: ignore[arg-type]  # Testing backward compatibility
-                    comment="komentarz",
-                    author="autor",
-                )
-            ],
-        )
-    ]
-
-    seo_blueprint = seo.create_seo_blueprint(db_mock, config_mock, lambda: "en")
-    app = _make_test_flask_app()
-    app.register_blueprint(seo_blueprint)
-
-    response = app.test_client().get("/prefix/sitemap.xml")
-    assert response.status_code == 200
-    assert "http://localhost/blog/slug" in response.text
+def test_sitemap_lists_each_entry_with_its_lastmod():
+    app = _make_seo_app([_books_blueprint()], {"books.book": _books_in})
+    sitemap = _sitemap(app)
+    assert "<loc>http://localhost/books/978-0261102217</loc>" in sitemap
+    assert "<lastmod>1937-09-21</lastmod>" in sitemap
 
 
-def test_sitemap_lists_posts_in_current_language():
-    config = {"SEO_PREFIX": "/prefix", "BLOG_PREFIX": "/blog"}
-    posts_by_lang = {
-        lang: [
-            Post.model_validate(
-                {
-                    "title": f"{lang} post",
-                    "slug": f"{lang}-post",
-                    "language": lang,
-                    "author": "author",
-                    "contentInMarkdown": "content",
-                    "excerpt": "excerpt",
-                    "coverImage": {"url": "/img.png"},
-                }
-            )
-        ]
-        for lang in ("en", "pl")
-    }
-    db_mock = MagicMock()
-    db_mock.get_all_posts.side_effect = posts_by_lang.__getitem__
+def test_sitemap_lists_a_route_without_variables_without_lastmod():
+    app = _make_seo_app([_books_blueprint()], {"books.about": single_url})
+    sitemap = _sitemap(app)
+    assert "<loc>http://localhost/about</loc>" in sitemap
+    assert "<lastmod>" not in sitemap
 
-    seo_blueprint = seo.create_seo_blueprint(
-        db_mock, config, lambda: request.args.get("lang", "en")
+
+def test_sitemap_leaves_out_routes_not_registered_for_it():
+    app = _make_seo_app([_books_blueprint()], {"books.about": single_url})
+    assert "/books/" not in _sitemap(app)
+
+
+def test_sitemap_lists_localized_routes_in_every_language_served_on_the_host():
+    entries = {"books.index": single_url, "books.book": _books_in}
+    sitemap = _sitemap(_make_seo_app([_books_blueprint()], entries, _ENGLISH_AND_UKRAINIAN))
+    assert "http://localhost/books/</loc>" in sitemap
+    assert "http://localhost/uk/books/</loc>" in sitemap
+    assert "http://localhost/books/978-0261102217" in sitemap
+    assert "http://localhost/uk/books/978-6177585" in sitemap
+
+
+def test_sitemap_on_a_language_domain_lists_only_that_language():
+    # The test client's host is localhost, so here it is German's own domain.
+    german_domain = SiteLanguages(
+        domains={"en": "example.com", "uk": None, "de": "localhost"}, default="en"
     )
-    app = _make_test_flask_app()
-    app.register_blueprint(seo_blueprint)
-    client = app.test_client()
-
-    en_sitemap = client.get("/prefix/sitemap.xml?lang=en").text
-    pl_sitemap = client.get("/prefix/sitemap.xml?lang=pl").text
-
-    assert "http://localhost/blog/en-post" in en_sitemap
-    assert "http://localhost/blog/pl-post" not in en_sitemap
-    assert "http://localhost/blog/pl-post" in pl_sitemap
-    assert "http://localhost/blog/en-post" not in pl_sitemap
+    entries = {"books.book": _books_in}
+    sitemap = _sitemap(_make_seo_app([_books_blueprint()], entries, german_domain))
+    assert "http://localhost/books/978-3608939842" in sitemap
+    assert "/uk/" not in sitemap
 
 
-class TestSitemapFiltering:
-    def test_includes_public_get_route(self) -> None:
-        public_bp = Blueprint("public", __name__)
+def test_sitemap_lists_a_route_without_a_language_version_once():
+    entries = {"books.about": single_url}
+    sitemap = _sitemap(_make_seo_app([_books_blueprint()], entries, _ENGLISH_AND_UKRAINIAN))
+    assert sitemap.count("/about</loc>") == 1
 
-        @public_bp.route("/about", methods=["GET"])
-        def about() -> str:
-            return "about"
 
-        app = _make_seo_app([public_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/about" in response.text
-
-    def test_excludes_post_only_route(self) -> None:
-        form_bp = Blueprint("forms", __name__)
-
-        @form_bp.route("/submit", methods=["POST"])
-        def submit() -> str:
-            return "ok"
-
-        app = _make_seo_app([form_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/submit" not in response.text
-
-    def test_excludes_route_with_url_arguments(self) -> None:
-        items_bp = Blueprint("items", __name__)
-
-        @items_bp.route("/item/<int:item_id>", methods=["GET"])
-        def item(item_id: int) -> str:
-            return str(item_id)
-
-        app = _make_seo_app([items_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/item/" not in response.text
-
-    def test_excludes_admin_blueprint(self) -> None:
-        admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-
-        @admin_bp.route("/dashboard", methods=["GET"])
-        def dashboard() -> str:
-            return "admin"
-
-        app = _make_seo_app([admin_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/admin/dashboard" not in response.text
-
-    def test_excludes_api_blueprint(self) -> None:
-        api_bp = Blueprint("api", __name__, url_prefix="/api")
-
-        @api_bp.route("/locations", methods=["GET"])
-        def locations() -> str:
-            return "[]"
-
-        app = _make_seo_app([api_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/api/locations" not in response.text
-
-    def test_excludes_health_blueprint(self) -> None:
-        health_bp = Blueprint("health", __name__, url_prefix="/health")
-
-        @health_bp.route("/liveness", methods=["GET"])
-        def liveness() -> str:
-            return "ok"
-
-        app = _make_seo_app([health_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/health/liveness" not in response.text
-
-    def test_excludes_lang_prefix(self) -> None:
-        lang_bp = Blueprint("lang", __name__)
-
-        @lang_bp.route("/lang/pl", methods=["GET"])
-        def lang_pl() -> str:
-            return "ok"
-
-        app = _make_seo_app([lang_bp])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/lang/pl" not in response.text
-
-    def test_excludes_custom_prefix_from_config(self) -> None:
-        private_bp = Blueprint("private", __name__)
-
-        @private_bp.route("/private/data", methods=["GET"])
-        def data() -> str:
-            return "secret"
-
-        app = _make_seo_app([private_bp], sitemap_excluded_prefixes=["/private/"])
-        response = app.test_client().get("/prefix/sitemap.xml")
-        assert "/private/data" not in response.text
+def test_sitemap_leaves_out_urls_under_an_excluded_prefix():
+    app = _make_seo_app(
+        [_books_blueprint()],
+        {"books.book": _books_in, "books.about": single_url},
+        sitemap_excluded_prefixes=["/books/"],
+    )
+    sitemap = _sitemap(app)
+    assert "/books/" not in sitemap
+    assert "http://localhost/about" in sitemap

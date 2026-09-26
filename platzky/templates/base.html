@@ -35,7 +35,7 @@
 {# Overlay portal target; keep as the first element of <body> so body scripts,
    including plugin markup from body_meta, can rely on it existing. Consumer
    contract: docs/plugins.rst, "Frontend Overlays". #}
-<div id="overlay-root"></div>
+<div id="overlay-root">{% include "language_suggestion.html" %}</div>
 
 {% block body_meta %}
 {% include "body_meta.html" %}
@@ -60,7 +60,7 @@
       </button>
       {% endif %}
 
-      <a class="navbar-brand" href="/">{% if logo_url %}<img src="{{ logo_url }}" alt="{{ app_name }} logo" class="logo">{% else %}{{_(app_name)}}{% endif %}</a>
+      <a class="navbar-brand" href="{{ url_for('home_page') }}">{% if logo_url %}<img src="{{ logo_url }}" alt="{{ app_name }} logo" class="logo">{% else %}{{_(app_name)}}{% endif %}</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
               aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
         <i class="fas fa-bars"></i>
@@ -83,7 +83,7 @@
               </button>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languages-menu">
                 {% for lg,items in languages.items() %}
-                <a class="dropdown-item" href={{url_for('change_language', lang=lg, _external=True)}}>
+                <a class="dropdown-item" href="{{ language_url(lg) }}">
                   <i class="fi fi-{{ items['flag'] }} "></i>{{ items['name'] }}</a>
                 {% endfor %}
               </ul>

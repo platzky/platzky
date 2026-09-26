@@ -3,17 +3,20 @@
 This module defines all configuration models and parsing logic for the application.
 """
 
+import re
 import sys
 import typing as t
+from functools import cached_property
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.config import ExtraValues
 
 from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHMENT_SIZE
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
 from platzky.feature_flags_wrapper import FeatureFlagSet
+from platzky.language_routing import RESERVED_PATH_SEGMENTS, SiteLanguages
 from platzky.telemetry import TelemetryConfig
 
 
@@ -34,10 +37,22 @@ class LanguageConfig(BaseModel):
     country: str
     domain: t.Optional[str] = None
 
+    @field_validator("domain")
+    @classmethod
+    def validate_domain_is_lowercase(cls, domain: t.Optional[str]) -> t.Optional[str]:
+        """Reject a domain with capitals, which would never match: browsers lowercase hosts."""
+        if domain is not None and domain != domain.lower():
+            raise ValueError(
+                f"domain {domain!r} must be lowercase ({domain.lower()!r}); browsers send the "
+                "host in lowercase, so it would never match."
+            )
+        return domain
+
 
 Languages = dict[str, LanguageConfig]
 LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
 
+_PATH_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
 LogLevel = t.Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
 
@@ -153,6 +168,18 @@ class AttachmentConfig(BaseModel):
     )
 
 
+def _first_language(data: dict[str, t.Any]) -> str:
+    """Imply DEFAULT_LANGUAGE: the first configured language, otherwise ``en``.
+
+    Args:
+        data: The fields validated so far; ``languages`` precedes ``default_language``.
+
+    Returns:
+        The code of the first configured language, or ``en`` when none are configured.
+    """
+    return next(iter(data.get("languages", {})), "en")
+
+
 class Config(BaseModel):
     """Main application configuration.
 
@@ -164,6 +191,7 @@ class Config(BaseModel):
         seo_prefix: URL prefix for SEO routes
         blog_prefix: URL prefix for blog routes
         languages: Supported languages configuration
+        default_language: Language served at the root of the main host
         translation_directories: Additional translation directories
         log_level: Level of the application's logs; defaults to INFO, development to DEBUG
         testing: Enable testing mode
@@ -181,6 +209,7 @@ class Config(BaseModel):
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
     blog_prefix: str = Field(default="/blog", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")
+    default_language: str = Field(default_factory=_first_language, alias="DEFAULT_LANGUAGE")
     translation_directories: list[str] = Field(
         default_factory=list,
         alias="TRANSLATION_DIRECTORIES",
@@ -212,6 +241,57 @@ class Config(BaseModel):
                 'Use a prefix such as "/blog" instead.'
             )
         return prefix
+
+    @model_validator(mode="after")
+    def validate_language_urls(self) -> "Config":
+        """Ensure every configured language is served at exactly one URL.
+
+        Raises:
+            ValueError: If the default language is not configured, two languages share a
+                domain, another language has a domain while the default does not, or a
+                language's code cannot be used as a URL segment.
+        """
+        if not self.languages:
+            return self
+        if self.default_language not in self.languages:
+            raise ValueError(
+                f"DEFAULT_LANGUAGE {self.default_language!r} is not one of the configured "
+                f"LANGUAGES: {', '.join(self.languages)}"
+            )
+        domain_owners: dict[str, str] = {}
+        for lang_code, language in self.languages.items():
+            domain = language.domain
+            if domain is None:
+                continue
+            if domain in domain_owners:
+                raise ValueError(
+                    f"Languages {domain_owners[domain]!r} and {lang_code!r} share the domain "
+                    f"{domain!r}; each language needs its own URL."
+                )
+            domain_owners[domain] = lang_code
+        if domain_owners and self.languages[self.default_language].domain is None:
+            raise ValueError(
+                f"DEFAULT_LANGUAGE {self.default_language!r} needs a domain because other "
+                "languages have one; pages on their domains link back to it."
+            )
+        prefix_segments = {p.strip("/").split("/")[0] for p in (self.blog_prefix, self.seo_prefix)}
+        reserved = RESERVED_PATH_SEGMENTS | (prefix_segments - {""})
+        for lang_code in self.languages:
+            if lang_code in reserved or not _PATH_SEGMENT.fullmatch(lang_code):
+                raise ValueError(
+                    f"Language code {lang_code!r} is used as a URL segment (/{lang_code}/), so it "
+                    "must use only letters, digits, '-' or '_' and must not be one of: "
+                    f"{', '.join(sorted(reserved))}"
+                )
+        return self
+
+    @cached_property
+    def site_languages(self) -> SiteLanguages:
+        """The configured languages as URL routing sees them."""
+        return SiteLanguages(
+            domains={lang_code: language.domain for lang_code, language in self.languages.items()},
+            default=self.default_language,
+        )
 
     @field_validator("feature_flags", mode="before")
     @classmethod

@@ -140,28 +140,43 @@ See :doc:`database` for more details on database backends.
 Localization Settings
 ~~~~~~~~~~~~~~~~~~~~~
 
+``DEFAULT_LANGUAGE``
+^^^^^^^^^^^^^^^^^^^^
+
+:Type: ``str``
+:Default: the first configured language, otherwise ``"en"``
+
+Language served at the root of the site. It must be one of the ``LANGUAGES`` keys. Set it
+when the root language shouldn't be the first one listed in ``LANGUAGES``.
+
+.. code-block:: yaml
+
+    DEFAULT_LANGUAGE: en
+
 ``LANGUAGES``
 ^^^^^^^^^^^^^
 
 :Type: ``dict[str, LanguageConfig]``
 :Default: ``{}``
 
-Supported languages for the application. The first language is used as the default.
+Supported languages for the application.
 
 Each language configuration includes:
 
 * ``name``: Display name of the language
 * ``flag``: Flag icon code (country code)
 * ``country``: Country code
-* ``domain`` (optional): Specific domain for this language
+* ``domain`` (optional): Domain that serves this language
 
 .. code-block:: yaml
 
+    DEFAULT_LANGUAGE: en
     LANGUAGES:
       en:
         name: English
         flag: uk
         country: GB
+        domain: example.com
       pl:
         name: polski
         flag: pl
@@ -170,15 +185,37 @@ Each language configuration includes:
         name: Deutsch
         flag: de
         country: DE
-        domain: example.de  # Optional: language-specific domain for redirects
+        domain: example.de
 
-When a language has a ``domain``, a fresh visitor (no language chosen yet) landing
-directly on that domain sees that language, taking priority over Accept-Language
-guessing. Matching ignores port, case, and a trailing dot, so ``domain: example.de``
-matches requests to ``example.de``, ``EXAMPLE.DE``, ``example.de:8443``, or
-``example.de.``. Include a port in ``domain`` (e.g. ``domain: example.de:5000``) if
-the language's domain is only reachable on a non-standard port, such as in local or
-staging setups.
+The language of a page is decided by its URL alone, so every language has exactly one
+address that search engines can index:
+
+* ``DEFAULT_LANGUAGE`` is served at the root of the site (``example.com/``).
+* A language with a ``domain`` is served at the root of that domain (``example.de/``).
+* Any other language is served under its code (``example.com/pl/``). This covers the
+  homepage and the blog; an application or plugin can serve its own views the same way by
+  registering them with ``multilang=True`` (see :ref:`plugin-localized-routes`).
+
+A language's code used as a prefix where that language isn't served permanently redirects to
+where it is: ``example.com/en/blog/`` to ``example.com/blog/``, ``example.com/de/blog/`` to
+``example.de/blog/``, and ``example.de/pl/blog/`` to ``example.com/pl/blog/``.
+
+Domains must be unique, and once any other language has a ``domain`` the default language
+needs one too, so pages on the other domains can link back to it. Write each ``domain``
+exactly as the site is served, in lowercase: with ``USE_WWW`` on (the default) that is the
+``www.`` form, e.g. ``domain: www.example.de``. The port counts too: a site reached on a
+non-standard port, as in local or staging setups, needs it in the domain
+(``domain: example.de:5000``).
+
+The language switcher links to each language's home page, and ``/lang/<code>`` redirects
+there. Pages that exist in every language (the homepage, the blog index and other localized
+routes without arguments) list each language's version in ``hreflang`` tags. Posts, pages and
+tags differ per language, so they carry none.
+
+Visitors are never redirected by their browser's language. Instead, a visitor whose browser
+prefers another configured language sees a popup, written in that language, linking to its
+version of the page. Closing it keeps it hidden on that domain; to hide it everywhere, style
+``.language-suggestion`` with ``display: none``.
 
 ``TRANSLATION_DIRECTORIES``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -221,6 +258,22 @@ URL prefix for SEO-related routes like sitemaps and robots.txt.
 .. code-block:: yaml
 
     SEO_PREFIX: /
+
+``SITEMAP_EXCLUDED_PREFIXES``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:Type: ``list[str]``
+:Default: ``[]``
+
+Paths to leave out of ``sitemap.xml``, even when the application or a plugin lists their
+routes there (see :ref:`plugin-sitemap-routes`). The sitemap lists the homepage, the blog
+index, every post and every CMS page, plus the routes an application or plugin registers
+with the ``sitemap`` option.
+
+.. code-block:: yaml
+
+    SITEMAP_EXCLUDED_PREFIXES:
+      - /books/drafts/
 
 ``BLOG_PREFIX``
 ^^^^^^^^^^^^^^^
@@ -430,16 +483,18 @@ Here's a complete configuration example for a production application:
       DATABASE_NAME: myblog
 
     # Multi-language support
+    DEFAULT_LANGUAGE: en
     LANGUAGES:
       en:
         name: English
         flag: uk
         country: GB
+        domain: www.myblog.com
       de:
         name: Deutsch
         flag: de
         country: DE
-        domain: myblog.de  # Optional: redirect to this domain when switching to German
+        domain: www.myblog.de  # German is served at www.myblog.de
 
     # URLs
     USE_WWW: true
