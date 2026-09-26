@@ -117,10 +117,11 @@ def _build_home_page_test_app(
         "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
-        "DEFAULT_LANGUAGE": default_language,
         "LANGUAGES": languages or {},
         "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
     }
+    if default_language is not None:
+        config_data["DEFAULT_LANGUAGE"] = default_language
     config = Config.model_validate(config_data)
     return create_app_from_config(config)
 

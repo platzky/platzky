@@ -168,6 +168,18 @@ class AttachmentConfig(BaseModel):
     )
 
 
+def _first_language(data: dict[str, t.Any]) -> str:
+    """Imply DEFAULT_LANGUAGE: the first configured language, otherwise ``en``.
+
+    Args:
+        data: The fields validated so far; ``languages`` precedes ``default_language``.
+
+    Returns:
+        The code of the first configured language, or ``en`` when none are configured.
+    """
+    return next(iter(data.get("languages", {})), "en")
+
+
 class Config(BaseModel):
     """Main application configuration.
 
@@ -197,7 +209,7 @@ class Config(BaseModel):
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
     blog_prefix: str = Field(default="/blog", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")
-    default_language: str = Field(alias="DEFAULT_LANGUAGE")
+    default_language: str = Field(default_factory=_first_language, alias="DEFAULT_LANGUAGE")
     translation_directories: list[str] = Field(
         default_factory=list,
         alias="TRANSLATION_DIRECTORIES",
@@ -229,16 +241,6 @@ class Config(BaseModel):
                 'Use a prefix such as "/blog" instead.'
             )
         return prefix
-
-    @model_validator(mode="before")
-    @classmethod
-    def fill_default_language(cls, data: object) -> object:
-        """Imply DEFAULT_LANGUAGE: the first configured language, otherwise ``en``."""
-        if not isinstance(data, dict) or data.get("DEFAULT_LANGUAGE"):
-            return data
-        languages = data.get("LANGUAGES") or {}
-        implied = next(iter(languages), "en")
-        return {**data, "DEFAULT_LANGUAGE": implied}
 
     @model_validator(mode="after")
     def validate_language_urls(self) -> "Config":
