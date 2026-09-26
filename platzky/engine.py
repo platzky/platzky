@@ -54,6 +54,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
+from platzky.sitemap import SitemapEntries, sitemap_entries_for
 
 logger = logging.getLogger(__name__)
 
@@ -83,26 +84,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
         return False
 
     return True
-
-
-def _require_listable(rule: str, methods: Optional[Iterable[str]]) -> None:
-    """Reject a ``sitemap=True`` route that the sitemap could not list.
-
-    Args:
-        rule: The URL rule.
-        methods: The route's HTTP methods; ``None`` means ``GET`` only.
-
-    Raises:
-        ValueError: If the rule has URL variables, whose values the sitemap cannot know, or
-            the route does not answer ``GET``, which is what crawlers send.
-    """
-    if "<" in rule:
-        raise ValueError(
-            f"Route {rule!r} has URL variables, so sitemap=True cannot list it; list such "
-            "pages from their data instead, as the sitemap does for posts and pages."
-        )
-    if methods is not None and "GET" not in {method.upper() for method in methods}:
-        raise ValueError(f"Route {rule!r} does not answer GET, so sitemap=True cannot list it.")
 
 
 class Engine(Flask):
@@ -147,7 +128,7 @@ class Engine(Flask):
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self._platzky_config = config
         self._localized_endpoints: set[str] = set()
-        self.sitemap_endpoints: set[str] = set()
+        self.sitemap_entries: dict[str, SitemapEntries] = {}
         self.db = db
         self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
@@ -436,21 +417,22 @@ class Engine(Flask):
                 ``multilang``: whether the view renders in every language (it reads
                 ``get_locale()``), so it is also served under ``/<lang_code>/`` and
                 ``url_for`` builds it under the current language's prefix.
-                ``sitemap``: whether ``sitemap.xml`` lists the route, once per language it is
-                served in.
+                ``sitemap``: lists the route in ``sitemap.xml``, in every language it is served
+                in: ``True`` for a route without URL variables, or a function returning its
+                ``SitemapEntry`` values in a given language.
 
         Raises:
-            ValueError: If ``sitemap=True`` is given for a route with URL variables or
-                without ``GET``, which the sitemap could not list.
+            ValueError: If the sitemap could not list the route: it does not answer ``GET``,
+                or ``sitemap=True`` is given for a route with URL variables.
         """
         multilang = bool(options.pop("multilang", False))
-        sitemap = bool(options.pop("sitemap", False))
-        if sitemap:
-            _require_listable(rule, cast("Iterable[str] | None", options.get("methods")))
+        sitemap = options.pop("sitemap", None)
+        methods = cast("Iterable[str] | None", options.get("methods"))
+        entries = sitemap_entries_for(rule, methods, sitemap) if sitemap else None
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if sitemap:
-            self.sitemap_endpoints.add(name)
+        if entries is not None:
+            self.sitemap_entries[name] = entries
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages

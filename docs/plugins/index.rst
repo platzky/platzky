@@ -113,9 +113,11 @@ without view arguments also get ``hreflang`` links to their version in every lan
 Listing Routes in the Sitemap
 -----------------------------
 
-``sitemap.xml`` lists only the routes registered with ``sitemap=True``, alongside the blog's
-posts and CMS pages. Pass it for a page search engines should find; with ``multilang=True``
-the page is listed once per language:
+``sitemap.xml`` lists only the routes registered with the ``sitemap`` option, in every
+language the requesting host serves; with ``multilang=True`` a page is listed once per
+language. The built-in homepage, blog index, posts and CMS pages use it too.
+
+For a route without URL variables, pass ``sitemap=True``:
 
 .. code-block:: python
 
@@ -123,10 +125,24 @@ the page is listed once per language:
     def index():
         ...
 
-The sitemap writes a route's URL out as it is, so a route with URL variables
-(``/books/<isbn>``) or without ``GET`` is rejected when it is registered. List such pages
-from their data instead, as the sitemap does for posts. A site owner can still hide a listed
-route with ``SITEMAP_EXCLUDED_PREFIXES``.
+For a route with variables, pass a function that, given a language code, returns a
+``SitemapEntry`` per page: the variables' values and, when known, the page's last change:
+
+.. code-block:: python
+
+    from platzky.sitemap import SitemapEntry
+
+    def books_in(lang: str) -> list[SitemapEntry]:
+        return [SitemapEntry({"isbn": book.isbn}, book.updated) for book in shelf.books(lang)]
+
+    @books.route("/<isbn>", multilang=True, sitemap=books_in)
+    def book(isbn):
+        ...
+
+The sitemap builds each URL with ``url_for``, so it follows the route wherever it is
+mounted. ``sitemap=True`` on a route with variables, or ``sitemap`` on a route without
+``GET``, is rejected when the route is registered. A site owner can still hide listed URLs
+with ``SITEMAP_EXCLUDED_PREFIXES``.
 
 Packaging a Plugin
 ------------------

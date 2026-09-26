@@ -15,6 +15,7 @@ from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
+from platzky.sitemap import SitemapEntry
 
 from . import comment_form
 
@@ -58,6 +59,18 @@ def create_blog_blueprint(
             Tuple of rendered 404 template and HTTP 404 status code
         """
         return render_template("404.html", title="404"), 404
+
+    def post_entries(lang: str) -> list[SitemapEntry]:
+        """List every post in a language for the sitemap, dated when it has a date."""
+        return [
+            SitemapEntry({"post_slug": post.slug}, post.date) for post in db.get_all_posts(lang)
+        ]
+
+    def page_entries(lang: str) -> list[SitemapEntry]:
+        """List every page in a language for the sitemap, dated when it has a date."""
+        return [
+            SitemapEntry({"page_slug": page.slug}, page.date) for page in db.get_all_pages(lang)
+        ]
 
     @blog.route("/", methods=["GET"], multilang=True, sitemap=True)
     def all_posts() -> str:
@@ -133,7 +146,7 @@ def create_blog_blueprint(
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
-    @blog.route("/<post_slug>", methods=["GET"], multilang=True)
+    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
 
@@ -154,7 +167,7 @@ def create_blog_blueprint(
             comment_sent=request.args.get("comment_sent"),
         )
 
-    @blog.route("/page/<path:page_slug>", methods=["GET"], multilang=True)
+    @blog.route("/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap=page_entries)
     def get_page(page_slug: str) -> str:
         """Display a static page.
 

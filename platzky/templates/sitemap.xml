@@ -5,16 +5,10 @@
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
 			http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
 
-    {% for url in static_urls %}
+    {% for loc, lastmod in urls.items() %}
     <url>
-        <loc>{{ url["loc"] }}</loc>
-    </url>
-    {% endfor %}
-
-    {% for url in dynamic_urls %}
-    <url>
-        <loc>{{ url["loc"] }}</loc>
-        <lastmod>{{ url["lastmod"] }}</lastmod>
+        <loc>{{ loc }}</loc>
+        {% if lastmod %}<lastmod>{{ lastmod.strftime("%Y-%m-%d") }}</lastmod>{% endif %}
     </url>
     {% endfor %}
 

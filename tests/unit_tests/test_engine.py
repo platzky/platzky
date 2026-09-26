@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, cast
 
 import pytest
@@ -11,6 +12,7 @@ from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
+from platzky.sitemap import SitemapEntry
 from tests.unit_tests.fake_app import test_app
 
 test_app = test_app
@@ -742,6 +744,31 @@ def test_sitemap_lists_cms_pages_but_not_the_feed(test_app: Engine):
     sitemap = test_app.test_client().get("/sitemap.xml").text
     assert "http://localhost/blog/page/test" in sitemap
     assert "/feed" not in sitemap
+
+
+def test_sitemap_lists_a_route_with_variables_through_its_entries(test_app: Engine):
+    books = Blueprint("books", __name__, url_prefix="/books")
+
+    def books_in(lang: str) -> list[SitemapEntry]:
+        return [SitemapEntry({"isbn": f"hobbit-{lang}"}, date(1937, 9, 21))]
+
+    @books.route("/<isbn>", multilang=True, sitemap=books_in)
+    def book(isbn: str) -> str:
+        return isbn
+
+    test_app.register_blueprint(books)
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/books/hobbit-en</loc>" in sitemap
+    assert "<loc>http://localhost/pl/books/hobbit-pl</loc>" in sitemap
+    assert "<lastmod>1937-09-21</lastmod>" in sitemap
+
+
+def test_sitemap_lists_posts_in_each_language_with_their_date():
+    app = _build_bilingual_blog_test_app()
+    sitemap = app.test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/blog/english-post</loc>" in sitemap
+    assert "<loc>http://localhost/pl/blog/polski-wpis</loc>" in sitemap
+    assert "<lastmod>2021-02-19</lastmod>" in sitemap
 
 
 @pytest.mark.parametrize(

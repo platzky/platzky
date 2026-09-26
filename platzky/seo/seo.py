@@ -13,64 +13,36 @@ from flask import (
     request,
     url_for,
 )
-from werkzeug.routing import Rule
 
-from platzky.db.db import DB
 from platzky.language_routing import LANG_CODE_ARG, SiteLanguages, served_languages
-from platzky.models import Post
+from platzky.sitemap import SitemapEntries, SitemapEntry
 
 
-def _route_paths(rule: Rule, prefixes: t.Mapping[str, str]) -> list[str]:
-    """Return the paths a sitemap route is served at in the languages of the current host.
-
-    Args:
-        rule: A route registered with ``sitemap=True``
-        prefixes: Languages served on the current host mapped to their URL prefix
-
-    Returns:
-        The route's path, or one path per prefixed language for a localized route
-    """
-    values: list[dict[str, t.Any]] = [
-        {LANG_CODE_ARG: lang} for lang, prefix in prefixes.items() if prefix
-    ]
-    localized = LANG_CODE_ARG in rule.arguments
-    return [url_for(rule.endpoint, **v) for v in values] if localized else [str(rule)]
+def _is_localized(endpoint: str) -> bool:
+    """Return whether an endpoint is also served under a language prefix (``multilang``)."""
+    return any(LANG_CODE_ARG in rule.arguments for rule in current_app.url_map.iter_rules(endpoint))
 
 
-def _content_entries(base_url: str, contents: t.Iterable[Post]) -> list[dict[str, str]]:
-    """Return sitemap entries for posts or pages published under a base URL.
-
-    Args:
-        base_url: URL their slugs are appended to (e.g. 'https://example.com/pl/blog')
-        contents: The posts or pages
-
-    Returns:
-        One entry per item: its URL (loc), plus its date (lastmod) when it has one
-    """
-    return [
-        {
-            "loc": f"{base_url}/{content.slug}",
-            **({"lastmod": content.date.date().isoformat()} if content.date else {}),
-        }
-        for content in contents
-    ]
+def _entry_path(endpoint: str, entry: SitemapEntry, lang_code: str | None) -> str:
+    """Return the path of a sitemap entry, under ``lang_code``'s prefix unless it is None."""
+    values: dict[str, t.Any] = {**entry.values, LANG_CODE_ARG: lang_code}
+    return url_for(endpoint, **values)
 
 
 def create_seo_blueprint(
-    db: DB,
     config: dict[str, t.Any],
     languages: SiteLanguages,
-    sitemap_endpoints: t.Collection[str],
+    sitemap_entries: t.Mapping[str, SitemapEntries],
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
     Args:
-        db: Database instance for accessing blog content
-        config: Configuration dictionary with SEO and blog settings
+        config: Configuration dictionary with SEO settings
         languages: The site's languages; the sitemap lists those served on the requesting
             host
-        sitemap_endpoints: Endpoints registered with ``sitemap=True``; read on every sitemap
-            request, so routes registered after the blueprint is created are included
+        sitemap_entries: Endpoints registered with the ``sitemap`` route option, mapped to
+            their entries; read on every sitemap request, so routes registered after the
+            blueprint is created are included
 
     Returns:
         Configured Flask Blueprint for SEO functionality
@@ -98,45 +70,30 @@ def create_seo_blueprint(
     def sitemap() -> Response:
         """Route to dynamically generate a sitemap of your website/application.
 
-        Lists the routes registered with ``sitemap=True``, and the blog's posts and pages,
-        in every language served on the requesting host. lastmod is given for posts and pages
-        that have a date.
+        Lists the URLs of every route registered with the ``sitemap`` option, in every
+        language served on the requesting host, with their lastmod when known.
 
         Returns:
             XML response containing the sitemap
         """
         prefixes = served_languages(languages, request.host)
-
         host_components = urllib.parse.urlparse(request.host_url)
         host_base = host_components.scheme + "://" + host_components.netloc
-
         excluded_prefixes = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
 
-        static_urls = [
-            {"loc": f"{host_base}{path}"}
-            for rule in current_app.url_map.iter_rules()
-            if rule.endpoint in sitemap_endpoints and not str(rule).startswith(excluded_prefixes)
-            for path in _route_paths(rule, prefixes)
-        ]
-
-        blog_prefix = config["BLOG_PREFIX"]
-        dynamic_urls = [
-            entry
+        listed = [
+            (_entry_path(endpoint, entry, lang if prefix else None), entry.lastmod)
+            for endpoint, list_entries in sitemap_entries.items()
             for lang, prefix in prefixes.items()
-            for entry in [
-                *_content_entries(f"{host_base}{prefix}{blog_prefix}", db.get_all_posts(lang)),
-                *_content_entries(f"{host_base}{prefix}{blog_prefix}/page", db.get_all_pages(lang)),
-            ]
+            if not prefix or _is_localized(endpoint)
+            for entry in list_entries(lang)
         ]
-
-        statics = list({v["loc"]: v for v in static_urls}.values())
-        dynamics = list({v["loc"]: v for v in dynamic_urls}.values())
-        xml_sitemap = render_template(
-            "sitemap.xml",
-            static_urls=statics,
-            dynamic_urls=dynamics,
-            host_base=host_base,
-        )
+        urls = {
+            f"{host_base}{path}": lastmod
+            for path, lastmod in listed
+            if not path.startswith(excluded_prefixes)
+        }
+        xml_sitemap = render_template("sitemap.xml", urls=urls)
         response = make_response(xml_sitemap)
         response.headers["Content-Type"] = "application/xml"
         return response

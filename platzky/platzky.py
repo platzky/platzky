@@ -550,10 +550,9 @@ def create_app_from_config(
         content_transformer=engine.transform_content,
     )
     seo_blueprint = seo.create_seo_blueprint(
-        db=engine.db,
         config=engine.config,
         languages=config.site_languages,
-        sitemap_endpoints=engine.sitemap_endpoints,
+        sitemap_entries=engine.sitemap_entries,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
