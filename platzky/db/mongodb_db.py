@@ -130,6 +130,18 @@ class MongoDB(DB):
         posts_cursor = self.posts.find({"language": lang})
         return [Post.model_validate(post) for post in posts_cursor]
 
+    @override
+    def get_all_pages(self, lang: str) -> list[Page]:
+        """Retrieve all pages for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            List of Page objects
+        """
+        return [Page.model_validate(page) for page in self.pages.find({"language": lang})]
+
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 

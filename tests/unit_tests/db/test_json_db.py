@@ -170,6 +170,11 @@ class TestJsonDb:
         with pytest.raises(ValidationError):
             db.get_post("test-post")
 
+    def test_get_all_pages(self, db: Json):
+        pages = db.get_all_pages("en")
+        assert [page.slug for page in pages] == ["page-1"]
+        assert db.get_all_pages("de") == []
+
     def test_get_page(self, db: Json):
         page = db.get_page("page-1")
         assert isinstance(page, Post)

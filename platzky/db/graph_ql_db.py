@@ -224,6 +224,21 @@ class GraphQL(DB):
 
         return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
 
+    @override
+    def get_all_pages(self, lang: str) -> list[Page]:
+        """Retrieve all pages for a specific language.
+
+        Pages here carry no language (they are translated through their slugs), so they
+        cannot be listed per language; this queries nothing.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl'), unused
+
+        Returns:
+            An empty list
+        """
+        return []
+
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 

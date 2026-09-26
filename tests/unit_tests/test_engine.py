@@ -705,7 +705,7 @@ def test_default_language_prefix_redirects_to_the_unprefixed_page(
 def _register_books(app: Engine) -> None:
     books = Blueprint("books", __name__, url_prefix="/books")
 
-    @books.route("/", multilang=True)
+    @books.route("/", multilang=True, sitemap=True)
     def index() -> str:
         return f"{app.get_locale()} {url_for('books.index')} {url_for('books.isbn_lookup')}"
 
@@ -728,6 +728,40 @@ def test_view_without_multilang_has_no_language_prefix(test_app: Engine):
     client = test_app.test_client()
     assert client.get("/books/isbn-lookup").status_code == 200
     assert client.get("/pl/books/isbn-lookup").status_code == 404
+
+
+def test_sitemap_lists_routes_registered_for_it_in_every_language(test_app: Engine):
+    _register_books(test_app)
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/books/" in sitemap
+    assert "http://localhost/pl/books/" in sitemap
+    assert "isbn-lookup" not in sitemap
+
+
+def test_sitemap_lists_cms_pages_but_not_the_feed(test_app: Engine):
+    sitemap = test_app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/blog/page/test" in sitemap
+    assert "/feed" not in sitemap
+
+
+@pytest.mark.parametrize(
+    ("rule", "methods", "error"),
+    [
+        ("/books/<isbn>", ["GET"], "URL variables"),
+        ("/books/order", ["POST"], "does not answer GET"),
+    ],
+)
+def test_sitemap_route_that_cannot_be_listed_is_rejected(
+    test_app: Engine, rule: str, methods: list[str], error: str
+):
+    books = Blueprint("books", __name__)
+
+    @books.route(rule, methods=methods, sitemap=True)
+    def view(**_kwargs: str) -> str:
+        return "book"
+
+    with pytest.raises(ValueError, match=error):
+        test_app.register_blueprint(books)
 
 
 def test_url_for_follows_the_language_of_the_request(test_app: Engine):

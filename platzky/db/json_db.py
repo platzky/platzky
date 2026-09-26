@@ -121,6 +121,22 @@ class Json(DB):
             if post.get("language", "en") == lang
         ]
 
+    @override
+    def get_all_pages(self, lang: str) -> list[Page]:
+        """Retrieve all pages for a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+
+        Returns:
+            List of Page objects
+        """
+        return [
+            Page.model_validate(page)
+            for page in self._get_site_content().get("pages", ())
+            if page.get("language", "en") == lang
+        ]
+
     def get_post(self, slug: str) -> Post:
         """Returns a post matching the given slug.
 

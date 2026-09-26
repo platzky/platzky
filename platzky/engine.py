@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -85,6 +85,26 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
     return True
 
 
+def _require_listable(rule: str, methods: Optional[Iterable[str]]) -> None:
+    """Reject a ``sitemap=True`` route that the sitemap could not list.
+
+    Args:
+        rule: The URL rule.
+        methods: The route's HTTP methods; ``None`` means ``GET`` only.
+
+    Raises:
+        ValueError: If the rule has URL variables, whose values the sitemap cannot know, or
+            the route does not answer ``GET``, which is what crawlers send.
+    """
+    if "<" in rule:
+        raise ValueError(
+            f"Route {rule!r} has URL variables, so sitemap=True cannot list it; list such "
+            "pages from their data instead, as the sitemap does for posts and pages."
+        )
+    if methods is not None and "GET" not in {method.upper() for method in methods}:
+        raise ValueError(f"Route {rule!r} does not answer GET, so sitemap=True cannot list it.")
+
+
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
 
@@ -127,6 +147,7 @@ class Engine(Flask):
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self._platzky_config = config
         self._localized_endpoints: set[str] = set()
+        self.sitemap_endpoints: set[str] = set()
         self.db = db
         self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
@@ -404,22 +425,34 @@ class Engine(Flask):
         provide_automatic_options: Optional[bool] = None,
         **options: object,
     ) -> None:
-        """Register a route; with ``multilang=True``, also under each domainless language's prefix.
+        """Register a route, with platzky's own options for languages and the sitemap.
 
         Args:
             rule: The URL rule.
             endpoint: The endpoint name; the view's name by default.
             view_func: The view function.
             provide_automatic_options: Whether to add an automatic ``OPTIONS`` response.
-            **options: Further options for the underlying ``Rule``, plus ``multilang``: whether
-                the view renders in every language (it reads ``get_locale()``), so it is also
-                served under ``/<lang_code>/`` and ``url_for`` builds it under the current
-                language's prefix.
+            **options: Further options for the underlying ``Rule``, plus:
+                ``multilang``: whether the view renders in every language (it reads
+                ``get_locale()``), so it is also served under ``/<lang_code>/`` and
+                ``url_for`` builds it under the current language's prefix.
+                ``sitemap``: whether ``sitemap.xml`` lists the route, once per language it is
+                served in.
+
+        Raises:
+            ValueError: If ``sitemap=True`` is given for a route with URL variables or
+                without ``GET``, which the sitemap could not list.
         """
         multilang = bool(options.pop("multilang", False))
+        sitemap = bool(options.pop("sitemap", False))
+        if sitemap:
+            _require_listable(rule, cast("Iterable[str] | None", options.get("methods")))
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
+        name = endpoint or (view_func.__name__ if view_func is not None else "")
+        if sitemap:
+            self.sitemap_endpoints.add(name)
         if multilang and view_func is not None:
-            self._localized_endpoints.add(endpoint or view_func.__name__)
+            self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
             if lang_codes:
                 super().add_url_rule(

@@ -59,7 +59,7 @@ def create_blog_blueprint(
         """
         return render_template("404.html", title="404"), 404
 
-    @blog.route("/", methods=["GET"], multilang=True)
+    @blog.route("/", methods=["GET"], multilang=True, sitemap=True)
     def all_posts() -> str:
         """Display all blog posts for the current language.
 

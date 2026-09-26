@@ -215,6 +215,25 @@ class TestMongoDB:
         with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
+    def test_get_all_pages(self, db: MongoDB):
+        mock_find = cast(Mock, db.pages.find)
+        mock_find.return_value = [
+            {
+                "title": "About Tolkien",
+                "slug": "about-tolkien",
+                "author": "Test Author",
+                "contentInMarkdown": "# About",
+                "excerpt": "excerpt",
+                "language": "en",
+                "coverImage": {"url": "/images/tolkien.jpg"},
+            }
+        ]
+
+        pages = db.get_all_pages("en")
+
+        assert [page.slug for page in pages] == ["about-tolkien"]
+        mock_find.assert_called_once_with({"language": "en"})
+
     def test_get_page(self, db: MongoDB):
         # Mock page data
         mock_page = {

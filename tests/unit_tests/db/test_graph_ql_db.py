@@ -200,6 +200,13 @@ def test_get_post_without_css(graph_ql_db: GraphQL, mock_client: Mock):
     assert post.css == ""
 
 
+def test_get_all_pages_is_not_supported_and_queries_nothing(
+    graph_ql_db: GraphQL, mock_client: Mock
+):
+    assert graph_ql_db.get_all_pages("en") == []
+    mock_client.execute.assert_not_called()
+
+
 def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "page": {

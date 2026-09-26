@@ -337,7 +337,7 @@ def create_engine(
             f"{prefix}/<path:path>", view_func=domainful_language_prefix, methods=["GET"]
         )
 
-    @app.route("/", methods=["GET"], multilang=True)
+    @app.route("/", methods=["GET"], multilang=True, sitemap=True)
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage, falling back to the blog index.
 
@@ -553,6 +553,7 @@ def create_app_from_config(
         db=engine.db,
         config=engine.config,
         languages=config.site_languages,
+        sitemap_endpoints=engine.sitemap_endpoints,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)

@@ -91,6 +91,17 @@ class DB(ABC):
         pass
 
     @abstractmethod
+    def get_all_pages(self, lang: str) -> list[Page]:
+        """Retrieve all pages for a specific language.
+
+        A backend whose pages carry no language returns an empty list.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl')
+        """
+        pass
+
+    @abstractmethod
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
 

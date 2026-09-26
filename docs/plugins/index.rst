@@ -108,6 +108,26 @@ The view is then also served as ``/<code>/…``. While a request is in a domainl
 ``url_for`` builds its URL with that prefix and ``get_locale()`` returns the language. Views
 without view arguments also get ``hreflang`` links to their version in every language.
 
+.. _plugin-sitemap-routes:
+
+Listing Routes in the Sitemap
+-----------------------------
+
+``sitemap.xml`` lists only the routes registered with ``sitemap=True``, alongside the blog's
+posts and CMS pages. Pass it for a page search engines should find; with ``multilang=True``
+the page is listed once per language:
+
+.. code-block:: python
+
+    @books.route("/", multilang=True, sitemap=True)
+    def index():
+        ...
+
+The sitemap writes a route's URL out as it is, so a route with URL variables
+(``/books/<isbn>``) or without ``GET`` is rejected when it is registered. List such pages
+from their data instead, as the sitemap does for posts. A site owner can still hide a listed
+route with ``SITEMAP_EXCLUDED_PREFIXES``.
+
 Packaging a Plugin
 ------------------
 
