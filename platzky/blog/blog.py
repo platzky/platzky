@@ -29,6 +29,7 @@ def create_blog_blueprint(
     blog_prefix: str,
     locale_func: Callable[[], str],
     content_transformer: Callable[[str, FilterContentType], str],
+    url_for_language: Callable[..., str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -37,6 +38,7 @@ def create_blog_blueprint(
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
         content_transformer: Function applied to post/page content before rendering
+        url_for_language: ``Engine.url_for_language``, for the sitemap's URLs of posts and pages
 
     Returns:
         Configured Flask Blueprint for blog functionality
@@ -63,13 +65,19 @@ def create_blog_blueprint(
     def post_entries(lang: str) -> list[SitemapEntry]:
         """List every post in a language for the sitemap, dated when it has a date."""
         return [
-            SitemapEntry({"post_slug": post.slug}, post.date) for post in db.get_all_posts(lang)
+            SitemapEntry(
+                url_for_language(f"{blog.name}.get_post", lang, post_slug=post.slug), post.date
+            )
+            for post in db.get_all_posts(lang)
         ]
 
     def page_entries(lang: str) -> list[SitemapEntry]:
         """List every page in a language for the sitemap, dated when it has a date."""
         return [
-            SitemapEntry({"page_slug": page.slug}, page.date) for page in db.get_all_pages(lang)
+            SitemapEntry(
+                url_for_language(f"{blog.name}.get_page", lang, page_slug=page.slug), page.date
+            )
+            for page in db.get_all_pages(lang)
         ]
 
     @blog.route("/", methods=["GET"], multilang=True, sitemap=True)

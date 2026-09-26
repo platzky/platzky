@@ -7,6 +7,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, TimeoutError
+from functools import partial
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ from flask import (
     make_response,
     redirect,
     request,
+    url_for,
 )
 from flask import typing as ft
 from flask_babel import Babel
@@ -54,7 +56,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.sitemap import SitemapEntries, sitemap_entries_for
+from platzky.sitemap import SitemapEntries, SitemapEntry, check_sitemap_route
 
 logger = logging.getLogger(__name__)
 
@@ -427,12 +429,16 @@ class Engine(Flask):
         """
         multilang = bool(options.pop("multilang", False))
         sitemap = options.pop("sitemap", None)
-        methods = cast("Iterable[str] | None", options.get("methods"))
-        entries = sitemap_entries_for(rule, methods, sitemap) if sitemap else None
+        if sitemap:
+            check_sitemap_route(rule, cast("Iterable[str] | None", options.get("methods")), sitemap)
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if entries is not None:
-            self.sitemap_entries[name] = entries
+        if sitemap:
+            self.sitemap_entries[name] = (
+                cast(SitemapEntries, sitemap)
+                if callable(sitemap)
+                else partial(self._fixed_url_entries, name)
+            )
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
@@ -444,6 +450,27 @@ class Engine(Flask):
                     provide_automatic_options,
                     **options,
                 )
+
+    def url_for_language(self, endpoint: str, lang_code: str, **values: object) -> str:
+        """Return the absolute URL of an endpoint in a language, on the host that serves it.
+
+        Args:
+            endpoint: The endpoint, e.g. ``"blog.get_post"``; for a domainless language, one
+                registered with ``multilang=True``.
+            lang_code: The language to link to.
+            **values: The endpoint's URL variables, as for ``url_for``.
+
+        Returns:
+            The URL under the language's prefix, on its own domain or the main host.
+        """
+        url_values: dict[str, Any] = {**values, LANG_CODE_ARG: None}
+        path = url_for(endpoint, **url_values)
+        languages = self._platzky_config.site_languages
+        return language_url(languages, lang_code, request.scheme, request.host, path)
+
+    def _fixed_url_entries(self, endpoint: str, lang_code: str) -> list[SitemapEntry]:
+        """List the one URL of a ``sitemap=True`` route in a language."""
+        return [SitemapEntry(self.url_for_language(endpoint, lang_code))]
 
     def redirect_to_language(self, lang_code: str, path: str) -> BaseResponse:
         """Permanently redirect to a page at the address where a language is served.

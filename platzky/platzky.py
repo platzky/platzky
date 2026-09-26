@@ -548,6 +548,7 @@ def create_app_from_config(
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,
+        url_for_language=engine.url_for_language,
     )
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,

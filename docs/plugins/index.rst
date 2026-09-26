@@ -126,23 +126,27 @@ For a route without URL variables, pass ``sitemap=True``:
         ...
 
 For a route with variables, pass a function that, given a language code, returns a
-``SitemapEntry`` per page: the variables' values and, when known, the page's last change:
+``SitemapEntry`` per page: its absolute URL and, when known, its last change.
+``engine.url_for_language`` builds the URL like ``url_for``, but in the given language and on
+the host that serves it:
 
 .. code-block:: python
 
     from platzky.sitemap import SitemapEntry
 
     def books_in(lang: str) -> list[SitemapEntry]:
-        return [SitemapEntry({"isbn": book.isbn}, book.updated) for book in shelf.books(lang)]
+        return [
+            SitemapEntry(engine.url_for_language("books.book", lang, isbn=book.isbn), book.updated)
+            for book in shelf.books(lang)
+        ]
 
     @books.route("/<isbn>", multilang=True, sitemap=books_in)
     def book(isbn):
         ...
 
-The sitemap builds each URL with ``url_for``, so it follows the route wherever it is
-mounted. ``sitemap=True`` on a route with variables, or ``sitemap`` on a route without
-``GET``, is rejected when the route is registered. A site owner can still hide listed URLs
-with ``SITEMAP_EXCLUDED_PREFIXES``.
+``sitemap=True`` on a route with variables, or ``sitemap`` on a route without ``GET``, is
+rejected when the route is registered. A site owner can still hide listed URLs with
+``SITEMAP_EXCLUDED_PREFIXES``.
 
 Packaging a Plugin
 ------------------

@@ -750,7 +750,8 @@ def test_sitemap_lists_a_route_with_variables_through_its_entries(test_app: Engi
     books = Blueprint("books", __name__, url_prefix="/books")
 
     def books_in(lang: str) -> list[SitemapEntry]:
-        return [SitemapEntry({"isbn": f"hobbit-{lang}"}, date(1937, 9, 21))]
+        loc = test_app.url_for_language("books.book", lang, isbn=f"hobbit-{lang}")
+        return [SitemapEntry(loc, date(1937, 9, 21))]
 
     @books.route("/<isbn>", multilang=True, sitemap=books_in)
     def book(isbn: str) -> str:
