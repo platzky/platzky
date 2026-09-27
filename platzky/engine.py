@@ -55,7 +55,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.sitemap import SitemapEntries
+from platzky.sitemap import SitemapProvider
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class Engine(Flask):
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self._platzky_config = config
         self._localized_endpoints: set[str] = set()
-        self.sitemap_entries: dict[str, SitemapEntries] = {}
+        self.sitemap_providers: dict[str, SitemapProvider] = {}
         self.db = db
         self._attachment_config = config.attachment
         self.plugins: defaultdict[type, list[Any]] = defaultdict(list)
@@ -408,7 +408,7 @@ class Engine(Flask):
         provide_automatic_options: Optional[bool] = None,
         *,
         multilang: bool = False,
-        sitemap_entries: Optional[SitemapEntries] = None,
+        sitemap_provider: Optional[SitemapProvider] = None,
         **options: object,
     ) -> None:
         """Register a route, with platzky's own options for languages and the sitemap.
@@ -421,7 +421,7 @@ class Engine(Flask):
             multilang: Whether the view renders in every language (it reads
                 ``get_locale()``), so it is also served under ``/<lang_code>/`` and
                 ``url_for`` builds it under the current language's prefix.
-            sitemap_entries: Lists the route in ``sitemap.xml``, in every language it is
+            sitemap_provider: Lists the route in ``sitemap.xml``, in every language it is
                 served in: a function taking a language code and ``url``, the route's URL
                 builder in that language, and returning its ``SitemapEntry`` items, or
                 ``platzky.sitemap.single_url`` for a route without URL variables.
@@ -429,8 +429,8 @@ class Engine(Flask):
         """
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if sitemap_entries is not None:
-            self.sitemap_entries[name] = sitemap_entries
+        if sitemap_provider is not None:
+            self.sitemap_providers[name] = sitemap_provider
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages

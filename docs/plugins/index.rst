@@ -113,7 +113,7 @@ without view arguments also get ``hreflang`` links to their version in every lan
 Listing Routes in the Sitemap
 -----------------------------
 
-``sitemap.xml`` lists only the routes registered with the ``sitemap_entries`` option, in
+``sitemap.xml`` lists only the routes registered with the ``sitemap_provider`` option, in
 every language the requesting host serves; with ``multilang=True`` a page is listed once per
 language. The built-in homepage, blog index, posts and CMS pages use it too.
 
@@ -128,7 +128,7 @@ in that language, on the host that serves it, from the route's URL variables:
     def books_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
         return [SitemapEntry(url(isbn=book.isbn), book.updated) for book in shelf.books(lang)]
 
-    @books.route("/<isbn>", multilang=True, sitemap_entries=books_in)
+    @books.route("/<isbn>", multilang=True, sitemap_provider=books_in)
     def book(isbn):
         ...
 
@@ -136,7 +136,7 @@ A route without URL variables passes ``single_url``, which lists its one URL:
 
 .. code-block:: python
 
-    @books.route("/", multilang=True, sitemap_entries=single_url)
+    @books.route("/", multilang=True, sitemap_provider=single_url)
     def index():
         ...
 

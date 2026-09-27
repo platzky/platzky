@@ -707,7 +707,7 @@ def test_default_language_prefix_redirects_to_the_unprefixed_page(
 def _register_books(app: Engine) -> None:
     books = Blueprint("books", __name__, url_prefix="/books")
 
-    @books.route("/", multilang=True, sitemap_entries=single_url)
+    @books.route("/", multilang=True, sitemap_provider=single_url)
     def index() -> str:
         return f"{app.get_locale()} {url_for('books.index')} {url_for('books.isbn_lookup')}"
 
@@ -752,7 +752,7 @@ def test_sitemap_lists_a_route_with_variables_through_its_entries(test_app: Engi
     def books_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
         return [SitemapEntry(url(isbn=f"hobbit-{lang}"), date(1937, 9, 21))]
 
-    @books.route("/<isbn>", multilang=True, sitemap_entries=books_in)
+    @books.route("/<isbn>", multilang=True, sitemap_provider=books_in)
     def book(isbn: str) -> str:
         return isbn
 

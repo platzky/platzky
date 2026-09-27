@@ -9,14 +9,14 @@ from flask_wtf.csrf import CSRFProtect
 
 from platzky.language_routing import SiteLanguages
 from platzky.seo import seo
-from platzky.sitemap import SitemapEntries, SitemapEntry, UrlFor, single_url
+from platzky.sitemap import SitemapEntry, SitemapProvider, UrlFor, single_url
 
 _ENGLISH_ONLY = SiteLanguages(domains={"en": None}, default="en")
 _ENGLISH_AND_UKRAINIAN = SiteLanguages(domains={"en": None, "uk": None}, default="en")
 
 
 def _make_seo_app(
-    sitemap_entries: Mapping[str, SitemapEntries] | None = None,
+    sitemap_providers: Mapping[str, SitemapProvider] | None = None,
     languages: SiteLanguages = _ENGLISH_ONLY,
     sitemap_excluded_prefixes: list[str] | None = None,
 ) -> Flask:
@@ -26,7 +26,7 @@ def _make_seo_app(
     app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
     CSRFProtect(app)
     app.register_blueprint(_books_blueprint())
-    app.register_blueprint(seo.create_seo_blueprint(config, languages, sitemap_entries or {}))
+    app.register_blueprint(seo.create_seo_blueprint(config, languages, sitemap_providers or {}))
     return app
 
 
@@ -121,11 +121,11 @@ def _misspelled_books(_lang: str, url: UrlFor) -> list[SitemapEntry]:
     return [SitemapEntry(url(isnb="978-0261102217"))]
 
 
-@pytest.mark.parametrize("entries", [single_url, _misspelled_books])
+@pytest.mark.parametrize("provider", [single_url, _misspelled_books])
 def test_sitemap_leaves_out_a_route_whose_urls_cannot_be_built(
-    caplog: pytest.LogCaptureFixture, entries: SitemapEntries
+    caplog: pytest.LogCaptureFixture, provider: SitemapProvider
 ):
-    app = _make_seo_app({"books.book": entries, "books.about": single_url})
+    app = _make_seo_app({"books.book": provider, "books.about": single_url})
     with caplog.at_level(logging.WARNING, logger="platzky.seo.seo"):
         sitemap = _sitemap(app)
     assert "The sitemap leaves out 'books.book'" in caplog.text

@@ -1,4 +1,4 @@
-"""What a route contributes to ``sitemap.xml``, declared with its ``sitemap_entries`` option."""
+"""What a route contributes to ``sitemap.xml``, declared with its ``sitemap_provider`` option."""
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -21,7 +21,7 @@ class SitemapEntry:
 UrlFor = Callable[..., str]
 """Takes a route's URL variables as keywords; returns its absolute URL in one language."""
 
-SitemapEntries = Callable[[str, UrlFor], Iterable[SitemapEntry]]
+SitemapProvider = Callable[[str, UrlFor], Iterable[SitemapEntry]]
 """Takes a language code and ``url`` for the route in it; returns the route's entries."""
 
 

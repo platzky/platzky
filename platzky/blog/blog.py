@@ -72,7 +72,7 @@ def create_blog_blueprint(
             SitemapEntry(url(page_slug=page.slug), page.date) for page in db.get_all_pages(lang)
         ]
 
-    @blog.route("/", methods=["GET"], multilang=True, sitemap_entries=single_url)
+    @blog.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
     def all_posts() -> str:
         """Display all blog posts for the current language.
 
@@ -146,7 +146,7 @@ def create_blog_blueprint(
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
-    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_entries=post_entries)
+    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
 
@@ -168,7 +168,7 @@ def create_blog_blueprint(
         )
 
     @blog.route(
-        "/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap_entries=page_entries
+        "/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap_provider=page_entries
     )
     def get_page(page_slug: str) -> str:
         """Display a static page.

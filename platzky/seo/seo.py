@@ -23,7 +23,7 @@ from platzky.language_routing import (
     language_url,
     served_languages,
 )
-from platzky.sitemap import SitemapEntries, SitemapEntry
+from platzky.sitemap import SitemapEntry, SitemapProvider
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def _route_entries(
     languages: SiteLanguages,
     prefixes: t.Mapping[str, str],
     endpoint: str,
-    list_entries: SitemapEntries,
+    provider: SitemapProvider,
 ) -> list[SitemapEntry]:
     """Return a route's sitemap entries in every language served on the host.
 
@@ -64,7 +64,7 @@ def _route_entries(
         languages: The site's languages.
         prefixes: Languages served on the current host mapped to their URL prefix.
         endpoint: The route's endpoint.
-        list_entries: Its ``sitemap_entries`` function.
+        provider: Its ``sitemap_provider``.
 
     Returns:
         The entries; none, with a warning logged, if one of its URLs cannot be built, e.g. a
@@ -76,7 +76,7 @@ def _route_entries(
             entry
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
-            for entry in list_entries(lang, partial(_url_in_language, languages, endpoint, lang))
+            for entry in provider(lang, partial(_url_in_language, languages, endpoint, lang))
         ]
     except BuildError as error:
         logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
@@ -86,7 +86,7 @@ def _route_entries(
 def create_seo_blueprint(
     config: dict[str, t.Any],
     languages: SiteLanguages,
-    sitemap_entries: t.Mapping[str, SitemapEntries],
+    sitemap_providers: t.Mapping[str, SitemapProvider],
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
@@ -94,7 +94,7 @@ def create_seo_blueprint(
         config: Configuration dictionary with SEO settings
         languages: The site's languages; the sitemap lists those served on the requesting
             host
-        sitemap_entries: Endpoints registered with the ``sitemap_entries`` option, mapped to
+        sitemap_providers: Endpoints registered with the ``sitemap_provider`` option, mapped to
             their entries; read on every sitemap request, so routes registered after the
             blueprint is created are included
 
@@ -124,7 +124,7 @@ def create_seo_blueprint(
     def sitemap() -> Response:
         """Route to dynamically generate a sitemap of your website/application.
 
-        Lists the URLs of every route registered with the ``sitemap_entries`` option, in every
+        Lists the URLs of every route registered with the ``sitemap_provider`` option, in every
         language served on the requesting host, with their lastmod when known.
 
         Returns:
@@ -135,8 +135,8 @@ def create_seo_blueprint(
 
         entries = [
             entry
-            for endpoint, list_entries in sitemap_entries.items()
-            for entry in _route_entries(languages, prefixes, endpoint, list_entries)
+            for endpoint, provider in sitemap_providers.items()
+            for entry in _route_entries(languages, prefixes, endpoint, provider)
         ]
         urls = {
             entry.loc: entry.lastmod
