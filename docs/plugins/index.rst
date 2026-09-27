@@ -140,9 +140,11 @@ A route without URL variables passes ``single_url``, which lists its one URL:
     def index():
         ...
 
-A route the sitemap cannot list, one without ``GET`` or one with variables given
-``single_url``, is still served but left out of the sitemap, with a warning in the log when
-it is registered. A site owner can still hide listed URLs with ``SITEMAP_EXCLUDED_PREFIXES``.
+A route the sitemap cannot list is still served but left out of the sitemap, with a warning
+in the log: one without ``GET`` when it is registered, and one whose URLs cannot be built,
+such as a variable ``url`` was not given (``single_url`` on ``/books/<isbn>``), each time the
+sitemap is generated. A site owner can still hide listed URLs with
+``SITEMAP_EXCLUDED_PREFIXES``.
 
 Packaging a Plugin
 ------------------

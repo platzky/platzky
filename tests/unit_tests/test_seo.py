@@ -1,7 +1,9 @@
+import logging
 import secrets
 from collections.abc import Mapping
 from datetime import date
 
+import pytest
 from flask import Blueprint, Flask
 from flask_wtf.csrf import CSRFProtect
 
@@ -111,5 +113,21 @@ def test_sitemap_leaves_out_urls_under_an_excluded_prefix():
         sitemap_excluded_prefixes=["/books/"],
     )
     sitemap = _sitemap(app)
+    assert "/books/" not in sitemap
+    assert "http://localhost/about" in sitemap
+
+
+def _misspelled_books(_lang: str, url: UrlFor) -> list[SitemapEntry]:
+    return [SitemapEntry(url(isnb="978-0261102217"))]
+
+
+@pytest.mark.parametrize("entries", [single_url, _misspelled_books])
+def test_sitemap_leaves_out_a_route_whose_urls_cannot_be_built(
+    caplog: pytest.LogCaptureFixture, entries: SitemapEntries
+):
+    app = _make_seo_app({"books.book": entries, "books.about": single_url})
+    with caplog.at_level(logging.WARNING, logger="platzky.seo.seo"):
+        sitemap = _sitemap(app)
+    assert "The sitemap leaves out 'books.book'" in caplog.text
     assert "/books/" not in sitemap
     assert "http://localhost/about" in sitemap

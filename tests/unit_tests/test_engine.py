@@ -772,31 +772,20 @@ def test_sitemap_lists_posts_in_each_language_with_their_date():
     assert "<lastmod>2021-02-19</lastmod>" in sitemap
 
 
-@pytest.mark.parametrize(
-    ("rule", "methods", "warning"),
-    [
-        ("/books/<isbn>", ["GET"], "which single_url cannot fill"),
-        ("/books/order", ["POST"], "does not answer GET"),
-    ],
-)
-def test_sitemap_route_that_cannot_be_listed_is_logged_and_left_out(
-    test_app: Engine,
-    caplog: pytest.LogCaptureFixture,
-    rule: str,
-    methods: list[str],
-    warning: str,
+def test_sitemap_route_without_get_is_logged_and_left_out(
+    test_app: Engine, caplog: pytest.LogCaptureFixture
 ):
     books = Blueprint("books", __name__)
 
-    @books.route(rule, methods=methods, sitemap_entries=single_url)
-    def view(**_kwargs: str) -> str:
-        return "book"
+    @books.route("/books/order", methods=["POST"], sitemap_entries=single_url)
+    def order() -> str:
+        return "ordered"
 
     with caplog.at_level(logging.WARNING, logger="platzky.sitemap"):
         test_app.register_blueprint(books)
 
-    assert warning in caplog.text
-    assert "books.view" not in test_app.sitemap_entries
+    assert "does not answer GET" in caplog.text
+    assert "books.order" not in test_app.sitemap_entries
 
 
 def test_url_for_follows_the_language_of_the_request(test_app: Engine):

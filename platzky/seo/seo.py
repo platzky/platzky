@@ -1,5 +1,6 @@
 """Flask blueprint for SEO functionality including robots.txt and sitemap.xml."""
 
+import logging
 import typing as t
 import urllib.parse
 from functools import partial
@@ -14,6 +15,7 @@ from flask import (
     request,
     url_for,
 )
+from werkzeug.routing import BuildError
 
 from platzky.language_routing import (
     LANG_CODE_ARG,
@@ -21,7 +23,9 @@ from platzky.language_routing import (
     language_url,
     served_languages,
 )
-from platzky.sitemap import SitemapEntries
+from platzky.sitemap import SitemapEntries, SitemapEntry
+
+logger = logging.getLogger(__name__)
 
 
 def _is_localized(endpoint: str) -> bool:
@@ -46,6 +50,37 @@ def _url_in_language(
     url_values: dict[str, t.Any] = {**values, LANG_CODE_ARG: None}
     path = url_for(endpoint, **url_values)
     return language_url(languages, lang_code, request.scheme, request.host, path)
+
+
+def _route_entries(
+    languages: SiteLanguages,
+    prefixes: t.Mapping[str, str],
+    endpoint: str,
+    list_entries: SitemapEntries,
+) -> list[SitemapEntry]:
+    """Return a route's sitemap entries in every language served on the host.
+
+    Args:
+        languages: The site's languages.
+        prefixes: Languages served on the current host mapped to their URL prefix.
+        endpoint: The route's endpoint.
+        list_entries: Its ``sitemap_entries`` function.
+
+    Returns:
+        The entries; none, with a warning logged, if one of its URLs cannot be built, e.g. a
+        URL variable is missing.
+    """
+    entries: list[SitemapEntry] = []
+    try:
+        entries = [
+            entry
+            for lang, prefix in prefixes.items()
+            if not prefix or _is_localized(endpoint)
+            for entry in list_entries(lang, partial(_url_in_language, languages, endpoint, lang))
+        ]
+    except BuildError as error:
+        logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
+    return entries
 
 
 def create_seo_blueprint(
@@ -101,9 +136,7 @@ def create_seo_blueprint(
         entries = [
             entry
             for endpoint, list_entries in sitemap_entries.items()
-            for lang, prefix in prefixes.items()
-            if not prefix or _is_localized(endpoint)
-            for entry in list_entries(lang, partial(_url_in_language, languages, endpoint, lang))
+            for entry in _route_entries(languages, prefixes, endpoint, list_entries)
         ]
         urls = {
             entry.loc: entry.lastmod

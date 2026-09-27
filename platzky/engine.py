@@ -426,7 +426,7 @@ class Engine(Flask):
         multilang = bool(options.pop("multilang", False))
         entries = cast("SitemapEntries | None", options.pop("sitemap_entries", None))
         methods = cast("Iterable[str] | None", options.get("methods"))
-        in_sitemap = entries is not None and is_route_allowed_in_sitemap(rule, methods, entries)
+        in_sitemap = entries is not None and is_route_allowed_in_sitemap(rule, methods)
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
         if entries is not None and in_sitemap:
