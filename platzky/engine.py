@@ -459,7 +459,7 @@ class Engine(Flask):
         query = request.query_string.decode()
         return redirect(f"{url}?{query}" if query else url, code=308)
 
-    def language_urls(self) -> dict[str, str]:
+    def current_page_language_alternates(self) -> dict[str, str]:
         """Return the absolute URL of the current page in each configured language.
 
         Only localized routes without view arguments, such as the home page or the blog index,

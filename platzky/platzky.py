@@ -359,7 +359,7 @@ def create_engine(
         lang = config.languages.get(locale)
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
-        alternates = app.language_urls()
+        alternates = app.current_page_language_alternates()
         return {
             "app_name": config.app_name,
             "app_description": app.db.get_app_description(locale) or config.app_name,
