@@ -28,6 +28,7 @@ from flask import (
 from flask import typing as ft
 from flask_babel import Babel
 from markupsafe import Markup
+from typing_extensions import override
 from werkzeug.wrappers import Response as BaseResponse
 
 from platzky.attachment import Attachment, create_attachment
@@ -398,6 +399,7 @@ class Engine(Flask):
         """Return the language of the current request, derived from its host and path only."""
         return resolve_locale(self._platzky_config.site_languages, request.host, request.path)
 
+    @override
     def add_url_rule(
         self,
         rule: str,
