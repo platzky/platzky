@@ -170,6 +170,13 @@ def _config_data(**overrides: object) -> dict[str, object]:
     }
 
 
+def test_model_validate_leaves_its_input_unchanged() -> None:
+    data = _config_data()
+    Config.model_validate(data)
+    assert data["DB"] == {"TYPE": "json", "DATA": {}}
+    assert Config.model_validate(data).app_name == "test"
+
+
 class TestLanguages:
     """Tests for DEFAULT_LANGUAGE and the URL each language is served at."""
 
@@ -187,6 +194,10 @@ class TestLanguages:
 
     def test_default_language_is_en_without_languages(self) -> None:
         assert Config.model_validate(_config_data()).default_language == "en"
+
+    def test_set_default_language_wins_over_the_first_language(self) -> None:
+        data = _config_data(DEFAULT_LANGUAGE="de", LANGUAGES={"pl": _PL, "en": _EN, "de": _DE})
+        assert Config.model_validate(data).default_language == "de"
 
     def test_default_language_must_be_configured(self) -> None:
         data = _config_data(DEFAULT_LANGUAGE="de", LANGUAGES={"en": _EN, "pl": _PL})

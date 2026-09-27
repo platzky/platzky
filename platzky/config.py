@@ -169,7 +169,10 @@ class AttachmentConfig(BaseModel):
 
 
 def _first_language(data: dict[str, t.Any]) -> str:
-    """Imply DEFAULT_LANGUAGE: the first configured language, otherwise ``en``.
+    """The default for DEFAULT_LANGUAGE when the config doesn't set it.
+
+    That is the first configured language, in the order the config lists them, otherwise
+    ``en``.
 
     Args:
         data: The fields validated so far; ``languages`` precedes ``default_language``.
@@ -319,7 +322,7 @@ class Config(BaseModel):
     ) -> "Config":
         """Validate and construct Config from dictionary.
 
-        Parses the raw FEATURE_FLAGS dict into a ``FeatureFlagSet``.
+        Validates the DB section with its backend's config type, leaving ``obj`` unchanged.
 
         Args:
             obj: Configuration dictionary
@@ -339,10 +342,9 @@ class Config(BaseModel):
         except KeyError as e:
             raise ValueError(f"Missing required config key: {e}. DB.TYPE is required.") from e
         db_cfg_type = get_db_module(db_type).db_config_type()
-        obj["DB"] = db_cfg_type.model_validate(db_section)
 
         return super().model_validate(
-            obj,
+            {**obj, "DB": db_cfg_type.model_validate(db_section)},
             strict=strict,
             from_attributes=from_attributes,
             context=context,
