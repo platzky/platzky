@@ -7,7 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 
 from platzky.language_routing import SiteLanguages
 from platzky.seo import seo
-from platzky.sitemap import SitemapEntries, SitemapEntry
+from platzky.sitemap import SitemapEntries, SitemapEntry, UrlFor, single_url
 
 _ENGLISH_ONLY = SiteLanguages(domains={"en": None}, default="en")
 _ENGLISH_AND_UKRAINIAN = SiteLanguages(domains={"en": None, "uk": None}, default="en")
@@ -44,14 +44,9 @@ def _books_blueprint() -> Blueprint:
     return books
 
 
-def _books_in(lang: str) -> list[SitemapEntry]:
-    prefix = "/uk" if lang == "uk" else ""
+def _books_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
     isbn = {"en": "978-0261102217", "uk": "978-6177585"}.get(lang, "978-3608939842")
-    return [SitemapEntry(f"http://localhost{prefix}/books/{isbn}", date(1937, 9, 21))]
-
-
-def _about_in(_lang: str) -> list[SitemapEntry]:
-    return [SitemapEntry("http://localhost/about")]
+    return [SitemapEntry(url(isbn=isbn), date(1937, 9, 21))]
 
 
 def _sitemap(app: Flask) -> str:
@@ -73,13 +68,13 @@ def test_sitemap_lists_each_entry_with_its_lastmod():
 
 
 def test_sitemap_leaves_out_lastmod_when_unknown():
-    sitemap = _sitemap(_make_seo_app({"books.about": _about_in}))
+    sitemap = _sitemap(_make_seo_app({"books.about": single_url}))
     assert "<loc>http://localhost/about</loc>" in sitemap
     assert "<lastmod>" not in sitemap
 
 
 def test_sitemap_leaves_out_routes_not_registered_for_it():
-    assert "/books/" not in _sitemap(_make_seo_app({"books.about": _about_in}))
+    assert "/books/" not in _sitemap(_make_seo_app({"books.about": single_url}))
 
 
 def test_sitemap_asks_a_localized_route_for_every_language_served_on_the_host():
@@ -102,9 +97,9 @@ def test_sitemap_on_a_language_domain_asks_only_for_that_language():
 def test_sitemap_asks_a_route_without_a_language_version_only_once():
     asked: list[str] = []
 
-    def about_in(lang: str) -> list[SitemapEntry]:
+    def about_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
         asked.append(lang)
-        return _about_in(lang)
+        return single_url(lang, url)
 
     _sitemap(_make_seo_app({"books.about": about_in}, _ENGLISH_AND_UKRAINIAN))
     assert asked == ["en"]
@@ -112,7 +107,7 @@ def test_sitemap_asks_a_route_without_a_language_version_only_once():
 
 def test_sitemap_leaves_out_urls_under_an_excluded_prefix():
     app = _make_seo_app(
-        {"books.book": _books_in, "books.about": _about_in},
+        {"books.book": _books_in, "books.about": single_url},
         sitemap_excluded_prefixes=["/books/"],
     )
     sitemap = _sitemap(app)

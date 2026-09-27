@@ -7,7 +7,6 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, TimeoutError
-from functools import partial
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
@@ -25,7 +24,6 @@ from flask import (
     make_response,
     redirect,
     request,
-    url_for,
 )
 from flask import typing as ft
 from flask_babel import Babel
@@ -56,7 +54,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.sitemap import SitemapEntries, SitemapEntry, is_route_allowed_in_sitemap
+from platzky.sitemap import SitemapEntries, is_route_allowed_in_sitemap
 
 logger = logging.getLogger(__name__)
 
@@ -419,23 +417,20 @@ class Engine(Flask):
                 ``multilang``: whether the view renders in every language (it reads
                 ``get_locale()``), so it is also served under ``/<lang_code>/`` and
                 ``url_for`` builds it under the current language's prefix.
-                ``sitemap``: lists the route in ``sitemap.xml``, in every language it is served
-                in: ``True`` for a route without URL variables, or a function returning its
-                ``SitemapEntry`` URLs in a given language. A route the sitemap cannot list is
-                logged and left out of it, but still served.
+                ``sitemap_entries``: lists the route in ``sitemap.xml``, in every language it
+                is served in; a function taking a language code and ``url``, the route's
+                URL builder in that language, and returning its ``SitemapEntry`` items, or
+                ``platzky.sitemap.single_url`` for a route without URL variables. A route
+                the sitemap cannot list is logged and left out of it, but still served.
         """
         multilang = bool(options.pop("multilang", False))
-        sitemap = options.pop("sitemap", None)
+        entries = cast("SitemapEntries | None", options.pop("sitemap_entries", None))
         methods = cast("Iterable[str] | None", options.get("methods"))
-        in_sitemap = bool(sitemap) and is_route_allowed_in_sitemap(rule, methods, sitemap)
+        in_sitemap = entries is not None and is_route_allowed_in_sitemap(rule, methods, entries)
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if in_sitemap:
-            self.sitemap_entries[name] = (
-                cast(SitemapEntries, sitemap)
-                if callable(sitemap)
-                else partial(self._fixed_url_entries, name)
-            )
+        if entries is not None and in_sitemap:
+            self.sitemap_entries[name] = entries
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
@@ -447,27 +442,6 @@ class Engine(Flask):
                     provide_automatic_options,
                     **options,
                 )
-
-    def url_for_language(self, endpoint: str, lang_code: str, **values: object) -> str:
-        """Return the absolute URL of an endpoint in a language, on the host that serves it.
-
-        Args:
-            endpoint: The endpoint, e.g. ``"blog.get_post"``; for a domainless language, one
-                registered with ``multilang=True``.
-            lang_code: The language to link to.
-            **values: The endpoint's URL variables, as for ``url_for``.
-
-        Returns:
-            The URL under the language's prefix, on its own domain or the main host.
-        """
-        url_values: dict[str, Any] = {**values, LANG_CODE_ARG: None}
-        path = url_for(endpoint, **url_values)
-        languages = self._platzky_config.site_languages
-        return language_url(languages, lang_code, request.scheme, request.host, path)
-
-    def _fixed_url_entries(self, endpoint: str, lang_code: str) -> list[SitemapEntry]:
-        """List the one URL of a ``sitemap=True`` route in a language."""
-        return [SitemapEntry(self.url_for_language(endpoint, lang_code))]
 
     def redirect_to_language(self, lang_code: str, path: str) -> BaseResponse:
         """Permanently redirect to a page at the address where a language is served.

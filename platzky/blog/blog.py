@@ -15,7 +15,7 @@ from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
-from platzky.sitemap import SitemapEntry
+from platzky.sitemap import SitemapEntry, UrlFor, single_url
 
 from . import comment_form
 
@@ -29,7 +29,6 @@ def create_blog_blueprint(
     blog_prefix: str,
     locale_func: Callable[[], str],
     content_transformer: Callable[[str, FilterContentType], str],
-    url_for_language: Callable[..., str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -38,7 +37,6 @@ def create_blog_blueprint(
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
         content_transformer: Function applied to post/page content before rendering
-        url_for_language: ``Engine.url_for_language``, for the sitemap's URLs of posts and pages
 
     Returns:
         Configured Flask Blueprint for blog functionality
@@ -62,25 +60,19 @@ def create_blog_blueprint(
         """
         return render_template("404.html", title="404"), 404
 
-    def post_entries(lang: str) -> list[SitemapEntry]:
+    def post_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
         """List every post in a language for the sitemap, dated when it has a date."""
         return [
-            SitemapEntry(
-                url_for_language(f"{blog.name}.get_post", lang, post_slug=post.slug), post.date
-            )
-            for post in db.get_all_posts(lang)
+            SitemapEntry(url(post_slug=post.slug), post.date) for post in db.get_all_posts(lang)
         ]
 
-    def page_entries(lang: str) -> list[SitemapEntry]:
+    def page_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
         """List every page in a language for the sitemap, dated when it has a date."""
         return [
-            SitemapEntry(
-                url_for_language(f"{blog.name}.get_page", lang, page_slug=page.slug), page.date
-            )
-            for page in db.get_all_pages(lang)
+            SitemapEntry(url(page_slug=page.slug), page.date) for page in db.get_all_pages(lang)
         ]
 
-    @blog.route("/", methods=["GET"], multilang=True, sitemap=True)
+    @blog.route("/", methods=["GET"], multilang=True, sitemap_entries=single_url)
     def all_posts() -> str:
         """Display all blog posts for the current language.
 
@@ -154,7 +146,7 @@ def create_blog_blueprint(
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
-    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap=post_entries)
+    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_entries=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
 
@@ -175,7 +167,9 @@ def create_blog_blueprint(
             comment_sent=request.args.get("comment_sent"),
         )
 
-    @blog.route("/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap=page_entries)
+    @blog.route(
+        "/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap_entries=page_entries
+    )
     def get_page(page_slug: str) -> str:
         """Display a static page.
 

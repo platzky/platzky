@@ -13,7 +13,7 @@ from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
-from platzky.sitemap import SitemapEntry
+from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from tests.unit_tests.fake_app import test_app
 
 test_app = test_app
@@ -708,7 +708,7 @@ def test_default_language_prefix_redirects_to_the_unprefixed_page(
 def _register_books(app: Engine) -> None:
     books = Blueprint("books", __name__, url_prefix="/books")
 
-    @books.route("/", multilang=True, sitemap=True)
+    @books.route("/", multilang=True, sitemap_entries=single_url)
     def index() -> str:
         return f"{app.get_locale()} {url_for('books.index')} {url_for('books.isbn_lookup')}"
 
@@ -750,11 +750,10 @@ def test_sitemap_lists_cms_pages_but_not_the_feed(test_app: Engine):
 def test_sitemap_lists_a_route_with_variables_through_its_entries(test_app: Engine):
     books = Blueprint("books", __name__, url_prefix="/books")
 
-    def books_in(lang: str) -> list[SitemapEntry]:
-        loc = test_app.url_for_language("books.book", lang, isbn=f"hobbit-{lang}")
-        return [SitemapEntry(loc, date(1937, 9, 21))]
+    def books_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
+        return [SitemapEntry(url(isbn=f"hobbit-{lang}"), date(1937, 9, 21))]
 
-    @books.route("/<isbn>", multilang=True, sitemap=books_in)
+    @books.route("/<isbn>", multilang=True, sitemap_entries=books_in)
     def book(isbn: str) -> str:
         return isbn
 
@@ -776,7 +775,7 @@ def test_sitemap_lists_posts_in_each_language_with_their_date():
 @pytest.mark.parametrize(
     ("rule", "methods", "warning"),
     [
-        ("/books/<isbn>", ["GET"], "has URL variables"),
+        ("/books/<isbn>", ["GET"], "which single_url cannot fill"),
         ("/books/order", ["POST"], "does not answer GET"),
     ],
 )
@@ -789,7 +788,7 @@ def test_sitemap_route_that_cannot_be_listed_is_logged_and_left_out(
 ):
     books = Blueprint("books", __name__)
 
-    @books.route(rule, methods=methods, sitemap=True)
+    @books.route(rule, methods=methods, sitemap_entries=single_url)
     def view(**_kwargs: str) -> str:
         return "book"
 

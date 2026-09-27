@@ -40,6 +40,7 @@ from platzky.plugin.plugin_loader import plugify
 from platzky.seo import seo
 from platzky.shortcodes import Shortcode, ShortcodeError
 from platzky.shortcodes.builtins import get_builtin_shortcodes
+from platzky.sitemap import single_url
 from platzky.www_handler import redirect_nonwww_to_www, redirect_www_to_nonwww
 
 logger = logging.getLogger(__name__)
@@ -337,7 +338,7 @@ def create_engine(
             f"{prefix}/<path:path>", view_func=domainful_language_prefix, methods=["GET"]
         )
 
-    @app.route("/", methods=["GET"], multilang=True, sitemap=True)
+    @app.route("/", methods=["GET"], multilang=True, sitemap_entries=single_url)
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage, falling back to the blog index.
 
@@ -548,7 +549,6 @@ def create_app_from_config(
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,
-        url_for_language=engine.url_for_language,
     )
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,

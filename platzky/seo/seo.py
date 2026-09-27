@@ -2,6 +2,7 @@
 
 import typing as t
 import urllib.parse
+from functools import partial
 from os.path import dirname
 
 from flask import (
@@ -11,15 +12,40 @@ from flask import (
     make_response,
     render_template,
     request,
+    url_for,
 )
 
-from platzky.language_routing import LANG_CODE_ARG, SiteLanguages, served_languages
+from platzky.language_routing import (
+    LANG_CODE_ARG,
+    SiteLanguages,
+    language_url,
+    served_languages,
+)
 from platzky.sitemap import SitemapEntries
 
 
 def _is_localized(endpoint: str) -> bool:
     """Return whether an endpoint is also served under a language prefix (``multilang``)."""
     return any(LANG_CODE_ARG in rule.arguments for rule in current_app.url_map.iter_rules(endpoint))
+
+
+def _url_in_language(
+    languages: SiteLanguages, endpoint: str, lang_code: str, **values: object
+) -> str:
+    """Return the absolute URL of an endpoint in a language, on the host that serves it.
+
+    Args:
+        languages: The site's languages.
+        endpoint: The endpoint; for a domainless language, one registered with ``multilang``.
+        lang_code: The language to link to.
+        **values: The endpoint's URL variables, as for ``url_for``.
+
+    Returns:
+        The URL under the language's prefix, on its own domain or the main host.
+    """
+    url_values: dict[str, t.Any] = {**values, LANG_CODE_ARG: None}
+    path = url_for(endpoint, **url_values)
+    return language_url(languages, lang_code, request.scheme, request.host, path)
 
 
 def create_seo_blueprint(
@@ -33,7 +59,7 @@ def create_seo_blueprint(
         config: Configuration dictionary with SEO settings
         languages: The site's languages; the sitemap lists those served on the requesting
             host
-        sitemap_entries: Endpoints registered with the ``sitemap`` route option, mapped to
+        sitemap_entries: Endpoints registered with the ``sitemap_entries`` option, mapped to
             their entries; read on every sitemap request, so routes registered after the
             blueprint is created are included
 
@@ -63,7 +89,7 @@ def create_seo_blueprint(
     def sitemap() -> Response:
         """Route to dynamically generate a sitemap of your website/application.
 
-        Lists the URLs of every route registered with the ``sitemap`` option, in every
+        Lists the URLs of every route registered with the ``sitemap_entries`` option, in every
         language served on the requesting host, with their lastmod when known.
 
         Returns:
@@ -77,7 +103,7 @@ def create_seo_blueprint(
             for endpoint, list_entries in sitemap_entries.items()
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
-            for entry in list_entries(lang)
+            for entry in list_entries(lang, partial(_url_in_language, languages, endpoint, lang))
         ]
         urls = {
             entry.loc: entry.lastmod

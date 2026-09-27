@@ -268,7 +268,7 @@ URL prefix for SEO-related routes like sitemaps and robots.txt.
 Paths to leave out of ``sitemap.xml``, even when the application or a plugin lists their
 routes there (see :ref:`plugin-sitemap-routes`). The sitemap lists the homepage, the blog
 index, every post and every CMS page, plus the routes an application or plugin registers
-with the ``sitemap`` option.
+with the ``sitemap_entries`` option.
 
 .. code-block:: yaml
 

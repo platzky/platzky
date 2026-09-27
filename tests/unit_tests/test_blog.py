@@ -76,7 +76,6 @@ def test_app():
         config.blog_prefix,
         app.get_locale,
         content_transformer=lambda x, _ct: x,
-        url_for_language=app.url_for_language,
     )
 
     app.register_blueprint(blog_blueprint)
