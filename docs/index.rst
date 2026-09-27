@@ -6,7 +6,7 @@ that aims to provide a simple and easy way to create and run web applications in
 
 Platzky is built on Flask and provides additional features like:
 
-* Multi-language support with automatic locale detection
+* Multi-language support with URL-based locale routing
 * Pluggable database backends (JSON file, Google Cloud Storage, MongoDB)
 * Built-in blog and SEO modules
 * Extensible plugin system

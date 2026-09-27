@@ -270,7 +270,7 @@ boundary escape it. Vouching is the deliberate act; the default is the safe one.
 
 A shortcode is normally a tag an :term:`author` writes in prose. It can also render a value
 the :term:`application` has stored against a record, where nobody wrote brackets at all —
-a field on a product, a map marker's popup entry — through
+a field on a book, a map marker's popup entry — through
 :meth:`~platzky.shortcodes.shortcode.Shortcode.render_value`. Two ways in, one rendering::
 
     [promocode color="red"]SAVE20[/promocode]        # written in a post body
@@ -350,31 +350,31 @@ content and which is an attribute; a stored value has no brackets to say it, so
     ``{"value": "hello"}`` all arrive as the content, which is why most shortcodes need to
     do nothing here.
 
-**What a stored value looks like.** Say the shop keeps its products in the database, one
+**What a stored value looks like.** Say the bookshop keeps its books in the database, one
 record each, and one of the fields holds a promo code:
 
 .. code-block:: json
 
     {
-        "slug": "blue-mug",
-        "name": "Blue mug",
+        "slug": "the-hobbit",
+        "name": "The Hobbit",
         "price": "12.00",
         "promocode": {"code": "SAVE20", "color": "red"},
-        "care": "Dishwasher safe"
+        "binding": "Hardcover"
     }
 
 Nothing here is prose and nobody wrote a tag. What connects the record to a shortcode is
 the **field name**: a field called ``promocode`` is rendered by the ``[promocode]``
-shortcode, and a field no shortcode is registered under is just text. Rendering a product
+shortcode, and a field no shortcode is registered under is just text. Rendering a book
 is therefore a lookup per field:
 
 .. code-block:: python
 
-    shortcodes = app.shortcodes_for(PRODUCT_FIELD)
+    shortcodes = app.shortcodes_for(BOOK_FIELD)
 
-    def render_fields(product: dict[str, object]) -> dict[str, str]:
+    def render_fields(book: dict[str, object]) -> dict[str, str]:
         rendered = {}
-        for field, value in product.items():
+        for field, value in book.items():
             if shortcode := shortcodes.get(field):
                 rendered[field] = shortcode.render_value(value)
             else:
@@ -383,10 +383,10 @@ is therefore a lookup per field:
 
 .. code-block:: text
 
-    name       -> Blue mug
+    name       -> The Hobbit
     price      -> 12.00
     promocode  -> <span class="promo red">SAVE20</span>
-    care       -> Dishwasher safe
+    binding    -> Hardcover
 
 The application writes this loop once, not once per shortcode: installing a plugin that
 registers ``[shipping]`` makes a ``shipping`` field render, with no change here. goodmap

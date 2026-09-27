@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
+{% block head_title %}{{ self.title() | trim }} – {{ app_name }}{% endblock %}
+
 {% block description %}
 {% if not subtitle %}
-{{ _("Find out our tips and tricks about email marketing. We prepared some soft and some hard skills here. Ready to dive in?") }}
+{{ blog_meta.description or app_description }}
 {% else %}
 {{ _("You're interested in") }} {{ subtitle }}? {{ _("We're here to serve you:") }}
 {% endif %}
@@ -10,7 +12,7 @@
 
 {% block content %}
 <div class="blog-contents mx-auto w-75">
-  <h1>{% block title %}Blog {{ subtitle|default('', true) }} {% endblock %}</h1>
+  <h1>{% block title %}{{ blog_meta.title or _("Blog") }} {{ subtitle|default('', true) }}{% endblock %}</h1>
   {% for post in posts %}
 
   <div class="row align-items-center">

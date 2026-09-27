@@ -11,7 +11,7 @@ from platzky.db.graph_ql_db import (
     db_config_type,
     db_from_config,
 )
-from platzky.models import Footer, Post
+from platzky.models import Footer, PageMeta, Post
 
 
 @pytest.fixture
@@ -200,6 +200,13 @@ def test_get_post_without_css(graph_ql_db: GraphQL, mock_client: Mock):
     assert post.css == ""
 
 
+def test_get_all_pages_is_not_supported_and_queries_nothing(
+    graph_ql_db: GraphQL, mock_client: Mock
+):
+    assert graph_ql_db.get_all_pages("en") == []
+    mock_client.execute.assert_not_called()
+
+
 def test_get_page(graph_ql_db: GraphQL, mock_client: Mock):
     mock_response = {
         "page": {
@@ -343,6 +350,13 @@ def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
 
     assert description == ""
     mock_client.execute.assert_called_once()
+
+
+def test_get_blog_meta_is_not_supported_and_queries_nothing(
+    graph_ql_db: GraphQL, mock_client: Mock
+):
+    assert graph_ql_db.get_blog_meta("en") == PageMeta()
+    mock_client.execute.assert_not_called()
 
 
 def test_get_footer_is_not_supported_and_queries_nothing(graph_ql_db: GraphQL, mock_client: Mock):

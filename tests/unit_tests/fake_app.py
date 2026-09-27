@@ -13,9 +13,10 @@ def test_app():
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
         "TRANSLATION_DIRECTORIES": ["/some/fake/dir"],
+        "DEFAULT_LANGUAGE": "en",
         "LANGUAGES": {
-            "en": {"name": "English", "flag": "uk", "domain": "localhost", "country": "GB"},
-            "pl": {"name": "Polski", "flag": "pl", "domain": "localhost", "country": "PL"},
+            "en": {"name": "English", "flag": "uk", "country": "GB"},
+            "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
         },
         "DB": {
             "TYPE": "json",

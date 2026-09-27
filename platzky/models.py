@@ -182,6 +182,18 @@ class Footer(BaseModel):
     collapsible: bool = False
 
 
+class PageMeta(BaseModel):
+    """A page's title and description for search engines and link previews, in one language.
+
+    Attributes:
+        title: Page title; empty to use the page's default title
+        description: Meta description; empty to use the site's description
+    """
+
+    title: str = ""
+    description: str = ""
+
+
 class Color(BaseModel):
     """Represents an RGBA color value.
 

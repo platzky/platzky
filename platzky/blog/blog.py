@@ -15,6 +15,7 @@ from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
+from platzky.sitemap import SitemapEntry, UrlFor, single_url
 
 from . import comment_form
 
@@ -59,7 +60,19 @@ def create_blog_blueprint(
         """
         return render_template("404.html", title="404"), 404
 
-    @blog.route("/", methods=["GET"])
+    def post_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
+        """List every post in a language for the sitemap, dated when it has a date."""
+        return [
+            SitemapEntry(url(post_slug=post.slug), post.date) for post in db.get_all_posts(lang)
+        ]
+
+    def page_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
+        """List every page in a language for the sitemap, dated when it has a date."""
+        return [
+            SitemapEntry(url(page_slug=page.slug), page.date) for page in db.get_all_pages(lang)
+        ]
+
+    @blog.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
     def all_posts() -> str:
         """Display all blog posts for the current language.
 
@@ -71,9 +84,9 @@ def create_blog_blueprint(
         if not posts:
             abort(404)
         posts_sorted = sorted(posts, reverse=True)
-        return render_template("blog.html", posts=posts_sorted)
+        return render_template("blog.html", posts=posts_sorted, blog_meta=db.get_blog_meta(lang))
 
-    @blog.route("/feed", methods=["GET"])
+    @blog.route("/feed", methods=["GET"], multilang=True)
     def get_feed() -> Response:
         """Generate RSS/Atom feed for blog posts.
 
@@ -85,7 +98,7 @@ def create_blog_blueprint(
         response.headers["Content-Type"] = "application/xml"
         return response
 
-    @blog.route("/<post_slug>", methods=["POST"])
+    @blog.route("/<post_slug>", methods=["POST"], multilang=True)
     def post_comment(post_slug: str) -> str:
         """Handle comment submission for a blog post.
 
@@ -133,7 +146,7 @@ def create_blog_blueprint(
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
 
-    @blog.route("/<post_slug>", methods=["GET"])
+    @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
 
@@ -154,7 +167,9 @@ def create_blog_blueprint(
             comment_sent=request.args.get("comment_sent"),
         )
 
-    @blog.route("/page/<path:page_slug>", methods=["GET"])
+    @blog.route(
+        "/page/<path:page_slug>", methods=["GET"], multilang=True, sitemap_provider=page_entries
+    )
     def get_page(page_slug: str) -> str:
         """Display a static page.
 
@@ -175,7 +190,7 @@ def create_blog_blueprint(
             cover_image=cover_image_url,
         )
 
-    @blog.route("/tag/<path:tag>", methods=["GET"])
+    @blog.route("/tag/<path:tag>", methods=["GET"], multilang=True)
     def get_posts_from_tag(tag: str) -> str:
         """Display all blog posts with a specific tag.
 
@@ -187,6 +202,8 @@ def create_blog_blueprint(
         """
         lang = locale_func()
         posts = db.get_posts_by_tag(tag, lang)
-        return render_template("blog.html", posts=posts, subtitle=f" - tag: {tag}")
+        return render_template(
+            "blog.html", posts=posts, subtitle=f" - tag: {tag}", blog_meta=db.get_blog_meta(lang)
+        )
 
     return blog
