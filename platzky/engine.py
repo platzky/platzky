@@ -404,6 +404,10 @@ class Engine(Flask):
         endpoint: Optional[str] = None,
         view_func: Optional[ft.RouteCallable] = None,
         provide_automatic_options: Optional[bool] = None,
+        *,
+        multilang: bool = False,
+        sitemap_entries: Optional[SitemapEntries] = None,
+        methods: Optional[Iterable[str]] = None,
         **options: object,
     ) -> None:
         """Register a route, with platzky's own options for languages and the sitemap.
@@ -413,24 +417,22 @@ class Engine(Flask):
             endpoint: The endpoint name; the view's name by default.
             view_func: The view function.
             provide_automatic_options: Whether to add an automatic ``OPTIONS`` response.
-            **options: Further options for the underlying ``Rule``, plus:
-                ``multilang``: whether the view renders in every language (it reads
+            multilang: Whether the view renders in every language (it reads
                 ``get_locale()``), so it is also served under ``/<lang_code>/`` and
                 ``url_for`` builds it under the current language's prefix.
-                ``sitemap_entries``: lists the route in ``sitemap.xml``, in every language it
-                is served in; a function taking a language code and ``url``, the route's
-                URL builder in that language, and returning its ``SitemapEntry`` items, or
+            sitemap_entries: Lists the route in ``sitemap.xml``, in every language it is
+                served in: a function taking a language code and ``url``, the route's URL
+                builder in that language, and returning its ``SitemapEntry`` items, or
                 ``platzky.sitemap.single_url`` for a route without URL variables. A route
                 the sitemap cannot list is logged and left out of it, but still served.
+            methods: The HTTP methods the route answers; ``GET`` by default.
+            **options: Further options for the underlying ``Rule``.
         """
-        multilang = bool(options.pop("multilang", False))
-        entries = cast("SitemapEntries | None", options.pop("sitemap_entries", None))
-        methods = cast("Iterable[str] | None", options.get("methods"))
-        in_sitemap = entries is not None and is_route_allowed_in_sitemap(rule, methods)
+        options["methods"] = methods
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if entries is not None and in_sitemap:
-            self.sitemap_entries[name] = entries
+        if sitemap_entries is not None and is_route_allowed_in_sitemap(rule, methods):
+            self.sitemap_entries[name] = sitemap_entries
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
@@ -498,15 +500,10 @@ class Engine(Flask):
         @self.url_defaults
         def inject_lang_code(endpoint: str, values: dict[str, Any]) -> None:
             """Build localized endpoints under the prefix of the current domainless language."""
-            if (
-                endpoint not in self._localized_endpoints
-                or LANG_CODE_ARG in values
-                or not has_request_context()
-            ):
-                return
-            locale = self.get_locale()
-            if locale in self._platzky_config.site_languages.domainless_languages:
-                values[LANG_CODE_ARG] = locale
+            if endpoint in self._localized_endpoints and has_request_context():
+                locale = self.get_locale()
+                if locale in self._platzky_config.site_languages.domainless_languages:
+                    values.setdefault(LANG_CODE_ARG, locale)
 
     def is_enabled(self, flag: FeatureFlag) -> bool:
         """Check whether a feature flag is enabled.
