@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -55,7 +55,7 @@ from platzky.plugin.html_injector import HtmlInjectorPluginBase, HtmlInjectorPlu
 from platzky.plugin.notifier import Notification, NotifierPluginBase, NotifyPluginConfig
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.sitemap import SitemapEntries, is_route_allowed_in_sitemap
+from platzky.sitemap import SitemapEntries
 
 logger = logging.getLogger(__name__)
 
@@ -409,7 +409,6 @@ class Engine(Flask):
         *,
         multilang: bool = False,
         sitemap_entries: Optional[SitemapEntries] = None,
-        methods: Optional[Iterable[str]] = None,
         **options: object,
     ) -> None:
         """Register a route, with platzky's own options for languages and the sitemap.
@@ -425,15 +424,12 @@ class Engine(Flask):
             sitemap_entries: Lists the route in ``sitemap.xml``, in every language it is
                 served in: a function taking a language code and ``url``, the route's URL
                 builder in that language, and returning its ``SitemapEntry`` items, or
-                ``platzky.sitemap.single_url`` for a route without URL variables. A route
-                the sitemap cannot list is logged and left out of it, but still served.
-            methods: The HTTP methods the route answers; ``GET`` by default.
+                ``platzky.sitemap.single_url`` for a route without URL variables.
             **options: Further options for the underlying ``Rule``.
         """
-        options["methods"] = methods
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if sitemap_entries is not None and is_route_allowed_in_sitemap(rule, methods):
+        if sitemap_entries is not None:
             self.sitemap_entries[name] = sitemap_entries
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)

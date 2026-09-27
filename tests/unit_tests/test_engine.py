@@ -1,4 +1,3 @@
-import logging
 from datetime import date
 from typing import Any, cast
 
@@ -770,22 +769,6 @@ def test_sitemap_lists_posts_in_each_language_with_their_date():
     assert "<loc>http://localhost/blog/english-post</loc>" in sitemap
     assert "<loc>http://localhost/pl/blog/polski-wpis</loc>" in sitemap
     assert "<lastmod>2021-02-19</lastmod>" in sitemap
-
-
-def test_sitemap_route_without_get_is_logged_and_left_out(
-    test_app: Engine, caplog: pytest.LogCaptureFixture
-):
-    books = Blueprint("books", __name__)
-
-    @books.route("/books/order", methods=["POST"], sitemap_entries=single_url)
-    def order() -> str:
-        return "ordered"
-
-    with caplog.at_level(logging.WARNING, logger="platzky.sitemap"):
-        test_app.register_blueprint(books)
-
-    assert "does not answer GET" in caplog.text
-    assert "books.order" not in test_app.sitemap_entries
 
 
 def test_url_for_follows_the_language_of_the_request(test_app: Engine):
