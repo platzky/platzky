@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.16](https://github.com/platzky/platzky/compare/v2.0.0-alpha.15...v2.0.0-alpha.16) (2026-09-27)
+
+
+### Features
+
+* cli introduced ([#307](https://github.com/platzky/platzky/issues/307)) ([34bd487](https://github.com/platzky/platzky/commit/34bd487ba5c2da3b7fce23645c657745b782d7ec))
+* each language has its own routing ([#298](https://github.com/platzky/platzky/issues/298)) ([7a67bb9](https://github.com/platzky/platzky/commit/7a67bb942ceb9fc3a4272fd18f5476365744c4fd))
+
 ## [2.0.0-alpha.15](https://github.com/platzky/platzky/compare/v2.0.0-alpha.14...v2.0.0-alpha.15) (2026-09-21)
 
 
