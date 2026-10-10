@@ -463,7 +463,7 @@ class TestSlideshowShortcode:
         assert "javascript:" not in result
 
     def test_nested_shortcodes_are_rendered_before_the_wrapper_sees_them(self) -> None:
-        """The wrapper is handed markup its children already produced, one entry each."""
+        """The wrapper is handed markup its children already produced, one element each."""
         result = _apply(
             '[slideshow][figure image="/a.jpg"][link url="https://e.com"]x[/link]'
             "[/figure][/slideshow]"

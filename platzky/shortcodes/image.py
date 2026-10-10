@@ -1,11 +1,9 @@
 """Built-in image shortcode."""
 
-from collections.abc import Sequence
-
-from markupsafe import Markup, escape
+from markupsafe import escape
 
 from platzky.shortcodes import IntRange, ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes.shortcode import Shortcode
+from platzky.shortcodes.shortcode import Content, Shortcode
 from platzky.shortcodes.urls import IMAGE_URL_POLICY
 
 
@@ -28,8 +26,7 @@ class ImageShortcode(Shortcode):
     def render(
         self,
         attrs: ShortcodeAttrs,
-        content: str,  # noqa: ARG002
-        children: Sequence[Markup],  # noqa: ARG002
+        content: Content,  # noqa: ARG002
     ) -> str:
         """Render an img tag, refusing a source the policy does not permit.
 
@@ -41,7 +38,6 @@ class ImageShortcode(Shortcode):
         Args:
             attrs: Parsed shortcode attributes (url, alt, width, height).
             content: Unused — image is a void element.
-            children: Unused, and always empty — a void element wraps nothing.
 
         Returns:
             An ``<img>`` tag.

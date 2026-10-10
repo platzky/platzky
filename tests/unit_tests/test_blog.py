@@ -64,7 +64,6 @@ def test_app():
             "LANGUAGES": {
                 "en": {"name": "English", "flag": "uk", "domain": "localhost", "country": "GB"}
             },
-            "DOMAIN_TO_LANG": {"localhost": "en"},
             "DB": {"TYPE": "json_file", "PATH": ""},
             "DEBUG": True,
             "TESTING": True,

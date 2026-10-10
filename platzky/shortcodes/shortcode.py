@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, cast, final, get_args
 
 from markupsafe import Markup, escape
-from typing_extensions import override
+from typing_extensions import Self, override
 
 from platzky.shortcodes.constraints import ANY_TEXT
 
@@ -188,6 +188,51 @@ class ShortcodeAttrs:
         return f"ShortcodeAttrs({list(self._schema)!r}, values={self.values!r})"
 
     __hash__ = None  # type: ignore[assignment]
+
+
+class Content(Markup):
+    """What a shortcode wraps, rendered, with its element children kept one per entry.
+
+    Embeds like any ``Markup``. ``elements`` is for a wrapper that counts what it holds,
+    rather than scanning the markup for what its children happened to produce. Text between
+    the children is not an entry, nor is a child that refused itself and rendered nothing.
+    Only the instance handed to ``render`` carries entries: ``Markup`` operations return a
+    new instance with none.
+    """
+
+    #: A default as well as a declaration, so the attribute is there whatever route an
+    #: instance came by — ``Markup`` builds one straight from ``str`` in places.
+    elements: tuple[Markup, ...] = ()
+
+    # ``elements`` is keyword-only because the positional slots are ``Markup``'s own:
+    # taking the second would make Content(b"...", "utf-8") skip the decoding and count
+    # the encoding's letters as children.
+    def __new__(
+        cls,
+        base: object = "",
+        encoding: str | None = None,
+        errors: str = "strict",
+        *,
+        elements: Sequence[Markup] = (),
+    ) -> Self:
+        """Wrap already-rendered markup.
+
+        Args:
+            base: The markup, trusted as-is.
+            encoding: Passed to ``Markup``, which decodes a bytes ``base`` with it.
+            errors: Passed to ``Markup``, which handles a decoding error by it.
+            elements: One entry per rendered element child, in document order.
+
+        Returns:
+            The content.
+        """
+        content = (
+            super().__new__(cls, base)
+            if encoding is None
+            else super().__new__(cls, base, encoding, errors)
+        )
+        content.elements = tuple(elements)
+        return content
 
 
 class ChildPolicy(ABC):
@@ -373,8 +418,8 @@ class Shortcode(ABC):
             attrs = self.attributes.accept(values)
             # str() would strip the Markup and make a shortcode that still escapes
             # double-escape; escape() keeps it, so such a shortcode gets a harmless no-op.
-            # No children: a stored value is a body, not parsed structure.
-            return self.render(attrs, escape("" if content is None else content), ())
+            # No elements: a stored value is a body, not parsed structure.
+            return self.render(attrs, Content(escape("" if content is None else content)))
         except ElementRefused as refusal:
             # The other way in, and it answers a refusal exactly as the parser does: this
             # value renders to nothing, and the caller's page is not the casualty.
@@ -382,7 +427,7 @@ class Shortcode(ABC):
             return ""
 
     @abstractmethod
-    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Content) -> str:
         """Render the shortcode tag and return the replacement HTML.
 
         **Embed ``content`` directly; never escape it.** Its type says why: ``Markup``
@@ -409,10 +454,8 @@ class Shortcode(ABC):
             attrs: Parsed shortcode attributes with dot-access and default fallback. Raw —
                 escape at the point of use.
             content: Inner content between opening and closing tags. Already safe to embed.
-            children: One entry per element child, in document order — what a wrapper counts
-                rather than scanning ``content`` for markup its children happened to produce.
-                Text between them is not an entry, nor is a child that refused itself and
-                rendered nothing. Empty for a stored value, which has no parsed structure.
+                Its ``elements`` hold the rendered element children, and are empty for a
+                stored value, which has no parsed structure.
 
         Returns:
             Replacement HTML string.

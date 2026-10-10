@@ -1,12 +1,9 @@
 """Built-in slideshow shortcode."""
 
 import logging
-from collections.abc import Sequence
-
-from markupsafe import Markup
 
 from platzky.shortcodes import IntRange, OneOf, ShortcodeAttr, ShortcodeAttrs
-from platzky.shortcodes.shortcode import OnlyChildren, Shortcode
+from platzky.shortcodes.shortcode import Content, OnlyChildren, Shortcode
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +70,7 @@ class SlideshowShortcode(Shortcode):
         "rotate but switch instantly, whichever animation is set."
     )
 
-    def render(self, attrs: ShortcodeAttrs, content: Markup, children: Sequence[Markup]) -> str:
+    def render(self, attrs: ShortcodeAttrs, content: Content) -> str:
         """Wrap the frames in a container the stylesheet knows how to rotate.
 
         The slide count is written onto the element rather than inferred in CSS, because
@@ -86,16 +83,16 @@ class SlideshowShortcode(Shortcode):
             attrs: Parsed attributes; ``interval``, ``width`` and ``animation`` already
                 checked against their ``constraints``.
             content: The frames' already-rendered markup. Embedded as-is per the ``render``
-                contract; its ``Markup`` type says the escaping decision is made.
-            children: One entry per frame, so a ``[figure]`` counts once however much
-                markup it holds.
+                contract; its ``Markup`` type says the escaping decision is made. Its
+                ``elements`` hold one entry per frame, so a ``[figure]`` counts once however
+                much markup it holds.
 
         Returns:
             A ``<div class="slideshow">`` wrapping the content.
         """
-        # A stored value arrives with no children, since nobody wrote tags to nest: its
+        # A stored value arrives with no elements, since nobody wrote tags to nest: its
         # content is the single frame.
-        slides = len(children) if children else (1 if content else 0)
+        slides = len(content.elements) if content.elements else (1 if content else 0)
         if slides > MAX_SLIDES:
             logger.warning(
                 "[slideshow] wraps %d frames but only %d can be rotated; showing them all "
