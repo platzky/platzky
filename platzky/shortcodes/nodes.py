@@ -39,8 +39,8 @@ class Text:
 class RawElement:
     """A ``"raw"`` element: its content is the characters between the tags, unparsed.
 
-    ``[html]<b>[link]x[/link]</b>[/html]`` has ``raw_attrs=""`` and
-    ``content="<b>[link]x[/link]</b>"``: the ``[link]`` inside stays text, never parsed.
+    ``[html]<b>x</b>[/html]`` has ``content="<b>x</b>"``. A plugin's raw shortcode may
+    take attributes too: ``[code lang="py"]x = 1[/code]`` has ``raw_attrs=' lang="py"'``.
 
     A string rather than nodes because the parser never descended into it — which is what
     keeps it verbatim against filters and against ``STRIP_CONTENT_HTML``.
