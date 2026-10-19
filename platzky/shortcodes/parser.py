@@ -489,8 +489,8 @@ class _Authoring:
         """
         return f"<{self._prefix()}{index}>"
 
-    def to_html(self, source: str, *, inline: bool) -> str:
-        """Format and filter a run's text, leaving each placeholder where it was.
+    def to_html(self, source: str) -> str:
+        """Format and filter a run's text as blocks, leaving each placeholder where it was.
 
         Filters run last, on what the reader will see rather than on the author's syntax.
         HTML tags, placeholders among them, are held back from them, so a filter never
@@ -498,17 +498,25 @@ class _Authoring:
 
         Args:
             source: The run's text with a placeholder for each element.
-            inline: Whether the run sits inside an element, so has no block structure.
 
         Returns:
             HTML, still holding the placeholders.
         """
-        formatted = (
-            self.text_format.to_inline_html(source) if inline else self.text_format.to_html(source)
-        )
+        return _filter_around(self.text_format.to_html(source), self.filters, _HTML_TAG_RE)
+
+    def to_inline_html(self, source: str) -> str:
+        """Format and filter a run's text without block structure, as ``to_html`` does.
+
+        Args:
+            source: The run's text with a placeholder for each element.
+
+        Returns:
+            Inline HTML, still holding the placeholders.
+        """
+        formatted = self.text_format.to_inline_html(source)
         return _filter_around(formatted, self.filters, _HTML_TAG_RE)
 
-    def substitute(self, html: str, outputs: Sequence[str], sources: Sequence[str]) -> str:
+    def substitute(self, html: str, run: "_Run") -> str:
         """Put each element's output where its placeholder is.
 
         A placeholder the format escaped sat inside code, such as a Markdown code span or
@@ -517,36 +525,43 @@ class _Authoring:
 
         Args:
             html: The run's formatted HTML, holding the placeholders.
-            outputs: Each element's rendered output, in document order.
-            sources: Each element as the author wrote it, in document order.
+            run: The run the HTML was made from, for each element's output and source.
 
         Returns:
             The run's HTML with no placeholder left.
         """
         prefix = re.escape(self._prefix())
         shown = re.sub(
-            rf"&lt;{prefix}(\d+)&gt;", lambda match: str(escape(sources[int(match.group(1))])), html
+            rf"&lt;{prefix}(\d+)&gt;",
+            lambda match: str(escape(run.sources[int(match.group(1))])),
+            html,
         )
-        return re.sub(rf"<{prefix}(\d+)>", lambda match: outputs[int(match.group(1))], shown)
+        return re.sub(rf"<{prefix}(\d+)>", lambda match: run.outputs[int(match.group(1))], shown)
 
     def _prefix(self) -> str:
         """The part of every placeholder shared by all elements of this document."""
         return f"platzky-shortcode-{self.nonce}-"
 
 
-def _render_run(
-    nodes: Sequence[_Node], authoring: _Authoring, *, inline: bool
-) -> tuple[str, list[str]]:
-    """Render sibling nodes: the author's text formatted and filtered, elements as rendered.
+@dataclass(frozen=True)
+class _Run:
+    """Sibling nodes with each element rendered and a placeholder standing in its place.
 
-    Args:
-        nodes: The siblings, in document order.
-        authoring: How the author's text becomes HTML.
-        inline: Whether the run sits inside an element.
-
-    Returns:
-        The run's HTML, and each element's output in document order.
+    Attributes:
+        source: The author's text, with a placeholder where each element was.
+        outputs: Each element's rendered output, in document order.
+        sources: Each element as the author wrote it, in document order.
+        has_text: Whether any of the author's text is more than whitespace.
     """
+
+    source: str
+    outputs: list[str]
+    sources: list[str]
+    has_text: bool
+
+
+def _hold_out(nodes: Sequence[_Node], authoring: _Authoring) -> _Run:
+    """Render each element among the siblings and hold its output out of their text."""
     outputs: list[str] = []
     sources: list[str] = []
     source = ""
@@ -557,13 +572,42 @@ def _render_run(
             source += authoring.placeholder(len(outputs))
             outputs.append(_render_node(node, authoring))
             sources.append(node.source)
+    has_text = any(isinstance(node, _Text) and node.text.strip() for node in nodes)
+    return _Run(source, outputs, sources, has_text)
+
+
+def _render_document_text(nodes: Sequence[_Node], authoring: _Authoring) -> str:
+    """Render a document's top level: the author's text as blocks, elements as rendered."""
+    run = _hold_out(nodes, authoring)
+    return authoring.substitute(authoring.to_html(run.source), run)
+
+
+def _render_children(nodes: Sequence[_Node], authoring: _Authoring) -> tuple[str, list[str]]:
+    """Render what an element wraps: the author's text formatted, elements as rendered.
+
+    Text inside an element is formatted inline, so a link's text gets no ``<p>`` of its
+    own, unless the author wrote paragraphs there, separated by a blank line.
+
+    Args:
+        nodes: The element's children, in document order.
+        authoring: How the author's text becomes HTML.
+
+    Returns:
+        The children's HTML, and each element child's output in document order.
+    """
+    run = _hold_out(nodes, authoring)
     # Whitespace between an element's children is layout, not prose: formatting it would
     # turn an indented child into a Markdown code block.
-    layout_only = inline and not any(isinstance(n, _Text) and n.text.strip() for n in nodes)
     html = (
-        source if layout_only else authoring.to_html(source, inline=inline and "\n\n" not in source)
+        run.source
+        if not run.has_text
+        else (
+            authoring.to_html(run.source)
+            if "\n\n" in run.source
+            else authoring.to_inline_html(run.source)
+        )
     )
-    return authoring.substitute(html, outputs, sources), outputs
+    return authoring.substitute(html, run), run.outputs
 
 
 def _render_node(node: _RawElement | _Element, authoring: _Authoring) -> str:
@@ -594,7 +638,7 @@ def _render_node(node: _RawElement | _Element, authoring: _Authoring) -> str:
             ", ".join(_describe_child(child) for child in disallowed),
         )
         return ""
-    content, outputs = _render_run(node.children, authoring, inline=True)
+    content, outputs = _render_children(node.children, authoring)
     children = tuple(Markup(html) for html in outputs if html)
     return _render_element(node.shortcode, node.raw_attrs, content, children)
 
@@ -636,5 +680,4 @@ def render_document(
     )
     removed = _strip_text_nodes(nodes) if strip_html else []
     authoring = _Authoring(text_format, filters, secrets.token_hex(8))
-    rendered, _ = _render_run(nodes, authoring, inline=False)
-    return rendered, removed
+    return _render_document_text(nodes, authoring), removed
