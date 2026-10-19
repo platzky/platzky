@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block head_title %}{{ _("This page can't be shown") }} – {{ app_name }}{% endblock %}
+
+{% block content %}
+<header class="masthead">
+  <div class="overlay"></div>
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="site-heading">
+          <h1>{{ _("This page can't be shown") }}</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<article>
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-8 col-md-10 mx-auto post-content text-center">
+        <p>{{ _("Its content has an error. Please contact the site administrator.") }}</p>
+        <a href="{{ url_for('home_page') }}" class="btn btn-primary">{{ _("Back to homepage") }}</a>
+      </div>
+    </div>
+  </div>
+</article>
+{% endblock %}

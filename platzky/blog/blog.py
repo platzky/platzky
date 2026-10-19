@@ -15,6 +15,7 @@ from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
+from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
 
 from . import comment_form
@@ -59,6 +60,19 @@ def create_blog_blueprint(
             Tuple of rendered 404 template and HTTP 404 status code
         """
         return render_template("404.html", title="404"), 404
+
+    @blog.errorhandler(ShortcodeError)
+    def content_error(e: ShortcodeError) -> tuple[str, int]:
+        """Show that a post or page cannot be rendered, and log why for whoever can fix it.
+
+        Args:
+            e: What in the content's shortcodes is wrong
+
+        Returns:
+            Tuple of rendered error template and HTTP 500 status code
+        """
+        logger.error("Content at %s cannot be rendered: %s", request.path, e)
+        return render_template("content_error.html"), 500
 
     def post_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
         """List every post in a language for the sitemap, dated when it has a date."""

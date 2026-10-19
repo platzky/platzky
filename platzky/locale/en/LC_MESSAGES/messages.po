@@ -58,6 +58,15 @@ msgstr ""
 msgid "Back to homepage"
 msgstr ""
 
+#: platzky/templates/content_error.html:3
+#: platzky/templates/content_error.html:12
+msgid "This page can't be shown"
+msgstr ""
+
+#: platzky/templates/content_error.html:23
+msgid "Its content has an error. Please contact the site administrator."
+msgstr ""
+
 #: platzky/templates/base.html:80
 msgid "Language switch icon, used to change the language of the website"
 msgstr ""
