@@ -117,8 +117,8 @@ class _BoldFormat:
         return f"<b>{text}</b>"
 
 
-class _ShoutedBFormat:
-    """A text format that would change any shouted B it were handed."""
+class _ReplacesBFormat:
+    """A text format that turns every "B" into "x", so the result shows what it reached."""
 
     def to_html(self, text: str) -> str:
         """Replace every B."""
@@ -336,15 +336,19 @@ class TestTrustBoundary:
     def test_text_format_does_not_reach_shortcode_output(
         self, registry: ContentTransformerRegistry
     ) -> None:
-        """Shortcode output is held out of the format, which sees a placeholder instead."""
+        """Only the author's text is formatted; a shortcode's output is finished HTML.
+
+        ``[shout]`` outputs "B", and the format turns every "B" into "x". The "B" surviving
+        means the format never saw the shortcode's output, only a placeholder in its place.
+        """
         plugin = ShoutPlugin({})
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], ContentSource("a [shout]b[/shout]", _ShoutedBFormat()), "post"
+            [plugin], ContentSource("a [shout]b[/shout]", _ReplacesBFormat()), "post"
         )
 
-        assert result == "a B"
+        assert result == "a B"  # "a x" would mean the format reached the shortcode's output
 
     def test_unvouched_tag_without_attributes_still_fires(
         self, registry: ContentTransformerRegistry
