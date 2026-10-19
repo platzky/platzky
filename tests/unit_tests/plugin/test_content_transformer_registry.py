@@ -22,6 +22,7 @@ from platzky.plugin.content_transformer import (
     ContentTransformerRegistry,
 )
 from platzky.shortcodes import Shortcode, ShortcodeAttr, ShortcodeAttrs, ShortcodeError
+from platzky.text_format import MARKDOWN
 
 
 class _ShoutShortcode(Shortcode):
@@ -789,3 +790,17 @@ class TestFiltersNeverSeeRenderedMarkup:
         )
 
         assert result == "<pre>a [wrap]x[/wrap]</pre> <i>a</i>"
+
+    def test_a_filter_does_not_reach_a_shortcode_shown_in_code(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """Markdown escapes the placeholder of a shortcode in a code span into text."""
+        wrap, letters = AttrPlugin({}), _LetterAPlugin({})
+        for plugin in (wrap, letters):
+            registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content(
+            [wrap, letters], ContentSource("`[wrap]hi[/wrap]` a", MARKDOWN), "post"
+        )
+
+        assert result == "<p><code>[wrap]hi[/wrap]</code> <i>a</i></p>\n"

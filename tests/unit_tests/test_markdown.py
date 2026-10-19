@@ -107,6 +107,13 @@ def test_shortcode_on_its_own_line_inside_a_paragraph_keeps_the_paragraph(url: s
 
 
 @pytest.mark.parametrize("url", CONTENT_URLS)
+def test_blank_line_of_spaces_makes_paragraphs_inside_a_shortcode(url: str):
+    html = _html(url, '[link url="/x"]first\n   \nsecond[/link]')
+    assert "<p>first</p>" in html
+    assert "<p>second</p>" in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
 def test_indented_shortcode_children_are_not_code_blocks(url: str):
     html = _html(
         url,

@@ -24,13 +24,12 @@ from platzky.text_format import HTML, TextFormat
 logger = logging.getLogger(__name__)
 
 
-#: HTML tags, held back from text filters. Captured, so ``split`` returns the tags along
-#: with the text between them: the odd indices of the result are the tags.
+#: An HTML tag, held back from text filters.
 #:
 #: Quote-aware, because ``>`` is legal inside an attribute: ``<[^>]*>`` ends
 #: ``<a title="a > b">`` at the first ``>`` and hands ``` b">`` to every filter, which the
 #: filter contract says never happens. Same hazard the parser's stripper avoids.
-_HTML_TAG_RE = re.compile(r"""(<(?:[^>"']|"[^"]*"|'[^']*')*>)""")
+_HTML_TAG = r"""<(?:[^>"']|"[^"]*"|'[^']*')*>"""
 
 _MAX_ATTR_NAME_LEN = 100
 _MAX_ATTR_VALUE_LEN = 2048
@@ -175,6 +174,9 @@ class _Renderer:
         self._text_format = text_format
         self._filters = filters
         self._prefix = f"platzky-shortcode-{secrets.token_hex(8)}-"
+        # A placeholder inside code is escaped to text, so it is held back by name as well.
+        # One group, so ``split`` returns what is held back at the odd indices.
+        self._held_back = re.compile(rf"({_HTML_TAG}|&lt;{re.escape(self._prefix)}\d+&gt;)")
 
     def render_document(self, nodes: Sequence[Node]) -> str:
         """Render a document's top level: the author's text as blocks, elements as rendered."""
@@ -232,7 +234,7 @@ class _Renderer:
 
     def _format_children_text(self, source: str) -> str:
         """Format an element's text inline, or as blocks when the author wrote paragraphs."""
-        to_html = self._to_html if "\n\n" in source else self._to_inline_html
+        to_html = self._to_html if re.search(r"\n[ \t]*\n", source) else self._to_inline_html
         return to_html(source)
 
     def _hold_out(self, nodes: Sequence[Node]) -> _Run:
@@ -262,7 +264,7 @@ class _Renderer:
         """Format and filter a run's text as blocks, leaving each placeholder where it was.
 
         Filters run last, on what the reader will see rather than on the author's syntax.
-        HTML tags, placeholders among them, are held back from them, so a filter never
+        HTML tags and placeholders, escaped ones too, are held back from them, so a filter never
         sees a tag's attributes or another shortcode's output.
 
         Args:
@@ -272,7 +274,7 @@ class _Renderer:
             HTML, still holding the placeholders.
         """
         formatted = self._text_format.to_html(self._end_placeholder_blocks(source))
-        return _filter_around(formatted, self._filters, _HTML_TAG_RE)
+        return _filter_around(formatted, self._filters, self._held_back)
 
     def _to_inline_html(self, source: str) -> str:
         """Format and filter a run's text without block structure, as ``_to_html`` does.
@@ -284,7 +286,7 @@ class _Renderer:
             Inline HTML, still holding the placeholders.
         """
         formatted = self._text_format.to_inline_html(source)
-        return _filter_around(formatted, self._filters, _HTML_TAG_RE)
+        return _filter_around(formatted, self._filters, self._held_back)
 
     def _substitute(self, html: str, run: _Run) -> str:
         """Put each element's output where its placeholder is.
