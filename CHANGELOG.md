@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.17](https://github.com/platzky/platzky/compare/v2.0.0-alpha.16...v2.0.0-alpha.17) (2026-10-19)
+
+
+### Features
+
+* show a content error page when a post cannot be rendered ([#314](https://github.com/platzky/platzky/issues/314)) ([6681464](https://github.com/platzky/platzky/commit/6681464d25a3dfc0ae2ae4ef2d05edc4eebdf203))
+
+
+### Bug Fixes
+
+* render Markdown in posts, pages and the footer ([#316](https://github.com/platzky/platzky/issues/316)) ([0993c19](https://github.com/platzky/platzky/commit/0993c1913b16eacd10181cdf19cda6e197d0ef55))
+
 ## [2.0.0-alpha.16](https://github.com/platzky/platzky/compare/v2.0.0-alpha.15...v2.0.0-alpha.16) (2026-09-27)
 
 
