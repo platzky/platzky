@@ -13,16 +13,28 @@ logging.getLogger("markdown_it").setLevel(logging.INFO)
 class TextFormat(Protocol):
     """How text an author wrote becomes HTML."""
 
-    def to_html(self, text: str, *, inline: bool) -> str:
-        """Turn the author's text into HTML.
+    def to_html(self, text: str) -> str:
+        """Turn the author's text into HTML, block structure and all.
 
         Args:
             text: The author's text, with a placeholder tag where each shortcode goes.
-            inline: Whether the text sits inside a shortcode element such as a link, where
-                block structure like a wrapping ``<p>`` would be invalid.
 
         Returns:
             The text as HTML.
+        """
+        ...
+
+    def to_inline_html(self, text: str) -> str:
+        """Turn the author's text into HTML without block structure.
+
+        For text inside a shortcode element such as a link, where block structure like a
+        wrapping ``<p>`` would be invalid.
+
+        Args:
+            text: The author's text, with a placeholder tag where each shortcode goes.
+
+        Returns:
+            The text as inline HTML.
         """
         ...
 
@@ -30,7 +42,11 @@ class TextFormat(Protocol):
 class _Html:
     """Text written in HTML already."""
 
-    def to_html(self, text: str, *, inline: bool) -> str:  # noqa: ARG002
+    def to_html(self, text: str) -> str:
+        """Return the text as it is."""
+        return text
+
+    def to_inline_html(self, text: str) -> str:
         """Return the text as it is."""
         return text
 
@@ -48,9 +64,13 @@ class _Markdown:
             .use(tasklists_plugin)
         )
 
-    def to_html(self, text: str, *, inline: bool) -> str:
+    def to_html(self, text: str) -> str:
         """Render the text from Markdown."""
-        return self._parser.renderInline(text) if inline else self._parser.render(text)
+        return self._parser.render(text)
+
+    def to_inline_html(self, text: str) -> str:
+        """Render the text from Markdown, inline elements only."""
+        return self._parser.renderInline(text)
 
 
 HTML: TextFormat = _Html()

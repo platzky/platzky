@@ -107,7 +107,11 @@ class StyledPlugin(ContentTransformerPluginBase):
 class _BoldFormat:
     """A text format wrapping the author's text in bold, so formatting is visible."""
 
-    def to_html(self, text: str, *, inline: bool) -> str:  # noqa: ARG002
+    def to_html(self, text: str) -> str:
+        """Wrap the text in <b>."""
+        return f"<b>{text}</b>"
+
+    def to_inline_html(self, text: str) -> str:
         """Wrap the text in <b>."""
         return f"<b>{text}</b>"
 
@@ -115,7 +119,11 @@ class _BoldFormat:
 class _ShoutedBFormat:
     """A text format that would change any shouted B it were handed."""
 
-    def to_html(self, text: str, *, inline: bool) -> str:  # noqa: ARG002
+    def to_html(self, text: str) -> str:
+        """Replace every B."""
+        return text.replace("B", "x")
+
+    def to_inline_html(self, text: str) -> str:
         """Replace every B."""
         return text.replace("B", "x")
 

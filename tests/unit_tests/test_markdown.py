@@ -109,3 +109,31 @@ def test_indented_shortcode_children_are_not_code_blocks(url: str):
 def test_markdown_never_links_to_script(url: str):
     html = _html(url, "[x](javascript:alert(2))")
     assert 'href="javascript:' not in html
+
+
+@pytest.mark.parametrize(
+    ("markdown", "shown"),
+    [
+        (
+            'Write `[link url="/x"]go[/link]` for a link.',
+            "<code>[link url=&#34;/x&#34;]go[/link]</code>",
+        ),
+        (
+            '```\n[image url="/a.png"]\n```',
+            "<pre><code>[image url=&#34;/a.png&#34;]\n</code></pre>",
+        ),
+        (
+            'Intro\n\n    [image url="/a.png"]',
+            "<pre><code>[image url=&#34;/a.png&#34;]\n</code></pre>",
+        ),
+    ],
+)
+def test_shortcode_in_code_is_shown_as_written(markdown: str, shown: str):
+    html = _html("/blog/slug", markdown)
+    assert shown in html
+    assert "platzky-shortcode" not in html
+
+
+def test_shortcode_outside_code_still_renders_beside_one_in_code():
+    html = _html("/blog/slug", '`[image url="/a.png"]` renders as [image url="/a.png"]')
+    assert "<code>[image url=&#34;/a.png&#34;]</code> renders as <img" in html

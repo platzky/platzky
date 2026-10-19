@@ -18,7 +18,7 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from platzky.shortcodes.shortcode import (
     ChildPolicy,
@@ -66,6 +66,10 @@ class _RawElement:
     raw_attrs: str
     content: str
 
+    #: The element as the author wrote it, tags included, shown in its place where the
+    #: author's text puts it inside code.
+    source: str
+
 
 @dataclass
 class _Element:
@@ -77,6 +81,10 @@ class _Element:
     shortcode: Shortcode
     raw_attrs: str
     children: list["_Node"]
+
+    #: The element as the author wrote it, tags included, shown in its place where the
+    #: author's text puts it inside code.
+    source: str
 
 
 _Node = _Text | _RawElement | _Element
@@ -97,6 +105,9 @@ class _Frame:
     #: Where the opening tag was written, carried only so an unclosed element can say which
     #: one it was.
     position: int
+
+    #: The opening tag as written: all the source an element has if it is never closed.
+    opening_tag: str
 
 
 def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
@@ -230,7 +241,9 @@ def _discharge_unclosed_above(
         raise ShortcodeError(_never_closed(unclosed.name), unclosed.name, unclosed.position)
     while len(stack) - 1 > depth:
         frame = stack.pop()
-        stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, []))
+        stack[-1].children.append(
+            _Element(shortcodes[frame.name], frame.raw_attrs, [], frame.opening_tag)
+        )
         stack[-1].children.extend(frame.children)
 
 
@@ -270,7 +283,10 @@ def _close_element(
         return
     _discharge_unclosed_above(stack, depth, shortcodes, strict=strict)
     frame = stack.pop()
-    stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, frame.children))
+    source = match.string[frame.position : match.end()]
+    stack[-1].children.append(
+        _Element(shortcodes[frame.name], frame.raw_attrs, frame.children, source)
+    )
 
 
 def _open_element(
@@ -303,7 +319,7 @@ def _open_element(
     raw_attrs = match.group(3) or ""
     after_tag = match.end()
     if shortcode.kind == "void":
-        stack[-1].children.append(_Element(shortcode, raw_attrs, []))
+        stack[-1].children.append(_Element(shortcode, raw_attrs, [], match.group(0)))
         return after_tag
     if shortcode.kind == "raw":
         end = content.find(f"[/{name}]", after_tag)
@@ -312,9 +328,17 @@ def _open_element(
                 raise ShortcodeError(_never_closed(name), name, match.start())
             stack[-1].children.append(_Text(match.group(0)))
             return after_tag
-        stack[-1].children.append(_RawElement(shortcode, raw_attrs, content[after_tag:end]))
-        return end + len(name) + 3
-    stack.append(_Frame(name, raw_attrs, [], match.start()))
+        after_closing_tag = end + len(name) + 3
+        stack[-1].children.append(
+            _RawElement(
+                shortcode,
+                raw_attrs,
+                content[after_tag:end],
+                content[match.start() : after_closing_tag],
+            )
+        )
+        return after_closing_tag
+    stack.append(_Frame(name, raw_attrs, [], match.start(), match.group(0)))
     return after_tag
 
 
@@ -340,7 +364,7 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
         ShortcodeError: If ``strict`` and a tag is never closed, or closes nothing.
     """
     pattern = _tag_pattern(shortcodes)
-    stack: list[_Frame] = [_Frame("", "", [], 0)]
+    stack: list[_Frame] = [_Frame("", "", [], 0, "")]
     position = 0
 
     while (match := pattern.search(content, position)) is not None:
@@ -479,16 +503,31 @@ class _Authoring:
         Returns:
             HTML, still holding the placeholders.
         """
-        formatted = self.text_format.to_html(source, inline=inline)
+        formatted = (
+            self.text_format.to_inline_html(source) if inline else self.text_format.to_html(source)
+        )
         return _filter_around(formatted, self.filters, _HTML_TAG_RE)
 
-    def substitute(self, html: str, outputs: Sequence[str]) -> str:
-        """Put each element's output where its placeholder is."""
-        return re.sub(
-            rf"<{re.escape(self._prefix())}(\d+)>",
-            lambda match: outputs[int(match.group(1))],
-            html,
+    def substitute(self, html: str, outputs: Sequence[str], sources: Sequence[str]) -> str:
+        """Put each element's output where its placeholder is.
+
+        A placeholder the format escaped sat inside code, such as a Markdown code span or
+        block, where the author is showing a shortcode rather than using one, so it gets
+        the shortcode as they wrote it.
+
+        Args:
+            html: The run's formatted HTML, holding the placeholders.
+            outputs: Each element's rendered output, in document order.
+            sources: Each element as the author wrote it, in document order.
+
+        Returns:
+            The run's HTML with no placeholder left.
+        """
+        prefix = re.escape(self._prefix())
+        shown = re.sub(
+            rf"&lt;{prefix}(\d+)&gt;", lambda match: str(escape(sources[int(match.group(1))])), html
         )
+        return re.sub(rf"<{prefix}(\d+)>", lambda match: outputs[int(match.group(1))], shown)
 
     def _prefix(self) -> str:
         """The part of every placeholder shared by all elements of this document."""
@@ -509,6 +548,7 @@ def _render_run(
         The run's HTML, and each element's output in document order.
     """
     outputs: list[str] = []
+    sources: list[str] = []
     source = ""
     for node in nodes:
         if isinstance(node, _Text):
@@ -516,13 +556,14 @@ def _render_run(
         else:
             source += authoring.placeholder(len(outputs))
             outputs.append(_render_node(node, authoring))
+            sources.append(node.source)
     # Whitespace between an element's children is layout, not prose: formatting it would
     # turn an indented child into a Markdown code block.
     layout_only = inline and not any(isinstance(n, _Text) and n.text.strip() for n in nodes)
     html = (
         source if layout_only else authoring.to_html(source, inline=inline and "\n\n" not in source)
     )
-    return authoring.substitute(html, outputs), outputs
+    return authoring.substitute(html, outputs, sources), outputs
 
 
 def _render_node(node: _RawElement | _Element, authoring: _Authoring) -> str:
