@@ -14,7 +14,7 @@ from platzky.content_types import ALL_CONTENT_TYPES, ContentSource, ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
-from platzky.shortcodes.parser import render_document
+from platzky.shortcodes.rendering import render_document
 from platzky.text_format import HTML
 
 

@@ -7,7 +7,8 @@ A shortcode declares its ``kind``, which says whether a closing tag belongs::
 
 Plugins register handlers through the ``shortcodes`` class variable on
 ``ContentTransformerPluginBase``. How a document of them is read and rendered — nesting,
-raw bodies, what happens to a malformed tag — lives in :mod:`platzky.shortcodes.parser`.
+raw bodies, what happens to a malformed tag — lives in :mod:`platzky.shortcodes.parser` and
+:mod:`platzky.shortcodes.rendering`.
 """
 
 import inspect

@@ -1,85 +1,19 @@
-"""Shortcode parsing and rendering — the document machinery behind ``transform_content``.
-
-A document is parsed once into nodes, then walked twice — strip, render — so no pass ever
-sees what a later one produces. Rendering formats and filters the author's text, with
-each shortcode's output held out of both. ``render_document`` is the whole public
-surface; everything else here serves it.
+"""Shortcode parsing — reading a document into nodes, and stripping HTML from its text.
 
 Shortcodes nest, including inside another of the same name: tags are matched with a stack,
 so a closing tag pairs with the opening tag it belongs to rather than the nearest one.
+How the nodes are then rendered lives in :mod:`platzky.shortcodes.rendering`.
 """
 
 from __future__ import annotations
 
-import logging
 import re
-import secrets
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from markupsafe import Markup, escape
-
-from platzky.shortcodes.shortcode import (
-    ChildPolicy,
-    ElementRefused,
-    Shortcode,
-    ShortcodeError,
-)
-from platzky.text_format import HTML, TextFormat
-
-logger = logging.getLogger(__name__)
-
-
-#: HTML tags, held back from text filters. Captured, so ``split`` returns the tags along
-#: with the text between them: the odd indices of the result are the tags.
-#:
-#: Quote-aware, because ``>`` is legal inside an attribute: ``<[^>]*>`` ends
-#: ``<a title="a > b">`` at the first ``>`` and hands ``` b">`` to every filter, which the
-#: filter contract says never happens. Same hazard ``_MarkupStripper`` exists to avoid.
-_HTML_TAG_RE = re.compile(r"""(<(?:[^>"']|"[^"]*"|'[^']*')*>)""")
-
-_MAX_ATTR_NAME_LEN = 100
-_MAX_ATTR_VALUE_LEN = 2048
-_ATTR_RE = re.compile(rf'([\w-]{{1,{_MAX_ATTR_NAME_LEN}}})="([^"]{{0,{_MAX_ATTR_VALUE_LEN}}})"')
-
-
-@dataclass
-class _Text:
-    """Text outside any shortcode element, including HTML and unregistered brackets.
-
-    The only node a filter may touch and the only one ``STRIP_CONTENT_HTML`` reaches.
-    """
-
-    text: str
-
-
-@dataclass
-class _RawElement:
-    """A ``"raw"`` element: its content is the characters between the tags, unparsed.
-
-    A string rather than nodes because the parser never descended into it — which is what
-    keeps it verbatim against filters and against ``STRIP_CONTENT_HTML``.
-    """
-
-    shortcode: Shortcode
-    raw_attrs: str
-    content: str
-
-
-@dataclass
-class _Element:
-    """A shortcode element whose content was parsed into nodes.
-
-    Every kind but ``"raw"`` ends up here; a ``"void"`` shortcode simply has no children.
-    """
-
-    shortcode: Shortcode
-    raw_attrs: str
-    children: list["_Node"]
-
-
-_Node = _Text | _RawElement | _Element
+from platzky.shortcodes.nodes import Element, Node, RawElement, Text
+from platzky.shortcodes.shortcode import Shortcode, ShortcodeError
 
 
 @dataclass
@@ -92,7 +26,7 @@ class _Frame:
 
     name: str
     raw_attrs: str
-    children: list["_Node"]
+    children: list["Node"]
 
     #: Where the opening tag was written, carried only so an unclosed element can say which
     #: one it was.
@@ -103,34 +37,6 @@ def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
     """Match an opening or closing tag of a known shortcode, grouped (close, open, attrs)."""
     names = "|".join(re.escape(n) for n in shortcodes)
     return re.compile(rf"\[/({names})\]|\[({names})((?:\s+[\w-]+=\"[^\"]*\")*)\s*\]")
-
-
-def _render_element(
-    shortcode: Shortcode, raw_attrs: str, content: str, children: Sequence[Markup]
-) -> str:
-    """Render one element with its parsed attributes and already-rendered content.
-
-    Args:
-        shortcode: The shortcode to render.
-        raw_attrs: The attribute text as written in the opening tag.
-        content: What the element wraps, with nested elements already rendered.
-        children: The same, kept as one entry per element child — what a wrapper counts
-            rather than scanning ``content`` for markup its children happened to produce.
-
-    Returns:
-        The shortcode's replacement HTML, or nothing at all when it refused itself.
-    """
-    try:
-        attrs = shortcode.attributes.accept(dict(_ATTR_RE.findall(raw_attrs)))
-        # Markup truthfully: the content was either vouched for by its caller or escaped at
-        # the boundary, and anything added since came from a permitted plugin. The type is
-        # what tells a shortcode author not to escape it again.
-        return shortcode.render(attrs, Markup(content), children)
-    except ElementRefused as refusal:
-        # One element, not the page: an author's typo costs its own tag. Logged because an
-        # author cannot see an absence, and named by tag so they can find which one.
-        logger.warning("[%s] rendered nothing: %s.", shortcode.name, refusal)
-        return ""
 
 
 class _MarkupStripper(HTMLParser):
@@ -230,7 +136,7 @@ def _discharge_unclosed_above(
         raise ShortcodeError(_never_closed(unclosed.name), unclosed.name, unclosed.position)
     while len(stack) - 1 > depth:
         frame = stack.pop()
-        stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, []))
+        stack[-1].children.append(Element(shortcodes[frame.name], frame.raw_attrs, []))
         stack[-1].children.extend(frame.children)
 
 
@@ -266,11 +172,11 @@ def _close_element(
     if depth is None:
         if strict:
             raise ShortcodeError(_closes_nothing(shortcodes[name]), name, match.start())
-        stack[-1].children.append(_Text(match.group(0)))
+        stack[-1].children.append(Text(match.group(0)))
         return
     _discharge_unclosed_above(stack, depth, shortcodes, strict=strict)
     frame = stack.pop()
-    stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, frame.children))
+    stack[-1].children.append(Element(shortcodes[frame.name], frame.raw_attrs, frame.children))
 
 
 def _open_element(
@@ -303,22 +209,22 @@ def _open_element(
     raw_attrs = match.group(3) or ""
     after_tag = match.end()
     if shortcode.kind == "void":
-        stack[-1].children.append(_Element(shortcode, raw_attrs, []))
+        stack[-1].children.append(Element(shortcode, raw_attrs, []))
         return after_tag
     if shortcode.kind == "raw":
         end = content.find(f"[/{name}]", after_tag)
         if end < 0:
             if strict:
                 raise ShortcodeError(_never_closed(name), name, match.start())
-            stack[-1].children.append(_Text(match.group(0)))
+            stack[-1].children.append(Text(match.group(0)))
             return after_tag
-        stack[-1].children.append(_RawElement(shortcode, raw_attrs, content[after_tag:end]))
+        stack[-1].children.append(RawElement(shortcode, raw_attrs, content[after_tag:end]))
         return end + len(name) + 3
     stack.append(_Frame(name, raw_attrs, [], match.start()))
     return after_tag
 
 
-def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> list[_Node]:
+def parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> list[Node]:
     """Read the content into nodes, rendering nothing.
 
     A tag name no plugin registered is left exactly as written — an author may be writing
@@ -345,7 +251,7 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
 
     while (match := pattern.search(content, position)) is not None:
         if match.start() > position:
-            stack[-1].children.append(_Text(content[position : match.start()]))
+            stack[-1].children.append(Text(content[position : match.start()]))
         position = match.end()
         closing, opening = match.group(1), match.group(2)
         if closing is not None:
@@ -354,342 +260,28 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
             position = _open_element(stack, content, match, opening, shortcodes, strict=strict)
 
     if position < len(content):
-        stack[-1].children.append(_Text(content[position:]))
+        stack[-1].children.append(Text(content[position:]))
     _discharge_unclosed_above(stack, 0, shortcodes, strict=strict)
     return stack[0].children
 
 
-def _text_nodes(nodes: Sequence[_Node]) -> Iterator[_Text]:
-    """Yield every text node, never descending into a ``_RawElement``.
+def _text_nodes(nodes: Sequence[Node]) -> Iterator[Text]:
+    """Yield every text node, never descending into a ``RawElement``.
 
     The one definition of what the text passes reach, so "raw content is verbatim" is a
     property of the walk rather than a rule each pass has to remember.
     """
     for node in nodes:
-        if isinstance(node, _Text):
+        if isinstance(node, Text):
             yield node
-        elif isinstance(node, _Element):
+        elif isinstance(node, Element):
             yield from _text_nodes(node.children)
 
 
-def _strip_text_nodes(nodes: list[_Node]) -> list[str]:
+def strip_text_nodes(nodes: list[Node]) -> list[str]:
     """Remove HTML from the document's text, returning the tag names removed."""
     removed: list[str] = []
     for node in _text_nodes(nodes):
         node.text, gone = _strip_markup(node.text)
         removed.extend(gone)
     return removed
-
-
-def _filter_around(
-    text: str, filters: Sequence[Callable[[str], str]], held_back: re.Pattern[str]
-) -> str:
-    """Apply each filter to the text, keeping what ``held_back`` matches out of their reach.
-
-    Applied one filter at a time, so a filter's own output is held back from the next.
-
-    Args:
-        text: HTML whose text the filters may change.
-        filters: Every permitted ``transform_text``, in pipeline order.
-        held_back: One capturing group matching what no filter may see.
-
-    Returns:
-        The text after every filter has run.
-    """
-    for transform in filters:
-        parts = held_back.split(text)
-        text = "".join(part if index % 2 else transform(part) for index, part in enumerate(parts))
-    return text
-
-
-def _is_child_allowed(child: _Node, policy: ChildPolicy) -> bool:
-    """Whether a child is one its parent's ``child_policy`` allows.
-
-    Args:
-        child: The child node to judge.
-        policy: What the parent accepts between its tags.
-
-    Returns:
-        True if the child may stay. Whitespace text is allowed whatever the policy — it is
-        how an author lays tags out over several lines, not something they wrote.
-    """
-    return (
-        (not child.text.strip() or policy.is_text_allowed())
-        if isinstance(child, _Text)
-        else policy.is_tag_allowed(child.shortcode.name)
-    )
-
-
-def _disallowed_children(node: _Element) -> tuple[_Node, ...]:
-    """Collect the children an element's ``child_policy`` does not allow.
-
-    Args:
-        node: The element to check, with its children still parsed rather than rendered.
-
-    Returns:
-        Every offending child, in document order. Empty when the policy accepts everything
-        the element holds.
-    """
-    policy = node.shortcode.child_policy
-    return tuple(child for child in node.children if not _is_child_allowed(child, policy))
-
-
-def _describe_child(child: _Node) -> str:
-    """Name a child the way a refusal message should, for an author reading the log."""
-    return (
-        f"text {child.text.strip()[:30]!r}"
-        if isinstance(child, _Text)
-        else f"[{child.shortcode.name}]"
-    )
-
-
-@dataclass(frozen=True)
-class _Authoring:
-    """How the author's text in a document becomes HTML, and how shortcode output is kept out.
-
-    Shortcode output is code's, not the author's, so it must reach neither the text format
-    nor a filter: a placeholder stands in for each element while the author's text is
-    processed, and the element's output replaces it afterwards. The nonce keeps an author
-    from writing a placeholder of their own.
-    """
-
-    text_format: TextFormat
-    filters: Sequence[Callable[[str], str]]
-    nonce: str
-
-    def placeholder(self, index: int) -> str:
-        """The tag standing in for a run's ``index``-th element while its text is formatted.
-
-        A tag rather than text, so a shortcode alone on a line reaches a Markdown renderer
-        as an HTML block, not as a paragraph that would wrap its output in ``<p>``.
-        """
-        return f"<{self._prefix()}{index}>"
-
-    def to_html(self, source: str) -> str:
-        """Format and filter a run's text as blocks, leaving each placeholder where it was.
-
-        Filters run last, on what the reader will see rather than on the author's syntax.
-        HTML tags, placeholders among them, are held back from them, so a filter never
-        sees a tag's attributes or another shortcode's output.
-
-        Args:
-            source: The run's text with a placeholder for each element.
-
-        Returns:
-            HTML, still holding the placeholders.
-        """
-        formatted = self.text_format.to_html(self._end_placeholder_blocks(source))
-        return _filter_around(formatted, self.filters, _HTML_TAG_RE)
-
-    def to_inline_html(self, source: str) -> str:
-        """Format and filter a run's text without block structure, as ``to_html`` does.
-
-        Args:
-            source: The run's text with a placeholder for each element.
-
-        Returns:
-            Inline HTML, still holding the placeholders.
-        """
-        formatted = self.text_format.to_inline_html(source)
-        return _filter_around(formatted, self.filters, _HTML_TAG_RE)
-
-    def substitute(self, html: str, run: "_Run") -> str:
-        """Put each element's output where its placeholder is.
-
-        A placeholder the format escaped sat inside code, such as a Markdown code span or
-        block, where the author is showing a shortcode rather than using one, so it gets
-        the shortcode as they wrote it.
-
-        Args:
-            html: The run's formatted HTML, holding the placeholders.
-            run: The run the HTML was made from, for each element and its output.
-
-        Returns:
-            The run's HTML with no placeholder left.
-        """
-        prefix = re.escape(self._prefix())
-        shown = re.sub(
-            rf"&lt;{prefix}(\d+)&gt;",
-            lambda match: str(escape(_as_written(run.elements[int(match.group(1))]))),
-            html,
-        )
-        return re.sub(rf"<{prefix}(\d+)>", lambda match: run.outputs[int(match.group(1))], shown)
-
-    def _end_placeholder_blocks(self, source: str) -> str:
-        """Put a blank line after each placeholder that starts a block alone on its line.
-
-        Such a line opens a CommonMark HTML block, which only a blank line ends, so the
-        author's next line would otherwise be passed through as HTML, unformatted. A
-        placeholder continuing a paragraph opens no block and is left as it is.
-        """
-        alone = re.compile(rf" {{0,3}}<{re.escape(self._prefix())}\d+>[ \t]*")
-        lines: list[str] = []
-        starts_block = True
-        held_open = False
-        for line in source.split("\n"):
-            if held_open and line.strip():
-                lines.append("")
-                starts_block = True
-            held_open = starts_block and bool(alone.fullmatch(line))
-            starts_block = held_open or not line.strip()
-            lines.append(line)
-        return "\n".join(lines)
-
-    def _prefix(self) -> str:
-        """The part of every placeholder shared by all elements of this document."""
-        return f"platzky-shortcode-{self.nonce}-"
-
-
-@dataclass(frozen=True)
-class _Run:
-    """Sibling nodes with each element rendered and a placeholder standing in its place.
-
-    Attributes:
-        source: The author's text, with a placeholder where each element was.
-        outputs: Each element's rendered output, in document order.
-        elements: Each element, in document order.
-        has_text: Whether any of the author's text is more than whitespace.
-    """
-
-    source: str
-    outputs: list[str]
-    elements: list[_RawElement | _Element]
-    has_text: bool
-
-
-def _hold_out(nodes: Sequence[_Node], authoring: _Authoring) -> _Run:
-    """Render each element among the siblings and hold its output out of their text."""
-    outputs: list[str] = []
-    elements: list[_RawElement | _Element] = []
-    source = ""
-    for node in nodes:
-        if isinstance(node, _Text):
-            source += node.text
-        else:
-            source += authoring.placeholder(len(outputs))
-            outputs.append(_render_node(node, authoring))
-            elements.append(node)
-    has_text = any(isinstance(node, _Text) and node.text.strip() for node in nodes)
-    return _Run(source, outputs, elements, has_text)
-
-
-def _as_written(element: _RawElement | _Element) -> str:
-    """The element in shortcode syntax, as an author would write it."""
-    name = element.shortcode.name
-    inner = (
-        element.content
-        if isinstance(element, _RawElement)
-        else "".join(_node_as_written(child) for child in element.children)
-    )
-    closing = "" if element.shortcode.kind == "void" else f"[/{name}]"
-    return f"[{name}{element.raw_attrs}]{inner}{closing}"
-
-
-def _node_as_written(node: _Node) -> str:
-    """The node in the syntax an author would write it in."""
-    return node.text if isinstance(node, _Text) else _as_written(node)
-
-
-def _render_document_text(nodes: Sequence[_Node], authoring: _Authoring) -> str:
-    """Render a document's top level: the author's text as blocks, elements as rendered."""
-    run = _hold_out(nodes, authoring)
-    return authoring.substitute(authoring.to_html(run.source), run)
-
-
-def _render_children(nodes: Sequence[_Node], authoring: _Authoring) -> tuple[str, list[str]]:
-    """Render what an element wraps: the author's text formatted, elements as rendered.
-
-    Text inside an element is formatted inline, so a link's text gets no ``<p>`` of its
-    own, unless the author wrote paragraphs there, separated by a blank line.
-
-    Args:
-        nodes: The element's children, in document order.
-        authoring: How the author's text becomes HTML.
-
-    Returns:
-        The children's HTML, and each element child's output in document order.
-    """
-    run = _hold_out(nodes, authoring)
-    # Whitespace between an element's children is layout, not prose: formatting it would
-    # turn an indented child into a Markdown code block.
-    html = _format_children_text(run.source, authoring) if run.has_text else run.source
-    return authoring.substitute(html, run), run.outputs
-
-
-def _format_children_text(source: str, authoring: _Authoring) -> str:
-    """Format an element's text inline, or as blocks when the author wrote paragraphs."""
-    to_html = authoring.to_html if "\n\n" in source else authoring.to_inline_html
-    return to_html(source)
-
-
-def _render_node(node: _RawElement | _Element, authoring: _Authoring) -> str:
-    """Render one element to HTML, innermost element first.
-
-    An element's children are rendered one at a time rather than as a joined string, so
-    the element can be told how many things it wrapped. Text between them is joined into
-    ``content`` like everything else, but is not one of the children: a wrapper counts
-    elements, which is what a stylesheet addresses.
-
-    Args:
-        node: The element to render.
-        authoring: How the author's text becomes HTML.
-
-    Returns:
-        The element's HTML.
-    """
-    if isinstance(node, _RawElement):
-        return _render_element(node.shortcode, node.raw_attrs, node.content, ())
-    if disallowed := _disallowed_children(node):
-        # Refused whole rather than per child: dropping only the offenders would leave a
-        # wrapper whose structure the author still got wrong, rendered as if it were right.
-        # Every offender is named, so one log line is one trip back to the content.
-        logger.warning(
-            "[%s] rendered nothing: it accepts %s, and holds %s.",
-            node.shortcode.name,
-            node.shortcode.child_policy.allowed,
-            ", ".join(_describe_child(child) for child in disallowed),
-        )
-        return ""
-    content, outputs = _render_children(node.children, authoring)
-    children = tuple(Markup(html) for html in outputs if html)
-    return _render_element(node.shortcode, node.raw_attrs, content, children)
-
-
-def render_document(
-    content: str,
-    shortcodes: dict[str, Shortcode],
-    filters: Sequence[Callable[[str], str]],
-    *,
-    strict: bool,
-    strip_html: bool = False,
-    text_format: TextFormat = HTML,
-) -> tuple[str, list[str]]:
-    """Parse the content once, strip its text, then render it.
-
-    The order is the point: stripping that ran before parsing could not tell HTML left in
-    prose from HTML marked to keep inside a raw element. Formatting and filtering happen
-    while rendering, on the author's text only, with each shortcode's output held out of
-    both — a filter is never handed markup a shortcode produced.
-
-    Args:
-        content: The content to transform.
-        shortcodes: Every shortcode permitted here, keyed by tag name.
-        filters: Every permitted ``transform_text``, in pipeline order.
-        strict: Whether a malformed tag is an error.
-        strip_html: Whether to remove HTML the author wrote. Text nodes only; a raw
-            element's content survives.
-        text_format: The format the author's text is written in. Raw element content is
-            not formatted.
-
-    Returns:
-        The rendered content, and the names of the HTML tags stripped from it.
-
-    Raises:
-        ShortcodeError: If ``strict`` and a shortcode tag is malformed.
-    """
-    nodes: list[_Node] = (
-        _parse(content, shortcodes, strict=strict) if shortcodes else [_Text(content)]
-    )
-    removed = _strip_text_nodes(nodes) if strip_html else []
-    authoring = _Authoring(text_format, filters, secrets.token_hex(8))
-    return _render_document_text(nodes, authoring), removed
