@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from platzky import create_app_from_config
 from platzky.config import Config
 from platzky.engine import Engine
+from platzky.models import Footer
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -30,13 +31,20 @@ def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
             "DB": {"TYPE": "json", "DATA": {}},
         }
     )
-    return create_engine(config, MagicMock())
+    return create_engine(config, _mock_db())
+
+
+def _mock_db() -> MagicMock:
+    """A database mock whose footer is a real, empty one, as every page render reads it."""
+    db = MagicMock()
+    db.get_footer.return_value = Footer()
+    return db
 
 
 class TestPlatzky:
     @pytest.fixture
     def mock_db(self) -> MagicMock:
-        return MagicMock()
+        return _mock_db()
 
     def test_change_language_to_domain_language_redirects_to_its_domain(self):
         """Switching to a language with its own domain redirects to that domain's root."""

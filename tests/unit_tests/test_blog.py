@@ -75,7 +75,7 @@ def test_app():
         db_mock,
         config.blog_prefix,
         app.get_locale,
-        content_transformer=lambda x, _ct: x,
+        content_transformer=app.transform_content,
     )
 
     app.register_blueprint(blog_blueprint)

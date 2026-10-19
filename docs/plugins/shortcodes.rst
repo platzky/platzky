@@ -212,7 +212,7 @@ Two rules, and they do not vary by shortcode:
      - Decided by
      - What arrives
    * - The caller's own content
-     - ``blog.py`` vouches for a post body with ``Markup``; ``render_value`` escapes a
+     - ``blog.py`` vouches for a post body with ``ContentSource``; ``render_value`` escapes a
        stored value; anything else unvouched is escaped
      - live markup if vouched, entities if not
    * - A text filter's output
@@ -251,7 +251,7 @@ Now the same shortcode rendering a *stored* value that is hostile:
     embedding it       <div class="alert alert-info">&lt;img src=x onerror=alert(1)&gt;</div>
 
 Embedding is right in both cases, and only the boundary changed. A post body is vouched
-for by ``blog.py``, which passes ``Markup`` because an author with write access wrote it;
+for by ``blog.py``, which passes a ``ContentSource`` because an author with write access wrote it;
 a stored value is escaped by ``render_value``, because nobody vouched for a database
 column. Anything the pipeline added in between — a filter's output, an inner shortcode's —
 came from a plugin granted this content type, so it is markup platzky itself produced.

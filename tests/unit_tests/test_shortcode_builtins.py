@@ -8,7 +8,7 @@ from typing import ClassVar
 
 import pytest
 
-from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, CmsAuthored, ContentType
+from platzky.content_types import BUILTIN_CONTENT_TYPES, POST, ContentSource, ContentType
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
@@ -32,13 +32,13 @@ _BuiltinTestPlugin.shortcodes = get_builtin_shortcodes()
 def _apply(content: str) -> str:
     """Render content the way an application does: through a granted registry.
 
-    ``Markup`` because a post body is content its caller vouched for, which is where the
+    ``ContentSource`` because a post body is content its caller vouched for, which is where the
     built-ins are used and what makes malformed tags an error rather than a passthrough.
     """
     plugin = _BuiltinTestPlugin({})
     registry = ContentTransformerRegistry(BUILTIN_CONTENT_TYPES)
     registry.grant(plugin, frozenset({POST}))
-    return registry.transform_content([plugin], CmsAuthored(content), POST)
+    return registry.transform_content([plugin], ContentSource(content), POST)
 
 
 class TestImageShortcode:
