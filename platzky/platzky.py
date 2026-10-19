@@ -14,6 +14,7 @@ from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
 from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -56,6 +57,8 @@ _MISSING_OTEL_MSG = (
 )
 
 _NOT_FOUND_TEMPLATE = "404.html"
+
+_HSTS_MAX_AGE = 31536000  # one year
 
 
 def _gather_shortcodes_and_extensions(
@@ -444,6 +447,21 @@ def _configure_logging(level: str) -> None:
         root_logger.addHandler(handler)
 
 
+def _add_hsts_header(response: Response) -> Response:
+    """Tell browsers to use only HTTPS for this host, on responses served over HTTPS."""
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = f"max-age={_HSTS_MAX_AGE}"
+    return response
+
+
+def _enforce_https(engine: Engine) -> None:
+    """Trust the proxy's X-Forwarded-Proto, mark the session cookie secure and send HSTS."""
+    # App Engine and Cloud Run terminate TLS in Google's front end, one hop in front of the app.
+    engine.wsgi_app = ProxyFix(engine.wsgi_app, x_for=0, x_proto=1)
+    engine.config["SESSION_COOKIE_SECURE"] = True
+    engine.after_request(_add_hsts_header)
+
+
 def create_app_from_config(
     config: Config,
     extra_plugin_bases: Sequence[type[PluginBase]] = (),
@@ -470,7 +488,9 @@ def create_app_from_config(
             through ``PluginBase.provides_content_types``.
         development: Whether this is a development machine, which ``platzky run`` sets and a
             production server leaves false. Enables Flask's debug mode and the shortcuts
-            that are unsafe in production, such as fake login.
+            that are unsafe in production, such as fake login. Outside development the app
+            trusts X-Forwarded-Proto from one proxy, marks the session cookie secure and
+            sends HSTS on HTTPS responses.
 
     Returns:
         Fully configured Engine instance ready to serve requests
@@ -502,6 +522,10 @@ def create_app_from_config(
                 f"Telemetry configuration error: {e}. "
                 "Check your telemetry settings in the configuration file."
             ) from e
+
+    # After telemetry, so ProxyFix wraps its middleware and it sees the forwarded scheme.
+    if not development:
+        _enforce_https(engine)
 
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.

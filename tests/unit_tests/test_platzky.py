@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from flask import request
 from pydantic import ValidationError
 
 from platzky import create_app_from_config
@@ -284,3 +285,56 @@ class TestLogging:
         self._create_app()
 
         assert root_logger.handlers == [app_handler]
+
+
+class TestHttpsEnforcement:
+    @staticmethod
+    def _create_app(development: bool = False) -> Engine:
+        config = Config.model_validate(
+            {
+                "APP_NAME": "testing App Name",
+                "SECRET_KEY": "secret",
+                "DB": {"TYPE": "json", "DATA": {}},
+            }
+        )
+        with patch("platzky.platzky.get_db", return_value=MagicMock()):
+            return create_app_from_config(config, development=development)
+
+    def test_sends_hsts_behind_https_proxy(self):
+        client = self._create_app().test_client()
+
+        response = client.get("/health/liveness", headers={"X-Forwarded-Proto": "https"})
+
+        assert response.headers["Strict-Transport-Security"] == "max-age=31536000"
+
+    def test_no_hsts_over_plain_http(self):
+        client = self._create_app().test_client()
+
+        response = client.get("/health/liveness")
+
+        assert "Strict-Transport-Security" not in response.headers
+
+    def test_ignores_forwarded_client_address(self):
+        app = self._create_app()
+        app.add_url_rule("/remote-addr", "remote_addr", lambda: request.remote_addr or "")
+
+        response = app.test_client().get(
+            "/remote-addr",
+            base_url="http://www.localhost",
+            headers={"X-Forwarded-For": "203.0.113.7"},
+        )
+
+        assert response.text == "127.0.0.1"
+
+    def test_no_hsts_in_development(self):
+        client = self._create_app(development=True).test_client()
+
+        response = client.get("/health/liveness", base_url="https://localhost")
+
+        assert "Strict-Transport-Security" not in response.headers
+
+    @pytest.mark.parametrize("development", [False, True], ids=["production", "development"])
+    def test_session_cookie_is_secure_outside_development(self, development: bool):
+        app = self._create_app(development=development)
+
+        assert app.config["SESSION_COOKIE_SECURE"] is not development
