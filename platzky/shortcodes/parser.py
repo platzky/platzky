@@ -502,7 +502,8 @@ class _Authoring:
         Returns:
             HTML, still holding the placeholders.
         """
-        return _filter_around(self.text_format.to_html(source), self.filters, _HTML_TAG_RE)
+        formatted = self.text_format.to_html(self._end_placeholder_blocks(source))
+        return _filter_around(formatted, self.filters, _HTML_TAG_RE)
 
     def to_inline_html(self, source: str) -> str:
         """Format and filter a run's text without block structure, as ``to_html`` does.
@@ -537,6 +538,26 @@ class _Authoring:
             html,
         )
         return re.sub(rf"<{prefix}(\d+)>", lambda match: run.outputs[int(match.group(1))], shown)
+
+    def _end_placeholder_blocks(self, source: str) -> str:
+        """Put a blank line after each placeholder that starts a block alone on its line.
+
+        Such a line opens a CommonMark HTML block, which only a blank line ends, so the
+        author's next line would otherwise be passed through as HTML, unformatted. A
+        placeholder continuing a paragraph opens no block and is left as it is.
+        """
+        alone = re.compile(rf" {{0,3}}<{re.escape(self._prefix())}\d+>[ \t]*")
+        lines: list[str] = []
+        starts_block = True
+        held_open = False
+        for line in source.split("\n"):
+            if held_open and line.strip():
+                lines.append("")
+                starts_block = True
+            held_open = starts_block and bool(alone.fullmatch(line))
+            starts_block = held_open or not line.strip()
+            lines.append(line)
+        return "\n".join(lines)
 
     def _prefix(self) -> str:
         """The part of every placeholder shared by all elements of this document."""
@@ -598,16 +619,14 @@ def _render_children(nodes: Sequence[_Node], authoring: _Authoring) -> tuple[str
     run = _hold_out(nodes, authoring)
     # Whitespace between an element's children is layout, not prose: formatting it would
     # turn an indented child into a Markdown code block.
-    html = (
-        run.source
-        if not run.has_text
-        else (
-            authoring.to_html(run.source)
-            if "\n\n" in run.source
-            else authoring.to_inline_html(run.source)
-        )
-    )
+    html = _format_children_text(run.source, authoring) if run.has_text else run.source
     return authoring.substitute(html, run), run.outputs
+
+
+def _format_children_text(source: str, authoring: _Authoring) -> str:
+    """Format an element's text inline, or as blocks when the author wrote paragraphs."""
+    to_html = authoring.to_html if "\n\n" in source else authoring.to_inline_html
+    return to_html(source)
 
 
 def _render_node(node: _RawElement | _Element, authoring: _Authoring) -> str:

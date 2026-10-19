@@ -94,6 +94,19 @@ def test_shortcode_alone_on_a_line_is_not_wrapped_in_a_paragraph(url: str):
 
 
 @pytest.mark.parametrize("url", CONTENT_URLS)
+def test_line_right_after_a_shortcode_alone_is_still_markdown(url: str):
+    html = _html(url, 'Intro\n\n[image url="/a.png" alt="a"]\nA caption with **bold** text')
+    assert '<img src="/a.png" alt="a">' in html
+    assert "<p>A caption with <strong>bold</strong> text</p>" in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
+def test_shortcode_on_its_own_line_inside_a_paragraph_keeps_the_paragraph(url: str):
+    html = _html(url, 'Click\n[link url="/x"]here[/link]\nto **go**.')
+    assert '<p>Click <a href="/x">here</a> to <strong>go</strong>.</p>' in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
 def test_indented_shortcode_children_are_not_code_blocks(url: str):
     html = _html(
         url,
