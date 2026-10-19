@@ -81,7 +81,8 @@ def _filter_around(
     """
     for transform in filters:
         parts = held_back.split(text)
-        text = "".join(part if index % 2 else transform(part) for index, part in enumerate(parts))
+        parts[::2] = [transform(part) for part in parts[::2]]  # the text between matches
+        text = "".join(parts)
     return text
 
 
@@ -127,20 +128,21 @@ def _describe_child(child: Node) -> str:
 
 
 @dataclass(frozen=True)
-class _Run:
-    """Sibling nodes with each element rendered and a placeholder standing in its place.
+class _TextWithPlaceholders:
+    """The author's text with a placeholder where each element was, and what each stands for.
+
+    Each placeholder carries a number, its element's position in ``elements`` and
+    ``outputs``: ``<platzky-shortcode-…-0>`` stands for the first.
 
     Attributes:
-        source: The author's text, with a placeholder where each element was.
-        outputs: Each element's rendered output, in document order.
-        elements: Each element, in document order.
-        has_text: Whether any of the author's text is more than whitespace.
+        text: The author's text, a placeholder in each element's place.
+        elements: The elements, shown as written where a placeholder lands in code.
+        outputs: Each element's rendered output, put back in its placeholder's place.
     """
 
-    source: str
-    outputs: list[str]
+    text: str
     elements: list[RawElement | Element]
-    has_text: bool
+    outputs: list[str]
 
 
 def _as_written(element: RawElement | Element) -> str:
@@ -164,7 +166,7 @@ class _Renderer:
     """Renders one document: the author's text formatted and filtered, elements as rendered.
 
     Shortcode output is code's, not the author's, so it must reach neither the text format
-    nor a filter. Every run of sibling nodes, at each level of nesting, goes the same way:
+    nor a filter. The sibling nodes at each level of nesting all go the same way:
     each element is rendered and a placeholder stands in its place, the author's text is
     formatted and filtered, then each placeholder is replaced by its element's output. The
     nonce in the placeholders keeps an author from writing one of their own.
@@ -180,8 +182,9 @@ class _Renderer:
 
     def render_document(self, nodes: Sequence[Node]) -> str:
         """Render a document's top level: the author's text as blocks, elements as rendered."""
-        run = self._hold_out(nodes)
-        return self._substitute(self._to_html(run.source), run)
+        with_placeholders = self._replace_elements_with_placeholders(nodes)
+        html = self._to_html(with_placeholders.text)
+        return self._put_back_elements(html, with_placeholders)
 
     def _render_node(self, node: RawElement | Element) -> str:
         """Render one element to HTML, innermost element first.
@@ -226,34 +229,35 @@ class _Renderer:
         Returns:
             The children's HTML, and each element child's output in document order.
         """
-        run = self._hold_out(nodes)
+        with_placeholders = self._replace_elements_with_placeholders(nodes)
+        has_text = any(isinstance(node, Text) and node.text.strip() for node in nodes)
         # Whitespace between an element's children is layout, not prose: formatting it would
         # turn an indented child into a Markdown code block.
-        html = self._format_children_text(run.source) if run.has_text else run.source
-        return self._substitute(html, run), run.outputs
+        text = with_placeholders.text
+        html = self._format_children_text(text) if has_text else text
+        return self._put_back_elements(html, with_placeholders), with_placeholders.outputs
 
     def _format_children_text(self, source: str) -> str:
         """Format an element's text inline, or as blocks when the author wrote paragraphs."""
         to_html = self._to_html if re.search(r"\n[ \t]*\n", source) else self._to_inline_html
         return to_html(source)
 
-    def _hold_out(self, nodes: Sequence[Node]) -> _Run:
-        """Render each element among the siblings and hold its output out of their text."""
+    def _replace_elements_with_placeholders(self, nodes: Sequence[Node]) -> _TextWithPlaceholders:
+        """Render each element among the siblings and put a placeholder in its place."""
         outputs: list[str] = []
         elements: list[RawElement | Element] = []
-        source = ""
+        text = ""
         for node in nodes:
             if isinstance(node, Text):
-                source += node.text
+                text += node.text
             else:
-                source += self._placeholder(len(outputs))
+                text += self._placeholder(len(outputs))
                 outputs.append(self._render_node(node))
                 elements.append(node)
-        has_text = any(isinstance(node, Text) and node.text.strip() for node in nodes)
-        return _Run(source, outputs, elements, has_text)
+        return _TextWithPlaceholders(text, elements, outputs)
 
     def _placeholder(self, index: int) -> str:
-        """The tag standing in for a run's ``index``-th element while its text is formatted.
+        """The tag standing in for the siblings' ``index``-th element while its text is formatted.
 
         A tag rather than text, so a shortcode alone on a line reaches a Markdown renderer
         as an HTML block, not as a paragraph that would wrap its output in ``<p>``.
@@ -261,14 +265,14 @@ class _Renderer:
         return f"<{self._prefix}{index}>"
 
     def _to_html(self, source: str) -> str:
-        """Format and filter a run's text as blocks, leaving each placeholder where it was.
+        """Format and filter the siblings' text as blocks, leaving each placeholder where it was.
 
         Filters run last, on what the reader will see rather than on the author's syntax.
         HTML tags and placeholders, escaped ones too, are held back from them, so a filter never
         sees a tag's attributes or another shortcode's output.
 
         Args:
-            source: The run's text with a placeholder for each element.
+            source: The siblings' text with a placeholder for each element.
 
         Returns:
             HTML, still holding the placeholders.
@@ -277,10 +281,10 @@ class _Renderer:
         return _filter_around(formatted, self._filters, self._held_back)
 
     def _to_inline_html(self, source: str) -> str:
-        """Format and filter a run's text without block structure, as ``_to_html`` does.
+        """Format and filter the siblings' text without block structure, as ``_to_html`` does.
 
         Args:
-            source: The run's text with a placeholder for each element.
+            source: The siblings' text with a placeholder for each element.
 
         Returns:
             Inline HTML, still holding the placeholders.
@@ -288,7 +292,7 @@ class _Renderer:
         formatted = self._text_format.to_inline_html(source)
         return _filter_around(formatted, self._filters, self._held_back)
 
-    def _substitute(self, html: str, run: _Run) -> str:
+    def _put_back_elements(self, html: str, with_placeholders: _TextWithPlaceholders) -> str:
         """Put each element's output where its placeholder is.
 
         A placeholder the format escaped sat inside code, such as a Markdown code span or
@@ -296,19 +300,22 @@ class _Renderer:
         the shortcode as they wrote it.
 
         Args:
-            html: The run's formatted HTML, holding the placeholders.
-            run: The run the HTML was made from, for each element and its output.
+            html: The siblings' formatted HTML, holding the placeholders.
+            with_placeholders: What the HTML was formatted from, for each placeholder's
+                element and output.
 
         Returns:
-            The run's HTML with no placeholder left.
+            The HTML with no placeholder left.
         """
         prefix = re.escape(self._prefix)
         shown = re.sub(
             rf"&lt;{prefix}(\d+)&gt;",
-            lambda match: str(escape(_as_written(run.elements[int(match.group(1))]))),
+            lambda match: str(escape(_as_written(with_placeholders.elements[int(match.group(1))]))),
             html,
         )
-        return re.sub(rf"<{prefix}(\d+)>", lambda match: run.outputs[int(match.group(1))], shown)
+        return re.sub(
+            rf"<{prefix}(\d+)>", lambda match: with_placeholders.outputs[int(match.group(1))], shown
+        )
 
     def _end_placeholder_blocks(self, source: str) -> str:
         """Put a blank line after each placeholder that starts a block alone on its line.
