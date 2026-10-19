@@ -66,10 +66,6 @@ class _RawElement:
     raw_attrs: str
     content: str
 
-    #: The element as the author wrote it, tags included, shown in its place where the
-    #: author's text puts it inside code.
-    source: str
-
 
 @dataclass
 class _Element:
@@ -81,10 +77,6 @@ class _Element:
     shortcode: Shortcode
     raw_attrs: str
     children: list["_Node"]
-
-    #: The element as the author wrote it, tags included, shown in its place where the
-    #: author's text puts it inside code.
-    source: str
 
 
 _Node = _Text | _RawElement | _Element
@@ -105,9 +97,6 @@ class _Frame:
     #: Where the opening tag was written, carried only so an unclosed element can say which
     #: one it was.
     position: int
-
-    #: The opening tag as written: all the source an element has if it is never closed.
-    opening_tag: str
 
 
 def _tag_pattern(shortcodes: dict[str, Shortcode]) -> re.Pattern[str]:
@@ -241,9 +230,7 @@ def _discharge_unclosed_above(
         raise ShortcodeError(_never_closed(unclosed.name), unclosed.name, unclosed.position)
     while len(stack) - 1 > depth:
         frame = stack.pop()
-        stack[-1].children.append(
-            _Element(shortcodes[frame.name], frame.raw_attrs, [], frame.opening_tag)
-        )
+        stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, []))
         stack[-1].children.extend(frame.children)
 
 
@@ -283,10 +270,7 @@ def _close_element(
         return
     _discharge_unclosed_above(stack, depth, shortcodes, strict=strict)
     frame = stack.pop()
-    source = match.string[frame.position : match.end()]
-    stack[-1].children.append(
-        _Element(shortcodes[frame.name], frame.raw_attrs, frame.children, source)
-    )
+    stack[-1].children.append(_Element(shortcodes[frame.name], frame.raw_attrs, frame.children))
 
 
 def _open_element(
@@ -319,7 +303,7 @@ def _open_element(
     raw_attrs = match.group(3) or ""
     after_tag = match.end()
     if shortcode.kind == "void":
-        stack[-1].children.append(_Element(shortcode, raw_attrs, [], match.group(0)))
+        stack[-1].children.append(_Element(shortcode, raw_attrs, []))
         return after_tag
     if shortcode.kind == "raw":
         end = content.find(f"[/{name}]", after_tag)
@@ -328,17 +312,9 @@ def _open_element(
                 raise ShortcodeError(_never_closed(name), name, match.start())
             stack[-1].children.append(_Text(match.group(0)))
             return after_tag
-        after_closing_tag = end + len(name) + 3
-        stack[-1].children.append(
-            _RawElement(
-                shortcode,
-                raw_attrs,
-                content[after_tag:end],
-                content[match.start() : after_closing_tag],
-            )
-        )
-        return after_closing_tag
-    stack.append(_Frame(name, raw_attrs, [], match.start(), match.group(0)))
+        stack[-1].children.append(_RawElement(shortcode, raw_attrs, content[after_tag:end]))
+        return end + len(name) + 3
+    stack.append(_Frame(name, raw_attrs, [], match.start()))
     return after_tag
 
 
@@ -364,7 +340,7 @@ def _parse(content: str, shortcodes: dict[str, Shortcode], *, strict: bool) -> l
         ShortcodeError: If ``strict`` and a tag is never closed, or closes nothing.
     """
     pattern = _tag_pattern(shortcodes)
-    stack: list[_Frame] = [_Frame("", "", [], 0, "")]
+    stack: list[_Frame] = [_Frame("", "", [], 0)]
     position = 0
 
     while (match := pattern.search(content, position)) is not None:
@@ -526,7 +502,7 @@ class _Authoring:
 
         Args:
             html: The run's formatted HTML, holding the placeholders.
-            run: The run the HTML was made from, for each element's output and source.
+            run: The run the HTML was made from, for each element and its output.
 
         Returns:
             The run's HTML with no placeholder left.
@@ -534,7 +510,7 @@ class _Authoring:
         prefix = re.escape(self._prefix())
         shown = re.sub(
             rf"&lt;{prefix}(\d+)&gt;",
-            lambda match: str(escape(run.sources[int(match.group(1))])),
+            lambda match: str(escape(_as_written(run.elements[int(match.group(1))]))),
             html,
         )
         return re.sub(rf"<{prefix}(\d+)>", lambda match: run.outputs[int(match.group(1))], shown)
@@ -571,20 +547,20 @@ class _Run:
     Attributes:
         source: The author's text, with a placeholder where each element was.
         outputs: Each element's rendered output, in document order.
-        sources: Each element as the author wrote it, in document order.
+        elements: Each element, in document order.
         has_text: Whether any of the author's text is more than whitespace.
     """
 
     source: str
     outputs: list[str]
-    sources: list[str]
+    elements: list[_RawElement | _Element]
     has_text: bool
 
 
 def _hold_out(nodes: Sequence[_Node], authoring: _Authoring) -> _Run:
     """Render each element among the siblings and hold its output out of their text."""
     outputs: list[str] = []
-    sources: list[str] = []
+    elements: list[_RawElement | _Element] = []
     source = ""
     for node in nodes:
         if isinstance(node, _Text):
@@ -592,9 +568,26 @@ def _hold_out(nodes: Sequence[_Node], authoring: _Authoring) -> _Run:
         else:
             source += authoring.placeholder(len(outputs))
             outputs.append(_render_node(node, authoring))
-            sources.append(node.source)
+            elements.append(node)
     has_text = any(isinstance(node, _Text) and node.text.strip() for node in nodes)
-    return _Run(source, outputs, sources, has_text)
+    return _Run(source, outputs, elements, has_text)
+
+
+def _as_written(element: _RawElement | _Element) -> str:
+    """The element in shortcode syntax, as an author would write it."""
+    name = element.shortcode.name
+    inner = (
+        element.content
+        if isinstance(element, _RawElement)
+        else "".join(_node_as_written(child) for child in element.children)
+    )
+    closing = "" if element.shortcode.kind == "void" else f"[/{name}]"
+    return f"[{name}{element.raw_attrs}]{inner}{closing}"
+
+
+def _node_as_written(node: _Node) -> str:
+    """The node in the syntax an author would write it in."""
+    return node.text if isinstance(node, _Text) else _as_written(node)
 
 
 def _render_document_text(nodes: Sequence[_Node], authoring: _Authoring) -> str:
