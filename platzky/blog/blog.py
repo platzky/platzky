@@ -10,8 +10,8 @@ from flask import Blueprint, abort, make_response, render_template, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
-from platzky.content import ContentTransformer
-from platzky.content_types import PAGE, POST, CmsAuthored
+from platzky.content_types import PAGE, POST, ContentSource
+from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
 from platzky.models import Page, Post
@@ -30,7 +30,7 @@ def create_blog_blueprint(
     db: DB,
     blog_prefix: str,
     locale_func: Callable[[], str],
-    content_transformer: ContentTransformer,
+    content_transformer: Callable[[ContentSource | str, FilterContentType], str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -175,10 +175,8 @@ def create_blog_blueprint(
         return render_template(
             "post.html",
             post=post,
-            # Markup vouches: a post body is written by someone with CMS write access.
-            content=content_transformer(
-                CmsAuthored(post.contentInMarkdown), POST, text_format=MARKDOWN
-            ),
+            # Vouched for: a post body is written by someone with CMS write access.
+            content=content_transformer(ContentSource(post.contentInMarkdown, MARKDOWN), POST),
             post_slug=post_slug,
             form=comment_form.CommentForm(),
             comment_sent=request.args.get("comment_sent"),
@@ -202,10 +200,8 @@ def create_blog_blueprint(
             "page.html",
             title=page.title,
             css=page.css,
-            # Markup vouches, as for a post body.
-            content=content_transformer(
-                CmsAuthored(page.contentInMarkdown), PAGE, text_format=MARKDOWN
-            ),
+            # Vouched for, as a post body is.
+            content=content_transformer(ContentSource(page.contentInMarkdown, MARKDOWN), PAGE),
             cover_image=cover_image_url,
         )
 

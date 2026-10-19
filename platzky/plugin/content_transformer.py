@@ -10,12 +10,12 @@ from typing import ClassVar, cast
 import jinja2.ext
 from markupsafe import Markup, escape
 
-from platzky.content_types import ALL_CONTENT_TYPES, CmsAuthored, ContentType
+from platzky.content_types import ALL_CONTENT_TYPES, ContentSource, ContentType
 from platzky.plugin.plugin import PluginBase
 from platzky.plugin.plugin_config import PluginConfigBase
 from platzky.shortcodes import Shortcode
 from platzky.shortcodes.parser import render_document
-from platzky.text_format import HTML, TextFormat
+from platzky.text_format import HTML
 
 
 class ContentTransformerPluginConfig(PluginConfigBase):
@@ -255,19 +255,18 @@ class ContentTransformerRegistry:
     def transform_content(
         self,
         plugins: Iterable[ContentTransformerPluginBase],
-        content: str,
+        content: ContentSource | str,
         content_type: ContentType,
         *,
         strip_html: bool = False,
-        text_format: TextFormat = HTML,
     ) -> Markup:
         """Run every permitted transformer over the content, in order.
 
         Transformers chain their output, so a failing transformer aborts the chain rather
         than silently passing partial output to the next stage.
 
-        Content is escaped on the way in unless the caller vouched for it by passing
-        ``Markup`` — the caller is the only party that knows where it came from, so the
+        Content is escaped on the way in unless the caller vouched for it by passing a
+        ``ContentSource`` — the caller is the only party that knows where it came from, so the
         default is the safe one and vouching is the deliberate act. Everything the
         pipeline adds afterwards is markup platzky itself produced, by plugins that turned
         offered and granted this content type, so it is trusted by construction and shortcodes
@@ -276,7 +275,8 @@ class ContentTransformerRegistry:
         Args:
             plugins: Content transformers in registration order.
             content: The content to transform. A plain ``str`` is treated as untrusted and
-                escaped; a ``Markup`` is taken as vouched for and passed through.
+                escaped; a ``ContentSource`` is taken as vouched for, and formatted in its
+                own ``text_format``.
             content_type: The kind of content, e.g. ``POST``.
             strip_html: Overrule vouching and remove HTML tags the author wrote, keeping
                 the text they wrapped and logging what went. The site owner's call, behind
@@ -284,8 +284,6 @@ class ContentTransformerRegistry:
                 body is exempt: it is verbatim by declaration, which makes it the way an
                 author marks HTML they mean to keep. Only vouched content has one —
                 unvouched content is escaped at the boundary, raw bodies included.
-            text_format: The format vouched content is written in, e.g. ``MARKDOWN``.
-                Unvouched content is never formatted: it stays the escaped text it was.
 
         Returns:
             The content after every permitted transformer has run, as ``Markup``: whatever
@@ -293,21 +291,26 @@ class ContentTransformerRegistry:
             escaped at the boundary, so the result is safe to embed either way and no
             caller has to assert that again.
         """
-        # Whether anyone vouched decides three separate things, so read it before escaping
-        # flattens the type away: what gets escaped, whose mistakes get reported, and
-        # whether there is any authored HTML left for the site owner to strip.
+        # Whether anyone vouched decides four separate things: what gets escaped, whose
+        # mistakes get reported, whether there is any authored HTML left for the site
+        # owner to strip, and whether the text is formatted at all.
         #
-        # Only CmsAuthored counts, not any Markup: Markup means "already escaped, render as
-        # is", which a caller can reach for to fix a display bug, and that is not the same
-        # claim as "someone with CMS access wrote this". Asking for the narrower type makes
-        # the claim deliberate, and keeps a stray Markup from widening what is trusted.
-        vouched = isinstance(content, CmsAuthored)
+        # Only ContentSource counts, not any Markup: Markup means "already escaped, render
+        # as is", which a caller can reach for to fix a display bug, and that is not the
+        # same claim as "someone with CMS access wrote this". Asking for a type of its own
+        # makes the claim deliberate, and keeps a stray Markup from widening what is trusted.
+        vouched = isinstance(content, ContentSource)
         # escape() is a no-op on anything carrying __html__, so this is the whole rule.
         # It makes content safe; it does not stop shortcode parsing. Brackets survive, so
         # a bare tag in untrusted content still fires — harmlessly, since what it wraps is
         # already escaped — while a quoted attribute does not survive and that tag renders
-        # literally. Safety does not depend on which happens.
-        content = str(escape(content))
+        # literally. Safety does not depend on which happens. A stranger's text is never
+        # formatted: it stays the escaped text it was.
+        text, text_format = (
+            (content.text, content.text_format)
+            if isinstance(content, ContentSource)
+            else (str(escape(content)), HTML)
+        )
         # That mangling is also why only vouched content is parsed strictly. Escaping the
         # quotes out of `[tag a="b"]x[/tag]` leaves an opening tag that no longer matches
         # and a closing tag that does, so a stranger writing an ordinary shortcode would
@@ -319,14 +322,14 @@ class ContentTransformerRegistry:
         # just discarded, and handed every filter the markup earlier shortcodes had
         # produced.
         rendered, removed = render_document(
-            content,
+            text,
             self.shortcodes_for(permitted, content_type),
             [plugin.transform_text for plugin in permitted],
             strict=vouched,
             # Unvouched content was escaped above, raw bodies with it, so it has no tags
             # left to strip and no way to pass one through a raw body either.
             strip_html=strip_html and vouched,
-            text_format=text_format if vouched else HTML,
+            text_format=text_format,
         )
         if removed:
             # Lossy and silent otherwise, so say what went and how much of it.

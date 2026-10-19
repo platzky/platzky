@@ -22,7 +22,7 @@ from platzky.config import (
     Config,
     languages_dict,
 )
-from platzky.content_types import FOOTER, PAGE, POST, CmsAuthored, ContentType
+from platzky.content_types import FOOTER, PAGE, POST, ContentSource, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
@@ -135,9 +135,9 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
     # Only someone with CMS access can write the footer, so its HTML is embedded as
     # written. Passing a plain str instead would escape the author's tags into visible
     # text, and would have the shortcode parser treat their mistakes as a stranger's.
-    authored = CmsAuthored(content)
+    authored = ContentSource(content, MARKDOWN)
     try:
-        rendered = app.transform_content(authored, FOOTER, text_format=MARKDOWN)
+        rendered = app.transform_content(authored, FOOTER)
     except ShortcodeError:
         # This is called on every page render, so one malformed tag would otherwise 500
         # the whole site, the 404 handler included. Drop the footer instead; the log names
