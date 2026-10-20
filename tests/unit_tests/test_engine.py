@@ -1133,6 +1133,31 @@ def test_query_locale_and_multilang_together_are_rejected(test_app: Engine):
         test_app.add_url_rule("/both", view_func=_babel_locale, multilang=True, query_locale=True)
 
 
+@pytest.mark.parametrize("multilang_first", [True, False])
+def test_query_locale_and_multilang_on_one_endpoint_are_rejected(
+    test_app: Engine, multilang_first: bool
+):
+    """Two routes of one endpoint would otherwise let /pl/x?lang=de resolve to de."""
+    first, second = ("/x", "/api/x") if multilang_first else ("/api/x", "/x")
+    test_app.add_url_rule(
+        first, "x", _babel_locale, multilang=multilang_first, query_locale=not multilang_first
+    )
+    with pytest.raises(ValueError, match="multilang"):
+        test_app.add_url_rule(
+            second, "x", _babel_locale, multilang=not multilang_first, query_locale=multilang_first
+        )
+
+
+@pytest.mark.parametrize(("query", "url"), [("?lang=pl", "/pl/blog/"), ("", "/blog/")])
+def test_url_for_in_query_locale_route_follows_the_query_language(query: str, url: str):
+    app = _build_three_language_test_app()
+    api = QueryLocaleBlueprint("api", __name__, url_prefix="/api")
+    api.add_url_rule("/blog-link", "blog_link", lambda: url_for("blog.all_posts"))
+    app.register_blueprint(api)
+    response = app.test_client().get(f"/api/blog-link{query}", headers={"Host": "example.com"})
+    assert response.text == url
+
+
 def test_query_locale_blueprint_rejects_a_multilang_route():
     app = _build_three_language_test_app()
     api = QueryLocaleBlueprint("api", __name__)

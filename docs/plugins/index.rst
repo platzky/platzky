@@ -137,8 +137,17 @@ can still pass ``query_locale=False``:
 
     api = QueryLocaleBlueprint("books_api", __name__, url_prefix="/api/books")
 
-The frontend sends the page's current language with each call, e.g.
-``fetch(`/api/books/summary?lang=${document.documentElement.lang}`)``.
+The frontend sends the page's language code with each call: the ``current_language`` the page
+was rendered with, e.g. exposed by the template as ``window.APP_LANG = "{{ current_language }}"``
+and sent as ``fetch(`/api/books/summary?lang=${window.APP_LANG}`)``. Don't send the ``<html
+lang>`` attribute: it holds a full tag such as ``pl-PL``, which names no configured language, so
+the request would fall back to the host's language.
+
+``url_for`` in such a route follows the query language too, but builds a URL on the current
+host: ``?lang=pl`` on ``example.com`` builds ``/pl/…``, as the calling page expects. A language
+served on its own domain has no URL on the current host, so for ``?lang=de`` on ``example.com``
+the built link leads to the host's own language instead. Pages call their API on their own host,
+so this only matters when the query names another domain's language.
 
 A route takes its language either from its URL or from the query, so combining
 ``query_locale`` with ``multilang`` raises ``ValueError`` when the route is registered.
