@@ -130,7 +130,7 @@ too:
 
 The frontend sends the page's language code with each call: the ``current_language`` the page
 was rendered with, e.g. exposed by the template as ``window.APP_LANG = "{{ current_language }}"``
-and sent as ``fetch(`/api/books/summary?lang=${window.APP_LANG}`)``. Don't send the ``<html
+and sent as ``fetch(`/books/api/summary?lang=${window.APP_LANG}`)``. Don't send the ``<html
 lang>`` attribute: it holds a full tag such as ``pl-PL``, which names no configured language, so
 the request would fall back to the host's language.
 

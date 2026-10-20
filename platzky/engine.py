@@ -461,7 +461,8 @@ class Engine(Flask):
                 f"Route {rule!r} (endpoint {name!r}) cannot take its language from both its "
                 "URL (multilang) and the query string (query_locale)"
             )
-        if name in self.view_functions and query_locale != (name in self._query_locale_endpoints):
+        registered = any(r.endpoint == name for r in self.url_map.iter_rules())
+        if registered and query_locale != (name in self._query_locale_endpoints):
             raise ValueError(
                 f"Route {rule!r} (endpoint {name!r}) sets query_locale={query_locale}, unlike "
                 "another route of the same endpoint"

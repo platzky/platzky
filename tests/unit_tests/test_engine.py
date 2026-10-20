@@ -1144,6 +1144,16 @@ def test_query_locale_on_and_off_on_one_endpoint_are_rejected(
         test_app.add_url_rule("/b", "x", _babel_locale, query_locale=not query_locale_first)
 
 
+@pytest.mark.parametrize("query_locale_first", [True, False])
+def test_query_locale_differing_from_a_rule_without_a_view_is_rejected(
+    test_app: Engine, query_locale_first: bool
+):
+    """A rule registered before its view is bound still fixes the endpoint's query_locale."""
+    test_app.add_url_rule("/a", "x", query_locale=query_locale_first)
+    with pytest.raises(ValueError, match="query_locale"):
+        test_app.add_url_rule("/b", "x", _babel_locale, query_locale=not query_locale_first)
+
+
 @pytest.mark.parametrize(("query", "url"), [("?lang=pl", "/pl/blog/"), ("", "/blog/")])
 def test_url_for_in_query_locale_route_follows_the_query_language(query: str, url: str):
     app = _build_three_language_test_app()
