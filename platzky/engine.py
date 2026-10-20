@@ -120,6 +120,10 @@ class Engine(Flask):
                 through ``PluginBase.provides_content_types``. Both are added to
                 ``known_content_types``, and a site owner grants from that union.
         """
+        # Before Flask's __init__, whose static route already goes through add_url_rule.
+        self._localized_endpoints: set[str] = set()
+        self._query_locale_endpoints: set[str] = set()
+        self._no_query_locale_endpoints: set[str] = set()
         super().__init__(import_name)
         self.extra_plugin_bases: tuple[type["PluginBase"], ...] = tuple(extra_plugin_bases)
         self.extra_plugins_entrypoints: tuple[str, ...] = tuple(extra_plugins_entrypoints)
@@ -129,8 +133,6 @@ class Engine(Flask):
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self._platzky_config = config
-        self._localized_endpoints: set[str] = set()
-        self._query_locale_endpoints: set[str] = set()
         self.sitemap_providers: dict[str, SitemapProvider] = {}
         self.db = db
         self._attachment_config = config.attachment
@@ -452,7 +454,8 @@ class Engine(Flask):
 
         Raises:
             ValueError: If both ``multilang`` and ``query_locale`` are set, on this route or
-                on another route of the same endpoint.
+                on another route of the same endpoint, or if routes of one endpoint differ
+                in ``query_locale``.
         """
         name = endpoint or (view_func.__name__ if view_func is not None else "")
         if (multilang and (query_locale or name in self._query_locale_endpoints)) or (
@@ -462,11 +465,19 @@ class Engine(Flask):
                 f"Route {rule!r} (endpoint {name!r}) cannot take its language from both its "
                 "URL (multilang) and the query string (query_locale)"
             )
+        if name in (
+            self._no_query_locale_endpoints if query_locale else self._query_locale_endpoints
+        ):
+            raise ValueError(
+                f"Route {rule!r} (endpoint {name!r}) sets query_locale={query_locale}, unlike "
+                "another route of the same endpoint"
+            )
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         if sitemap_provider is not None:
             self.sitemap_providers[name] = sitemap_provider
-        if query_locale:
-            self._query_locale_endpoints.add(name)
+        (self._query_locale_endpoints if query_locale else self._no_query_locale_endpoints).add(
+            name
+        )
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
