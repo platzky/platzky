@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.18](https://github.com/platzky/platzky/compare/v2.0.0-alpha.17...v2.0.0-alpha.18) (2026-10-20)
+
+
+### Features
+
+* multilang responses from api introduced ([#320](https://github.com/platzky/platzky/issues/320)) ([c39b3cc](https://github.com/platzky/platzky/commit/c39b3ccd0d5fd2d306e5c2c5586e8d9f484e1e0c))
+
 ## [2.0.0-alpha.17](https://github.com/platzky/platzky/compare/v2.0.0-alpha.16...v2.0.0-alpha.17) (2026-10-19)
 
 
