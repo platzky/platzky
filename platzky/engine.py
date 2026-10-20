@@ -38,6 +38,7 @@ from platzky.db.db import DB
 from platzky.feature_flags import FeatureFlag, StripContentHtml
 from platzky.language_routing import (
     LANG_CODE_ARG,
+    LOCALE_QUERY_ARG,
     any_converter,
     language_url,
     resolve_locale,
@@ -129,6 +130,7 @@ class Engine(Flask):
         self.config["FEATURE_FLAGS"] = config.feature_flags
         self._platzky_config = config
         self._localized_endpoints: set[str] = set()
+        self._query_locale_endpoints: set[str] = set()
         self.sitemap_providers: dict[str, SitemapProvider] = {}
         self.db = db
         self._attachment_config = config.attachment
@@ -396,8 +398,24 @@ class Engine(Flask):
         self.dynamic_head += head
 
     def get_locale(self) -> str:
-        """Return the language of the current request, derived from its host and path only."""
-        return resolve_locale(self._platzky_config.site_languages, request.host, request.path)
+        """Return the language of the current request.
+
+        Returns:
+            On a ``query_locale`` route, the configured language named by the
+            ``LOCALE_QUERY_ARG`` query argument, if any; otherwise the language derived from
+            the request's host and path.
+        """
+        languages = self._platzky_config.site_languages
+        requested = (
+            request.args.get(LOCALE_QUERY_ARG, "")
+            if request.endpoint in self._query_locale_endpoints
+            else ""
+        )
+        return (
+            requested
+            if requested in languages.domains
+            else resolve_locale(languages, request.host, request.path)
+        )
 
     @override
     def add_url_rule(
@@ -408,6 +426,7 @@ class Engine(Flask):
         provide_automatic_options: Optional[bool] = None,
         *,
         multilang: bool = False,
+        query_locale: bool = False,
         sitemap_provider: Optional[SitemapProvider] = None,
         **options: object,
     ) -> None:
@@ -421,16 +440,30 @@ class Engine(Flask):
             multilang: Whether the view renders in every language (it reads
                 ``get_locale()``), so it is also served under ``/<lang_code>/`` and
                 ``url_for`` builds it under the current language's prefix.
+            query_locale: Whether ``get_locale()`` takes the language from the
+                ``LOCALE_QUERY_ARG`` query argument (``?lang=uk``) when it names a configured
+                language, for a view such as a JSON API that pages in every language call at
+                one unprefixed URL. Exclusive with ``multilang``.
             sitemap_provider: Lists the route in ``sitemap.xml``, in every language it is
                 served in: a function taking a language code and ``url``, the route's URL
                 builder in that language, and returning its ``SitemapEntry`` items, or
                 ``platzky.sitemap.single_url`` for a route without URL variables.
             **options: Further options for the underlying ``Rule``.
+
+        Raises:
+            ValueError: If both ``multilang`` and ``query_locale`` are set.
         """
+        if multilang and query_locale:
+            raise ValueError(
+                f"Route {rule!r} cannot take its language from both its URL (multilang) "
+                "and the query string (query_locale)"
+            )
         super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
         name = endpoint or (view_func.__name__ if view_func is not None else "")
         if sitemap_provider is not None:
             self.sitemap_providers[name] = sitemap_provider
+        if query_locale:
+            self._query_locale_endpoints.add(name)
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
             lang_codes = self._platzky_config.site_languages.domainless_languages
@@ -588,6 +621,26 @@ class Engine(Flask):
             return liveness()
 
         self.register_blueprint(health_bp)
+
+
+class QueryLocaleBlueprint(Blueprint):
+    """Blueprint whose routes default to ``query_locale=True``, e.g. a JSON API blueprint.
+
+    A route can still pass ``query_locale=False`` to opt out.
+    """
+
+    @override
+    def add_url_rule(
+        self,
+        rule: str,
+        endpoint: Optional[str] = None,
+        view_func: Optional[ft.RouteCallable] = None,
+        provide_automatic_options: Optional[bool] = None,
+        **options: Any,
+    ) -> None:
+        """Register a route, with ``query_locale`` on unless the route sets it."""
+        options.setdefault("query_locale", True)
+        super().add_url_rule(rule, endpoint, view_func, provide_automatic_options, **options)
 
 
 def current_engine() -> Engine:

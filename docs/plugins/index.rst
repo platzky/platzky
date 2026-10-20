@@ -108,6 +108,42 @@ The view is then also served as ``/<code>/…``. While a request is in a domainl
 ``url_for`` builds its URL with that prefix and ``get_locale()`` returns the language. Views
 without view arguments also get ``hreflang`` links to their version in every language.
 
+.. _plugin-query-locale-routes:
+
+Taking the Language from the Query String
+-----------------------------------------
+
+A JSON endpoint that returns translated text (``gettext``) is called by pages in every
+language, but lives at one unprefixed URL: ``example.com/pl/`` calls ``example.com/api/…``,
+which the host and path resolve to the default language. Register such a route with
+``query_locale=True`` and ``get_locale()`` takes the language from the ``lang`` query argument
+(``platzky.LOCALE_QUERY_ARG``) whenever it names a configured language, including one with its
+own domain. Without the argument, or with an unknown or empty one, the host and path decide as
+usual. The argument is read from the query string only, so ``POST`` requests pass it in the URL
+too:
+
+.. code-block:: python
+
+    @books.route("/api/summary", query_locale=True)
+    def summary():
+        return {"summary": gettext("A book about hobbits")}
+
+To opt in every route of a blueprint, create it as a ``QueryLocaleBlueprint``; a single route
+can still pass ``query_locale=False``:
+
+.. code-block:: python
+
+    from platzky import QueryLocaleBlueprint
+
+    api = QueryLocaleBlueprint("books_api", __name__, url_prefix="/api/books")
+
+The frontend sends the page's current language with each call, e.g.
+``fetch(`/api/books/summary?lang=${document.documentElement.lang}`)``.
+
+A route takes its language either from its URL or from the query, so combining
+``query_locale`` with ``multilang`` raises ``ValueError`` when the route is registered.
+Routes without ``query_locale`` ignore the argument.
+
 .. _plugin-sitemap-routes:
 
 Listing Routes in the Sitemap

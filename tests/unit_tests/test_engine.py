@@ -4,12 +4,14 @@ from typing import Any, cast
 import pytest
 from bs4 import BeautifulSoup, Tag
 from flask import Blueprint, url_for
+from flask_babel import get_locale
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
 from platzky.db.json_db import Json
-from platzky.engine import Engine
+from platzky.engine import Engine, QueryLocaleBlueprint
 from platzky.feature_flags import FakeLogin
+from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
@@ -1058,3 +1060,88 @@ def test_sitemap_lists_domainless_languages_on_the_main_host_only(host: str, lis
     response = app.test_client().get("/sitemap.xml", headers={"Host": host})
     assert f"http://{host}/blog/" in response.text
     assert (f"http://{host}/pl/blog/" in response.text) is lists_pl
+
+
+def _babel_locale() -> str:
+    return str(get_locale())
+
+
+def _build_api_test_app() -> Engine:
+    app = _build_three_language_test_app()
+    app.config["WTF_CSRF_ENABLED"] = False
+    api = Blueprint("api", __name__, url_prefix="/api")
+    api.add_url_rule("/greeting", "greeting", _babel_locale, query_locale=True)
+    api.add_url_rule("/form", "form", _babel_locale, methods=["POST"], query_locale=True)
+    api.add_url_rule("/plain", "plain", _babel_locale)
+    app.register_blueprint(api)
+    return app
+
+
+@pytest.mark.parametrize(
+    ("query", "locale"),
+    [
+        ("?lang=pl", "pl"),
+        ("?lang=de", "de"),
+        ("", "en"),
+        ("?lang=xx", "en"),
+        ("?lang=", "en"),
+    ],
+)
+def test_query_locale_route_takes_a_configured_language_from_the_query(query: str, locale: str):
+    client = _build_api_test_app().test_client()
+    response = client.get(f"/api/greeting{query}", headers={"Host": "example.com"})
+    assert response.text == locale
+
+
+def test_query_locale_route_ignores_an_unknown_language_on_another_host():
+    client = _build_api_test_app().test_client()
+    response = client.get("/api/greeting?lang=xx", headers={"Host": "example.de"})
+    assert response.text == "de"
+
+
+def test_route_without_query_locale_ignores_the_query():
+    client = _build_api_test_app().test_client()
+    response = client.get("/api/plain?lang=pl", headers={"Host": "example.com"})
+    assert response.text == "en"
+
+
+def test_query_locale_post_reads_the_language_from_the_query_not_the_body():
+    client = _build_api_test_app().test_client()
+    from_query = client.post("/api/form?lang=pl", headers={"Host": "example.com"})
+    from_body = client.post(
+        "/api/form", data={LOCALE_QUERY_ARG: "pl"}, headers={"Host": "example.com"}
+    )
+    assert (from_query.text, from_body.text) == ("pl", "en")
+
+
+def test_query_locale_blueprint_covers_every_route():
+    app = _build_three_language_test_app()
+    app.config["WTF_CSRF_ENABLED"] = False
+    api = QueryLocaleBlueprint("api", __name__, url_prefix="/api")
+    api.add_url_rule("/one", "one", _babel_locale)
+    api.add_url_rule("/two", "two", _babel_locale, methods=["POST"])
+    api.add_url_rule("/opted-out", "opted_out", _babel_locale, query_locale=False)
+    app.register_blueprint(api)
+    client = app.test_client()
+    assert client.get("/api/one?lang=pl").text == "pl"
+    assert client.post("/api/two?lang=de").text == "de"
+    assert client.get("/api/opted-out?lang=pl").text == "en"
+
+
+def test_query_locale_and_multilang_together_are_rejected(test_app: Engine):
+    with pytest.raises(ValueError, match="multilang"):
+        test_app.add_url_rule("/both", view_func=_babel_locale, multilang=True, query_locale=True)
+
+
+def test_query_locale_blueprint_rejects_a_multilang_route():
+    app = _build_three_language_test_app()
+    api = QueryLocaleBlueprint("api", __name__)
+    api.add_url_rule("/page", view_func=_babel_locale, multilang=True)
+    with pytest.raises(ValueError, match="multilang"):
+        app.register_blueprint(api)
+
+
+def test_query_locale_does_not_change_pages():
+    client = _build_api_test_app().test_client()
+    response = client.get("/blog/?lang=pl", headers={"Host": "example.com"})
+    assert _language_indicator(response) == "en"

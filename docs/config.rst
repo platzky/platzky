@@ -196,6 +196,9 @@ address that search engines can index:
   homepage and the blog; an application or plugin can serve its own views the same way by
   registering them with ``multilang=True`` (see :ref:`plugin-localized-routes`).
 
+JSON endpoints called from pages in every language can instead take the language from a
+``?lang=`` query argument (see :ref:`plugin-query-locale-routes`).
+
 A language's code used as a prefix where that language isn't served permanently redirects to
 where it is: ``example.com/en/blog/`` to ``example.com/blog/``, ``example.com/de/blog/`` to
 ``example.de/blog/``, and ``example.de/pl/blog/`` to ``example.com/pl/blog/``.

@@ -3,6 +3,11 @@
 Every configured language has exactly one URL: the default language at the root of the main
 host, a language with its own ``domain`` at the root of that domain, and any other language
 under ``/<code>/`` on the main host.
+
+The one exception is a route registered with ``query_locale=True``, typically a JSON API
+called from pages in every language: its locale is the configured language named by the
+``LOCALE_QUERY_ARG`` query argument, and the host and path only when that argument is absent
+or names no configured language.
 """
 
 import typing as t
@@ -11,6 +16,8 @@ from dataclasses import dataclass
 from functools import cached_property
 
 LANG_CODE_ARG = "lang_code"
+LOCALE_QUERY_ARG = "lang"
+"""Query argument naming the language of a ``query_locale`` route, e.g. ``/api/x?lang=uk``."""
 RESERVED_PATH_SEGMENTS = frozenset({"lang", "static", "admin", "login", "health", "api"})
 
 
