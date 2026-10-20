@@ -453,14 +453,12 @@ class Engine(Flask):
             **options: Further options for the underlying ``Rule``.
 
         Raises:
-            ValueError: If both ``multilang`` and ``query_locale`` are set, on this route or
-                on another route of the same endpoint, or if routes of one endpoint differ
-                in ``query_locale``.
+            ValueError: If both ``multilang`` and ``query_locale`` are set, or if routes of one
+                endpoint differ in ``query_locale`` (which also keeps ``multilang`` and
+                ``query_locale`` routes off one endpoint).
         """
         name = endpoint or (view_func.__name__ if view_func is not None else "")
-        if (multilang and (query_locale or name in self._query_locale_endpoints)) or (
-            query_locale and name in self._localized_endpoints
-        ):
+        if multilang and query_locale:
             raise ValueError(
                 f"Route {rule!r} (endpoint {name!r}) cannot take its language from both its "
                 "URL (multilang) and the query string (query_locale)"

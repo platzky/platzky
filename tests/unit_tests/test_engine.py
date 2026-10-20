@@ -1142,7 +1142,7 @@ def test_query_locale_and_multilang_on_one_endpoint_are_rejected(
     test_app.add_url_rule(
         first, "x", _babel_locale, multilang=multilang_first, query_locale=not multilang_first
     )
-    with pytest.raises(ValueError, match="multilang"):
+    with pytest.raises(ValueError, match="query_locale"):
         test_app.add_url_rule(
             second, "x", _babel_locale, multilang=not multilang_first, query_locale=multilang_first
         )
