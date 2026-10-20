@@ -128,15 +128,6 @@ too:
     def summary():
         return {"summary": gettext("A book about hobbits")}
 
-To opt in every route of a blueprint, create it as a ``QueryLocaleBlueprint``; a single route
-can still pass ``query_locale=False``:
-
-.. code-block:: python
-
-    from platzky import QueryLocaleBlueprint
-
-    api = QueryLocaleBlueprint("books_api", __name__, url_prefix="/api/books")
-
 The frontend sends the page's language code with each call: the ``current_language`` the page
 was rendered with, e.g. exposed by the template as ``window.APP_LANG = "{{ current_language }}"``
 and sent as ``fetch(`/api/books/summary?lang=${window.APP_LANG}`)``. Don't send the ``<html

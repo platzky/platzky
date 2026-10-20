@@ -9,7 +9,7 @@ from werkzeug.test import TestResponse
 
 from platzky.config import Config
 from platzky.db.json_db import Json
-from platzky.engine import Engine, QueryLocaleBlueprint
+from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
@@ -1114,20 +1114,6 @@ def test_query_locale_post_reads_the_language_from_the_query_not_the_body():
     assert (from_query.text, from_body.text) == ("pl", "en")
 
 
-def test_query_locale_blueprint_covers_every_route():
-    app = _build_three_language_test_app()
-    app.config["WTF_CSRF_ENABLED"] = False
-    api = QueryLocaleBlueprint("api", __name__, url_prefix="/api")
-    api.add_url_rule("/one", "one", _babel_locale)
-    api.add_url_rule("/two", "two", _babel_locale, methods=["POST"])
-    api.add_url_rule("/opted-out", "opted_out", _babel_locale, query_locale=False)
-    app.register_blueprint(api)
-    client = app.test_client()
-    assert client.get("/api/one?lang=pl").text == "pl"
-    assert client.post("/api/two?lang=de").text == "de"
-    assert client.get("/api/opted-out?lang=pl").text == "en"
-
-
 def test_query_locale_and_multilang_together_are_rejected(test_app: Engine):
     with pytest.raises(ValueError, match="multilang"):
         test_app.add_url_rule("/both", view_func=_babel_locale, multilang=True, query_locale=True)
@@ -1161,19 +1147,13 @@ def test_query_locale_on_and_off_on_one_endpoint_are_rejected(
 @pytest.mark.parametrize(("query", "url"), [("?lang=pl", "/pl/blog/"), ("", "/blog/")])
 def test_url_for_in_query_locale_route_follows_the_query_language(query: str, url: str):
     app = _build_three_language_test_app()
-    api = QueryLocaleBlueprint("api", __name__, url_prefix="/api")
-    api.add_url_rule("/blog-link", "blog_link", lambda: url_for("blog.all_posts"))
+    api = Blueprint("api", __name__, url_prefix="/api")
+    api.add_url_rule(
+        "/blog-link", "blog_link", lambda: url_for("blog.all_posts"), query_locale=True
+    )
     app.register_blueprint(api)
     response = app.test_client().get(f"/api/blog-link{query}", headers={"Host": "example.com"})
     assert response.text == url
-
-
-def test_query_locale_blueprint_rejects_a_multilang_route():
-    app = _build_three_language_test_app()
-    api = QueryLocaleBlueprint("api", __name__)
-    api.add_url_rule("/page", view_func=_babel_locale, multilang=True)
-    with pytest.raises(ValueError, match="multilang"):
-        app.register_blueprint(api)
 
 
 def test_query_locale_does_not_change_pages():
