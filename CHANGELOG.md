@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.19](https://github.com/platzky/platzky/compare/v2.0.0-alpha.18...v2.0.0-alpha.19) (2026-10-21)
+
+
+### Bug Fixes
+
+* secure images ([#322](https://github.com/platzky/platzky/issues/322)) ([4a33d7c](https://github.com/platzky/platzky/commit/4a33d7c9685daa6241c9e6ad131663f60c523865))
+
 ## [2.0.0-alpha.18](https://github.com/platzky/platzky/compare/v2.0.0-alpha.17...v2.0.0-alpha.18) (2026-10-20)
 
 
