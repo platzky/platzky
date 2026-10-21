@@ -1,12 +1,13 @@
 """Built-in image shortcode."""
 
 from collections.abc import Sequence
+from typing import ClassVar
 
 from markupsafe import Markup, escape
 
 from platzky.shortcodes import IntRange, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import IMAGE_URL_POLICY
+from platzky.shortcodes.urls import IMAGE_URL_POLICY, UrlPolicy
 
 
 class ImageShortcode(Shortcode):
@@ -16,7 +17,7 @@ class ImageShortcode(Shortcode):
     description = "Embed an image."
     attributes = ShortcodeAttrs(
         [
-            ShortcodeAttr("url", "Image URL (http/https or a path starting with /)", required=True),
+            ShortcodeAttr("url", "Image URL (https or a path starting with /)", required=True),
             ShortcodeAttr("alt", "Alt text", required=False),
             ShortcodeAttr("width", "Width in pixels", constraints=IntRange(1)),
             ShortcodeAttr("height", "Height in pixels", constraints=IntRange(1)),
@@ -24,6 +25,11 @@ class ImageShortcode(Shortcode):
     )
     example = '[image url="https://example.com/photo.jpg" alt="A photo"]'
     kind = "void"
+
+    #: The URL policy this shortcode enforces. Declared rather than looked up so an
+    #: application can narrow or widen it by subclassing, as with ``[link]``'s
+    #: ``url_policy``; the default is platzky's, and no site owner can change it from config.
+    url_policy: ClassVar[UrlPolicy] = IMAGE_URL_POLICY
 
     def render(
         self,
@@ -49,7 +55,7 @@ class ImageShortcode(Shortcode):
         Raises:
             UrlNotPermitted: If the URL is missing, or not one the policy permits.
         """
-        IMAGE_URL_POLICY.check(attrs.url)
+        self.url_policy.check(attrs.url)
         extra = ""
         if width := escape(attrs.width):
             extra += f' width="{width}"'

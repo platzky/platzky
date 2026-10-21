@@ -12,9 +12,16 @@ from platzky.shortcodes.shortcode import (
     ShortcodeError,
     ShortcodeKind,
 )
-from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
+from platzky.shortcodes.urls import (
+    IMAGE_URL_POLICY,
+    LINK_URL_POLICY,
+    UrlFault,
+    UrlNotPermitted,
+    UrlPolicy,
+)
 
 __all__ = [
+    "IMAGE_URL_POLICY",
     "LINK_URL_POLICY",
     "AnyChildren",
     "ChildPolicy",

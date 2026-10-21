@@ -1,12 +1,13 @@
 """Built-in figure shortcode."""
 
 from collections.abc import Sequence
+from typing import ClassVar
 
 from markupsafe import Markup, escape
 
 from platzky.shortcodes import IntRange, ShortcodeAttr, ShortcodeAttrs
 from platzky.shortcodes.shortcode import Shortcode
-from platzky.shortcodes.urls import IMAGE_URL_POLICY
+from platzky.shortcodes.urls import IMAGE_URL_POLICY, UrlPolicy
 
 FIGURE_CSS_CLASS = "platzky-figure"
 FIGURE_CAPTION_CSS_CLASS = "platzky-figure-caption"
@@ -19,9 +20,7 @@ class FigureShortcode(Shortcode):
     description = "A picture with text beside it. Used in [slideshow] as single slide"
     attributes = ShortcodeAttrs(
         [
-            ShortcodeAttr(
-                "image", "Image URL (http/https or a path starting with /)", required=True
-            ),
+            ShortcodeAttr("image", "Image URL (https or a path starting with /)", required=True),
             ShortcodeAttr("alt", "Alt text", required=False),
             ShortcodeAttr("width", "Width in pixels", constraints=IntRange(1)),
             ShortcodeAttr("height", "Height in pixels", constraints=IntRange(1)),
@@ -40,6 +39,11 @@ class FigureShortcode(Shortcode):
         'only thing a "[slideshow]" accepts. A slideshow is as large as its largest frame, '
         "so keep frames similar in size to avoid empty space around the smaller ones."
     )
+
+    #: The URL policy this shortcode enforces. Declared rather than looked up so an
+    #: application can narrow or widen it by subclassing, as with ``[link]``'s
+    #: ``url_policy``; the default is platzky's, and no site owner can change it from config.
+    url_policy: ClassVar[UrlPolicy] = IMAGE_URL_POLICY
 
     def render(
         self,
@@ -65,7 +69,7 @@ class FigureShortcode(Shortcode):
         Raises:
             UrlNotPermitted: If the image URL is missing, or not one the policy permits.
         """
-        IMAGE_URL_POLICY.check(attrs.image)
+        self.url_policy.check(attrs.image)
         extra = ""
         if width := escape(attrs.width):
             extra += f' width="{width}"'

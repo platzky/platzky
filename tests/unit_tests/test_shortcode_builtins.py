@@ -14,10 +14,17 @@ from platzky.plugin.content_transformer import (
     ContentTransformerRegistry,
 )
 from platzky.shortcodes.builtins import get_builtin_shortcodes
-from platzky.shortcodes.image import image_shortcode
+from platzky.shortcodes.figure import figure_shortcode
+from platzky.shortcodes.image import ImageShortcode, image_shortcode
 from platzky.shortcodes.link import LinkShortcode, link_shortcode
 from platzky.shortcodes.slideshow import DEFAULT_WIDTH, MAX_SLIDES
-from platzky.shortcodes.urls import LINK_URL_POLICY, UrlFault, UrlNotPermitted, UrlPolicy
+from platzky.shortcodes.urls import (
+    IMAGE_URL_POLICY,
+    LINK_URL_POLICY,
+    UrlFault,
+    UrlNotPermitted,
+    UrlPolicy,
+)
 
 
 class _BuiltinTestPlugin(ContentTransformerPluginBase):
@@ -94,7 +101,7 @@ class TestImageShortcode:
         assert "sig=abc" not in caplog.text
         assert "host" not in caplog.text
         assert "its scheme is not permitted here" in caplog.text
-        assert "use http or https" in caplog.text
+        assert "use https" in caplog.text
 
     def test_protocol_relative_url_rejected(self) -> None:
         """No scheme, but external all the same."""
@@ -105,6 +112,10 @@ class TestImageShortcode:
         description = next(a.description for a in image_shortcode.attributes if a.name == "url")
         assert "starting with /" in description
         assert _apply('[image url="photo.jpg"]') == ""
+
+    def test_plain_http_url_rejected(self) -> None:
+        """Fetched as the page opens, an http image is mixed content and readable in transit."""
+        assert _apply('[image url="http://example.com/x.jpg"]') == ""
 
     def test_mailto_url_rejected(self) -> None:
         """An image is fetched, not navigated to, so the schemes a link accepts do not apply."""
@@ -233,6 +244,24 @@ class TestLinkShortcodeUrlPolicyOverride:
             self._SmsLink().render_value({"url": "javascript:alert(1)", "content": "X"})
 
         assert "[sms_link] rendered nothing" in caplog.text
+
+
+class TestImageShortcodeUrlPolicyOverride:
+    """As with ``[link]``, an application may change the image policy by subclassing."""
+
+    class _LocalImage(ImageShortcode):
+        name = "local_image"
+        url_policy: ClassVar[UrlPolicy] = UrlPolicy(frozenset())
+
+    def test_a_subclass_can_narrow_the_policy(self) -> None:
+        """No schemes at all: only the site's own paths."""
+        assert self._LocalImage().render_value({"url": "https://example.com/x.jpg"}) == ""
+        assert self._LocalImage().render_value({"url": "/x.jpg"}) == '<img src="/x.jpg" alt="">'
+
+    def test_narrowing_does_not_leak_into_the_builtins(self) -> None:
+        url = "https://example.com/x.jpg"
+        assert image_shortcode.render_value({"url": url}) == f'<img src="{url}" alt="">'
+        assert figure_shortcode.url_policy is IMAGE_URL_POLICY
 
 
 class TestUrlPolicy:
@@ -522,6 +551,10 @@ class TestFigureShortcode:
     def test_a_figure_without_text_has_no_empty_text_box(self) -> None:
         result = _apply('[figure image="/a.jpg"][/figure]')
         assert result == '<div class="platzky-figure"><img src="/a.jpg" alt=""></div>'
+
+    def test_plain_http_image_renders_nothing(self) -> None:
+        """The same policy as [image]: an http source is refused, caption and all."""
+        assert _apply('[figure image="http://example.com/a.jpg"]Text.[/figure]') == ""
 
     def test_missing_image_renders_nothing(self) -> None:
         """The image is required: without one, a figure is dropped like a bare [image] is."""
