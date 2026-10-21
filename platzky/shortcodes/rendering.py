@@ -1,8 +1,8 @@
 """Shortcode rendering — the document machinery behind ``transform_content``.
 
 A document is parsed once into nodes, then walked twice — strip, render — so no pass ever
-sees what a later one produces. Rendering formats and filters the author's text, with
-each shortcode's output held out of both. ``render_document`` is the whole public
+sees what a later one produces. Rendering formats, sanitizes and filters the author's
+text, with each shortcode's output held out of all three. ``render_document`` is the whole public
 surface; everything else here serves it.
 """
 
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from markupsafe import Markup, escape
 
+from platzky.html_sanitizer import sanitize_html
 from platzky.shortcodes.nodes import Element, Node, RawElement, Text
 from platzky.shortcodes.parser import parse, strip_text_nodes
 from platzky.shortcodes.shortcode import ChildPolicy, ElementRefused, Shortcode
@@ -163,18 +164,25 @@ def _node_as_written(node: Node) -> str:
 
 
 class _Renderer:
-    """Renders one document: the author's text formatted and filtered, elements as rendered.
+    """Renders one document: the author's text formatted, sanitized and filtered, elements too.
 
-    Shortcode output is code's, not the author's, so it must reach neither the text format
-    nor a filter. The sibling nodes at each level of nesting all go the same way:
-    each element is rendered and a placeholder stands in its place, the author's text is
-    formatted and filtered, then each placeholder is replaced by its element's output. The
-    nonce in the placeholders keeps an author from writing one of their own.
+    Shortcode output is code's, not the author's, so it must reach neither the text format,
+    the sanitizer nor a filter. The sibling nodes at each level of nesting all go the same
+    way: each element is rendered and a placeholder stands in its place, the author's text
+    is formatted, sanitized and filtered, then each placeholder is replaced by its element's
+    output. The nonce in the placeholders keeps an author from writing one of their own.
     """
 
-    def __init__(self, text_format: TextFormat, filters: Sequence[Callable[[str], str]]):
+    def __init__(
+        self,
+        text_format: TextFormat,
+        filters: Sequence[Callable[[str], str]],
+        *,
+        sanitize: bool,
+    ):
         self._text_format = text_format
         self._filters = filters
+        self._sanitize = sanitize
         self._prefix = f"platzky-shortcode-{secrets.token_hex(8)}-"
         # A placeholder inside code is escaped to text, so it is held back by name as well.
         # One group, so ``split`` returns what is held back at the odd indices.
@@ -201,7 +209,10 @@ class _Renderer:
             The element's HTML.
         """
         if isinstance(node, RawElement):
-            return _render_element(node.shortcode, node.raw_attrs, node.content, ())
+            # Verbatim means unparsed and unformatted, not unsanitized: the author wrote it.
+            return _render_element(
+                node.shortcode, node.raw_attrs, self._sanitized(node.content), ()
+            )
         if disallowed := _disallowed_children(node):
             # Refused whole rather than per child: dropping only the offenders would leave a
             # wrapper whose structure the author still got wrong, rendered as if it were
@@ -265,9 +276,10 @@ class _Renderer:
         return f"<{self._prefix}{index}>"
 
     def _to_html(self, source: str) -> str:
-        """Format and filter the siblings' text as blocks, leaving each placeholder where it was.
+        """Format, sanitize and filter the siblings' text as blocks, keeping each placeholder.
 
-        Filters run last, on what the reader will see rather than on the author's syntax.
+        Filters run last, on what the reader will see rather than on the author's syntax,
+        and are not sanitized: like shortcode output, theirs is a granted plugin's markup.
         HTML tags and placeholders, escaped ones too, are held back from them, so a filter never
         sees a tag's attributes or another shortcode's output.
 
@@ -278,10 +290,10 @@ class _Renderer:
             HTML, still holding the placeholders.
         """
         formatted = self._text_format.to_html(self._end_placeholder_blocks(source))
-        return _filter_around(formatted, self._filters, self._held_back)
+        return _filter_around(self._sanitized(formatted), self._filters, self._held_back)
 
     def _to_inline_html(self, source: str) -> str:
-        """Format and filter the siblings' text without block structure, as ``_to_html`` does.
+        """Format, sanitize and filter the siblings' text without block structure, as ``_to_html``.
 
         Args:
             source: The siblings' text with a placeholder for each element.
@@ -290,7 +302,28 @@ class _Renderer:
             Inline HTML, still holding the placeholders.
         """
         formatted = self._text_format.to_inline_html(source)
-        return _filter_around(formatted, self._filters, self._held_back)
+        return _filter_around(self._sanitized(formatted), self._filters, self._held_back)
+
+    def _sanitized(self, html: str) -> str:
+        """Refuse and clean HTML the author wrote, when sanitizing, keeping each placeholder.
+
+        A placeholder is a tag no allowlist knows, so it passes the sanitizer as plain text,
+        which the nonce keeps an author from writing, and is a tag again afterwards. An
+        escaped placeholder is text already and stays as it is.
+
+        Args:
+            html: The author's text as HTML, holding the placeholders.
+
+        Returns:
+            The HTML as the sanitizer serializes it, still holding the placeholders.
+
+        Raises:
+            ContentNotAllowed: If the HTML has a tag, attribute or URL content may not have.
+        """
+        prefix = re.escape(self._prefix)
+        as_text = re.sub(rf"<({prefix}\d+)>", r"\1", html)
+        cleaned = sanitize_html(as_text) if self._sanitize else as_text
+        return re.sub(rf"(?<!&lt;)({prefix}\d+)(?!&gt;)", r"<\1>", cleaned)
 
     def _put_back_elements(self, html: str, with_placeholders: _TextWithPlaceholders) -> str:
         """Put each element's output where its placeholder is.
@@ -346,13 +379,14 @@ def render_document(
     strict: bool,
     strip_html: bool = False,
     text_format: TextFormat = HTML,
+    sanitize: bool = False,
 ) -> tuple[str, list[str]]:
     """Parse the content once, strip its text, then render it.
 
     The order is the point: stripping that ran before parsing could not tell HTML left in
-    prose from HTML marked to keep inside a raw element. Formatting and filtering happen
-    while rendering, on the author's text only, with each shortcode's output held out of
-    both — a filter is never handed markup a shortcode produced.
+    prose from HTML marked to keep inside a raw element. Formatting, sanitizing and
+    filtering happen while rendering, on the author's text only, with each shortcode's
+    output held out of all three — a filter is never handed markup a shortcode produced.
 
     Args:
         content: The content to transform.
@@ -363,13 +397,17 @@ def render_document(
             element's content survives.
         text_format: The format the author's text is written in. Raw element content is
             not formatted.
+        sanitize: Whether to refuse and clean HTML the author wrote, raw element content
+            included.
 
     Returns:
         The rendered content, and the names of the HTML tags stripped from it.
 
     Raises:
         ShortcodeError: If ``strict`` and a shortcode tag is malformed.
+        ContentNotAllowed: If ``sanitize`` and the author wrote HTML content may not have.
     """
     nodes: list[Node] = parse(content, shortcodes, strict=strict) if shortcodes else [Text(content)]
     removed = strip_text_nodes(nodes) if strip_html else []
-    return _Renderer(text_format, filters).render_document(nodes), removed
+    renderer = _Renderer(text_format, filters, sanitize=sanitize)
+    return renderer.render_document(nodes), removed

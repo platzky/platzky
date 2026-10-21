@@ -17,6 +17,7 @@ from platzky.content_types import (
     ContentSource,
     ContentType,
 )
+from platzky.html_sanitizer import ContentNotAllowed
 from platzky.plugin.content_transformer import (
     ContentTransformerPluginBase,
     ContentTransformerRegistry,
@@ -83,7 +84,7 @@ class AttrPlugin(ContentTransformerPluginBase):
 
 class _StyledShortcode(Shortcode):
     name = "styled"
-    description = "Emit markup of its own, as a plugin may."
+    description = "Emit markup an author could not write, as a plugin may."
     kind = "void"
 
     def render(
@@ -97,7 +98,7 @@ class _StyledShortcode(Shortcode):
 
 
 class StyledPlugin(ContentTransformerPluginBase):
-    """Registers a void shortcode with markup of its own."""
+    """Registers a shortcode whose output the sanitizer would strip."""
 
     accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
         BUILTIN_CONTENT_TYPES, "Exercised by tests."
@@ -127,6 +128,30 @@ class _ReplacesBFormat:
     def to_inline_html(self, text: str) -> str:
         """Replace every B."""
         return text.replace("B", "x")
+
+
+class _AddsScriptFormat:
+    """A text format that appends a script, as a broken formatter might."""
+
+    def to_html(self, text: str) -> str:
+        """Append a script."""
+        return f"{text}<script></script>"
+
+    def to_inline_html(self, text: str) -> str:
+        """Append a script."""
+        return f"{text}<script></script>"
+
+
+class _StyledLetterPlugin(ContentTransformerPluginBase):
+    """Filters text into markup the sanitizer would strip."""
+
+    accepted_content_types: Mapping[ContentType, str] = dict.fromkeys(
+        BUILTIN_CONTENT_TYPES, "Exercised by tests."
+    )
+
+    def transform_text(self, text: str) -> str:
+        """Colour every 'a'."""
+        return text.replace("a", '<span style="color: red">a</span>')
 
 
 class AnyPlugin(ContentTransformerPluginBase):
@@ -312,6 +337,60 @@ class TestTrustBoundary:
 
         assert result == '<span class="loud"></span>never closed'
 
+    @pytest.mark.parametrize(
+        ("html", "offence"),
+        [
+            ("<b>bold</b><script>alert(1)</script>", "<script> is not allowed"),
+            ('<img src="/a.png" onerror="x">', 'attribute "onerror" on <img> is not allowed'),
+            ('<a href="javascript:alert(1)">x</a>', '"javascript:" links in "href" on <a>'),
+            ('<p style="color: red">x</p>', 'attribute "style" on <p> is not allowed'),
+        ],
+    )
+    def test_vouched_content_with_disallowed_html_is_refused(
+        self, registry: ContentTransformerRegistry, html: str, offence: str
+    ) -> None:
+        """Vouching keeps an author's formatting; script is refused, not quietly dropped."""
+        with pytest.raises(ContentNotAllowed, match=offence):
+            registry.transform_content([], ContentSource(html), "post")
+
+    def test_vouched_content_keeps_allowed_html(self, registry: ContentTransformerRegistry) -> None:
+        """Formatting an author may write passes, comments aside."""
+        result = registry.transform_content(
+            [], ContentSource('<!-- note --><b class="x">bold</b> <a href="/ok">y</a>'), "post"
+        )
+
+        assert result == '<b class="x">bold</b> <a href="/ok">y</a>'
+
+    def test_author_html_inside_a_shortcode_is_checked(
+        self, registry: ContentTransformerRegistry
+    ) -> None:
+        """What an element wraps is still the author's, so wrapping it does not launder it."""
+        plugin = ShoutPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        with pytest.raises(ContentNotAllowed, match="<script>"):
+            registry.transform_content(
+                [plugin], ContentSource("[shout]hi<script>alert(1)</script>[/shout]"), "post"
+            )
+
+    def test_shortcode_output_is_not_sanitized(self, registry: ContentTransformerRegistry) -> None:
+        """A granted plugin's markup is trusted, so it keeps what an author may not write."""
+        plugin = StyledPlugin({})
+        registry.grant(plugin, frozenset({"post"}))
+
+        result = registry.transform_content([plugin], ContentSource("own [styled]"), "post")
+
+        assert result == 'own <span style="color: red">styled</span>'
+
+    def test_filter_output_is_not_sanitized(self, registry: ContentTransformerRegistry) -> None:
+        """A filter is a granted plugin's code, so its markup is trusted like a shortcode's."""
+        letters = _StyledLetterPlugin({})
+        registry.grant(letters, frozenset({"post"}))
+
+        result = registry.transform_content([letters], ContentSource("<b>ab</b>"), "post")
+
+        assert result == '<b><span style="color: red">a</span>b</b>'
+
     def test_an_author_cannot_forge_a_shortcode_placeholder(
         self, registry: ContentTransformerRegistry
     ) -> None:
@@ -320,10 +399,15 @@ class TestTrustBoundary:
         registry.grant(plugin, frozenset({"post"}))
 
         result = registry.transform_content(
-            [plugin], ContentSource("[styled] <platzky-shortcode-0-0>"), "post"
+            [plugin], ContentSource("[styled] platzky-shortcode-0-0"), "post"
         )
 
-        assert result == '<span style="color: red">styled</span> <platzky-shortcode-0-0>'
+        assert result == '<span style="color: red">styled</span> platzky-shortcode-0-0'
+
+    def test_format_text_output_is_checked(self, registry: ContentTransformerRegistry) -> None:
+        """What the format makes of the author's text is still theirs, so it is checked."""
+        with pytest.raises(ContentNotAllowed, match="<script>"):
+            registry.transform_content([], ContentSource("hi", _AddsScriptFormat()), "post")
 
     def test_text_format_formats_vouched_content(
         self, registry: ContentTransformerRegistry
@@ -779,7 +863,7 @@ class TestFiltersNeverSeeRenderedMarkup:
         )
 
         # The 'a' inside the title attribute is untouched; both in the text are wrapped.
-        assert result == '<a title="a > b"><i>a</i>nd <i>a</i> word</a>'
+        assert result == '<a title="a &gt; b"><i>a</i>nd <i>a</i> word</a>'
 
     def test_a_raw_body_survives_another_plugin_entirely(
         self, registry: ContentTransformerRegistry

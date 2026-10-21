@@ -16,13 +16,14 @@ class HtmlShortcode(Shortcode):
     prose cannot quietly edit what is in here.
 
     Verbatim also means HTML written inside reaches the page as HTML, unformatted by
-    Markdown, and keeps doing so where ``STRIP_CONTENT_HTML`` removes the HTML around it:
-    the flag has the site owner decide that prose is not written in HTML, and this tag is
-    how an author says a particular piece of it is meant. That escape hatch is only open to
-    whoever the caller vouched for — an author with CMS write access. Content nobody
-    vouched for, a comment say, is escaped at the boundary before any of this runs, raw
-    bodies with it, so a stranger writing ``[html]`` gets the characters shown back rather
-    than a way in.
+    Markdown, and keeps doing so where ``STRIP_CONTENT_HTML`` removes the HTML around it.
+    It is sanitized on the way, as everything an author writes is, so it cannot run
+    script. The flag has the site owner
+    decide that prose is not written in HTML, and this tag is how an author says a
+    particular piece of it is meant. That escape hatch is only open to whoever the caller
+    vouched for — an author with CMS write access. Content nobody vouched for, a comment
+    say, is escaped at the boundary before any of this runs, raw bodies with it, so a
+    stranger writing ``[html]`` gets the characters shown back rather than a way in.
     """
 
     name = "html"
@@ -33,9 +34,8 @@ class HtmlShortcode(Shortcode):
         "Raw, so a shortcode tag written inside is shown literally rather than invoked — "
         "this is how to document a tag without triggering it. No text filter reaches "
         "inside either, and it is not formatted as Markdown. Actual HTML written inside is "
-        "rendered as HTML on the page, and "
-        'stays that way even where "STRIP_CONTENT_HTML" would otherwise strip it from '
-        "the rest of the post."
+        "rendered as HTML on the page, without script, and stays that way even where "
+        '"STRIP_CONTENT_HTML" would otherwise strip it from the rest of the post.'
     )
 
     def render(
@@ -48,7 +48,7 @@ class HtmlShortcode(Shortcode):
 
         Args:
             attrs: Unused — html takes no attributes.
-            content: Everything between the tags, exactly as written.
+            content: Everything between the tags, as written but sanitized.
             children: Unused, and always empty — a raw body is never parsed into nodes.
 
         Returns:

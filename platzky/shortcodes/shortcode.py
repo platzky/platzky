@@ -39,10 +39,10 @@ _VALID_SHORTCODE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 #: A raw body is verbatim against the whole pipeline: no plugin's text filter reaches into
 #: it, no plugin's shortcodes are rendered inside it, it is not formatted, and
 #: ``STRIP_CONTENT_HTML`` does not remove the HTML tags in it, because the document is
-#: parsed once before any of them run.
-#: Verbatim is not a safety property, and a raw shortcode is not a place to put content
-#: nobody vouched for: what the caller vouched for is embedded as written, and what it did
-#: not was escaped at the boundary, body and all.
+#: parsed once before any of them run. Verbatim is not a safety property, and a raw
+#: shortcode is not a place to put content nobody vouched for: what the caller vouched for
+#: is sanitized like the rest of what its author wrote, and what it did not was escaped at
+#: the boundary, body and all.
 ShortcodeKind = Literal["block", "void", "raw"]
 
 #: The same set at runtime, for the check in ``__init_subclass__`` — plugin authors are

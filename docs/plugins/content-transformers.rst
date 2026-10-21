@@ -24,11 +24,12 @@ own kinds (see :ref:`new-content-types`), and plugins opt in to those the same w
 
 Override ``transform_text`` to apply plain-text transformations. What reaches it is only
 the text of what an author wrote between tags, after it was formatted (from Markdown, for
-a post): never an HTML tag or a shortcode's attributes, never another shortcode's output,
-and never the body of a ``raw`` tag. It is the only method a transformer implements:
-running one is the registry's job, reached through ``Engine.transform_content``, which
-parses the whole document once, then renders it — the author's text formatted and
-filtered, every permitted tag rendered. A transformer does not control that
+a post) and sanitized: never an HTML tag or a shortcode's attributes, never another
+shortcode's output, and never the body of a ``raw`` tag. What it returns is not
+sanitized — it is the plugin's markup, trusted like a shortcode's. It is the only method a
+transformer implements: running one is the registry's job, reached through
+``Engine.transform_content``, which parses the whole document once, then renders it —
+the author's text formatted, sanitized and filtered, every permitted tag rendered. A transformer does not control that
 sequence for itself, and has no way to run outside the :term:`site owner`\ 's :term:`grant`.
 
 A transformer's other half is :doc:`shortcodes` — named tags it registers, rendered by

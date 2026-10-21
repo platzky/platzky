@@ -267,7 +267,8 @@ class ContentTransformerRegistry:
 
         Content is escaped on the way in unless the caller vouched for it by passing a
         ``ContentSource`` — the caller is the only party that knows where it came from, so the
-        default is the safe one and vouching is the deliberate act. Everything the
+        default is the safe one and vouching is the deliberate act. Vouched content keeps
+        its HTML formatting but is sanitized, so no author can run script. Everything the
         pipeline adds afterwards is markup platzky itself produced, by plugins that turned
         offered and granted this content type, so it is trusted by construction and shortcodes
         embed their content directly. See ``Shortcode.render``.
@@ -287,7 +288,7 @@ class ContentTransformerRegistry:
 
         Returns:
             The content after every permitted transformer has run, as ``Markup``: whatever
-            the caller vouched for was formatted and embedded, and whatever they did not was
+            the caller vouched for was formatted and sanitized, and whatever they did not was
             escaped at the boundary, so the result is safe to embed either way and no
             caller has to assert that again.
         """
@@ -330,6 +331,9 @@ class ContentTransformerRegistry:
             # left to strip and no way to pass one through a raw body either.
             strip_html=strip_html and vouched,
             text_format=text_format,
+            # Shortcode output is never sanitized, only what the author wrote: a granted
+            # plugin's markup is trusted by construction, as above.
+            sanitize=vouched,
         )
         if removed:
             # Lossy and silent otherwise, so say what went and how much of it.

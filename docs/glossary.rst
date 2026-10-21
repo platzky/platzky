@@ -19,7 +19,8 @@ decides what*. The terms are defined once here and used consistently everywhere 
    author
       Someone with CMS write access, who writes posts and pages. Their content is
       :term:`vouched <vouching>` for by the code that loads it, so the HTML they write
-      renders as HTML — unless the site owner turned on ``STRIP_CONTENT_HTML``.
+      renders as HTML — unless the site owner turned on ``STRIP_CONTENT_HTML``. It is
+      sanitized all the same: formatting survives, script and event handlers do not.
 
    commenter
       A visitor who submits a comment. Nobody vouches for what they write, so it is
@@ -74,7 +75,9 @@ decides what*. The terms are defined once here and used consistently everywhere 
       ``str`` is treated as hostile and escaped. A bare ``Markup`` does not vouch either:
       it means "already escaped, render as is", which is a different claim from "someone
       with CMS access wrote this". Vouched content is also parsed strictly: whoever wrote
-      a malformed tag can go and fix it.
+      a malformed tag can go and fix it. Vouching is about who wrote it, not a licence to
+      run script: what an author wrote is sanitized, while shortcode and filter output,
+      being a granted plugin's, is not.
 
    content transformer
       A plugin subclassing
@@ -97,7 +100,8 @@ decides what*. The terms are defined once here and used consistently everywhere 
       The text between the tags of a ``raw`` :term:`shortcode`. It is lifted out of the
       document whole: no shortcode inside it renders, no text filter reaches it, it is
       not formatted as Markdown, and ``STRIP_CONTENT_HTML`` does not remove HTML from it.
-      That is what makes ``[html]`` the way an author marks markup they mean.
+      That is what makes ``[html]`` the way an author marks markup they mean. It is still
+      the author's, so it is sanitized like the rest of what they wrote.
 
    feature flag
       A :class:`~platzky.feature_flags.FeatureFlag` the :term:`site owner` switches under

@@ -212,8 +212,8 @@ class Engine(Flask):
 
         Args:
             content: The content to transform. Pass a ``ContentSource`` to vouch for it,
-                which formats it in its ``text_format``, embeds it, and holds its author to
-                strict shortcode syntax; anything else is escaped at the boundary.
+                which formats it in its ``text_format``, embeds it sanitized, and holds its
+                author to strict shortcode syntax; anything else is escaped at the boundary.
             content_type: The kind of content, e.g. ``POST``.
 
         Returns:

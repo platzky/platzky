@@ -166,7 +166,7 @@
         "title": "strip html page",
         "author": "autor",
         "slug": "strip-html",
-        "contentInMarkdown": "Before <b>bold text</b> after. [html]<img id=\"kept-image\" src=\"/static/img/none.png\">[/html] Tail <img id=\"stripped-image\" src=\"/static/img/none.png\"> end. [figure image=\"/static/img/none.png\" alt=\"shortcode image\"][/figure]",
+        "contentInMarkdown": "Before <b>bold text</b> after. [html]<img class=\"kept-image\" src=\"/static/img/none.png\">[/html] Tail <img class=\"stripped-image\" src=\"/static/img/none.png\"> end. [figure image=\"/static/img/none.png\" alt=\"shortcode image\"][/figure]",
         "excerpt": "page excerpt"
       },
       {

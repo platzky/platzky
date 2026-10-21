@@ -1,12 +1,16 @@
+import logging
+
 import pytest
+from werkzeug.test import TestResponse
 
 from platzky.config import Config
 from platzky.platzky import create_app_from_config
 
 CONTENT_URLS = ["/blog/slug", "/blog/page/slug"]
+CONTENT_ERROR = "Please contact the site administrator."
 
 
-def _html(url: str, markdown: str, flags: dict[str, bool] | None = None) -> str:
+def _get(url: str, markdown: str, flags: dict[str, bool] | None = None) -> TestResponse:
     content = {
         "author": "author",
         "slug": "slug",
@@ -33,8 +37,19 @@ def _html(url: str, markdown: str, flags: dict[str, bool] | None = None) -> str:
         }
     )
     app = create_app_from_config(config)
-    response = app.test_client().get(url)
+    return app.test_client().get(url)
+
+
+def _html(url: str, markdown: str, flags: dict[str, bool] | None = None) -> str:
+    response = _get(url, markdown, flags)
     assert response.status_code == 200
+    return response.get_data(as_text=True)
+
+
+def _refused(url: str, markdown: str) -> str:
+    response = _get(url, markdown)
+    assert response.status_code == 500
+    assert CONTENT_ERROR in response.get_data(as_text=True)
     return response.get_data(as_text=True)
 
 
@@ -157,3 +172,23 @@ def test_shortcode_in_code_is_shown_as_written(markdown: str, shown: str):
 def test_shortcode_outside_code_still_renders_beside_one_in_code():
     html = _html("/blog/slug", '`[image url="/a.png"]` renders as [image url="/a.png"]')
     assert "<code>[image url=&#34;/a.png&#34;]</code> renders as <img" in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
+def test_html_block_cannot_run_script(url: str):
+    html = _refused(url, "[html]<b>kept</b><script>alert(1)</script>[/html]")
+    assert "alert(1)" not in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
+def test_markdown_cannot_run_script(url: str, caplog: pytest.LogCaptureFixture):
+    with caplog.at_level(logging.ERROR):
+        html = _refused(url, "**bold** <script>alert(1)</script>")
+    assert "alert(1)" not in html
+    assert "<script> is not allowed" in caplog.text
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
+def test_markdown_cannot_carry_event_handlers(url: str):
+    html = _refused(url, '<p onclick="alert(1)">go</p>')
+    assert "alert(1)" not in html

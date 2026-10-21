@@ -27,6 +27,7 @@ from platzky.db.db import DB
 from platzky.db.db_loader import get_db
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.html_sanitizer import ContentNotAllowed
 from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
@@ -130,7 +131,8 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
         content: The footer as an author wrote it, in Markdown with shortcodes.
 
     Returns:
-        The rendered footer, empty when a shortcode in it is malformed.
+        The rendered footer, empty when a shortcode in it is malformed or it has HTML
+        content may not have.
     """
     # Only someone with CMS access can write the footer, so its HTML is embedded as
     # written. Passing a plain str instead would escape the author's tags into visible
@@ -138,10 +140,10 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
     authored = ContentSource(content, MARKDOWN)
     try:
         rendered = app.transform_content(authored, FOOTER)
-    except ShortcodeError:
-        # This is called on every page render, so one malformed tag would otherwise 500
-        # the whole site, the 404 handler included. Drop the footer instead; the log names
-        # the bracket at fault.
+    except (ShortcodeError, ContentNotAllowed):
+        # This is called on every page render, so one bad tag would otherwise 500 the whole
+        # site, the 404 handler included. Drop the footer instead; the log names the tag at
+        # fault.
         logger.exception("Site-wide footer could not be rendered; showing no footer")
         rendered = Markup("")
     return rendered
