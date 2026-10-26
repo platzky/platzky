@@ -96,39 +96,20 @@ class TestJsonDb:
         return Json(MemoryStore(sample_data))
 
     def test_get_app_description(self, db: Json):
-        assert db.get_app_description("en") == "English description"
-        assert db.get_app_description("de") == "Deutsche Beschreibung"
-        assert db.get_app_description("fr") == ""
+        app_description = db.get_site_settings().app_description
+        assert app_description.get("en") == "English description"
+        assert app_description.get("de") == "Deutsche Beschreibung"
+        assert app_description.get("fr", "") == ""
 
-    def test_get_blog_meta(self):
-        blog_meta = {
-            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
-            "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
-        }
+    def test_get_blog_meta_forwards_to_site_config(self):
+        blog_meta = {"en": {"title": "Reading notes", "description": "Notes."}}
         db = Json(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
         assert db.get_blog_meta("en") == PageMeta(**blog_meta["en"])
-        assert db.get_blog_meta("pl").title == "Notatki"
-        assert db.get_blog_meta("fr") == PageMeta()
 
-    def test_get_blog_meta_not_configured(self, db: Json):
-        assert db.get_blog_meta("en") == PageMeta()
-
-    def test_get_footer(self):
-        footer = {"content": {"en": "Footer", "pl": "Stopka"}}
+    def test_get_footer_forwards_to_site_config(self):
+        footer = {"content": {"en": "Footer"}, "collapsible": True}
         db = Json(MemoryStore({"site_content": {"footer": footer}}))
-        assert db.get_footer("en").content == "Footer"
-        assert db.get_footer("pl").content == "Stopka"
-        assert db.get_footer("fr").content == ""
-
-    def test_get_footer_not_configured(self, db: Json):
-        assert db.get_footer("en") == Footer()
-
-    def test_get_footer_collapsible(self):
-        db = Json(MemoryStore({"site_content": {"footer": {"collapsible": True}}}))
-        assert db.get_footer("en").collapsible is True
-
-    def test_get_footer_collapsible_not_configured(self, db: Json):
-        assert db.get_footer("en").collapsible is False
+        assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
 
     def test_get_all_posts(self, db: Json):
         posts = db.get_all_posts("en")
@@ -264,26 +245,23 @@ class TestJsonDbSiteSettings:
     def db_minimal(self) -> Json:
         return Json(MemoryStore({"site_content": {}}))
 
-    def test_get_logo_url(self, db_with_settings: Json):
-        assert db_with_settings.get_logo_url() == "/logo.png"
+    def test_get_site_settings(self, db_with_settings: Json):
+        settings = db_with_settings.get_site_settings()
+        assert settings.logo is not None
+        assert settings.logo.url == "/logo.png"
+        assert settings.favicon_url == "/favicon.ico"
+        assert settings.font == "Arial"
+        assert settings.primary_color == "blue"
+        assert settings.secondary_color == "green"
 
-    def test_get_favicon_url(self, db_with_settings: Json):
-        assert db_with_settings.get_favicon_url() == "/favicon.ico"
-
-    def test_get_font(self, db_with_settings: Json):
-        assert db_with_settings.get_font() == "Arial"
-
-    def test_get_primary_color(self, db_with_settings: Json):
-        assert db_with_settings.get_primary_color() == "blue"
-
-    def test_get_primary_color_default(self, db_minimal: Json):
-        assert db_minimal.get_primary_color() == "white"
-
-    def test_get_secondary_color(self, db_with_settings: Json):
-        assert db_with_settings.get_secondary_color() == "green"
-
-    def test_get_secondary_color_default(self, db_minimal: Json):
-        assert db_minimal.get_secondary_color() == "navy"
+    def test_get_site_settings_defaults(self, db_minimal: Json):
+        settings = db_minimal.get_site_settings()
+        assert settings.logo is None
+        assert settings.favicon_url == ""
+        assert settings.font == ""
+        assert settings.primary_color == "white"
+        assert settings.secondary_color == "navy"
+        assert settings.app_description == {}
 
     def test_get_home_page_path_default(self, db_minimal: Json):
         assert db_minimal.get_home_page_path("en") is None
@@ -349,11 +327,7 @@ class TestJsonDbComments:
             mock_datetime.now.return_value = test_date
             db.add_comment("Test User", "Great post!", "post-1")
 
-        post_data = next(
-            p
-            for p in db._get_site_content()["posts"]  # type: ignore[reportPrivateUsage]
-            if p["slug"] == "post-1"
-        )
+        post_data = next(p for p in db.data["site_content"]["posts"] if p["slug"] == "post-1")
         assert len(post_data["comments"]) == 1
         comment = post_data["comments"][0]
         assert comment["author"] == "Test User"
@@ -431,7 +405,7 @@ class TestJsonDbEmptyDb:
             db.get_all_posts("en")
 
         with pytest.raises(DBError, match="site_content section is missing"):
-            db.get_logo_url()
+            db.get_site_settings()
 
         with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")

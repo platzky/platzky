@@ -1,6 +1,5 @@
 """MongoDB database implementation."""
 
-import datetime
 from typing import Any
 
 from pydantic import Field
@@ -9,8 +8,13 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from typing_extensions import override
 
+from platzky.db.blog_storage import BlogStorage
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import NotFoundError
+from platzky.db.mongo_blog_storage import MongoBlogStorage
+from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
+from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -67,24 +71,11 @@ class MongoDB(DB):
         self.pages: Collection[Any] = self.db.pages
         self.menu_items: Collection[Any] = self.db.menu_items
         self.plugins: Collection[Any] = self.db.plugins
-
-    def _get_site_config(self) -> dict[str, Any] | None:
-        """Retrieve the site configuration document."""
-        return self.site_content.find_one({"_id": "config"})
-
-    def get_app_description(self, lang: str) -> str:
-        """Retrieve the application description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            Application description text or empty string if not found
-        """
-        site_config = self._get_site_config()
-        if site_config and "app_description" in site_config:
-            return site_config["app_description"].get(lang, "")
-        return ""
+        self._blog_storage: BlogStorage = MongoBlogStorage(self.posts, self.pages)
+        self._plugin_config: PluginConfigRepository = MongoPluginConfigRepository(self.plugins)
+        self._site_config: SiteConfigRepository = MongoSiteConfigRepository(
+            self.site_content, self.menu_items
+        )
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -96,8 +87,7 @@ class MongoDB(DB):
         Returns:
             The blog meta, empty if none is configured for the language
         """
-        site_config = self._get_site_config() or {}
-        return PageMeta(**site_config.get("blog_meta", {}).get(lang, {}))
+        return self._site_config.get_blog_meta(lang)
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -109,14 +99,7 @@ class MongoDB(DB):
         Returns:
             The footer, empty and not collapsible if none is configured
         """
-        site_config = self._get_site_config()
-        if not site_config or "footer" not in site_config:
-            return Footer()
-        footer = site_config["footer"]
-        return Footer(
-            content=footer.get("content", {}).get(lang, ""),
-            collapsible=bool(footer.get("collapsible", False)),
-        )
+        return self._site_config.get_footer(lang)
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
@@ -127,8 +110,7 @@ class MongoDB(DB):
         Returns:
             List of Post objects
         """
-        posts_cursor = self.posts.find({"language": lang})
-        return [Post.model_validate(post) for post in posts_cursor]
+        return self._blog_storage.posts.get_all(lang)
 
     @override
     def get_all_pages(self, lang: str) -> list[Page]:
@@ -140,7 +122,7 @@ class MongoDB(DB):
         Returns:
             List of Page objects
         """
-        return [Page.model_validate(page) for page in self.pages.find({"language": lang})]
+        return self._blog_storage.pages.get_all(lang)
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
@@ -151,10 +133,7 @@ class MongoDB(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items_doc = self.menu_items.find_one({"_id": lang})
-        if menu_items_doc and "items" in menu_items_doc:
-            return [MenuItem.model_validate(item) for item in menu_items_doc["items"]]
-        return []
+        return self._site_config.get_menu_items_in_lang(lang)
 
     def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
@@ -168,10 +147,7 @@ class MongoDB(DB):
         Raises:
             NotFoundError: If post not found
         """
-        post_doc = self.posts.find_one({"slug": slug})
-        if post_doc is None:
-            raise NotFoundError(f"Post with slug {slug} not found")
-        return Post.model_validate(post_doc)
+        return self._blog_storage.posts.get(slug)
 
     def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
@@ -185,10 +161,7 @@ class MongoDB(DB):
         Raises:
             NotFoundError: If page not found
         """
-        page_doc = self.pages.find_one({"slug": slug})
-        if page_doc is None:
-            raise NotFoundError(f"Page with slug {slug} not found")
-        return Page.model_validate(page_doc)
+        return self._blog_storage.pages.get(slug)
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
@@ -200,8 +173,7 @@ class MongoDB(DB):
         Returns:
             List of Post objects matching the tag and language
         """
-        posts_cursor = self.posts.find({"tags": tag, "language": lang})
-        return [Post.model_validate(post) for post in posts_cursor]
+        return self._blog_storage.posts.get_by_tag(tag, lang)
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
@@ -214,67 +186,19 @@ class MongoDB(DB):
         Raises:
             NotFoundError: If post not found
         """
-        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-        comment_doc = {
-            "author": str(author_name),
-            "comment": str(comment),
-            "date": now_utc,
-        }
+        self._blog_storage.posts.add_comment(author_name, comment, post_slug)
 
-        result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
-        if result.matched_count == 0:
-            raise NotFoundError(f"Post with slug {post_slug} not found")
-
-    def get_logo_url(self) -> str:
-        """Retrieve the URL of the application logo.
+    def get_site_settings(self) -> SiteSettings:
+        """Retrieve branding and description settings for the app.
 
         Returns:
-            Logo image URL or empty string if not found
+            The app's site settings.
         """
-        site_config = self._get_site_config()
-        return site_config.get("logo_url", "") if site_config else ""
-
-    def get_favicon_url(self) -> str:
-        """Retrieve the URL of the application favicon.
-
-        Returns:
-            Favicon URL or empty string if not found
-        """
-        site_config = self._get_site_config()
-        return site_config.get("favicon_url", "") if site_config else ""
-
-    def get_primary_color(self) -> str:
-        """Retrieve the primary color for the application theme.
-
-        Returns:
-            Primary color value, defaults to 'white'
-        """
-        site_config = self._get_site_config()
-        return site_config.get("primary_color", "white") if site_config else "white"
-
-    def get_secondary_color(self) -> str:
-        """Retrieve the secondary color for the application theme.
-
-        Returns:
-            Secondary color value, defaults to 'navy'
-        """
-        site_config = self._get_site_config()
-        return site_config.get("secondary_color", "navy") if site_config else "navy"
+        return self._site_config.get_site_settings()
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        plugins_doc = self.plugins.find_one({"_id": "config"})
-        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else {}
-        return {name: PluginConfigBase.model_validate(cfg) for name, cfg in (raw or {}).items()}
-
-    def get_font(self) -> str:
-        """Get the font configuration for the application.
-
-        Returns:
-            Font name or empty string if not configured
-        """
-        site_config = self._get_site_config()
-        return site_config.get("font", "") if site_config else ""
+        return self._plugin_config.get_all()
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
@@ -289,11 +213,7 @@ class MongoDB(DB):
         Returns:
             Homepage path, or None if no homepage override is configured.
         """
-        site_config = self._get_site_config()
-        home_page_path = site_config.get("home_page_path") if site_config else None
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
+        return self._site_config.get_home_page_path(locale)
 
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.

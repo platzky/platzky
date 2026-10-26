@@ -32,6 +32,37 @@ Subclassing `Json` with a new transport is a matter of implementing
 to be duplicated.
 
 
+### Repositories
+
+Behind the `DB` interface, data access is split into repositories, each a
+`typing.Protocol`:
+
+| Protocol | File | Covers |
+|---|---|---|
+| `BlogStorage` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_storage.py` | posts, pages, comments |
+| `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta |
+| `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
+
+Implementations live in `<backend>_<repo>.py` (for example
+`json_blog_storage.py`, `mongo_site_config_repository.py`,
+`graphql_plugin_config_repository.py`). Every backend (`json`, `mongo`,
+`graphql`) implements every repository. A `DB` subclass holds no data logic of
+its own: it builds its repositories and forwards each method to them, in
+`self._blog_storage`, `self._site_config` and `self._plugin_config`.
+
+The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
+dict, its store and a write lock. A JSON repository that writes must hold
+`document.write_lock` and persist with `document.store.save(document.data)`.
+
+To add a new repository:
+
+1. Define its Protocol in a new `platzky/db/<name>.py`.
+2. Add one implementation per backend, named `<backend>_<name>.py`.
+3. Build each one in the matching `DB` subclass and forward the `DB` methods to it.
+4. Add a contract test parametrized over all backends, plus one test file per implementation.
+5. Add facade delegation tests to each backend's `DB` test file.
+
+
 ## Configuration
 
 Database configuration is specified in your application config file. Each database type has its own configuration schema.
