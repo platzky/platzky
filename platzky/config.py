@@ -191,6 +191,8 @@ class Config(BaseModel):
         secret_key: Flask secret key for sessions
         db: Database configuration
         use_www: Redirect non-www to www URLs
+        extra_trusted_hosts: Hosts accepted besides the language domains; only applies when a
+            language has a domain
         seo_prefix: URL prefix for SEO routes
         blog_prefix: URL prefix for blog routes
         languages: Supported languages configuration
@@ -209,6 +211,7 @@ class Config(BaseModel):
     secret_key: str = Field(alias="SECRET_KEY")
     db: DBConfig = Field(alias="DB")
     use_www: bool = Field(default=True, alias="USE_WWW")
+    extra_trusted_hosts: list[str] = Field(default_factory=list, alias="EXTRA_TRUSTED_HOSTS")
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
     blog_prefix: str = Field(default="/blog", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")

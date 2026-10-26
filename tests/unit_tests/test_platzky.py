@@ -1,6 +1,7 @@
 import logging
 import re
 from collections.abc import Callable, Iterator
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,7 +22,9 @@ _DE = {"name": "German", "flag": "de", "country": "DE"}
 _UK = {"name": "Ukrainian", "flag": "ua", "country": "UA"}
 
 
-def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
+def _engine_with_languages(
+    languages: dict[str, dict[str, str]], extra_trusted_hosts: list[str] | None = None
+) -> Engine:
     config = Config.model_validate(
         {
             "APP_NAME": "test",
@@ -29,6 +32,7 @@ def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
             "USE_WWW": False,
             "DEFAULT_LANGUAGE": "en",
             "LANGUAGES": languages,
+            "EXTRA_TRUSTED_HOSTS": extra_trusted_hosts or [],
             "DB": {"TYPE": "json", "DATA": {}},
         }
     )
@@ -338,3 +342,44 @@ class TestHttpsEnforcement:
         app = self._create_app(development=development)
 
         assert app.config["SESSION_COOKIE_SECURE"] is not development
+
+
+class TestTrustedHosts:
+    _DOMAINS: ClassVar[dict[str, dict[str, str]]] = {
+        "en": {**_EN, "domain": "example.com"},
+        "de": {**_DE, "domain": "example.de"},
+    }
+
+    @pytest.mark.parametrize("host", ["example.com", "example.de:8080", "localhost", "127.0.0.1"])
+    def test_configured_host_is_served(self, host: str) -> None:
+        app = _engine_with_languages(self._DOMAINS)
+        response = app.test_client().get("/health/liveness", headers={"Host": host})
+        assert response.status_code == 200
+
+    def test_www_variant_reaches_the_www_redirect(self) -> None:
+        app = _engine_with_languages(self._DOMAINS)
+        response = app.test_client().get("/health/liveness", headers={"Host": "www.example.com"})
+        assert response.status_code == 302
+        assert response.headers["Location"] == "http://example.com/health/liveness"
+
+    @pytest.mark.parametrize("host", ["evil.test", "www.evil.test", "example.com.evil.test"])
+    def test_unknown_host_is_rejected(self, host: str) -> None:
+        app = _engine_with_languages(self._DOMAINS)
+        response = app.test_client().get("/health/liveness", headers={"Host": host})
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize("host", ["10.0.0.7:8080", "staging.example.org", "a.run.app"])
+    def test_extra_trusted_host_is_served(self, host: str) -> None:
+        app = _engine_with_languages(self._DOMAINS, ["10.0.0.7", "staging.example.org", ".run.app"])
+        response = app.test_client().get("/health/liveness", headers={"Host": host})
+        assert response.status_code == 200
+
+    def test_extra_hosts_do_not_restrict_a_site_without_domains(self) -> None:
+        app = _engine_with_languages({"en": _EN, "de": _DE}, ["staging.example.org"])
+        assert app.config["TRUSTED_HOSTS"] is None
+
+    def test_no_domains_leaves_hosts_unrestricted(self) -> None:
+        app = _engine_with_languages({"en": _EN, "de": _DE})
+        assert app.config["TRUSTED_HOSTS"] is None
+        response = app.test_client().get("/health/liveness", headers={"Host": "anything.test"})
+        assert response.status_code == 200
