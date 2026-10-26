@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.20](https://github.com/platzky/platzky/compare/v2.0.0-alpha.19...v2.0.0-alpha.20) (2026-10-26)
+
+
+### Features
+
+* introduced hsts ([#312](https://github.com/platzky/platzky/issues/312)) ([4baa63f](https://github.com/platzky/platzky/commit/4baa63fef0d5e8a9138c704a020f83d44f4c62ab))
+
 ## [2.0.0-alpha.19](https://github.com/platzky/platzky/compare/v2.0.0-alpha.18...v2.0.0-alpha.19) (2026-10-21)
 
 
