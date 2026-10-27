@@ -1,4 +1,5 @@
 import threading
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -299,12 +300,8 @@ def test_add_comment(graph_ql_db: GraphQL, mock_client: Mock):
     assert call_args["slug"] == "test-post"
 
 
-def test_get_font(graph_ql_db: GraphQL):
-    assert graph_ql_db.get_font() == ""
-
-
-def test_get_logo_url_with_logos(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
+def test_get_site_settings(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {
         "logos": [
             {
                 "logo": {
@@ -312,44 +309,88 @@ def test_get_logo_url_with_logos(graph_ql_db: GraphQL, mock_client: Mock):
                     "image": {"url": "https://example.com/logo.jpg"},
                 }
             }
-        ]
+        ],
+        "favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}],
+        "themes": [{"primaryColor": "#0085A1", "secondaryColor": "#006073"}],
+        "applicationSetups": [
+            {"language": "en", "applicationDescription": "Hello"},
+            {"language": "pl", "applicationDescription": "Cześć"},
+        ],
     }
-    mock_client.execute.return_value = mock_response
 
-    logo_url = graph_ql_db.get_logo_url()
+    settings = graph_ql_db.get_site_settings()
 
-    assert logo_url == "https://example.com/logo.jpg"
+    assert settings.logo is not None
+    assert settings.logo.url == "https://example.com/logo.jpg"
+    assert settings.logo.alternateText == "Alt text"
+    assert settings.favicon_url == "https://example.com/favicon.ico"
+    assert settings.primary_color == "#0085A1"
+    assert settings.secondary_color == "#006073"
+    assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
+    assert settings.font == ""
     mock_client.execute.assert_called_once()
 
 
-def test_get_logo_url_without_logos(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"logos": []}
-    mock_client.execute.return_value = mock_response
+def test_get_site_settings_defaults_when_everything_empty(graph_ql_db: GraphQL, mock_client: Mock):
+    mock_client.execute.return_value = {
+        "logos": [],
+        "favicons": [],
+        "themes": [],
+        "applicationSetups": [],
+    }
 
-    logo_url = graph_ql_db.get_logo_url()
+    settings = graph_ql_db.get_site_settings()
 
-    assert logo_url == ""
-    mock_client.execute.assert_called_once()
-
-
-def test_get_app_description(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{"applicationDescription": "Test description"}]}
-    mock_client.execute.return_value = mock_response
-
-    description = graph_ql_db.get_app_description("en")
-
-    assert description == "Test description"
-    mock_client.execute.assert_called_once()
+    assert settings.logo is None
+    assert settings.favicon_url == ""
+    assert settings.primary_color == "white"
+    assert settings.secondary_color == "navy"
+    assert settings.app_description == {}
 
 
-def test_get_app_description_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{}]}
-    mock_client.execute.return_value = mock_response
+def test_get_site_settings_favicon_missing_does_not_raise(graph_ql_db: GraphQL, mock_client: Mock):
+    """Regression test: favicon used to crash with IndexError on an empty list."""
+    mock_client.execute.return_value = {
+        "logos": [],
+        "favicons": [],
+        "themes": [{"primaryColor": "blue"}],
+        "applicationSetups": [],
+    }
 
-    description = graph_ql_db.get_app_description("en")
+    settings = graph_ql_db.get_site_settings()
 
-    assert description == ""
-    mock_client.execute.assert_called_once()
+    assert settings.favicon_url == ""
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {
+            "logos": [{"logo": None}],
+            "favicons": [{"favicon": None}],
+            "themes": [None],
+            "applicationSetups": [],
+        },
+        {
+            "logos": [{"logo": {"alternateText": "x", "image": None}}],
+            "favicons": [None],
+            "themes": [{"primaryColor": None, "secondaryColor": None}],
+            "applicationSetups": [],
+        },
+        {"logos": None, "favicons": None, "themes": None, "applicationSetups": []},
+    ],
+)
+def test_get_site_settings_null_nodes_fall_back_to_defaults(
+    graph_ql_db: GraphQL, mock_client: Mock, result: dict[str, Any]
+):
+    mock_client.execute.return_value = result
+
+    settings = graph_ql_db.get_site_settings()
+
+    assert settings.logo is None
+    assert settings.favicon_url == ""
+    assert settings.primary_color == "white"
+    assert settings.secondary_color == "navy"
 
 
 def test_get_blog_meta_is_not_supported_and_queries_nothing(
@@ -362,16 +403,6 @@ def test_get_blog_meta_is_not_supported_and_queries_nothing(
 def test_get_footer_is_not_supported_and_queries_nothing(graph_ql_db: GraphQL, mock_client: Mock):
     assert graph_ql_db.get_footer("en") == Footer()
     mock_client.execute.assert_not_called()
-
-
-def test_get_favicon_url(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}]}
-    mock_client.execute.return_value = mock_response
-
-    favicon_url = graph_ql_db.get_favicon_url()
-
-    assert favicon_url == "https://example.com/favicon.ico"
-    mock_client.execute.assert_called_once()
 
 
 def test_get_home_page_path(graph_ql_db: GraphQL, mock_client: Mock):
@@ -393,48 +424,6 @@ def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_cli
     mock_client.execute.return_value = {"applicationSetups": []}
 
     assert graph_ql_db.get_home_page_path("en") is None
-
-
-def test_get_primary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{"primaryColor": "#0085A1"}]}
-
-    color = graph_ql_db.get_primary_color()
-
-    assert color == "#0085A1"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_primary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{}]}
-
-    assert graph_ql_db.get_primary_color() == "white"
-
-
-def test_get_primary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": []}
-
-    assert graph_ql_db.get_primary_color() == "white"
-
-
-def test_get_secondary_color(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{"secondaryColor": "#006073"}]}
-
-    color = graph_ql_db.get_secondary_color()
-
-    assert color == "#006073"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_secondary_color_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": [{}]}
-
-    assert graph_ql_db.get_secondary_color() == "navy"
-
-
-def test_get_secondary_color_no_themes(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"themes": []}
-
-    assert graph_ql_db.get_secondary_color() == "navy"
 
 
 def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):

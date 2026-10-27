@@ -11,7 +11,7 @@ from typing_extensions import override
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import DBError, NotFoundError
 from platzky.db.json_stores import JsonStore, MemoryStore
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
+from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post, SiteSettings
 from platzky.plugin.plugin_config import PluginConfigBase
 
 logger = logging.getLogger(__name__)
@@ -65,18 +65,6 @@ class Json(DB):
         self.data: dict[str, Any] = store.load()
         self.module_name = "json_db"
         self.db_name = "JsonDb"
-
-    def get_app_description(self, lang: str) -> str:
-        """Retrieve the application description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            Application description text or empty string if not found
-        """
-        description = self._get_site_content().get("app_description", {})
-        return description.get(lang, "")
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -215,45 +203,22 @@ class Json(DB):
             raise DBError("site_content section is missing from database")
         return content
 
-    def get_logo_url(self) -> str:
-        """Retrieve the URL of the application logo.
+    def get_site_settings(self) -> SiteSettings:
+        """Retrieve branding and description settings for the app.
 
         Returns:
-            Logo image URL or empty string if not found
+            The app's site settings.
         """
-        return self._get_site_content().get("logo_url", "")
-
-    def get_favicon_url(self) -> str:
-        """Retrieve the URL of the application favicon.
-
-        Returns:
-            Favicon URL or empty string if not found
-        """
-        return self._get_site_content().get("favicon_url", "")
-
-    def get_font(self) -> str:
-        """Get the font configuration for the application.
-
-        Returns:
-            Font name or empty string if not configured
-        """
-        return self._get_site_content().get("font", "")
-
-    def get_primary_color(self) -> str:
-        """Retrieve the primary color for the application theme.
-
-        Returns:
-            Primary color value, defaults to 'white'
-        """
-        return self._get_site_content().get("primary_color", "white")
-
-    def get_secondary_color(self) -> str:
-        """Retrieve the secondary color for the application theme.
-
-        Returns:
-            Secondary color value, defaults to 'navy'
-        """
-        return self._get_site_content().get("secondary_color", "navy")
+        site_content = self._get_site_content()
+        logo_url = site_content.get("logo_url") or ""
+        return SiteSettings(
+            logo=Image(url=logo_url) if logo_url else None,
+            favicon_url=site_content.get("favicon_url") or "",
+            primary_color=site_content.get("primary_color") or "white",
+            secondary_color=site_content.get("secondary_color") or "navy",
+            font=site_content.get("font") or "",
+            app_description=site_content.get("app_description") or {},
+        )
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.

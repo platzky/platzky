@@ -12,7 +12,7 @@ from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
+from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post, SiteSettings
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -143,6 +143,22 @@ def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
         },
         "date": post["date"],
     }
+
+
+# Relation nodes may be null in the CMS, so these helpers turn a null list, a
+# null entry or a null nested node into the documented default instead of raising.
+
+
+def _first(nodes: list[dict[str, Any] | None] | None) -> dict[str, Any]:
+    """Return the first node of a CMS list, or an empty mapping if there is none."""
+    return (nodes[0] if nodes else None) or {}
+
+
+def _logo(logo: dict[str, Any] | None) -> Image | None:
+    """Build the site logo from a CMS logo node, or None if it has no image."""
+    logo = logo or {}
+    url = (logo.get("image") or {}).get("url")
+    return Image(url=url, alternateText=logo.get("alternateText") or "") if url else None
 
 
 class GraphQL(DB):
@@ -400,36 +416,57 @@ class GraphQL(DB):
             },
         )
 
-    def get_font(self) -> str:
-        """Get the font configuration for the application.
+    def get_site_settings(self) -> SiteSettings:
+        """Retrieve branding and description settings for the app.
+
+        Logo, favicon, theme colors and the per-language app description are
+        fetched in one request.
 
         Returns:
-            Empty string (not implemented in GraphQL backend)
+            The app's site settings.
         """
-        return ""
-
-    def get_logo_url(self) -> str:
-        """Retrieve the URL of the application logo.
-
-        Returns:
-            Logo image URL or empty string if not found
-        """
-        logo = gql("""
-            query myquery {
+        query = gql("""
+            query MyQuery {
               logos(stage: PUBLISHED) {
-              logo {
+                logo {
                   alternateText
                   image {
                     url
                   }
                 }
               }
+              favicons(stage: PUBLISHED) {
+                favicon {
+                  url
+                }
+              }
+              themes(stage: PUBLISHED) {
+                primaryColor
+                secondaryColor
+              }
+              applicationSetups(stage: PUBLISHED) {
+                language
+                applicationDescription
+              }
             }
             """)
-        try:
-            return self.client.execute(logo)["logos"][0]["logo"]["image"]["url"]
-        except IndexError:
-            return ""
+        result = self.client.execute(query)
+
+        theme = _first(result.get("themes"))
+        app_description = {
+            item["language"]: item.get("applicationDescription") or ""
+            for item in result.get("applicationSetups") or []
+            if item
+        }
+
+        return SiteSettings(
+            logo=_logo(_first(result.get("logos")).get("logo")),
+            favicon_url=(_first(result.get("favicons")).get("favicon") or {}).get("url") or "",
+            primary_color=theme.get("primaryColor") or "white",
+            secondary_color=theme.get("secondaryColor") or "navy",
+            font="",  # not implemented in GraphQL backend
+            app_description=app_description,
+        )
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -461,45 +498,6 @@ class GraphQL(DB):
         """
         return Footer()
 
-    def get_app_description(self, lang: str) -> str:
-        """Retrieve the application description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            Application description text or empty string if not found
-        """
-        description_query = gql("""
-            query myquery($lang: Lang!) {
-              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
-                applicationDescription
-              }
-            }
-            """)
-
-        return self.client.execute(description_query, variable_values={"lang": lang})[
-            "applicationSetups"
-        ][0].get("applicationDescription", "")
-
-    def get_favicon_url(self) -> str:
-        """Retrieve the URL of the application favicon.
-
-        Returns:
-            Favicon URL
-        """
-        favicon = gql("""
-            query myquery {
-              favicons(stage: PUBLISHED) {
-              favicon {
-                url
-                }
-              }
-            }
-            """)
-
-        return self.client.execute(favicon)["favicons"][0]["favicon"]["url"]
-
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
 
@@ -526,55 +524,6 @@ class GraphQL(DB):
             ][0].get("homePagePath")
         except IndexError:
             return None
-
-    def get_primary_color(self) -> str:
-        """Retrieve the primary brand colour configured in the CMS.
-
-        Queries the global ``themes`` singleton rather than ``applicationSetups``,
-        since brand colours are site-wide and not language-specific (unlike
-        ``applicationSetups``, which holds one entry per language).
-
-        Returns:
-            Primary colour value, or "white" if not configured.
-        """
-        primary_color_query = gql("""
-            query MyQuery {
-              themes(stage: PUBLISHED) {
-                primaryColor
-              }
-            }
-            """)
-        try:
-            return (
-                self.client.execute(primary_color_query)["themes"][0].get("primaryColor") or "white"
-            )
-        except IndexError:
-            return "white"
-
-    def get_secondary_color(self) -> str:
-        """Retrieve the secondary brand colour configured in the CMS.
-
-        Queries the global ``themes`` singleton rather than ``applicationSetups``,
-        since brand colours are site-wide and not language-specific (unlike
-        ``applicationSetups``, which holds one entry per language).
-
-        Returns:
-            Secondary colour value, or "navy" if not configured.
-        """
-        secondary_color_query = gql("""
-            query MyQuery {
-              themes(stage: PUBLISHED) {
-                secondaryColor
-              }
-            }
-            """)
-        try:
-            return (
-                self.client.execute(secondary_color_query)["themes"][0].get("secondaryColor")
-                or "navy"
-            )
-        except IndexError:
-            return "navy"
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins.

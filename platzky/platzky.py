@@ -364,9 +364,10 @@ def create_engine(
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
         alternates = app.current_page_language_alternates()
+        site_settings = app.db.get_site_settings()
         return {
             "app_name": config.app_name,
-            "app_description": app.db.get_app_description(locale) or config.app_name,
+            "app_description": site_settings.app_description.get(locale, "") or config.app_name,
             "languages": languages_dict(config.languages),
             "current_flag": flag,
             "current_lang_country": country,
@@ -379,11 +380,11 @@ def create_engine(
             "language_suggestions": _language_suggestions(config, locale, alternates),
             "url_link": _url_encode,
             "menu_items": app.db.get_menu_items_in_lang(locale),
-            "logo_url": app.db.get_logo_url(),
-            "favicon_url": app.db.get_favicon_url(),
-            "font": app.db.get_font(),
-            "primary_color": app.db.get_primary_color(),
-            "secondary_color": app.db.get_secondary_color(),
+            "logo_url": site_settings.logo.url if site_settings.logo else "",
+            "favicon_url": site_settings.favicon_url,
+            "font": site_settings.font,
+            "primary_color": site_settings.primary_color,
+            "secondary_color": site_settings.secondary_color,
         }
 
     @app.context_processor

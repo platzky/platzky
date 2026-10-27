@@ -11,7 +11,7 @@ from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
+from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post, SiteSettings
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -71,20 +71,6 @@ class MongoDB(DB):
     def _get_site_config(self) -> dict[str, Any] | None:
         """Retrieve the site configuration document."""
         return self.site_content.find_one({"_id": "config"})
-
-    def get_app_description(self, lang: str) -> str:
-        """Retrieve the application description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            Application description text or empty string if not found
-        """
-        site_config = self._get_site_config()
-        if site_config and "app_description" in site_config:
-            return site_config["app_description"].get(lang, "")
-        return ""
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -225,56 +211,30 @@ class MongoDB(DB):
         if result.matched_count == 0:
             raise NotFoundError(f"Post with slug {post_slug} not found")
 
-    def get_logo_url(self) -> str:
-        """Retrieve the URL of the application logo.
+    def get_site_settings(self) -> SiteSettings:
+        """Retrieve branding and description settings for the app.
+
+        The site config document is fetched once for all settings.
 
         Returns:
-            Logo image URL or empty string if not found
+            The app's site settings.
         """
-        site_config = self._get_site_config()
-        return site_config.get("logo_url", "") if site_config else ""
-
-    def get_favicon_url(self) -> str:
-        """Retrieve the URL of the application favicon.
-
-        Returns:
-            Favicon URL or empty string if not found
-        """
-        site_config = self._get_site_config()
-        return site_config.get("favicon_url", "") if site_config else ""
-
-    def get_primary_color(self) -> str:
-        """Retrieve the primary color for the application theme.
-
-        Returns:
-            Primary color value, defaults to 'white'
-        """
-        site_config = self._get_site_config()
-        return site_config.get("primary_color", "white") if site_config else "white"
-
-    def get_secondary_color(self) -> str:
-        """Retrieve the secondary color for the application theme.
-
-        Returns:
-            Secondary color value, defaults to 'navy'
-        """
-        site_config = self._get_site_config()
-        return site_config.get("secondary_color", "navy") if site_config else "navy"
+        site_config = self._get_site_config() or {}
+        logo_url = site_config.get("logo_url") or ""
+        return SiteSettings(
+            logo=Image(url=logo_url) if logo_url else None,
+            favicon_url=site_config.get("favicon_url") or "",
+            primary_color=site_config.get("primary_color") or "white",
+            secondary_color=site_config.get("secondary_color") or "navy",
+            font=site_config.get("font") or "",
+            app_description=site_config.get("app_description") or {},
+        )
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         plugins_doc = self.plugins.find_one({"_id": "config"})
         raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else {}
         return {name: PluginConfigBase.model_validate(cfg) for name, cfg in (raw or {}).items()}
-
-    def get_font(self) -> str:
-        """Get the font configuration for the application.
-
-        Returns:
-            Font name or empty string if not configured
-        """
-        site_config = self._get_site_config()
-        return site_config.get("font", "") if site_config else ""
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
