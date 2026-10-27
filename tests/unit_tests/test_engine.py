@@ -1,3 +1,5 @@
+# pyright: reportPrivateUsage=false
+# Tests inspect the shared document directly via `db._document.data`.
 from datetime import date
 from typing import Any, cast
 
@@ -36,7 +38,7 @@ def test_logo_has_set_src(test_app: Engine):
 
 
 def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
-    cast(Json, test_app.db).data["site_content"].pop("logo_url")
+    cast(Json, test_app.db)._document.data["site_content"].pop("logo_url")
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
@@ -47,7 +49,9 @@ def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
 
 
 def test_favicon_is_applied(test_app: Engine):
-    cast(Json, test_app.db).data["site_content"]["favicon_url"] = "https://example.com/favicon.ico"
+    cast(Json, test_app.db)._document.data["site_content"][
+        "favicon_url"
+    ] = "https://example.com/favicon.ico"
     app = test_app.test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")

@@ -211,14 +211,3 @@ class Color(BaseModel):
     a: int = Field(
         default=255, ge=0, le=255, description="Alpha component (0-255, where 255 is fully opaque)"
     )
-
-
-class SiteSettings(BaseModel):
-    """Branding and description for the app, resolved as a single unit."""
-
-    logo: Image | None = None
-    favicon_url: str = ""
-    primary_color: str = "white"
-    secondary_color: str = "navy"
-    font: str = ""
-    app_description: dict[str, str] = Field(default_factory=dict)

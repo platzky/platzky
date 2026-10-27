@@ -7,7 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post, SiteSettings
+from platzky.db.site_config_repository import SiteSettings
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 

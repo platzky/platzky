@@ -79,14 +79,14 @@ class GithubJsonDb(JsonDB):
                 response.raise_for_status()
                 raw_data = response.text
 
-            self.data = json.loads(raw_data)
+            data = json.loads(raw_data)
 
         except (json.JSONDecodeError, requests.RequestException) as e:
             raise ValueError(f"Error parsing JSON content: {e}")
         except Exception as e:
             raise ValueError(f"Error retrieving GitHub content: {e}")
 
-        super().__init__(store=ReadOnlyStore(self.data))
+        super().__init__(store=ReadOnlyStore(data))
 
         self.module_name = "github_json_db"
         self.db_name = "GithubJsonDb"

@@ -1,3 +1,5 @@
+# pyright: reportPrivateUsage=false
+# Tests inspect the shared document directly via `db._document.data`.
 import datetime
 from typing import Any
 from unittest.mock import patch
@@ -26,7 +28,7 @@ class TestFactoryFunctions:
         config = JsonDbConfig(TYPE="json_db", DATA={"test": "data"})
         db = db_from_config(config)
         assert isinstance(db, Json)
-        assert db.data == {"test": "data"}
+        assert db._document.data == {"test": "data"}
 
 
 class TestJsonDb:
@@ -101,35 +103,15 @@ class TestJsonDb:
         assert app_description.get("de") == "Deutsche Beschreibung"
         assert app_description.get("fr", "") == ""
 
-    def test_get_blog_meta(self):
-        blog_meta = {
-            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
-            "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
-        }
+    def test_get_blog_meta_forwards_to_site_config(self):
+        blog_meta = {"en": {"title": "Reading notes", "description": "Notes."}}
         db = Json(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
         assert db.get_blog_meta("en") == PageMeta(**blog_meta["en"])
-        assert db.get_blog_meta("pl").title == "Notatki"
-        assert db.get_blog_meta("fr") == PageMeta()
 
-    def test_get_blog_meta_not_configured(self, db: Json):
-        assert db.get_blog_meta("en") == PageMeta()
-
-    def test_get_footer(self):
-        footer = {"content": {"en": "Footer", "pl": "Stopka"}}
+    def test_get_footer_forwards_to_site_config(self):
+        footer = {"content": {"en": "Footer"}, "collapsible": True}
         db = Json(MemoryStore({"site_content": {"footer": footer}}))
-        assert db.get_footer("en").content == "Footer"
-        assert db.get_footer("pl").content == "Stopka"
-        assert db.get_footer("fr").content == ""
-
-    def test_get_footer_not_configured(self, db: Json):
-        assert db.get_footer("en") == Footer()
-
-    def test_get_footer_collapsible(self):
-        db = Json(MemoryStore({"site_content": {"footer": {"collapsible": True}}}))
-        assert db.get_footer("en").collapsible is True
-
-    def test_get_footer_collapsible_not_configured(self, db: Json):
-        assert db.get_footer("en").collapsible is False
+        assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
 
     def test_get_all_posts(self, db: Json):
         posts = db.get_all_posts("en")
@@ -159,7 +141,7 @@ class TestJsonDb:
 
     def test_get_post_with_missing_required_field(self, db: Json):
         """ValidationError raised when required field is missing."""
-        db.data["site_content"]["posts"].append(
+        db._document.data["site_content"]["posts"].append(
             {
                 "slug": "test-post",
                 "author": "Test Author",
@@ -239,7 +221,7 @@ class TestJsonDb:
         assert len(db.get_posts_by_tag("tag1", "fr")) == 0
 
     def test_get_posts_by_tag_with_empty_posts(self, db: Json):
-        db.data["site_content"]["posts"] = []
+        db._document.data["site_content"]["posts"] = []
         posts = list(db.get_posts_by_tag("tag1", "en"))
         assert len(posts) == 0
 
@@ -348,9 +330,7 @@ class TestJsonDbComments:
             db.add_comment("Test User", "Great post!", "post-1")
 
         post_data = next(
-            p
-            for p in db._get_site_content()["posts"]  # type: ignore[reportPrivateUsage]
-            if p["slug"] == "post-1"
+            p for p in db._document.data["site_content"]["posts"] if p["slug"] == "post-1"
         )
         assert len(post_data["comments"]) == 1
         comment = post_data["comments"][0]
@@ -394,7 +374,7 @@ class TestJsonDbComments:
             db.add_comment("Test User", "Comment", "post-1")
 
         # The in-memory mutation is rolled back, not left dangling.
-        assert db.data["site_content"]["posts"][0]["comments"] == []
+        assert db._document.data["site_content"]["posts"][0]["comments"] == []
         assert "Failed to persist comment for post 'post-1'" in caplog.text
 
 

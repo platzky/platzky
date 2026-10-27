@@ -1,3 +1,5 @@
+# pyright: reportPrivateUsage=false
+# Tests inspect the shared document directly via `db._document.data`.
 import json
 from datetime import datetime
 from pathlib import Path
@@ -41,7 +43,7 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.data == sample_data
+            assert db._document.data == sample_data
             assert db.module_name == "json_file_db"
             assert db.db_name == "JsonFileDb"
 
@@ -65,7 +67,7 @@ class TestJsonFileDb:
             db.add_comment("Test User", "New comment", "post-1")
 
         # Verify the comment was added to the db's data structure
-        comments = db.data["site_content"]["posts"][0]["comments"]
+        comments = db._document.data["site_content"]["posts"][0]["comments"]
         assert len(comments) == 1
         assert comments[0]["author"] == "Test User"
         assert comments[0]["comment"] == "New comment"

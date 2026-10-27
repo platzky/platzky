@@ -11,7 +11,8 @@ from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post, SiteSettings
+from platzky.db.site_config_repository import SiteSettings
+from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 

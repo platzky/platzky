@@ -1,3 +1,5 @@
+# pyright: reportPrivateUsage=false
+# Tests inspect the shared document directly via `db._document.data`.
 import base64
 import json
 from unittest.mock import MagicMock, patch
@@ -37,7 +39,7 @@ def test_creates_github_json_db_from_config():
         assert isinstance(db, GithubJsonDb)
         assert db.branch_name == "main"
         assert db.file_path == "path/to/file.json"
-        assert db.data == {"key": "value"}
+        assert db._document.data == {"key": "value"}
 
 
 def test_retrieves_data_from_github_file():
@@ -50,7 +52,7 @@ def test_retrieves_data_from_github_file():
         mock_repo.get_contents.return_value = mock_file
 
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db.data == {"key": "value"}
+        assert db._document.data == {"key": "value"}
 
 
 def test_raises_error_for_directory_path():
@@ -82,7 +84,7 @@ def test_retrieves_data_via_download_url_when_content_is_empty():
         mock_requests.return_value = mock_response
 
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db.data == {"key": "value"}
+        assert db._document.data == {"key": "value"}
 
 
 def test_raises_error_for_invalid_json_content():

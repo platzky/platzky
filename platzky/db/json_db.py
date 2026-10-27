@@ -2,16 +2,20 @@
 
 import datetime
 import logging
-import threading
 from typing import Any
 
 from pydantic import Field
 from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import DBError, NotFoundError
+from platzky.db.exceptions import NotFoundError
+from platzky.db.json_document import JsonDocument, get_site_content
+from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
+from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
-from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post, SiteSettings
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 logger = logging.getLogger(__name__)
@@ -60,9 +64,10 @@ class Json(DB):
                 bucket, ...) pass their own.
         """
         super().__init__()
-        self._store: JsonStore = store
-        self._write_lock = threading.Lock()
-        self.data: dict[str, Any] = store.load()
+        document = JsonDocument(store)
+        self._document = document
+        self._plugin_config: PluginConfigRepository = JsonPluginConfigRepository(document)
+        self._site_config: SiteConfigRepository = JsonSiteConfigRepository(document)
         self.module_name = "json_db"
         self.db_name = "JsonDb"
 
@@ -76,7 +81,7 @@ class Json(DB):
         Returns:
             The blog meta, empty if none is configured for the language
         """
-        return PageMeta(**self._get_site_content().get("blog_meta", {}).get(lang, {}))
+        return self._site_config.get_blog_meta(lang)
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -88,11 +93,7 @@ class Json(DB):
         Returns:
             The footer, empty and not collapsible if none is configured
         """
-        footer = self._get_site_content().get("footer", {})
-        return Footer(
-            content=footer.get("content", {}).get(lang, ""),
-            collapsible=bool(footer.get("collapsible", False)),
-        )
+        return self._site_config.get_footer(lang)
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
@@ -105,7 +106,7 @@ class Json(DB):
         """
         return [
             Post.model_validate(post)
-            for post in self._get_site_content().get("posts", ())
+            for post in get_site_content(self._document.data).get("posts", ())
             if post.get("language", "en") == lang
         ]
 
@@ -121,7 +122,7 @@ class Json(DB):
         """
         return [
             Page.model_validate(page)
-            for page in self._get_site_content().get("pages", ())
+            for page in get_site_content(self._document.data).get("pages", ())
             if page.get("language", "en") == lang
         ]
 
@@ -137,7 +138,7 @@ class Json(DB):
         Raises:
             NotFoundError: If posts data is missing or post not found
         """
-        all_posts = self._get_site_content().get("posts")
+        all_posts = get_site_content(self._document.data).get("posts")
         if all_posts is None:
             raise NotFoundError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
@@ -157,7 +158,7 @@ class Json(DB):
         Raises:
             NotFoundError: If pages data is missing or page not found
         """
-        pages = self._get_site_content().get("pages")
+        pages = get_site_content(self._document.data).get("pages")
         if pages is None:
             raise NotFoundError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
@@ -174,9 +175,7 @@ class Json(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items_raw = self._get_site_content().get("menu_items", {})
-        items_in_lang = menu_items_raw.get(lang, [])
-        return [MenuItem.model_validate(x) for x in items_in_lang]
+        return self._site_config.get_menu_items_in_lang(lang)
 
     def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
         """Retrieve posts filtered by tag and language.
@@ -185,23 +184,9 @@ class Json(DB):
         """
         return [
             Post.model_validate(post)
-            for post in self._get_site_content().get("posts", ())
+            for post in get_site_content(self._document.data).get("posts", ())
             if tag in post.get("tags", ()) and post.get("language", "en") == lang
         ]
-
-    def _get_site_content(self) -> dict[str, Any]:
-        """Get the site content dictionary from data.
-
-        Returns:
-            Site content dictionary
-
-        Raises:
-            DBError: If the site_content section is missing from the database
-        """
-        content = self.data.get("site_content")
-        if content is None:
-            raise DBError("site_content section is missing from database")
-        return content
 
     def get_site_settings(self) -> SiteSettings:
         """Retrieve branding and description settings for the app.
@@ -209,16 +194,7 @@ class Json(DB):
         Returns:
             The app's site settings.
         """
-        site_content = self._get_site_content()
-        logo_url = site_content.get("logo_url") or ""
-        return SiteSettings(
-            logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=site_content.get("favicon_url") or "",
-            primary_color=site_content.get("primary_color") or "white",
-            secondary_color=site_content.get("secondary_color") or "navy",
-            font=site_content.get("font") or "",
-            app_description=site_content.get("app_description") or {},
-        )
+        return self._site_config.get_site_settings()
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
@@ -233,10 +209,7 @@ class Json(DB):
         Returns:
             Homepage path, or None if no homepage override is configured.
         """
-        home_page_path = self._get_site_content().get("home_page_path")
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
+        return self._site_config.get_home_page_path(locale)
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
         """Add a new comment to a post.
@@ -262,33 +235,24 @@ class Json(DB):
             "date": now_utc,
         }
 
-        with self._write_lock:
-            posts = self._get_site_content().get("posts")
-            if posts is None:
-                raise NotFoundError("Posts data is missing")
-            post = next((p for p in posts if p["slug"] == post_slug), None)
-            if post is None:
-                raise NotFoundError(f"Post with slug {post_slug} not found")
-
-            had_comments = "comments" in post
-            comments = post.setdefault("comments", [])
-            comments.append(comment_data)
-            try:
-                self._store.save(self.data)
-            except BaseException:
-                if had_comments:
-                    comments.remove(comment_data)
-                else:
-                    del post["comments"]
-                logger.exception("Failed to persist comment for post '%s'", post_slug)
-                raise
+        try:
+            with self._document.edit() as data:
+                posts = get_site_content(data).get("posts")
+                if posts is None:
+                    raise NotFoundError("Posts data is missing")
+                post = next((p for p in posts if p["slug"] == post_slug), None)
+                if post is None:
+                    raise NotFoundError(f"Post with slug {post_slug} not found")
+                post.setdefault("comments", []).append(comment_data)
+        except NotFoundError:
+            raise
+        except BaseException:
+            logger.exception("Failed to persist comment for post '%s'", post_slug)
+            raise
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        return {
-            name: PluginConfigBase.model_validate(cfg)
-            for name, cfg in (self.data.get("plugins") or {}).items()
-        }
+        return self._plugin_config.get_all()
 
     def health_check(self) -> None:
         """Perform a health check on the JSON database.
@@ -296,4 +260,4 @@ class Json(DB):
         Raises an exception if the database is not accessible.
         """
         # Try to access site_content to ensure basic structure is valid
-        self._get_site_content()
+        get_site_content(self._document.data)
