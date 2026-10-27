@@ -96,6 +96,10 @@ class JsonDocument:
         state before the edit, and the exception propagates. If saving fails,
         the document is restored the same way and the error propagates.
 
+        A restore keeps the top-level dict but replaces its values with
+        copies from the pre-edit snapshot, so readers must look nested data up
+        from `data` on each call rather than hold on to it.
+
         Returns:
             A context manager whose `__enter__` returns the document dict, to be
             mutated in place.
