@@ -73,10 +73,13 @@ class TestJsonDocument:
         store.load.return_value = {"a": 1}
         document = JsonDocument(store)
 
-        with pytest.raises(RuntimeError):
+        def edit_and_fail() -> None:
             with document.edit() as edited:
                 edited["a"] = 2
                 raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            edit_and_fail()
 
         store.save.assert_not_called()
         assert document.data == {"a": 1}
@@ -91,10 +94,13 @@ class TestJsonDocument:
         store.save.side_effect = OSError("disk")
         document = JsonDocument(store)
 
-        with pytest.raises(OSError):
+        def edit_and_save() -> None:
             with document.edit() as edited:
                 edited["a"]["b"] = 2
                 edited["added"] = True
+
+        with pytest.raises(OSError, match="disk"):
+            edit_and_save()
 
         assert document.data is data
         assert data == {"a": {"b": 1}}
