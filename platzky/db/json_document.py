@@ -17,12 +17,61 @@ used by those repositories and `Json.health_check`.
 
 import copy
 import threading
-from collections.abc import Generator
-from contextlib import contextmanager
+from types import TracebackType
 from typing import Any
 
 from platzky.db.exceptions import DBError
 from platzky.db.json_stores import JsonStore
+
+
+class _Edit:
+    """Context manager for one `JsonDocument.edit()` call.
+
+    A class rather than a `@contextmanager` generator so every exit path is an
+    explicit branch of `__exit__`: save on a clean exit (including `return` or
+    `break` inside the block), restore when the block raises or the save fails,
+    and release the lock in every case.
+    """
+
+    def __init__(self, data: dict[str, Any], store: JsonStore, lock: threading.Lock) -> None:
+        self._data = data
+        self._store = store
+        self._lock = lock
+        self._snapshot: dict[str, Any] = {}
+
+    def __enter__(self) -> dict[str, Any]:
+        self._lock.acquire()
+        try:
+            self._snapshot = copy.deepcopy(self._data)
+        except BaseException:
+            self._lock.release()
+            raise
+        return self._data
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        try:
+            if exc_type is not None:
+                self._restore()
+                return
+            try:
+                self._store.save(self._data)
+            except BaseException:
+                self._restore()
+                raise
+        finally:
+            self._lock.release()
+
+    def _restore(self) -> None:
+        # Restore key by key rather than clear() + update(): readers don't take
+        # the lock and must never see an empty document.
+        for key in self._data.keys() - self._snapshot.keys():
+            del self._data[key]
+        self._data.update(self._snapshot)
 
 
 class JsonDocument:
@@ -39,29 +88,19 @@ class JsonDocument:
         self.data: dict[str, Any] = store.load()
         self._write_lock = threading.Lock()
 
-    @contextmanager
-    def edit(self) -> Generator[dict[str, Any], None, None]:
+    def edit(self) -> _Edit:
         """Hold the write lock, yield the document, and persist it on success.
 
-        If the body raises, nothing is saved and the exception propagates. If
-        saving fails, the document is restored in place (same dict object) to
-        its state before the edit, and the error propagates.
+        Use as `with document.edit() as data:`. If the body raises, nothing is
+        saved, the document is restored in place (same dict object) to its
+        state before the edit, and the exception propagates. If saving fails,
+        the document is restored the same way and the error propagates.
 
-        Yields:
-            The document dict, to be mutated in place.
+        Returns:
+            A context manager whose `__enter__` returns the document dict, to be
+            mutated in place.
         """
-        with self._write_lock:
-            snapshot = copy.deepcopy(self.data)
-            try:
-                yield self.data
-                self._store.save(self.data)
-            except BaseException:
-                # Restore key by key rather than clear() + update(): readers
-                # don't take the lock and must never see an empty document.
-                for key in self.data.keys() - snapshot.keys():
-                    del self.data[key]
-                self.data.update(snapshot)
-                raise
+        return _Edit(self.data, self._store, self._write_lock)
 
 
 def get_site_content(data: dict[str, Any]) -> dict[str, Any]:

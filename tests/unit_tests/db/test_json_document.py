@@ -34,6 +34,40 @@ class TestJsonDocument:
         assert document.data is data
         store.save.assert_called_once_with({"site_content": {}, "x": 1})
 
+    def test_edit_saves_when_block_returns_early(self):
+        store = Mock(spec=JsonStore)
+        store.load.return_value = {"a": 1}
+        document = JsonDocument(store)
+
+        def edit_and_return() -> str:
+            with document.edit() as edited:
+                edited["a"] = 2
+                return "early"
+
+        assert edit_and_return() == "early"
+        store.save.assert_called_once_with({"a": 2})
+        with document.edit():
+            pass
+        assert store.save.call_count == 2
+
+    def test_edit_releases_lock_and_restores_when_save_raises_base_exception(self):
+        store = Mock(spec=JsonStore)
+        data = {"a": 1}
+        store.load.return_value = data
+        store.save.side_effect = [KeyboardInterrupt, None]
+        document = JsonDocument(store)
+
+        def edit_and_save() -> None:
+            with document.edit() as edited:
+                edited["a"] = 2
+
+        with pytest.raises(KeyboardInterrupt):
+            edit_and_save()
+
+        assert data == {"a": 1}
+        edit_and_save()
+        assert data == {"a": 2}
+
     def test_edit_does_not_save_on_exception_and_releases_lock(self):
         store = Mock(spec=JsonStore)
         store.load.return_value = {"a": 1}
