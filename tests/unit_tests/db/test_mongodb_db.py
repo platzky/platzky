@@ -1,4 +1,3 @@
-from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -52,6 +51,14 @@ class TestMongoDB:
             yield mock_client, mock_db
 
     @pytest.fixture
+    def mock_db(self, mock_client: tuple[Mock, Mock]) -> Mock:
+        return mock_client[1]
+
+    @pytest.fixture
+    def mongo_client(self, mock_client: tuple[Mock, Mock]) -> Mock:
+        return mock_client[0]
+
+    @pytest.fixture
     def db(self, mock_client: tuple[Mock, Mock]) -> MongoDB:  # noqa: ARG002
         """Create a MongoDB instance for testing.
 
@@ -69,9 +76,8 @@ class TestMongoDB:
         assert db.db_name == "MongoDB"
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
 
-    def test_get_site_settings(self, db: MongoDB):
-        # Note: db.site_content is Collection[Any] at runtime but Mock in tests
-        mock_find_one = cast(Mock, db.site_content.find_one)
+    def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
+        mock_find_one = mock_db.site_content.find_one
         mock_find_one.return_value = {
             "_id": "config",
             "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
@@ -95,65 +101,87 @@ class TestMongoDB:
         # One find_one call for all of the above, not one per field.
         mock_find_one.assert_called_once_with({"_id": "config"})
 
-    def test_get_site_settings_defaults(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-
-        settings = db.get_site_settings()
-
-        assert settings.app_description == {}
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.font == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-
-    def test_get_blog_meta(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
+    def test_get_blog_meta_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = {
             "_id": "config",
             "blog_meta": {"en": {"title": "Reading notes", "description": "On Tolkien."}},
         }
         assert db.get_blog_meta("en") == PageMeta(title="Reading notes", description="On Tolkien.")
-        assert db.get_blog_meta("pl") == PageMeta()
 
-    def test_get_blog_meta_no_data(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_blog_meta("en") == PageMeta()
-
-    def test_get_footer(self, db: MongoDB):
-        mock_find_one = cast(Mock, db.site_content.find_one)
-        mock_find_one.return_value = {
-            "_id": "config",
-            "footer": {"content": {"en": "Footer", "pl": "Stopka"}},
-        }
-
-        assert db.get_footer("en").content == "Footer"
-        assert db.get_footer("pl").content == "Stopka"
-        assert db.get_footer("fr").content == ""
-        mock_find_one.assert_called_with({"_id": "config"})
-
-    def test_get_footer_not_configured(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {"_id": "config"}
-        assert db.get_footer("en") == Footer()
-
-    def test_get_footer_no_data(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_footer("en") == Footer()
-
-    def test_get_footer_is_read_in_a_single_query(self, db: MongoDB):
-        mock_find_one = cast(Mock, db.site_content.find_one)
-        mock_find_one.return_value = {
+    def test_get_footer_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = {
             "_id": "config",
             "footer": {"content": {"en": "Footer"}, "collapsible": True},
         }
-
         assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
-        mock_find_one.assert_called_once_with({"_id": "config"})
 
-    def test_get_footer_collapsible_not_configured(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {"_id": "config"}
-        assert db.get_footer("en").collapsible is False
+    def test_get_menu_items_in_lang(self, db: MongoDB, mock_db: Mock):
+        # Mock menu items data
+        mock_find_one = mock_db.menu_items.find_one
+        mock_find_one.return_value = {
+            "_id": "en",
+            "items": [{"name": "Home", "url": "/", "weight": 1}],
+        }
 
-    def test_get_all_posts(self, db: MongoDB):
+        menu_items = db.get_menu_items_in_lang("en")
+
+        assert len(menu_items) == 1
+        assert isinstance(menu_items[0], MenuItem)
+        assert menu_items[0].name == "Home"
+        mock_find_one.assert_called_once_with({"_id": "en"})
+
+    def test_get_menu_items_in_lang_no_data(self, db: MongoDB, mock_db: Mock):
+        mock_db.menu_items.find_one.return_value = None
+        menu_items = db.get_menu_items_in_lang("fr")
+        assert len(menu_items) == 0
+
+    def test_get_plugins_data(self, db: MongoDB, mock_db: Mock):
+        mock_db.plugins.find_one.return_value = {
+            "_id": "config",
+            "data": {"plugin1": {}},
+        }
+
+        plugins = db.get_plugins_data()
+        assert len(plugins) == 1
+        assert "plugin1" in plugins
+
+    def test_get_plugins_data_no_data(self, db: MongoDB, mock_db: Mock):
+        mock_db.plugins.find_one.return_value = None
+        assert db.get_plugins_data() == {}
+
+    def test_get_home_page_path(self, db: MongoDB, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = {
+            "_id": "config",
+            "home_page_path": "/blog/page/about",
+        }
+        assert db.get_home_page_path("en") == "/blog/page/about"
+
+    def test_connection_closed_on_deletion(self, mock_client: tuple[Mock, Mock]):
+        mongo_client, _ = mock_client
+        db = MongoDB("mongodb://localhost:27017", "test_db")
+
+        del db
+
+        mongo_client.return_value.close.assert_called_once()
+
+    def test_health_check_success(self, db: MongoDB, mongo_client: Mock):
+        """Test health check when database is accessible"""
+        mock_command = mongo_client.return_value.admin.command
+        mock_command.return_value = {"ok": 1}
+
+        # Should not raise any exception
+        db.health_check()
+
+        mock_command.assert_called_once_with("ping")
+
+    def test_health_check_failure(self, db: MongoDB, mongo_client: Mock):
+        """Test health check when database is not accessible"""
+        mongo_client.return_value.admin.command.side_effect = Exception("Connection failed")
+
+        with pytest.raises(Exception, match="Connection failed"):
+            db.health_check()
+
+    def test_get_all_posts(self, db: MongoDB, mock_db: Mock):
         # Mock posts data
         mock_posts = [
             {
@@ -172,7 +200,7 @@ class TestMongoDB:
             }
         ]
 
-        mock_find = cast(Mock, db.posts.find)
+        mock_find = mock_db.posts.find
         mock_find.return_value = mock_posts
 
         posts = db.get_all_posts("en")
@@ -182,27 +210,7 @@ class TestMongoDB:
         assert posts[0].title == "Post 1"
         mock_find.assert_called_once_with({"language": "en"})
 
-    def test_get_menu_items_in_lang(self, db: MongoDB):
-        # Mock menu items data
-        mock_find_one = cast(Mock, db.menu_items.find_one)
-        mock_find_one.return_value = {
-            "_id": "en",
-            "items": [{"name": "Home", "url": "/", "weight": 1}],
-        }
-
-        menu_items = db.get_menu_items_in_lang("en")
-
-        assert len(menu_items) == 1
-        assert isinstance(menu_items[0], MenuItem)
-        assert menu_items[0].name == "Home"
-        mock_find_one.assert_called_once_with({"_id": "en"})
-
-    def test_get_menu_items_in_lang_no_data(self, db: MongoDB):
-        cast(Mock, db.menu_items.find_one).return_value = None
-        menu_items = db.get_menu_items_in_lang("fr")
-        assert len(menu_items) == 0
-
-    def test_get_post(self, db: MongoDB):
+    def test_get_post(self, db: MongoDB, mock_db: Mock):
         # Mock post data
         mock_post = {
             "_id": "1",
@@ -219,7 +227,7 @@ class TestMongoDB:
             "date": "2023-01-01T00:00:00",
         }
 
-        mock_find_one = cast(Mock, db.posts.find_one)
+        mock_find_one = mock_db.posts.find_one
         mock_find_one.return_value = mock_post
 
         post = db.get_post("post-1")
@@ -228,14 +236,14 @@ class TestMongoDB:
         assert post.title == "Post 1"
         mock_find_one.assert_called_once_with({"slug": "post-1"})
 
-    def test_get_post_not_found(self, db: MongoDB):
-        cast(Mock, db.posts.find_one).return_value = None
+    def test_get_post_not_found(self, db: MongoDB, mock_db: Mock):
+        mock_db.posts.find_one.return_value = None
 
         with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
             db.get_post("non-existent")
 
-    def test_get_all_pages(self, db: MongoDB):
-        mock_find = cast(Mock, db.pages.find)
+    def test_get_all_pages(self, db: MongoDB, mock_db: Mock):
+        mock_find = mock_db.pages.find
         mock_find.return_value = [
             {
                 "title": "About Tolkien",
@@ -253,7 +261,7 @@ class TestMongoDB:
         assert [page.slug for page in pages] == ["about-tolkien"]
         mock_find.assert_called_once_with({"language": "en"})
 
-    def test_get_page(self, db: MongoDB):
+    def test_get_page(self, db: MongoDB, mock_db: Mock):
         # Mock page data
         mock_page = {
             "_id": "1",
@@ -270,7 +278,7 @@ class TestMongoDB:
             "date": "2023-01-01T00:00:00",
         }
 
-        mock_find_one = cast(Mock, db.pages.find_one)
+        mock_find_one = mock_db.pages.find_one
         mock_find_one.return_value = mock_page
 
         page = db.get_page("page-1")
@@ -279,13 +287,13 @@ class TestMongoDB:
         assert page.title == "Page 1"
         mock_find_one.assert_called_once_with({"slug": "page-1"})
 
-    def test_get_page_not_found(self, db: MongoDB):
-        cast(Mock, db.pages.find_one).return_value = None
+    def test_get_page_not_found(self, db: MongoDB, mock_db: Mock):
+        mock_db.pages.find_one.return_value = None
 
         with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
             db.get_page("non-existent")
 
-    def test_get_posts_by_tag(self, db: MongoDB):
+    def test_get_posts_by_tag(self, db: MongoDB, mock_db: Mock):
         mock_posts = [
             {
                 "title": "Tagged Post",
@@ -301,7 +309,7 @@ class TestMongoDB:
                 "date": "2023-01-01T00:00:00",
             }
         ]
-        mock_find = cast(Mock, db.posts.find)
+        mock_find = mock_db.posts.find
         mock_find.return_value = mock_posts
 
         result = db.get_posts_by_tag("tag1", "en")
@@ -311,7 +319,7 @@ class TestMongoDB:
         assert result[0].title == "Tagged Post"
         mock_find.assert_called_once_with({"tags": "tag1", "language": "en"})
 
-    def test_add_comment(self, db: MongoDB):
+    def test_add_comment(self, db: MongoDB, mock_db: Mock):
         with patch("platzky.db.mongodb_db.datetime.datetime") as mock_datetime:
             test_date = Mock()
             test_date.isoformat.return_value = "2023-01-01T12:00:00"
@@ -325,77 +333,6 @@ class TestMongoDB:
                 "date": "2023-01-01T12:00:00",
             }
 
-            cast(Mock, db.posts.update_one).assert_called_once_with(
+            mock_db.posts.update_one.assert_called_once_with(
                 {"slug": "post-1"}, {"$push": {"comments": expected_comment}}
             )
-
-    def test_get_plugins_data(self, db: MongoDB):
-        cast(Mock, db.plugins.find_one).return_value = {
-            "_id": "config",
-            "data": {"plugin1": {}},
-        }
-
-        plugins = db.get_plugins_data()
-        assert len(plugins) == 1
-        assert "plugin1" in plugins
-
-    def test_get_plugins_data_no_data(self, db: MongoDB):
-        cast(Mock, db.plugins.find_one).return_value = None
-        assert db.get_plugins_data() == {}
-
-    def test_get_home_page_path(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": "/blog/page/about",
-        }
-        assert db.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = None
-        assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_per_locale(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"},
-        }
-        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
-        assert db.get_home_page_path("en") == "/blog/"
-
-    def test_get_home_page_path_per_locale_no_default(self, db: MongoDB):
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"pl": "/blog/page/o-nas"},
-        }
-        assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(
-        self, db: MongoDB
-    ):
-        """Only an absent key falls back to "default" — a present key returns its value as-is."""
-        cast(Mock, db.site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": {"default": "/blog/", "pl": ""},
-        }
-        assert db.get_home_page_path("pl") == ""
-
-    def test_close_connection(self, db: MongoDB):
-        db._close_connection()  # type: ignore[reportPrivateUsage] - Testing private method
-        cast(Mock, db.client.close).assert_called_once()
-
-    def test_health_check_success(self, db: MongoDB):
-        """Test health check when database is accessible"""
-        mock_command = cast(Mock, db.client.admin.command)
-        mock_command.return_value = {"ok": 1}
-
-        # Should not raise any exception
-        db.health_check()
-
-        mock_command.assert_called_once_with("ping")
-
-    def test_health_check_failure(self, db: MongoDB):
-        """Test health check when database is not accessible"""
-        cast(Mock, db.client.admin.command).side_effect = Exception("Connection failed")
-
-        with pytest.raises(Exception, match="Connection failed"):
-            db.health_check()

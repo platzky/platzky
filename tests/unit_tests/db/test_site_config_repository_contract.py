@@ -1,19 +1,22 @@
 """Contract suite: every SiteConfigRepository behaves identically.
 
-Parametrized over every backend that implements it (so far only Json) so the
+Parametrized over every backend that implements it (so far Json, Mongo) so the
 independently-implemented repositories can't silently drift apart the way
 from-scratch implementations of the same thing easily could. Each backend gets a
 factory taking the same neutral `site_content` dict (the Json document's shape)
-and translating it into what that backend stores.
+and translating it into what that backend stores: the Json document itself, or
+a Mongo config document plus a per-language menu collection.
 """
 
 from typing import Any, Callable
+from unittest.mock import Mock
 
 import pytest
 
 from platzky.db.json_document import JsonDocument
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import MemoryStore
+from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
 from platzky.models import Footer, MenuItem, PageMeta
 
@@ -40,9 +43,23 @@ def _json_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
     return JsonSiteConfigRepository(JsonDocument(MemoryStore({"site_content": site_content})))
 
 
+def _mongo_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
+    config = Mock()
+    config.find_one.return_value = {"_id": "config", **site_content} if site_content else None
+    menu_items = site_content.get("menu_items") or {}
+
+    def find_menu(query: dict[str, Any]) -> dict[str, Any] | None:
+        lang = query["_id"]
+        return {"_id": lang, "items": menu_items[lang]} if lang in menu_items else None
+
+    menu = Mock()
+    menu.find_one.side_effect = find_menu
+    return MongoSiteConfigRepository(config, menu)
+
+
 @pytest.fixture(
-    params=[_json_repository],
-    ids=["Json"],
+    params=[_json_repository, _mongo_repository],
+    ids=["Json", "Mongo"],
 )
 def make_repository(
     request: pytest.FixtureRequest,
