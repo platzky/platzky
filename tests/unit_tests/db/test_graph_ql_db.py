@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from gql import Client
+from graphql import print_ast
 
 from platzky.db.exceptions import NotFoundError
 from platzky.db.graph_ql_db import (
@@ -329,6 +330,19 @@ def test_get_site_settings(graph_ql_db: GraphQL, mock_client: Mock):
     assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
     assert settings.font == ""
     mock_client.execute.assert_called_once()
+
+
+def test_get_site_settings_requests_more_than_default_page_size(
+    graph_ql_db: GraphQL, mock_client: Mock
+):
+    # Hygraph returns only 10 entries by default; descriptions for later
+    # languages would be dropped.
+    mock_client.execute.return_value = {"applicationSetups": []}
+
+    graph_ql_db.get_site_settings()
+
+    query = print_ast(mock_client.execute.call_args.args[0].document)
+    assert "applicationSetups(stage: PUBLISHED, first: 100)" in query
 
 
 def test_get_site_settings_defaults_when_everything_empty(graph_ql_db: GraphQL, mock_client: Mock):

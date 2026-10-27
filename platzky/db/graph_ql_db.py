@@ -425,6 +425,10 @@ class GraphQL(DB):
         Returns:
             The app's site settings.
         """
+        # applicationSetups holds one entry per language. Hygraph returns only
+        # 10 entries unless `first` is given (100 is the maximum per page), so
+        # ask for the maximum; a site with more than 100 languages is not a
+        # realistic case.
         query = gql("""
             query MyQuery {
               logos(stage: PUBLISHED) {
@@ -444,7 +448,7 @@ class GraphQL(DB):
                 primaryColor
                 secondaryColor
               }
-              applicationSetups(stage: PUBLISHED) {
+              applicationSetups(stage: PUBLISHED, first: 100) {
                 language
                 applicationDescription
               }
