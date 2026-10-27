@@ -1,7 +1,5 @@
-# pyright: reportPrivateUsage=false
-# Tests inspect the shared document directly via `db._document.data`.
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
@@ -43,7 +41,11 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db._document.data == sample_data
+            assert db.get_site_settings().app_description == {
+                "en": "English description",
+                "de": "Deutsche Beschreibung",
+            }
+            assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
             assert db.module_name == "json_file_db"
             assert db.db_name == "JsonFileDb"
 
@@ -66,12 +68,12 @@ class TestJsonFileDb:
             db = JsonFile(str(data_file))
             db.add_comment("Test User", "New comment", "post-1")
 
-        # Verify the comment was added to the db's data structure
-        comments = db._document.data["site_content"]["posts"][0]["comments"]
+        # Verify the comment is visible through the db's public interface
+        comments = db.get_post("post-1").comments
         assert len(comments) == 1
-        assert comments[0]["author"] == "Test User"
-        assert comments[0]["comment"] == "New comment"
-        assert comments[0]["date"] == "2023-02-01T10:00:00"
+        assert comments[0].author == "Test User"
+        assert comments[0].comment == "New comment"
+        assert comments[0].date == test_date.replace(tzinfo=timezone.utc)
 
         # Verify it was actually persisted to disk (not just kept in memory)
         persisted = json.loads(data_file.read_text())

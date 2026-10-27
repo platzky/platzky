@@ -1,11 +1,8 @@
-# pyright: reportPrivateUsage=false
-# Tests inspect the shared document directly via `db._document.data`.
-from typing import cast
 from unittest.mock import MagicMock, mock_open, patch
 
 from platzky.config import Config
 from platzky.db import db_loader
-from platzky.db.json_db import Json
+from platzky.db.site_config_repository import SiteSettings
 
 
 def test_loading_json_db_dynamically():
@@ -34,11 +31,13 @@ def test_loading_json_file_db_dynamically():
     config = Config.model_validate(config_data)
 
     with patch("builtins.open", mock_open(read_data="data")):
-        with patch("json.load", return_value={"site_content": {}}):
+        with patch(
+            "json.load",
+            return_value={"site_content": {"app_description": {"en": "From file"}}},
+        ):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
-            assert hasattr(db, "_document")
-            assert cast(Json, db)._document.data == {"site_content": {}}
+            assert db.get_site_settings() == SiteSettings(app_description={"en": "From file"})
 
 
 def test_loading_google_json_db_dynamically():
@@ -52,7 +51,7 @@ def test_loading_google_json_db_dynamically():
         },
     }
 
-    expected_data = {"site_content": {}}
+    expected_settings = SiteSettings(app_description={"en": "From bucket"})
 
     with patch("platzky.db.google_json_db.Client") as mock_client:
         client_mock = MagicMock()
@@ -61,7 +60,9 @@ def test_loading_google_json_db_dynamically():
 
         client_mock.bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
-        mock_blob.download_as_text.return_value = '{"site_content": {}}'
+        mock_blob.download_as_text.return_value = (
+            '{"site_content": {"app_description": {"en": "From bucket"}}}'
+        )
 
         mock_client.return_value = client_mock
 
@@ -69,8 +70,7 @@ def test_loading_google_json_db_dynamically():
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
-        assert hasattr(db, "_document")
-        assert cast(Json, db)._document.data == expected_data
+        assert db.get_site_settings() == expected_settings
 
         mock_client.assert_called_once()
         mock_bucket.blob.assert_called_once_with("data.json")

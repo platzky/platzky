@@ -1,5 +1,3 @@
-# pyright: reportPrivateUsage=false
-# Tests inspect the shared document directly via `db._document.data`.
 import base64
 import json
 from unittest.mock import MagicMock, patch
@@ -19,12 +17,16 @@ def test_returns_correct_db_config_type():
     assert db_config_type() == GithubJsonDbConfig
 
 
+SITE_DESCRIPTION = {"en": "Hello"}
+SITE_JSON = json.dumps({"site_content": {"app_description": SITE_DESCRIPTION}})
+
+
 def test_creates_github_json_db_from_config():
     with patch("platzky.db.github_json_db.Github") as MockGithub:
         mock_repo = MagicMock()
         mock_file = MagicMock()
         mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="
-        mock_file.decoded_content = b'{"key": "value"}'
+        mock_file.decoded_content = SITE_JSON.encode()
         MockGithub.return_value.get_repo.return_value = mock_repo
         mock_repo.get_contents.return_value = mock_file
 
@@ -39,7 +41,7 @@ def test_creates_github_json_db_from_config():
         assert isinstance(db, GithubJsonDb)
         assert db.branch_name == "main"
         assert db.file_path == "path/to/file.json"
-        assert db._document.data == {"key": "value"}
+        assert db.get_site_settings().app_description == SITE_DESCRIPTION
 
 
 def test_retrieves_data_from_github_file():
@@ -47,12 +49,12 @@ def test_retrieves_data_from_github_file():
         mock_repo = MagicMock()
         mock_file = MagicMock()
         mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="  # Base64 for '{"key": "value"}'
-        mock_file.decoded_content = b'{"key": "value"}'
+        mock_file.decoded_content = SITE_JSON.encode()
         MockGithub.return_value.get_repo.return_value = mock_repo
         mock_repo.get_contents.return_value = mock_file
 
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db._document.data == {"key": "value"}
+        assert db.get_site_settings().app_description == SITE_DESCRIPTION
 
 
 def test_raises_error_for_directory_path():
@@ -80,11 +82,11 @@ def test_retrieves_data_via_download_url_when_content_is_empty():
         MockGithub.return_value.get_repo.return_value = mock_repo
 
         mock_response = MagicMock()
-        mock_response.text = '{"key": "value"}'
+        mock_response.text = SITE_JSON
         mock_requests.return_value = mock_response
 
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db._document.data == {"key": "value"}
+        assert db.get_site_settings().app_description == SITE_DESCRIPTION
 
 
 def test_raises_error_for_invalid_json_content():

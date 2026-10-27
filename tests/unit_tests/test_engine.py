@@ -1,7 +1,5 @@
-# pyright: reportPrivateUsage=false
-# Tests inspect the shared document directly via `db._document.data`.
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from bs4 import BeautifulSoup, Tag
@@ -10,14 +8,13 @@ from flask_babel import get_locale
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
-from platzky.db.json_db import Json
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
-from tests.unit_tests.fake_app import test_app
+from tests.unit_tests.fake_app import build_test_app, test_app
 
 test_app = test_app
 
@@ -37,9 +34,8 @@ def test_logo_has_set_src(test_app: Engine):
     assert found_image.get("src") == "https://example.com/logo.png"
 
 
-def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
-    cast(Json, test_app.db)._document.data["site_content"].pop("logo_url")
-    app = test_app.test_client()
+def test_if_name_is_shown_if_there_is_no_logo():
+    app = build_test_app({"logo_url": None}).test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     assert soup.find("img") is None
@@ -48,11 +44,8 @@ def test_if_name_is_shown_if_there_is_no_logo(test_app: Engine):
     assert branding.get_text() == "testing App Name"
 
 
-def test_favicon_is_applied(test_app: Engine):
-    cast(Json, test_app.db)._document.data["site_content"][
-        "favicon_url"
-    ] = "https://example.com/favicon.ico"
-    app = test_app.test_client()
+def test_favicon_is_applied():
+    app = build_test_app({"favicon_url": "https://example.com/favicon.ico"}).test_client()
     response = app.get("/")
     soup = BeautifulSoup(response.data, "html.parser")
     found_ico = soup.find("link", rel="icon")
