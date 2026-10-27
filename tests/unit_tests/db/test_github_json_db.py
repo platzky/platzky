@@ -1,8 +1,12 @@
 import base64
 import json
-from unittest.mock import MagicMock, patch
+from collections.abc import Iterator
+from typing import Any
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from github.ContentFile import ContentFile
+from github.Repository import Repository
 
 from platzky.db.exceptions import ReadOnlyStorageError
 from platzky.db.github_json_db import (
@@ -12,108 +16,107 @@ from platzky.db.github_json_db import (
     db_from_config,
 )
 
+SITE_DESCRIPTION = {"en": "Hello"}
+POST = {
+    "author": "Ann",
+    "slug": "post-1",
+    "title": "First post",
+    "contentInMarkdown": "Body",
+    "excerpt": "Short",
+    "comments": [],
+}
+SITE_DATA = {"site_content": {"app_description": SITE_DESCRIPTION, "posts": [POST]}}
+DOWNLOAD_URL = "https://example.com/file.json"
+
+
+def make_content_file(data: dict[str, Any], *, inline: bool = True) -> Mock:
+    """Fake GitHub file whose `content`, `decoded_content` and the payload agree.
+
+    With inline=False the content is empty, as GitHub returns for large files,
+    so the DB has to fetch `download_url` instead.
+    """
+    raw = json.dumps(data).encode()
+    file = Mock(spec=ContentFile)
+    file.content = base64.b64encode(raw).decode() if inline else ""
+    file.decoded_content = raw
+    file.download_url = DOWNLOAD_URL
+    return file
+
+
+@pytest.fixture
+def repo() -> Iterator[Mock]:
+    """The repository returned by a patched Github client."""
+    with patch("platzky.db.github_json_db.Github") as MockGithub:
+        mock_repo = Mock(spec=Repository)
+        MockGithub.return_value.get_repo.return_value = mock_repo
+        yield mock_repo
+
 
 def test_returns_correct_db_config_type():
     assert db_config_type() == GithubJsonDbConfig
 
 
-SITE_DESCRIPTION = {"en": "Hello"}
-SITE_JSON = json.dumps({"site_content": {"app_description": SITE_DESCRIPTION}})
+def test_creates_github_json_db_from_config(repo: Mock):
+    repo.get_contents.return_value = make_content_file(SITE_DATA)
+
+    config = GithubJsonDbConfig(
+        TYPE="github_json_db",
+        GITHUB_TOKEN="fake_token",
+        REPO_NAME="fake_repo",
+        PATH_TO_FILE="path/to/file.json",
+        BRANCH_NAME="main",
+    )
+    db = db_from_config(config)
+    assert isinstance(db, GithubJsonDb)
+    assert db.branch_name == "main"
+    assert db.file_path == "path/to/file.json"
+    assert db.get_site_settings().app_description == SITE_DESCRIPTION
 
 
-def test_creates_github_json_db_from_config():
-    with patch("platzky.db.github_json_db.Github") as MockGithub:
-        mock_repo = MagicMock()
-        mock_file = MagicMock()
-        mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="
-        mock_file.decoded_content = SITE_JSON.encode()
-        MockGithub.return_value.get_repo.return_value = mock_repo
-        mock_repo.get_contents.return_value = mock_file
+def test_retrieves_data_from_github_file(repo: Mock):
+    repo.get_contents.return_value = make_content_file(SITE_DATA)
 
-        config = GithubJsonDbConfig(
-            TYPE="github_json_db",
-            GITHUB_TOKEN="fake_token",
-            REPO_NAME="fake_repo",
-            PATH_TO_FILE="path/to/file.json",
-            BRANCH_NAME="main",
-        )
-        db = db_from_config(config)
-        assert isinstance(db, GithubJsonDb)
-        assert db.branch_name == "main"
-        assert db.file_path == "path/to/file.json"
-        assert db.get_site_settings().app_description == SITE_DESCRIPTION
+    db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
+
+    assert db.get_site_settings().app_description == SITE_DESCRIPTION
+    assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
+    repo.get_contents.assert_called_once_with("path/to/file.json", ref="main")
 
 
-def test_retrieves_data_from_github_file():
-    with patch("platzky.db.github_json_db.Github") as MockGithub:
-        mock_repo = MagicMock()
-        mock_file = MagicMock()
-        mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="  # Base64 for '{"key": "value"}'
-        mock_file.decoded_content = SITE_JSON.encode()
-        MockGithub.return_value.get_repo.return_value = mock_repo
-        mock_repo.get_contents.return_value = mock_file
+def test_raises_error_for_directory_path(repo: Mock):
+    repo.get_contents.return_value = [MagicMock()]  # Simulate directory
 
-        db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db.get_site_settings().app_description == SITE_DESCRIPTION
-
-
-def test_raises_error_for_directory_path():
-    with patch("platzky.db.github_json_db.Github") as MockGithub:
-        mock_repo = MagicMock()
-        mock_repo.get_contents.return_value = [MagicMock()]  # Simulate directory
-        MockGithub.return_value.get_repo.return_value = mock_repo
-
-        with pytest.raises(
-            ValueError, match=r"Path 'path/to/file\.json' points to a directory, not a file"
-        ):
-            GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-
-
-def test_retrieves_data_via_download_url_when_content_is_empty():
-    with (
-        patch("platzky.db.github_json_db.Github") as MockGithub,
-        patch("platzky.db.github_json_db.requests.get") as mock_requests,
+    with pytest.raises(
+        ValueError, match=r"Path 'path/to/file\.json' points to a directory, not a file"
     ):
-        mock_repo = MagicMock()
-        mock_file = MagicMock()
-        mock_file.content = None
-        mock_file.download_url = "https://example.com/file.json"
-        mock_repo.get_contents.return_value = mock_file
-        MockGithub.return_value.get_repo.return_value = mock_repo
+        GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
-        mock_response = MagicMock()
-        mock_response.text = SITE_JSON
-        mock_requests.return_value = mock_response
 
+def test_retrieves_data_via_download_url_when_content_is_empty(repo: Mock):
+    repo.get_contents.return_value = make_content_file(SITE_DATA, inline=False)
+
+    with patch("platzky.db.github_json_db.requests.get") as mock_requests:
+        mock_requests.return_value.text = json.dumps(SITE_DATA)
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
-        assert db.get_site_settings().app_description == SITE_DESCRIPTION
+
+    mock_requests.assert_called_once_with(DOWNLOAD_URL, timeout=40)
+    assert db.get_site_settings().app_description == SITE_DESCRIPTION
 
 
-def test_raises_error_for_invalid_json_content():
-    with patch("platzky.db.github_json_db.Github") as MockGithub:
-        mock_repo = MagicMock()
-        mock_file = MagicMock()
-        mock_file.content = "eyJrZXkiOiAidmFsdWUifQ=="  # Base64 for '{"key": "value"}'
-        mock_file.decoded_content = b"invalid json"
-        mock_repo.get_contents.return_value = mock_file
-        MockGithub.return_value.get_repo.return_value = mock_repo
+def test_raises_error_for_invalid_json_content(repo: Mock):
+    file = make_content_file(SITE_DATA)
+    file.decoded_content = b"invalid json"
+    repo.get_contents.return_value = file
 
-        with pytest.raises(ValueError, match="Error parsing JSON content: Expecting value"):
-            GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
+    with pytest.raises(ValueError, match="Error parsing JSON content: Expecting value"):
+        GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
 
-def test_add_comment_raises_read_only_storage_error():
+def test_add_comment_raises_read_only_storage_error(repo: Mock):
     """GithubJsonDb is read-only: writes must fail loudly, not vanish silently."""
-    with patch("platzky.db.github_json_db.Github") as MockGithub:
-        mock_repo = MagicMock()
-        mock_file = MagicMock()
-        content = json.dumps({"site_content": {"posts": [{"slug": "post-1", "comments": []}]}})
-        mock_file.content = base64.b64encode(content.encode()).decode()
-        mock_file.decoded_content = content.encode()
-        MockGithub.return_value.get_repo.return_value = mock_repo
-        mock_repo.get_contents.return_value = mock_file
+    repo.get_contents.return_value = make_content_file(SITE_DATA)
 
-        db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
+    db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
-        with pytest.raises(ReadOnlyStorageError):
-            db.add_comment("Test User", "New comment", "post-1")
+    with pytest.raises(ReadOnlyStorageError):
+        db.add_comment("Test User", "New comment", "post-1")
