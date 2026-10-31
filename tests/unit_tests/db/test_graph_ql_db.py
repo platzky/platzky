@@ -1,10 +1,7 @@
 import threading
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
-from gql import Client
-from graphql import print_ast
 
 from platzky.db.exceptions import NotFoundError
 from platzky.db.graph_ql_db import (
@@ -13,7 +10,7 @@ from platzky.db.graph_ql_db import (
     db_config_type,
     db_from_config,
 )
-from platzky.models import Footer, PageMeta, Post
+from platzky.models import Post
 
 
 @pytest.fixture
@@ -24,12 +21,10 @@ def mock_client():
 
 @pytest.fixture
 def graph_ql_db(mock_client: Mock):
-    with patch("platzky.db.graph_ql_db.Client", return_value=mock_client):
-        db = GraphQL(
+    with patch("platzky.db.graphql_client.Client", return_value=mock_client):
+        yield GraphQL(
             "https://test.endpoint", "test_token"
         )  # NOSONAR - hardcoded token acceptable in tests
-        db.client  # trigger lazy construction now, while Client is patched
-    return db
 
 
 def test_db_config_type():
@@ -55,45 +50,181 @@ def test_db_from_config():
 
 def test_graph_ql_init(mock_client: Mock):
     with (
-        patch("platzky.db.graph_ql_db.AIOHTTPTransport") as mock_transport,
-        patch("platzky.db.graph_ql_db.Client", return_value=mock_client) as mock_client_class,
+        patch("platzky.db.graphql_client.AIOHTTPTransport") as mock_transport,
+        patch("platzky.db.graphql_client.Client", return_value=mock_client) as mock_client_class,
     ):
         db = GraphQL(
             "https://test.endpoint", "test_token"
         )  # NOSONAR - hardcoded token acceptable in tests
 
-        assert db.client == mock_client  # client is built lazily, on first access
+        # The client is built lazily, on first use.
+        mock_client_class.assert_not_called()
+        db.health_check()
+
         mock_transport.assert_called_once_with(
             url="https://test.endpoint", headers={"Authorization": "bearer test_token"}
         )
         mock_client_class.assert_called_once()
+        mock_client.execute.assert_called_once()
         assert db.module_name == "graph_ql_db"
         assert db.db_name == "GraphQLDb"
 
 
 def test_graph_ql_client_is_per_thread():
-    db = GraphQL(
-        "https://test.endpoint", "test_token"
-    )  # NOSONAR - hardcoded token acceptable in tests
+    clients = [Mock(), Mock(), Mock()]
 
-    main_thread_client = db.client
-    other_thread_client: list[Client | Exception] = []
+    errors: list[Exception] = []
 
-    def get_client_in_thread():
+    def health_check_in_thread():
         try:
-            other_thread_client.append(db.client)
+            db.health_check()
         except Exception as e:
-            other_thread_client.append(e)
+            errors.append(e)
 
-    thread = threading.Thread(target=get_client_in_thread)
-    thread.start()
-    thread.join()
+    with patch("platzky.db.graphql_client.Client", side_effect=clients):
+        db = GraphQL(
+            "https://test.endpoint", "test_token"
+        )  # NOSONAR - hardcoded token acceptable in tests
 
-    assert len(other_thread_client) == 1, "Thread did not complete"
-    if isinstance(other_thread_client[0], Exception):
-        raise other_thread_client[0]
-    assert db.client is main_thread_client
-    assert other_thread_client[0] is not main_thread_client
+        db.health_check()
+        db.health_check()
+        thread = threading.Thread(target=health_check_in_thread)
+        thread.start()
+        thread.join()
+
+    assert not errors
+    # One client for the main thread (reused across calls) and one for the other thread.
+    assert clients[0].execute.call_count == 2
+    assert clients[1].execute.call_count == 1
+    clients[2].execute.assert_not_called()
+
+
+@pytest.fixture
+def graph_ql_db_with_mocked_repos(mock_client: Mock):
+    """A GraphQL instance built with its plugin and site config
+    repositories mocked out, so delegation can be verified through GraphQL's
+    public API without reaching into its private attributes from the test.
+    """
+    with (
+        patch("platzky.db.graphql_client.Client", return_value=mock_client),
+        patch("platzky.db.graph_ql_db.GraphQLPluginConfigRepository") as mock_plugins_class,
+        patch("platzky.db.graph_ql_db.GraphQLSiteConfigRepository") as mock_site_config_class,
+    ):
+        db = GraphQL(
+            "https://test.endpoint", "test_token"
+        )  # NOSONAR - hardcoded token acceptable in tests
+    return (
+        db,
+        mock_plugins_class.return_value,
+        mock_site_config_class.return_value,
+    )
+
+
+def test_get_plugins_data_delegates_to_plugin_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, plugins_repository, _ = graph_ql_db_with_mocked_repos
+    plugins_repository.get_all.return_value = {"sentinel": "config"}
+
+    result = db.get_plugins_data()
+
+    plugins_repository.get_all.assert_called_once()
+    assert result == {"sentinel": "config"}
+
+
+def test_get_site_settings_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_site_settings.return_value = "sentinel"
+
+    result = db.get_site_settings()
+
+    site_config.get_site_settings.assert_called_once()
+    assert result == "sentinel"
+
+
+def test_get_menu_items_in_lang_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_menu_items_in_lang.return_value = ["sentinel"]
+
+    result = db.get_menu_items_in_lang("en")
+
+    site_config.get_menu_items_in_lang.assert_called_once_with("en")
+    assert result == ["sentinel"]
+
+
+def test_get_home_page_path_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_home_page_path.return_value = "/blog/page/about"
+
+    result = db.get_home_page_path("en")
+
+    site_config.get_home_page_path.assert_called_once_with("en")
+    assert result == "/blog/page/about"
+
+
+def test_get_blog_meta_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_blog_meta.return_value = "sentinel"
+
+    result = db.get_blog_meta("en")
+
+    site_config.get_blog_meta.assert_called_once_with("en")
+    assert result == "sentinel"
+
+
+def test_get_footer_delegates_to_site_config(
+    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock],
+):
+    db, _, site_config = graph_ql_db_with_mocked_repos
+    site_config.get_footer.return_value = "sentinel"
+
+    result = db.get_footer("en")
+
+    site_config.get_footer.assert_called_once_with("en")
+    assert result == "sentinel"
+
+
+def test_health_check_success(graph_ql_db: GraphQL, mock_client: Mock):
+    """Test health check when GraphQL endpoint is accessible"""
+    mock_client.execute.return_value = {"__typename": "Query"}
+
+    # Should not raise any exception
+    graph_ql_db.health_check()
+
+    mock_client.execute.assert_called_once()
+
+
+def test_health_check_failure(graph_ql_db: GraphQL, mock_client: Mock):
+    """Test health check when GraphQL endpoint is not accessible"""
+    mock_client.execute.side_effect = Exception("Connection failed")
+
+    with pytest.raises(Exception, match="Connection failed"):
+        graph_ql_db.health_check()
+
+
+def test_facade_and_repositories_share_one_client_source(mock_client: Mock):
+    with (
+        patch("platzky.db.graph_ql_db.GraphQLPluginConfigRepository") as plugins_cls,
+        patch("platzky.db.graph_ql_db.GraphQLSiteConfigRepository") as site_cls,
+        patch("platzky.db.graphql_client.Client", return_value=mock_client),
+    ):
+        db = GraphQL("https://test.endpoint", "test_token")
+
+        plugins_getter = plugins_cls.call_args.args[0]
+        site_getter = site_cls.call_args.args[0]
+        assert plugins_getter is site_getter
+        # The facade itself goes through the very same client source.
+        db.health_check()
+        assert plugins_getter() is mock_client
+        mock_client.execute.assert_called_once()
 
 
 def test_get_all_posts(graph_ql_db: GraphQL, mock_client: Mock):
@@ -127,20 +258,6 @@ def test_get_all_posts(graph_ql_db: GraphQL, mock_client: Mock):
     assert isinstance(posts[0], Post)
     assert posts[0].title == "Test Post"
     assert posts[0].slug == "test-post"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_menu_items_in_lang_with_lang(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "menuItems": [{"name": "Home", "url": "/"}, {"name": "About", "url": "/about"}]
-    }
-    mock_client.execute.return_value = mock_response
-
-    menu_items = graph_ql_db.get_menu_items_in_lang("en")
-
-    assert len(menu_items) == 2
-    assert menu_items[0].name == "Home"
-    assert menu_items[1].url == "/about"
     mock_client.execute.assert_called_once()
 
 
@@ -299,175 +416,3 @@ def test_add_comment(graph_ql_db: GraphQL, mock_client: Mock):
     assert call_args["author"] == "John Doe"
     assert call_args["comment"] == "Great post!"
     assert call_args["slug"] == "test-post"
-
-
-def test_get_site_settings(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {
-        "logos": [
-            {
-                "logo": {
-                    "alternateText": "Alt text",
-                    "image": {"url": "https://example.com/logo.jpg"},
-                }
-            }
-        ],
-        "favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}],
-        "themes": [{"primaryColor": "#0085A1", "secondaryColor": "#006073"}],
-        "applicationSetups": [
-            {"language": "en", "applicationDescription": "Hello"},
-            {"language": "pl", "applicationDescription": "Cześć"},
-        ],
-    }
-
-    settings = graph_ql_db.get_site_settings()
-
-    assert settings.logo is not None
-    assert settings.logo.url == "https://example.com/logo.jpg"
-    assert settings.logo.alternateText == "Alt text"
-    assert settings.favicon_url == "https://example.com/favicon.ico"
-    assert settings.primary_color == "#0085A1"
-    assert settings.secondary_color == "#006073"
-    assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
-    assert settings.font == ""
-    mock_client.execute.assert_called_once()
-
-
-def test_get_site_settings_requests_more_than_default_page_size(
-    graph_ql_db: GraphQL, mock_client: Mock
-):
-    # Hygraph returns only 10 entries by default; descriptions for later
-    # languages would be dropped.
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    graph_ql_db.get_site_settings()
-
-    query = print_ast(mock_client.execute.call_args.args[0].document)
-    assert "applicationSetups(stage: PUBLISHED, first: 100)" in query
-
-
-def test_get_site_settings_defaults_when_everything_empty(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {
-        "logos": [],
-        "favicons": [],
-        "themes": [],
-        "applicationSetups": [],
-    }
-
-    settings = graph_ql_db.get_site_settings()
-
-    assert settings.logo is None
-    assert settings.favicon_url == ""
-    assert settings.primary_color == "white"
-    assert settings.secondary_color == "navy"
-    assert settings.app_description == {}
-
-
-def test_get_site_settings_favicon_missing_does_not_raise(graph_ql_db: GraphQL, mock_client: Mock):
-    """Regression test: favicon used to crash with IndexError on an empty list."""
-    mock_client.execute.return_value = {
-        "logos": [],
-        "favicons": [],
-        "themes": [{"primaryColor": "blue"}],
-        "applicationSetups": [],
-    }
-
-    settings = graph_ql_db.get_site_settings()
-
-    assert settings.favicon_url == ""
-
-
-@pytest.mark.parametrize(
-    "result",
-    [
-        {
-            "logos": [{"logo": None}],
-            "favicons": [{"favicon": None}],
-            "themes": [None],
-            "applicationSetups": [],
-        },
-        {
-            "logos": [{"logo": {"alternateText": "x", "image": None}}],
-            "favicons": [None],
-            "themes": [{"primaryColor": None, "secondaryColor": None}],
-            "applicationSetups": [],
-        },
-        {"logos": None, "favicons": None, "themes": None, "applicationSetups": []},
-    ],
-)
-def test_get_site_settings_null_nodes_fall_back_to_defaults(
-    graph_ql_db: GraphQL, mock_client: Mock, result: dict[str, Any]
-):
-    mock_client.execute.return_value = result
-
-    settings = graph_ql_db.get_site_settings()
-
-    assert settings.logo is None
-    assert settings.favicon_url == ""
-    assert settings.primary_color == "white"
-    assert settings.secondary_color == "navy"
-
-
-def test_get_blog_meta_is_not_supported_and_queries_nothing(
-    graph_ql_db: GraphQL, mock_client: Mock
-):
-    assert graph_ql_db.get_blog_meta("en") == PageMeta()
-    mock_client.execute.assert_not_called()
-
-
-def test_get_footer_is_not_supported_and_queries_nothing(graph_ql_db: GraphQL, mock_client: Mock):
-    assert graph_ql_db.get_footer("en") == Footer()
-    mock_client.execute.assert_not_called()
-
-
-def test_get_home_page_path(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
-    mock_client.execute.return_value = mock_response
-
-    assert graph_ql_db.get_home_page_path("en") == "/blog/page/about"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_home_page_path_missing(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {"applicationSetups": [{}]}
-    mock_client.execute.return_value = mock_response
-
-    assert graph_ql_db.get_home_page_path("en") is None
-
-
-def test_get_home_page_path_no_application_setups(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    assert graph_ql_db.get_home_page_path("en") is None
-
-
-def test_get_plugins_data(graph_ql_db: GraphQL, mock_client: Mock):
-    mock_response = {
-        "pluginConfigs": [{"name": "plugin1", "is_active": True, "config": {"key": "value"}}]
-    }
-    mock_client.execute.return_value = mock_response
-
-    plugins_data = graph_ql_db.get_plugins_data()
-
-    assert len(plugins_data) == 1
-    assert "plugin1" in plugins_data
-    assert plugins_data["plugin1"].config == {"key": "value"}
-    assert plugins_data["plugin1"].is_active is True
-    mock_client.execute.assert_called_once()
-
-
-def test_health_check_success(graph_ql_db: GraphQL, mock_client: Mock):
-    """Test health check when GraphQL endpoint is accessible"""
-    mock_client.execute.return_value = {"__typename": "Query"}
-
-    # Should not raise any exception
-    graph_ql_db.health_check()
-
-    mock_client.execute.assert_called_once()
-
-
-def test_health_check_failure(graph_ql_db: GraphQL, mock_client: Mock):
-    """Test health check when GraphQL endpoint is not accessible"""
-    mock_client.execute.side_effect = Exception("Connection failed")
-
-    with pytest.raises(Exception, match="Connection failed"):
-        graph_ql_db.health_check()
