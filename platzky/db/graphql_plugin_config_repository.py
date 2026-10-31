@@ -46,7 +46,12 @@ class GraphQLPluginConfigRepository(PluginConfigRepository):
             }
             """)
         raw = self._client_getter().execute(plugins_query)["pluginConfigs"]
-        return {
-            d["name"]: PluginConfigBase.model_validate({**(d.get("config") or {}), **d})
-            for d in raw
-        }
+        plugins: dict[str, PluginConfigBase] = {}
+        for d in raw:
+            # ``config`` and ``isActive`` may be null in the CMS; one null record
+            # must not fail validation for every plugin.
+            config = d.get("config") or {}
+            plugins[d["name"]] = PluginConfigBase.model_validate(
+                {**config, **d, "config": config, "is_active": bool(d.get("is_active"))}
+            )
+        return plugins

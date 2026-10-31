@@ -246,7 +246,9 @@ def test_get_site_settings_requests_more_than_default_page_size(
 
     repository.get_site_settings()
 
-    query = print_ast(mock_client.execute.call_args.args[0].document)
+    # gql 4 passes a GraphQLRequest wrapping the document; gql 3.4 the document itself.
+    request = mock_client.execute.call_args.args[0]
+    query = print_ast(getattr(request, "document", request))
     assert "applicationSetups(stage: PUBLISHED, first: 100)" in query
 
 
@@ -257,5 +259,7 @@ def test_get_menu_items_requests_more_than_default_page_size(
 
     repository.get_menu_items_in_lang("en")
 
-    query = print_ast(mock_client.execute.call_args.args[0].document)
+    # gql 4 passes a GraphQLRequest wrapping the document; gql 3.4 the document itself.
+    request = mock_client.execute.call_args.args[0]
+    query = print_ast(getattr(request, "document", request))
     assert "menuItems(where: {language: $lang}, stage: PUBLISHED, first: 100)" in query

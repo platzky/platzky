@@ -47,6 +47,24 @@ class TestGraphQLPluginConfigRepository:
 
         assert repository.get_all()["off"].is_active is False
 
+    def test_get_all_treats_null_config_as_empty(
+        self, repository: GraphQLPluginConfigRepository, mock_client: Mock
+    ):
+        mock_client.execute.return_value = {
+            "pluginConfigs": [{"name": "bare", "is_active": True, "config": None}]
+        }
+
+        assert repository.get_all()["bare"].config == {}
+
+    def test_get_all_treats_null_is_active_as_inactive(
+        self, repository: GraphQLPluginConfigRepository, mock_client: Mock
+    ):
+        mock_client.execute.return_value = {
+            "pluginConfigs": [{"name": "unset", "is_active": None, "config": {}}]
+        }
+
+        assert repository.get_all()["unset"].is_active is False
+
     def test_get_all_requests_more_than_default_page_size(
         self, repository: GraphQLPluginConfigRepository, mock_client: Mock
     ):
@@ -55,5 +73,7 @@ class TestGraphQLPluginConfigRepository:
 
         repository.get_all()
 
-        query = print_ast(mock_client.execute.call_args.args[0].document)
+        # gql 4 passes a GraphQLRequest wrapping the document; gql 3.4 the document itself.
+        request = mock_client.execute.call_args.args[0]
+        query = print_ast(getattr(request, "document", request))
         assert "pluginConfigs(stage: PUBLISHED, first: 100)" in query
