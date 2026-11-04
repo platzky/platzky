@@ -14,6 +14,7 @@ from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.db import DB
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
+from platzky.html_sanitizer import ContentNotAllowed
 from platzky.models import Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
@@ -62,12 +63,13 @@ def create_blog_blueprint(
         """
         return render_template("404.html", title="404"), 404
 
+    @blog.errorhandler(ContentNotAllowed)
     @blog.errorhandler(ShortcodeError)
-    def content_error(e: ShortcodeError) -> tuple[str, int]:
+    def content_error(e: ContentNotAllowed | ShortcodeError) -> tuple[str, int]:
         """Show that a post or page cannot be rendered, and log why for whoever can fix it.
 
         Args:
-            e: What in the content's shortcodes is wrong
+            e: What in the content's HTML or shortcodes is wrong
 
         Returns:
             Tuple of rendered error template and HTTP 500 status code

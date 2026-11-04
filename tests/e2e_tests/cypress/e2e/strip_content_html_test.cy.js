@@ -9,13 +9,13 @@ describe('STRIP_CONTENT_HTML', () => {
   it('removes HTML written in prose, keeping the text it wrapped', () => {
     cy.get('.post-content').contains('bold text');
     cy.get('.post-content b').should('not.exist');
-    cy.get('#stripped-image').should('not.exist');
+    cy.get('.stripped-image').should('not.exist');
   });
 
   it('keeps HTML written inside [html], as HTML', () => {
     // [html] is verbatim, so it is how an author marks a piece of HTML they mean on a
     // site that strips the rest — the tag survives as a real element.
-    cy.get('#kept-image')
+    cy.get('.kept-image')
       .should('exist')
       .and('have.attr', 'src', '/static/img/none.png');
   });

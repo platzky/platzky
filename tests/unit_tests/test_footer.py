@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import pytest
@@ -125,3 +126,17 @@ def test_malformed_site_footer_hides_footer_instead_of_breaking_the_page(url: st
     assert response.status_code in (200, 404)
     assert 'id="footer-row"' not in html
     assert "Never closed" not in html
+
+
+@pytest.mark.parametrize("url", CONTENT_URLS)
+def test_site_footer_with_disallowed_html_hides_footer_and_logs_why(
+    url: str, caplog: pytest.LogCaptureFixture
+):
+    app = _app(site_footer={"en": "Footer <script>alert(1)</script>"})
+    with caplog.at_level(logging.ERROR):
+        response = app.test_client().get(url)
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'id="footer-row"' not in html
+    assert "alert(1)" not in html
+    assert "<script> is not allowed" in caplog.text

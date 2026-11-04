@@ -56,8 +56,8 @@ class _Markdown:
 
     def __init__(self) -> None:
         """Set up CommonMark with tables, strikethrough and task lists."""
-        # HTML passes through: an author may mix it in, and shortcode output reaches the
-        # renderer as placeholder tags.
+        # HTML passes through: an author may mix it in, shortcode output reaches the
+        # renderer as placeholder tags, and the result is sanitized afterwards.
         self._parser = (
             MarkdownIt("commonmark", {"html": True})
             .enable(["table", "strikethrough"])

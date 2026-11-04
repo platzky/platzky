@@ -32,11 +32,12 @@ class ContentSource:
     Passing one to ``transform_content`` is the caller's declaration of *provenance*, not
     a claim that the content is harmless — the caller is the only party that knows where
     content came from, so only the caller can say. It buys three things: the content is
-    formatted and embedded rather than escaped, its author is held to strict shortcode
-    syntax so their own mistakes are reported to them, and ``STRIP_CONTENT_HTML`` has
-    authored HTML to strip. Anything else — a plain ``str``, or a bare ``Markup`` from
-    elsewhere — is treated as written by a stranger: escaped at the boundary, never
-    formatted, and parsed leniently so a typo cannot take a page down.
+    formatted and embedded rather than escaped — sanitized, so its formatting survives
+    and script does not; its author is held to strict shortcode syntax so their own
+    mistakes are reported to them; and ``STRIP_CONTENT_HTML`` has authored HTML to
+    strip. Anything else — a plain ``str``, or a bare ``Markup`` from elsewhere — is
+    treated as written by a stranger: escaped at the boundary, never formatted, and parsed
+    leniently so a typo cannot take a page down.
 
     Not ``Markup``, so a template cannot render it without going through the renderer.
     Wrapping visitor input in it is how a cross-site scripting hole gets made, which is
