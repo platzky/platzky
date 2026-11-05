@@ -39,15 +39,17 @@ Behind the `DB` interface, data access is split into repositories, each a
 
 | Protocol | File | Covers |
 |---|---|---|
+| `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
 | `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta |
 | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
-`json_site_config_repository.py`, `mongo_plugin_config_repository.py`). Every
-backend (`json`, `graphql`, `mongo`) implements every repository. A `DB` subclass
-builds its repositories and forwards each of their methods to them, in
-`self._site_config` and `self._plugin_config`. Posts, pages and comments are still read inline by each
-`DB` subclass.
+`json_blog_repository.py`, `mongo_plugin_config_repository.py`). Every backend
+(`json`, `graphql`, `mongo`) implements the site config and plugin config
+repositories. The blog repository exists for `json` and `graphql` only: `MongoDB`
+keeps its blog logic (posts, pages, comments) inline in the facade. Otherwise a
+`DB` subclass builds its repositories and forwards each method to them, in
+`self._blog`, `self._site_config` and `self._plugin_config`.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so
@@ -59,7 +61,7 @@ To add a new repository:
 1. Define its Protocol in a new `platzky/db/<name>.py`.
 2. Add one implementation per backend, named `<backend>_<name>.py`.
 3. Build each one in the matching `DB` subclass and forward the `DB` methods to it.
-4. Add a contract test parametrized over all backends, plus one test file per implementation.
+4. Add one test file per implementation; if several backends implement it, add a contract test parametrized over them.
 5. Add facade delegation tests to each backend's `DB` test file.
 
 

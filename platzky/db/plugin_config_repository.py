@@ -3,7 +3,7 @@
 Plugin config is app-wide bootstrap wiring, loaded once at startup by
 `plugin_loader.plugify()` for every plugin type (notifiers, login, content
 transformers, html injectors) -- not blog content, and not per-request site
-settings either, so it's kept separate from both blog content and site
+settings either, so it's kept separate from both `BlogRepository` and site
 settings.
 """
 

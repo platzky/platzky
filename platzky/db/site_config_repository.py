@@ -2,7 +2,7 @@
 
 Every app needs branding (logo, colors, font, description), a nav menu, and a
 home page regardless of whether it has a blog, so this is kept separate from
-blog content and `PluginConfigRepository`.
+`BlogRepository` and `PluginConfigRepository`.
 """
 
 from typing import Protocol
