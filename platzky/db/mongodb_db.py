@@ -11,8 +11,11 @@ from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.db.site_config_repository import SiteSettings
-from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post
+from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
+from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -57,21 +60,21 @@ class MongoDB(DB):
         super().__init__()
         self.connection_string = connection_string
         self.database_name = database_name
-        self.client: MongoClient[Any] = MongoClient(connection_string)
-        self.db: Database[Any] = self.client[database_name]
+        self._client: MongoClient[Any] = MongoClient(connection_string)
+        self._db: Database[Any] = self._client[database_name]
         self.module_name = "mongodb_db"
         self.db_name = "MongoDB"
 
         # Collection references
-        self.site_content: Collection[Any] = self.db.site_content
-        self.posts: Collection[Any] = self.db.posts
-        self.pages: Collection[Any] = self.db.pages
-        self.menu_items: Collection[Any] = self.db.menu_items
-        self.plugins: Collection[Any] = self.db.plugins
-
-    def _get_site_config(self) -> dict[str, Any] | None:
-        """Retrieve the site configuration document."""
-        return self.site_content.find_one({"_id": "config"})
+        self._site_content: Collection[Any] = self._db.site_content
+        self._posts: Collection[Any] = self._db.posts
+        self._pages: Collection[Any] = self._db.pages
+        self._menu_items: Collection[Any] = self._db.menu_items
+        self._plugins: Collection[Any] = self._db.plugins
+        self._plugin_config: PluginConfigRepository = MongoPluginConfigRepository(self._plugins)
+        self._site_config: SiteConfigRepository = MongoSiteConfigRepository(
+            self._site_content, self._menu_items
+        )
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -83,8 +86,7 @@ class MongoDB(DB):
         Returns:
             The blog meta, empty if none is configured for the language
         """
-        site_config = self._get_site_config() or {}
-        return PageMeta(**site_config.get("blog_meta", {}).get(lang, {}))
+        return self._site_config.get_blog_meta(lang)
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -96,14 +98,7 @@ class MongoDB(DB):
         Returns:
             The footer, empty and not collapsible if none is configured
         """
-        site_config = self._get_site_config()
-        if not site_config or "footer" not in site_config:
-            return Footer()
-        footer = site_config["footer"]
-        return Footer(
-            content=footer.get("content", {}).get(lang, ""),
-            collapsible=bool(footer.get("collapsible", False)),
-        )
+        return self._site_config.get_footer(lang)
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all posts for a specific language.
@@ -114,7 +109,7 @@ class MongoDB(DB):
         Returns:
             List of Post objects
         """
-        posts_cursor = self.posts.find({"language": lang})
+        posts_cursor = self._posts.find({"language": lang})
         return [Post.model_validate(post) for post in posts_cursor]
 
     @override
@@ -127,7 +122,7 @@ class MongoDB(DB):
         Returns:
             List of Page objects
         """
-        return [Page.model_validate(page) for page in self.pages.find({"language": lang})]
+        return [Page.model_validate(page) for page in self._pages.find({"language": lang})]
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
@@ -138,10 +133,7 @@ class MongoDB(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items_doc = self.menu_items.find_one({"_id": lang})
-        if menu_items_doc and "items" in menu_items_doc:
-            return [MenuItem.model_validate(item) for item in menu_items_doc["items"]]
-        return []
+        return self._site_config.get_menu_items_in_lang(lang)
 
     def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
@@ -155,7 +147,7 @@ class MongoDB(DB):
         Raises:
             NotFoundError: If post not found
         """
-        post_doc = self.posts.find_one({"slug": slug})
+        post_doc = self._posts.find_one({"slug": slug})
         if post_doc is None:
             raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(post_doc)
@@ -172,7 +164,7 @@ class MongoDB(DB):
         Raises:
             NotFoundError: If page not found
         """
-        page_doc = self.pages.find_one({"slug": slug})
+        page_doc = self._pages.find_one({"slug": slug})
         if page_doc is None:
             raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(page_doc)
@@ -187,7 +179,7 @@ class MongoDB(DB):
         Returns:
             List of Post objects matching the tag and language
         """
-        posts_cursor = self.posts.find({"tags": tag, "language": lang})
+        posts_cursor = self._posts.find({"tags": tag, "language": lang})
         return [Post.model_validate(post) for post in posts_cursor]
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
@@ -208,34 +200,21 @@ class MongoDB(DB):
             "date": now_utc,
         }
 
-        result = self.posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
+        result = self._posts.update_one({"slug": post_slug}, {"$push": {"comments": comment_doc}})
         if result.matched_count == 0:
             raise NotFoundError(f"Post with slug {post_slug} not found")
 
     def get_site_settings(self) -> SiteSettings:
         """Retrieve branding and description settings for the app.
 
-        The site config document is fetched once for all settings.
-
         Returns:
             The app's site settings.
         """
-        site_config = self._get_site_config() or {}
-        logo_url = site_config.get("logo_url") or ""
-        return SiteSettings(
-            logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=site_config.get("favicon_url") or "",
-            primary_color=site_config.get("primary_color") or "white",
-            secondary_color=site_config.get("secondary_color") or "navy",
-            font=site_config.get("font") or "",
-            app_description=site_config.get("app_description") or {},
-        )
+        return self._site_config.get_site_settings()
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
-        plugins_doc = self.plugins.find_one({"_id": "config"})
-        raw = plugins_doc["data"] if plugins_doc and "data" in plugins_doc else {}
-        return {name: PluginConfigBase.model_validate(cfg) for name, cfg in (raw or {}).items()}
+        return self._plugin_config.get_all()
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
@@ -250,11 +229,7 @@ class MongoDB(DB):
         Returns:
             Homepage path, or None if no homepage override is configured.
         """
-        site_config = self._get_site_config()
-        home_page_path = site_config.get("home_page_path") if site_config else None
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
+        return self._site_config.get_home_page_path(locale)
 
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.
@@ -262,12 +237,12 @@ class MongoDB(DB):
         Raises an exception if the database is not accessible.
         """
         # Simple ping to check if database is accessible
-        self.client.admin.command("ping")
+        self._client.admin.command("ping")
 
     def _close_connection(self) -> None:
         """Close the MongoDB connection"""
-        if self.client:
-            self.client.close()
+        if self._client:
+            self._client.close()
 
     def __del__(self):
         """Ensure connection is closed when object is destroyed"""

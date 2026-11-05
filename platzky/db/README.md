@@ -43,11 +43,10 @@ Behind the `DB` interface, data access is split into repositories, each a
 | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
-`json_site_config_repository.py`, `graphql_plugin_config_repository.py`). So far
-the `json` and `graphql` backends implement every repository; `mongo` still
-implements those `DB` methods inline. A `DB` subclass builds its repositories and
-forwards each of their methods to them, in `self._site_config` and
-`self._plugin_config`. Posts, pages and comments are still read inline by each
+`json_site_config_repository.py`, `mongo_plugin_config_repository.py`). Every
+backend (`json`, `graphql`, `mongo`) implements every repository. A `DB` subclass
+builds its repositories and forwards each of their methods to them, in
+`self._site_config` and `self._plugin_config`. Posts, pages and comments are still read inline by each
 `DB` subclass.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
