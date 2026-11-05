@@ -2,18 +2,20 @@
 
 # TODO: Rename file, extract to another library, remove gql and aiohttp from dependencies
 
-import threading
 from typing import Any
 
-from gql import Client, gql
-from gql.transport.aiohttp import AIOHTTPTransport
+from gql import gql
 from pydantic import Field
 from typing_extensions import override
 
 from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import NotFoundError
-from platzky.db.site_config_repository import SiteSettings
-from platzky.models import Footer, Image, MenuItem, Page, PageMeta, Post
+from platzky.db.graphql_client import make_graphql_client_getter
+from platzky.db.graphql_plugin_config_repository import GraphQLPluginConfigRepository
+from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
 
@@ -146,22 +148,6 @@ def _standardize_post_by_tag(post: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# Relation nodes may be null in the CMS, so these helpers turn a null list, a
-# null entry or a null nested node into the documented default instead of raising.
-
-
-def _first(nodes: list[dict[str, Any] | None] | None) -> dict[str, Any]:
-    """Return the first node of a CMS list, or an empty mapping if there is none."""
-    return (nodes[0] if nodes else None) or {}
-
-
-def _logo(logo: dict[str, Any] | None) -> Image | None:
-    """Build the site logo from a CMS logo node, or None if it has no image."""
-    logo = logo or {}
-    url = (logo.get("image") or {}).get("url")
-    return Image(url=url, alternateText=logo.get("alternateText") or "") if url else None
-
-
 class GraphQL(DB):
     """GraphQL database implementation for CMS integration."""
 
@@ -174,29 +160,14 @@ class GraphQL(DB):
         """
         self.module_name = "graph_ql_db"
         self.db_name = "GraphQLDb"
-        self._endpoint = endpoint
-        self._headers = {"Authorization": "bearer " + token}
-        self._local = threading.local()
+        # One lazy, per-thread client source shared by this facade and every
+        # repository, so the endpoint is only ever connected to through it.
+        self._client_getter = make_graphql_client_getter(endpoint, token)
+        self._plugin_config: PluginConfigRepository = GraphQLPluginConfigRepository(
+            self._client_getter
+        )
+        self._site_config: SiteConfigRepository = GraphQLSiteConfigRepository(self._client_getter)
         super().__init__()
-
-    def __getattr__(self, name: str) -> Client:
-        """Lazily build this thread's GraphQL client on first access to ``client``.
-
-        AIOHTTPTransport's connect/close cycle tracks a single session flag per
-        transport instance; sharing one Client across threads lets a second
-        thread's connect() race a first thread's still-open session, raising
-        TransportAlreadyConnected. A client per thread avoids that. Implemented via
-        __getattr__ rather than a property because DB.__init_subclass__ forbids
-        subclasses from adding public class-level names not in the DB interface.
-        """
-        if name != "client":
-            raise AttributeError(name)
-        client = getattr(self._local, "client", None)
-        if client is None:
-            transport = AIOHTTPTransport(url=self._endpoint, headers=self._headers)
-            client = Client(transport=transport)
-            self._local.client = client
-        return client
 
     def get_all_posts(self, lang: str) -> list[Post]:
         """Retrieve all published posts for a specific language.
@@ -237,7 +208,9 @@ class GraphQL(DB):
               }
             }
             """)
-        raw_ql_posts = self.client.execute(all_posts, variable_values={"lang": lang})["posts"]
+        raw_ql_posts = self._client_getter().execute(all_posts, variable_values={"lang": lang})[
+            "posts"
+        ]
 
         return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
 
@@ -265,16 +238,7 @@ class GraphQL(DB):
         Returns:
             List of MenuItem objects
         """
-        menu_items_query = gql("""
-            query MyQuery($lang: Lang!) {
-              menuItems(where: {language: $lang}, stage: PUBLISHED){
-                name
-                url
-              }
-            }
-            """)
-        menu_items = self.client.execute(menu_items_query, variable_values={"lang": lang})
-        return [MenuItem.model_validate(item) for item in menu_items["menuItems"]]
+        return self._site_config.get_menu_items_in_lang(lang)
 
     def get_post(self, slug: str) -> Post:
         """Retrieve a single post by its slug.
@@ -320,12 +284,11 @@ class GraphQL(DB):
             }
             """)
 
-        post_raw = self.client.execute(post, variable_values={"slug": slug})["post"]
+        post_raw = self._client_getter().execute(post, variable_values={"slug": slug})["post"]
         if post_raw is None:
             raise NotFoundError(f"Post not found: {slug}")
         return Post.model_validate(_standardize_post(post_raw))
 
-    # TODO: Cleanup page logic of internationalization (now it depends on translation of slugs)
     def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
 
@@ -352,7 +315,7 @@ class GraphQL(DB):
               }
             }
             """)
-        page_raw = self.client.execute(page_query, variable_values={"slug": slug})["page"]
+        page_raw = self._client_getter().execute(page_query, variable_values={"slug": slug})["page"]
         if page_raw is None:
             raise NotFoundError(f"Page not found: {slug}")
         return Page.model_validate(_standardize_page(page_raw))
@@ -384,7 +347,9 @@ class GraphQL(DB):
               }
             }
             """)
-        raw_posts = self.client.execute(post, variable_values={"tag": tag, "lang": lang})["posts"]
+        raw_posts = self._client_getter().execute(post, variable_values={"tag": tag, "lang": lang})[
+            "posts"
+        ]
         return [Post.model_validate(_standardize_post_by_tag(p)) for p in raw_posts]
 
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
@@ -408,7 +373,7 @@ class GraphQL(DB):
                 }
             }
             """)
-        self.client.execute(
+        self._client_getter().execute(
             add_comment,
             variable_values={
                 "author": author_name,
@@ -420,88 +385,34 @@ class GraphQL(DB):
     def get_site_settings(self) -> SiteSettings:
         """Retrieve branding and description settings for the app.
 
-        Logo, favicon, theme colors and the per-language app description are
-        fetched in one request.
-
         Returns:
             The app's site settings.
         """
-        # applicationSetups holds one entry per language. Hygraph returns only
-        # 10 entries unless `first` is given (100 is the maximum per page), so
-        # ask for the maximum; a site with more than 100 languages is not a
-        # realistic case.
-        query = gql("""
-            query MyQuery {
-              logos(stage: PUBLISHED) {
-                logo {
-                  alternateText
-                  image {
-                    url
-                  }
-                }
-              }
-              favicons(stage: PUBLISHED) {
-                favicon {
-                  url
-                }
-              }
-              themes(stage: PUBLISHED) {
-                primaryColor
-                secondaryColor
-              }
-              applicationSetups(stage: PUBLISHED, first: 100) {
-                language
-                applicationDescription
-              }
-            }
-            """)
-        result = self.client.execute(query)
-
-        theme = _first(result.get("themes"))
-        app_description = {
-            item["language"]: item.get("applicationDescription") or ""
-            for item in result.get("applicationSetups") or []
-            if item
-        }
-
-        return SiteSettings(
-            logo=_logo(_first(result.get("logos")).get("logo")),
-            favicon_url=(_first(result.get("favicons")).get("favicon") or {}).get("url") or "",
-            primary_color=theme.get("primaryColor") or "white",
-            secondary_color=theme.get("secondaryColor") or "navy",
-            font="",  # not implemented in GraphQL backend
-            app_description=app_description,
-        )
+        return self._site_config.get_site_settings()
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
         """Retrieve the blog index's title and description for a specific language.
 
-        The CMS schema has no blog meta content type, so this queries nothing and the blog
-        index uses its default title and the site's description.
-
         Args:
-            lang: Language code (e.g., 'en', 'pl'), unused
+            lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            An empty blog meta
+            The blog meta
         """
-        return PageMeta()
+        return self._site_config.get_blog_meta(lang)
 
     @override
     def get_footer(self, lang: str) -> Footer:
         """Retrieve the site-wide footer for a specific language.
 
-        The CMS schema has no footer content type, so this queries nothing and
-        shows no footer.
-
         Args:
-            lang: Language code (e.g., 'en', 'pl'), unused
+            lang: Language code (e.g., 'en', 'pl')
 
         Returns:
-            An empty, non-collapsible footer
+            The footer
         """
-        return Footer()
+        return self._site_config.get_footer(lang)
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
@@ -516,44 +427,11 @@ class GraphQL(DB):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        home_page_path_query = gql("""
-            query MyQuery($lang: Lang!) {
-              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
-                homePagePath
-              }
-            }
-            """)
-        try:
-            return self.client.execute(home_page_path_query, variable_values={"lang": locale})[
-                "applicationSetups"
-            ][0].get("homePagePath")
-        except IndexError:
-            return None
+        return self._site_config.get_home_page_path(locale)
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
-        """Retrieve configuration data for all plugins.
-
-        Hygraph's PluginConfig schema only exposes ``name``, ``isActive``, and
-        ``config`` (a JSON scalar) — there's no room for a sibling field like
-        ``allowed_content_types``. Authors put permission fields directly
-        inside the ``config`` JSON instead; this spreads ``config``'s keys to
-        the top level so the engine's capability-specific config classes
-        (``ContentTransformerPluginConfig``, etc.) can find them by name.
-        """
-        plugins_data = gql("""
-            query MyQuery {
-              pluginConfigs(stage: PUBLISHED) {
-                name
-                is_active: isActive
-                config
-              }
-            }
-            """)
-        raw = self.client.execute(plugins_data)["pluginConfigs"]
-        return {
-            d["name"]: PluginConfigBase.model_validate({**(d.get("config") or {}), **d})
-            for d in raw
-        }
+        """Retrieve configuration data for all plugins."""
+        return self._plugin_config.get_all()
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.
@@ -566,4 +444,4 @@ class GraphQL(DB):
               __typename
             }
             """)
-        self.client.execute(health_query)
+        self._client_getter().execute(health_query)
