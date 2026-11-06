@@ -2,7 +2,8 @@
 
 `JsonDocument` loads the document once and owns its store and write lock.
 `Json` builds one, uses it for its own reads and writes, and hands the same
-instance to `JsonSiteConfigRepository` and `JsonPluginConfigRepository`, so they
+instance to `JsonBlogRepository`, `JsonSiteConfigRepository` and
+`JsonPluginConfigRepository`, so they
 all operate on the exact same in-memory dict -- `FileStore.load()` re-reads and
 re-parses the file on every call rather than returning a memoized object, so each
 repository loading independently would see its own copy. The dict is only ever

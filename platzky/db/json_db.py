@@ -1,14 +1,13 @@
 """In-memory JSON database implementation."""
 
-import datetime
-import logging
 from typing import Any
 
 from pydantic import Field
 from typing_extensions import override
 
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import NotFoundError
+from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
@@ -17,8 +16,6 @@ from platzky.db.plugin_config_repository import PluginConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
-
-logger = logging.getLogger(__name__)
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -66,6 +63,7 @@ class Json(DB):
         super().__init__()
         document = JsonDocument(store)
         self._document = document
+        self._blog: BlogRepository = JsonBlogRepository(document)
         self._plugin_config: PluginConfigRepository = JsonPluginConfigRepository(document)
         self._site_config: SiteConfigRepository = JsonSiteConfigRepository(document)
         self.module_name = "json_db"
@@ -104,11 +102,7 @@ class Json(DB):
         Returns:
             List of Post objects
         """
-        return [
-            Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts", ())
-            if post.get("language", "en") == lang
-        ]
+        return self._blog.posts.get_all(lang)
 
     @override
     def get_all_pages(self, lang: str) -> list[Page]:
@@ -120,11 +114,7 @@ class Json(DB):
         Returns:
             List of Page objects
         """
-        return [
-            Page.model_validate(page)
-            for page in get_site_content(self._document.data).get("pages", ())
-            if page.get("language", "en") == lang
-        ]
+        return self._blog.pages.get_all(lang)
 
     def get_post(self, slug: str) -> Post:
         """Returns a post matching the given slug.
@@ -138,13 +128,7 @@ class Json(DB):
         Raises:
             NotFoundError: If posts data is missing or post not found
         """
-        all_posts = get_site_content(self._document.data).get("posts")
-        if all_posts is None:
-            raise NotFoundError("Posts data is missing")
-        wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
-        if wanted_post is None:
-            raise NotFoundError(f"Post with slug {slug} not found")
-        return Post.model_validate(wanted_post)
+        return self._blog.posts.get(slug)
 
     def get_page(self, slug: str) -> Page:
         """Retrieve a page by its slug.
@@ -158,13 +142,7 @@ class Json(DB):
         Raises:
             NotFoundError: If pages data is missing or page not found
         """
-        pages = get_site_content(self._document.data).get("pages")
-        if pages is None:
-            raise NotFoundError("Pages data is missing")
-        wanted_page = next((page for page in pages if page["slug"] == slug), None)
-        if wanted_page is None:
-            raise NotFoundError(f"Page with slug {slug} not found")
-        return Page.model_validate(wanted_page)
+        return self._blog.pages.get(slug)
 
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
         """Retrieve menu items for a specific language.
@@ -182,11 +160,7 @@ class Json(DB):
 
         Returns a list of posts, unlike generators which can only be iterated once.
         """
-        return [
-            Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts", ())
-            if tag in post.get("tags", ()) and post.get("language", "en") == lang
-        ]
+        return self._blog.posts.get_by_tag(tag, lang)
 
     def get_site_settings(self) -> SiteSettings:
         """Retrieve branding and description settings for the app.
@@ -227,28 +201,7 @@ class Json(DB):
             NotFoundError: If post not found
             ReadOnlyStorageError: If the backend does not support writes
         """
-        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-
-        comment_data = {
-            "author": str(author_name),
-            "comment": str(comment),
-            "date": now_utc,
-        }
-
-        try:
-            with self._document.edit() as data:
-                posts = get_site_content(data).get("posts")
-                if posts is None:
-                    raise NotFoundError("Posts data is missing")
-                post = next((p for p in posts if p["slug"] == post_slug), None)
-                if post is None:
-                    raise NotFoundError(f"Post with slug {post_slug} not found")
-                post.setdefault("comments", []).append(comment_data)
-        except NotFoundError:
-            raise
-        except BaseException:
-            logger.exception("Failed to persist comment for post '%s'", post_slug)
-            raise
+        self._blog.posts.add_comment(author_name, comment, post_slug)
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
