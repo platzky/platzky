@@ -48,6 +48,7 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
         "language": post["language"],
         "coverImage": {
             "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
+            "alternateText": (post.get("coverImage") or {}).get("alternateText") or "",
         },
         "date": post["date"],
         "css": post.get("css") or "",
@@ -107,6 +108,7 @@ def _standardize_post_by_tag(post: dict[str, Any], lang: str) -> dict[str, Any]:
         "language": lang,
         "coverImage": {
             "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
+            "alternateText": (post.get("coverImage") or {}).get("alternateText") or "",
         },
         "date": post["date"],
     }
@@ -142,7 +144,6 @@ class _GraphQLPostRepository(PostRepository):
                     name
                 }
                 contentInRichText {
-                  markdown
                   html
                 }
                 excerpt
@@ -181,7 +182,6 @@ class _GraphQLPostRepository(PostRepository):
         all_posts = gql("""
             query MyQuery($lang: Lang!) {
               posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
-                createdAt
                 author {
                     name
                 }

@@ -66,6 +66,8 @@ class TestPosts:
         assert post.title == "Test Post"
         assert post.slug == "test-post"
         assert post.css == ".masthead { background: teal; }"
+        assert post.coverImage.url == "https://example.com/image.jpg"
+        assert post.coverImage.alternateText == "Alt text"
         assert post.comments == [
             Comment(
                 author="Jane Doe",
@@ -143,6 +145,7 @@ class TestPosts:
         assert isinstance(posts[0], Post)
         assert posts[0].title == "Test Post"
         assert posts[0].slug == "test-post"
+        assert posts[0].coverImage.alternateText == "Alt text"
         assert posts[0].comments == [
             Comment(
                 author="Jane Doe",
@@ -177,6 +180,7 @@ class TestPosts:
         assert isinstance(posts[0], Post)
         assert posts[0].title == "Test Post"
         assert posts[0].slug == "test-post"
+        assert posts[0].coverImage.alternateText == "Alt text"
         mock_client.execute.assert_called_once()
 
     def test_get_by_tag_uses_requested_language(
