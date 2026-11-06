@@ -90,6 +90,3 @@ class GoogleJsonDb(Json):
         self.blob = get_blob(self.bucket_name, self.source_blob_name)
         data = get_data(self.blob)
         super().__init__(store=ReadOnlyStore(data))
-
-        self.module_name = "google_json_db"
-        self.db_name = "GoogleJsonDb"

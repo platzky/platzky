@@ -66,8 +66,18 @@ class Json(DB):
         self._blog: BlogRepository = JsonBlogRepository(document)
         self._plugin_config: PluginConfigRepository = JsonPluginConfigRepository(document)
         self._site_config: SiteConfigRepository = JsonSiteConfigRepository(document)
-        self.module_name = "json_db"
-        self.db_name = "JsonDb"
+
+    @property
+    def document(self) -> JsonDocument:
+        """The loaded JSON document behind this database.
+
+        This is the supported extension point for host apps that build their
+        own repositories on the same storage. Read the dict through
+        ``document.data``; every write must go through ``document.edit()``
+        (``with db.document.edit() as data: ...``), which holds the write lock
+        and persists atomically.
+        """
+        return self._document
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

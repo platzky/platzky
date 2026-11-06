@@ -1,9 +1,6 @@
 """Abstract base classes for database implementations."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from functools import partial
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -15,41 +12,7 @@ from platzky.plugin.plugin_config import PluginConfigBase
 class DB(ABC):
     """Abstract base class for all database implementations."""
 
-    db_name: str = "DB"
-    module_name: str = "db"
     config_type: type
-
-    def __init_subclass__(cls, *args, **kw):
-        """Check that all methods defined in the subclass exist in the superclasses.
-        This is to prevent subclasses from splitting up DB interface.
-        """
-        super().__init_subclass__(*args, **kw)
-        for name in cls.__dict__:
-            if name.startswith("_"):
-                continue
-            for superclass in cls.__mro__[1:]:
-                if name in dir(superclass):
-                    break
-            else:
-                raise TypeError(
-                    f"Method {name} defined in {cls.__name__} does not exist in superclasses"
-                )
-
-    def extend(self, function_name: str, function: Callable[..., Any]) -> None:
-        """
-        Add a function to the DB object. The function must take the DB object as first parameter.
-
-        Parameters:
-        function_name (str): The name of the function to add.
-        function (Callable): The function to add to the DB object.
-        """
-        if not callable(function):
-            raise ValueError(f"The provided func for '{function_name}' is not callable.")
-        try:
-            bound_function = partial(function, self)
-            setattr(self, function_name, bound_function)
-        except Exception as e:
-            raise ValueError(f"Failed to extend DB with function {function_name}: {e}")
 
     @abstractmethod
     def get_blog_meta(self, lang: str) -> PageMeta:

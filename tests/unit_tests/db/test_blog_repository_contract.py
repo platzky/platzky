@@ -28,7 +28,9 @@ from platzky.models import Page, Post
 class BlogFactory(Protocol):
     def __call__(
         self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
-    ) -> BlogRepository: ...
+    ) -> BlogRepository:
+        """Build a repository of one backend holding these posts and pages."""
+        raise NotImplementedError
 
 
 _POST = {
