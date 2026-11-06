@@ -48,5 +48,3 @@ class JsonFile(Json):
         """
         self.data_file_path = path
         super().__init__(store=FileStore(path))
-        self.module_name = "json_file_db"
-        self.db_name = "JsonFileDb"

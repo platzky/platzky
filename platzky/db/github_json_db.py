@@ -87,6 +87,3 @@ class GithubJsonDb(JsonDB):
             raise ValueError(f"Error retrieving GitHub content: {e}")
 
         super().__init__(store=ReadOnlyStore(data))
-
-        self.module_name = "github_json_db"
-        self.db_name = "GithubJsonDb"
