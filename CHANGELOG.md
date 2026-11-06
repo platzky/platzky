@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.20](https://github.com/platzky/platzky/compare/v2.0.0-alpha.19...v2.0.0-alpha.20) (2026-11-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **db:** GraphQL site config and plugin config repositories ([#330](https://github.com/platzky/platzky/issues/330))
+* **db:** replace branding getters with get_site_settings ([#329](https://github.com/platzky/platzky/issues/329))
+
+### Features
+
+* **db:** GraphQL site config and plugin config repositories ([#330](https://github.com/platzky/platzky/issues/330)) ([019cff5](https://github.com/platzky/platzky/commit/019cff599c988054f46aab79596fd7d8ca94c79c))
+* **db:** JSON and GraphQL blog repositories ([#333](https://github.com/platzky/platzky/issues/333)) ([672d973](https://github.com/platzky/platzky/commit/672d973ee6c27544734347216c564224c94d76df))
+* **db:** Mongo site config and plugin config repositories ([#332](https://github.com/platzky/platzky/issues/332)) ([7636cd9](https://github.com/platzky/platzky/commit/7636cd9ea36f4f9d8607324ddbc5b0aca46be4f2))
+* **db:** replace branding getters with get_site_settings ([#329](https://github.com/platzky/platzky/issues/329)) ([e99013a](https://github.com/platzky/platzky/commit/e99013a0bd5b67c8e2aa69e72c93021863ddae90))
+* **db:** site config and plugin config repositories ([#327](https://github.com/platzky/platzky/issues/327)) ([3a7fad2](https://github.com/platzky/platzky/commit/3a7fad20987cb9e2dd86e3eaa7bc50ae050e8212))
+* introduced hsts ([#312](https://github.com/platzky/platzky/issues/312)) ([4baa63f](https://github.com/platzky/platzky/commit/4baa63fef0d5e8a9138c704a020f83d44f4c62ab))
+
 ## [2.0.0-alpha.19](https://github.com/platzky/platzky/compare/v2.0.0-alpha.18...v2.0.0-alpha.19) (2026-10-21)
 
 
