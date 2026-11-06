@@ -61,10 +61,12 @@ To add a new repository:
 1. Define its Protocol in a new `platzky/db/<name>.py`.
 2. Add one implementation per backend, named `<backend>_<name>.py`.
 3. Build each one in the matching `DB` subclass and forward the `DB` methods to it.
-4. Add one test file per implementation. If several backends that keep their data
-   themselves (Json, Mongo) implement it, add a contract test parametrized over them.
-   GraphQL stays out of contract tests and is tested with mocked client responses in its
-   own file: sharing a contract would need a fake CMS that re-implements its filtering.
+4. Add one test file per implementation, and a contract test parametrized over every
+   backend that implements it. For a remote backend (GraphQL) the contract's mock returns
+   exactly what the server would answer in that test and never re-implements server logic
+   such as filtering; what the server decides is tested in the backend's own file through
+   the query variables it is sent. A backend that fails the contract has a bug: mark the
+   test `xfail` with a link to the issue instead of special-casing the backend.
 5. Add facade delegation tests to each backend's `DB` test file.
 
 
