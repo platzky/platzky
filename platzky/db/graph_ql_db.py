@@ -57,8 +57,6 @@ class GraphQL(DB):
             endpoint: GraphQL API endpoint URL
             token: Authentication token for the API
         """
-        self.module_name = "graph_ql_db"
-        self.db_name = "GraphQLDb"
         # One lazy, per-thread client source shared by this facade and every
         # repository, so the endpoint is only ever connected to through it.
         self._client_getter = make_graphql_client_getter(endpoint, token)

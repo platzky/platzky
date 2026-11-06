@@ -72,9 +72,15 @@ class TestMongoDB:
 
         assert db.connection_string == "mongodb://localhost:27017"
         assert db.database_name == "test_db"
-        assert db.module_name == "mongodb_db"
-        assert db.db_name == "MongoDB"
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
+
+    def test_database_is_the_database_the_facade_uses(self, db: MongoDB, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = None
+
+        db.get_site_settings()
+
+        assert db.database is mock_db
+        mock_db.site_content.find_one.assert_called_once()
 
     def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
         mock_find_one = mock_db.site_content.find_one

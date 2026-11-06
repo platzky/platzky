@@ -125,3 +125,41 @@ db = get_db(db_config)
 posts = db.get_all_posts("en")
 menu_items = db.get_menu_items_in_lang("en")
 ```
+
+## Extending: host-app repositories
+
+A host app (for example Goodmap) that needs its own data access builds its own
+repositories on the storage behind the database, rather than adding methods to
+the `DB` object. Two read-only properties are the supported way in:
+
+- `db.document` on every JSON backend (`Json`, `JsonFile`, `GoogleJsonDb`,
+  `GithubJsonDb`) returns the `JsonDocument`. Read the dict through
+  `document.data`; every write must go through `document.edit()`, which holds
+  the write lock and persists atomically (and restores the document if the
+  block raises). Hold on to nested values only briefly: a rolled-back edit
+  replaces them with copies, so look them up from `data` on each call. On
+  `GoogleJsonDb` and `GithubJsonDb` the store is read-only, so `edit()` raises
+  `ReadOnlyStorageError` when the block exits.
+- `db.database` on `MongoDB` returns the pymongo `Database`, for the host app's
+  own collections and queries.
+
+```python
+class LocationRepository:
+    def __init__(self, document: JsonDocument) -> None:
+        self._document = document
+
+    def all(self) -> list[dict]:
+        return self._document.data.get("map", {}).get("data", [])
+
+    def add(self, location: dict) -> None:
+        with self._document.edit() as data:
+            data.setdefault("map", {}).setdefault("data", []).append(location)
+
+
+repository = LocationRepository(db.document)  # JSON backends
+locations = db.database.locations  # MongoDB
+```
+
+Backends are chosen by configuration, so a host app picks its repository
+implementation by checking which kind of database it was given (`isinstance`
+against `Json` or `MongoDB`), not by a name attribute.

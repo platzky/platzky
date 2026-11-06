@@ -46,8 +46,6 @@ class TestJsonFileDb:
                 "de": "Deutsche Beschreibung",
             }
             assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
-            assert db.module_name == "json_file_db"
-            assert db.db_name == "JsonFileDb"
 
     def test_get_site_settings(self, sample_data: dict[str, object], mock_file_path: str):
         json_str = json.dumps(sample_data)

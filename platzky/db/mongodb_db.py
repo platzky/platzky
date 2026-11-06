@@ -62,8 +62,6 @@ class MongoDB(DB):
         self.database_name = database_name
         self._client: MongoClient[Any] = MongoClient(connection_string)
         self._db: Database[Any] = self._client[database_name]
-        self.module_name = "mongodb_db"
-        self.db_name = "MongoDB"
 
         # Collection references
         self._site_content: Collection[Any] = self._db.site_content
@@ -75,6 +73,16 @@ class MongoDB(DB):
         self._site_config: SiteConfigRepository = MongoSiteConfigRepository(
             self._site_content, self._menu_items
         )
+
+    @property
+    def database(self) -> Database[Any]:
+        """The pymongo database behind this facade.
+
+        This is the supported extension point for host apps that build their
+        own repositories on the same database (their own collections, queries
+        and indexes).
+        """
+        return self._db
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

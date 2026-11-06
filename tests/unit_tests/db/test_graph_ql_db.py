@@ -64,8 +64,6 @@ def test_graph_ql_init(mock_client: Mock):
         )
         mock_client_class.assert_called_once()
         mock_client.execute.assert_called_once()
-        assert db.module_name == "graph_ql_db"
-        assert db.db_name == "GraphQLDb"
 
 
 def test_graph_ql_client_is_per_thread():
