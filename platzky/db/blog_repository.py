@@ -60,8 +60,7 @@ class PostRepository(Protocol):
             post_slug: URL-friendly identifier of the post.
 
         Raises:
-            NotFoundError: If no post has this slug (backends that can check the
-                slug locally; GraphQL surfaces the CMS's error).
+            NotFoundError: If no post has this slug.
             ReadOnlyStorageError: If the backend does not support writes.
         """
         ...
@@ -86,8 +85,6 @@ class PageRepository(Protocol):
 
     def get_all(self, lang: str) -> list[Page]:
         """Retrieve all pages for a specific language.
-
-        A backend whose pages carry no language returns an empty list.
 
         Args:
             lang: Language code (e.g., 'en', 'pl').

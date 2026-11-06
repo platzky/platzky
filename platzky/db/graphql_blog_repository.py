@@ -38,11 +38,11 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
         Standardized post dictionary
     """
     return {
-        "author": post["author"]["name"],
+        "author": (post.get("author") or {}).get("name") or "",
         "slug": post["slug"],
         "title": post["title"],
-        "excerpt": post["excerpt"],
-        "contentInMarkdown": post["contentInRichText"]["html"],
+        "excerpt": post.get("excerpt") or "",
+        "contentInMarkdown": (post.get("contentInRichText") or {}).get("html") or "",
         "comments": [_standardize_comment(comment) for comment in post["comments"]],
         "tags": post["tags"],
         "language": post["language"],
@@ -58,8 +58,7 @@ def _standardize_post(post: dict[str, Any]) -> dict[str, Any]:
 def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
     """Standardize page data structure from GraphQL response.
 
-    Pages have fewer required fields than posts in the GraphQL schema.
-    This function provides sensible defaults for missing Post fields.
+    Hygraph pages have no excerpt, date, tags or comments, so those take empty defaults.
 
     Args:
         page: Raw page data from GraphQL response
@@ -68,49 +67,19 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
         Standardized page dictionary compatible with Page model
     """
     return {
-        "author": page.get("author", ""),
-        "slug": page.get("slug", ""),
+        "author": (page.get("author") or {}).get("name") or "",
+        "slug": page["slug"],
         "title": page["title"],
-        "excerpt": page.get("excerpt", ""),
+        "excerpt": "",
         "contentInMarkdown": page["contentInMarkdown"],
         "comments": [],
-        "tags": page.get("tags", []),
-        "language": page.get("language", "en"),
+        "tags": [],
+        "language": page["lang"],
         "coverImage": {
             "url": (page.get("coverImage") or {}).get("url", ""),
         },
-        "date": page.get("date"),
+        "date": None,
         "css": page.get("css") or "",
-    }
-
-
-def _standardize_post_by_tag(post: dict[str, Any], lang: str) -> dict[str, Any]:
-    """Standardize post data from get_posts_by_tag GraphQL response.
-
-    Posts returned by tag query have fewer fields than full posts.
-    This function provides sensible defaults for missing Post fields.
-
-    Args:
-        post: Raw post data from GraphQL get_posts_by_tag response
-        lang: Language the posts were queried for; the query does not return it
-
-    Returns:
-        Standardized post dictionary compatible with Post model
-    """
-    return {
-        "author": post.get("author", ""),
-        "slug": post["slug"],
-        "title": post["title"],
-        "excerpt": post["excerpt"],
-        "contentInMarkdown": post.get("contentInMarkdown", ""),
-        "comments": [],
-        "tags": post["tags"],
-        "language": lang,
-        "coverImage": {
-            "url": (post.get("coverImage") or {}).get("image", {}).get("url", ""),
-            "alternateText": (post.get("coverImage") or {}).get("alternateText") or "",
-        },
-        "date": post["date"],
     }
 
 
@@ -182,28 +151,29 @@ class _GraphQLPostRepository(PostRepository):
         all_posts = gql("""
             query MyQuery($lang: Lang!) {
               posts(where: {language: $lang},  orderBy: date_DESC, stage: PUBLISHED){
+                date
+                language
+                title
+                slug
                 author {
                     name
                 }
                 contentInRichText {
-                    html
-                    }
-                comments {
-                  comment
-                  author
-                  createdAt
-                  }
-                date
-                title
+                  html
+                }
                 excerpt
-                slug
                 tags
-                language
+                css
                 coverImage {
                   alternateText
                   image {
                     url
                   }
+                }
+                comments {
+                    author
+                    comment
+                    createdAt
                 }
               }
             }
@@ -228,24 +198,37 @@ class _GraphQLPostRepository(PostRepository):
         post = gql("""
             query MyQuery ($tag: String!, $lang: Lang!){
               posts(where: {tags_contains_some: [$tag], language: $lang}, stage: PUBLISHED) {
-                    tags
-                    title
-                    slug
-                    excerpt
-                    date
-                    coverImage {
-                      alternateText
-                      image {
-                        url
-                      }
-                    }
+                date
+                language
+                title
+                slug
+                author {
+                    name
+                }
+                contentInRichText {
+                  html
+                }
+                excerpt
+                tags
+                css
+                coverImage {
+                  alternateText
+                  image {
+                    url
+                  }
+                }
+                comments {
+                    author
+                    comment
+                    createdAt
+                }
               }
             }
             """)
         raw_posts = self._get_client().execute(post, variable_values={"tag": tag, "lang": lang})[
             "posts"
         ]
-        return [Post.model_validate(_standardize_post_by_tag(p, lang)) for p in raw_posts]
+        return [Post.model_validate(_standardize_post(p)) for p in raw_posts]
 
     @override
     def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
@@ -255,7 +238,23 @@ class _GraphQLPostRepository(PostRepository):
             author_name: Name of the comment author.
             comment: Comment text content.
             post_slug: URL-friendly identifier of the post.
+
+        Raises:
+            NotFoundError: If no post has this slug.
         """
+        exists = gql("""
+            query MyQuery($slug: String!) {
+              post(where: {slug: $slug}, stage: PUBLISHED) {
+                id
+              }
+            }
+            """)
+        client = self._get_client()
+        # Checked up front: a ``connect`` to a missing post only yields an opaque CMS error.
+        # Only published posts count, like ``get``; a post deleted between the two calls
+        # still surfaces the CMS error.
+        if client.execute(exists, variable_values={"slug": post_slug})["post"] is None:
+            raise NotFoundError(f"Post not found: {post_slug}")
         add_comment = gql("""
             mutation MyMutation($author: String!, $comment: String!, $slug: String!) {
                 createComment(
@@ -269,7 +268,7 @@ class _GraphQLPostRepository(PostRepository):
                 }
             }
             """)
-        self._get_client().execute(
+        client.execute(
             add_comment,
             variable_values={
                 "author": author_name,
@@ -305,8 +304,11 @@ class _GraphQLPageRepository(PageRepository):
                 title
                 contentInMarkdown
                 css
-                coverImage
-                {
+                lang
+                author {
+                    name
+                }
+                coverImage {
                     url
                 }
               }
@@ -321,16 +323,31 @@ class _GraphQLPageRepository(PageRepository):
     def get_all(self, lang: str) -> list[Page]:
         """Retrieve all pages for a specific language.
 
-        Pages here carry no language (they are translated through their slugs), so they
-        cannot be listed per language; this queries nothing.
-
         Args:
-            lang: Language code (e.g., 'en', 'pl'), unused.
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            An empty list.
+            Pages in that language.
         """
-        return []
+        pages_query = gql("""
+            query MyQuery ($lang: Lang!){
+              pages(where: {lang: $lang}, stage: PUBLISHED) {
+                slug
+                title
+                contentInMarkdown
+                css
+                lang
+                author {
+                    name
+                }
+                coverImage {
+                    url
+                }
+              }
+            }
+            """)
+        raw_pages = self._get_client().execute(pages_query, variable_values={"lang": lang})["pages"]
+        return [Page.model_validate(_standardize_page(page)) for page in raw_pages]
 
 
 class GraphQLBlogRepository(BlogRepository):
