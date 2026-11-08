@@ -34,14 +34,14 @@ _MINIMAL_POST = {
 }
 
 # Every post query; `get` is wrapped in a list so all three return list[Post].
-_POST_QUERIES: list[Callable[[PostRepository], list[Post]]] = [
-    lambda posts: [posts.get("test-post")],
-    lambda posts: posts.get_all("en"),
-    lambda posts: posts.get_by_tag("t", "en"),
-]
+_POST_QUERIES: dict[str, Callable[[PostRepository], list[Post]]] = {
+    "get": lambda posts: [posts.get("test-post")],
+    "get_all": lambda posts: posts.get_all("en"),
+    "get_by_tag": lambda posts: posts.get_by_tag("t", "en"),
+}
 
 
-@pytest.fixture(params=_POST_QUERIES, ids=["get", "get_all", "get_by_tag"])
+@pytest.fixture(params=_POST_QUERIES.values(), ids=list(_POST_QUERIES))
 def query_posts(request: pytest.FixtureRequest) -> Callable[[PostRepository], list[Post]]:
     return request.param
 
