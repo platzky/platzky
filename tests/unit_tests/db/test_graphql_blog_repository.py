@@ -1,9 +1,10 @@
 import datetime
+from collections.abc import Callable
 from unittest.mock import Mock
 
 import pytest
 
-from platzky.db.blog_repository import BlogRepository
+from platzky.db.blog_repository import BlogRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
 from platzky.db.graphql_blog_repository import GraphQLBlogRepository
 from platzky.models import Comment, Post
@@ -31,6 +32,16 @@ _MINIMAL_POST = {
     "coverImage": None,
     "comments": [],
 }
+
+# Every post query; `get` is wrapped in a list so all three return list[Post].
+_POST_QUERIES: list[Callable[[PostRepository], list[Post]]] = [
+    lambda posts: [posts.get("test-post")],
+    lambda posts: posts.get_all("en"),
+    lambda posts: posts.get_by_tag("t", "en"),
+]
+_EACH_POST_QUERY = pytest.mark.parametrize(
+    "query_posts", _POST_QUERIES, ids=["get", "get_all", "get_by_tag"]
+)
 
 
 class TestPosts:
@@ -197,48 +208,30 @@ class TestPosts:
             "lang": "pl",
         }
 
-    @pytest.mark.parametrize("method", ["get", "get_all", "get_by_tag"])
-    def test_null_rich_text_becomes_empty_content(
-        self, repository: GraphQLBlogRepository, mock_client: Mock, method: str
+    @_EACH_POST_QUERY
+    def test_null_optional_fields_become_empty_strings(
+        self,
+        repository: GraphQLBlogRepository,
+        mock_client: Mock,
+        query_posts: Callable[[PostRepository], list[Post]],
     ):
-        raw = {**_MINIMAL_POST, "contentInRichText": None}
+        raw = {**_MINIMAL_POST, "contentInRichText": None, "excerpt": None, "author": None}
         mock_client.execute.return_value = {"post": raw, "posts": [raw]}
 
-        result = {
-            "get": lambda: [repository.posts.get("test-post")],
-            "get_all": lambda: repository.posts.get_all("en"),
-            "get_by_tag": lambda: repository.posts.get_by_tag("t", "en"),
-        }[method]()
+        post = query_posts(repository.posts)[0]
 
-        assert result[0].contentInMarkdown == ""
+        assert (post.contentInMarkdown, post.excerpt, post.author) == ("", "", "")
 
-    @pytest.mark.parametrize("method", ["get", "get_all", "get_by_tag"])
-    def test_null_excerpt_and_author_become_empty_strings(
-        self, repository: GraphQLBlogRepository, mock_client: Mock, method: str
-    ):
-        raw = {**_MINIMAL_POST, "excerpt": None, "author": None}
-        mock_client.execute.return_value = {"post": raw, "posts": [raw]}
-
-        result = {
-            "get": lambda: [repository.posts.get("test-post")],
-            "get_all": lambda: repository.posts.get_all("en"),
-            "get_by_tag": lambda: repository.posts.get_by_tag("t", "en"),
-        }[method]()
-
-        assert result[0].excerpt == ""
-        assert result[0].author == ""
-
-    @pytest.mark.parametrize("method", ["get", "get_all", "get_by_tag"])
+    @_EACH_POST_QUERY
     def test_queries_request_css_and_language(
-        self, repository: GraphQLBlogRepository, mock_client: Mock, method: str
+        self,
+        repository: GraphQLBlogRepository,
+        mock_client: Mock,
+        query_posts: Callable[[PostRepository], list[Post]],
     ):
         mock_client.execute.return_value = {"post": _MINIMAL_POST, "posts": [_MINIMAL_POST]}
 
-        {
-            "get": lambda: repository.posts.get("test-post"),
-            "get_all": lambda: repository.posts.get_all("en"),
-            "get_by_tag": lambda: repository.posts.get_by_tag("t", "en"),
-        }[method]()
+        query_posts(repository.posts)
 
         query = str(mock_client.execute.call_args.args[0])
         assert "css" in query
