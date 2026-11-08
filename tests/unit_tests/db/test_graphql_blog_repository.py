@@ -39,9 +39,11 @@ _POST_QUERIES: list[Callable[[PostRepository], list[Post]]] = [
     lambda posts: posts.get_all("en"),
     lambda posts: posts.get_by_tag("t", "en"),
 ]
-_EACH_POST_QUERY = pytest.mark.parametrize(
-    "query_posts", _POST_QUERIES, ids=["get", "get_all", "get_by_tag"]
-)
+
+
+@pytest.fixture(params=_POST_QUERIES, ids=["get", "get_all", "get_by_tag"])
+def query_posts(request: pytest.FixtureRequest) -> Callable[[PostRepository], list[Post]]:
+    return request.param
 
 
 class TestPosts:
@@ -208,7 +210,6 @@ class TestPosts:
             "lang": "pl",
         }
 
-    @_EACH_POST_QUERY
     def test_null_optional_fields_become_empty_strings(
         self,
         repository: GraphQLBlogRepository,
@@ -222,7 +223,6 @@ class TestPosts:
 
         assert (post.contentInMarkdown, post.excerpt, post.author) == ("", "", "")
 
-    @_EACH_POST_QUERY
     def test_queries_request_css_and_language(
         self,
         repository: GraphQLBlogRepository,
