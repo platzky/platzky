@@ -41,14 +41,6 @@ _POST = {
         {"author": "Eve", "comment": "Agreed", "date": "2024-05-03T09:15:00+00:00"},
     ],
 }
-_OTHER_POST = {
-    **_POST,
-    "slug": "witaj",
-    "title": "Witaj",
-    "language": "pl",
-    "tags": ["python"],
-    "comments": [],
-}
 _PAGE = {
     "slug": "about",
     "author": "Grace",
