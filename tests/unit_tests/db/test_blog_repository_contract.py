@@ -9,7 +9,8 @@ tested in the GraphQL repository's own file through the query variables it is se
 so each test seeds exactly what should come back.
 """
 
-from typing import Any, Callable
+from collections.abc import Sequence
+from typing import Any, Protocol
 from unittest.mock import Mock
 
 import pytest
@@ -23,7 +24,12 @@ from platzky.db.json_document import JsonDocument
 from platzky.db.json_stores import MemoryStore
 from platzky.models import Page, Post
 
-BlogFactory = Callable[[list[dict[str, Any]], list[dict[str, Any]]], BlogRepository]
+
+class BlogFactory(Protocol):
+    def __call__(
+        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+    ) -> BlogRepository: ...
+
 
 _POST = {
     "slug": "hello",
@@ -54,8 +60,12 @@ _PAGE = {
 _OTHER_PAGE = {**_PAGE, "slug": "kontakt", "title": "Kontakt"}
 
 
-def _json_repository(posts: list[dict[str, Any]], pages: list[dict[str, Any]]) -> BlogRepository:
-    document = JsonDocument(MemoryStore({"site_content": {"posts": posts, "pages": pages}}))
+def _json_repository(
+    posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+) -> BlogRepository:
+    document = JsonDocument(
+        MemoryStore({"site_content": {"posts": list(posts), "pages": list(pages)}})
+    )
     return JsonBlogRepository(document)
 
 
@@ -93,7 +103,9 @@ def _hygraph_page(page: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _graphql_repository(posts: list[dict[str, Any]], pages: list[dict[str, Any]]) -> BlogRepository:
+def _graphql_repository(
+    posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+) -> BlogRepository:
     client = Mock(spec=Client)
     client.execute.return_value = {
         "post": next(map(_hygraph_post, posts), None),
@@ -114,7 +126,7 @@ def make_repository(request: pytest.FixtureRequest) -> BlogFactory:
 
 class TestPostRepositoryContract:
     def test_get_returns_every_field(self, make_repository: BlogFactory):
-        repository = make_repository([_POST], [])
+        repository = make_repository(posts=[_POST])
 
         post = repository.posts.get("hello")
 
@@ -131,13 +143,13 @@ class TestPostRepositoryContract:
         ]
 
     def test_get_unknown_slug_raises_not_found(self, make_repository: BlogFactory):
-        repository = make_repository([], [])
+        repository = make_repository()
 
         with pytest.raises(NotFoundError):
             repository.posts.get("missing")
 
     def test_get_all_returns_mapped_posts(self, make_repository: BlogFactory):
-        repository = make_repository([_POST, {**_POST, "slug": "second"}], [])
+        repository = make_repository(posts=[_POST, {**_POST, "slug": "second"}])
 
         posts = repository.posts.get_all("en")
 
@@ -147,14 +159,14 @@ class TestPostRepositoryContract:
         ]
 
     def test_get_by_tag_returns_full_posts(self, make_repository: BlogFactory):
-        repository = make_repository([_POST], [])
+        repository = make_repository(posts=[_POST])
 
         posts = repository.posts.get_by_tag("python", "en")
 
         assert [p.model_dump() for p in posts] == [Post.model_validate(_POST).model_dump()]
 
     def test_add_comment_unknown_slug_raises_not_found(self, make_repository: BlogFactory):
-        repository = make_repository([], [])
+        repository = make_repository()
 
         with pytest.raises(NotFoundError):
             repository.posts.add_comment("Bob", "Hi", "missing")
@@ -162,7 +174,7 @@ class TestPostRepositoryContract:
 
 class TestPageRepositoryContract:
     def test_get_returns_mapped_page(self, make_repository: BlogFactory):
-        repository = make_repository([], [_PAGE])
+        repository = make_repository(pages=[_PAGE])
 
         page = repository.pages.get("about")
 
@@ -172,13 +184,13 @@ class TestPageRepositoryContract:
         assert page.coverImage.url == "/img/about.png"
 
     def test_get_unknown_slug_raises_not_found(self, make_repository: BlogFactory):
-        repository = make_repository([], [])
+        repository = make_repository()
 
         with pytest.raises(NotFoundError):
             repository.pages.get("missing")
 
     def test_get_all_returns_mapped_pages(self, make_repository: BlogFactory):
-        repository = make_repository([], [_PAGE, _OTHER_PAGE])
+        repository = make_repository(pages=[_PAGE, _OTHER_PAGE])
 
         pages = repository.pages.get_all("pl")
 
