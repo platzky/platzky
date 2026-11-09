@@ -1,3 +1,4 @@
+import gc
 from unittest.mock import Mock, patch
 
 import pytest
@@ -72,9 +73,15 @@ class TestMongoDB:
 
         assert db.connection_string == "mongodb://localhost:27017"
         assert db.database_name == "test_db"
-        assert db.module_name == "mongodb_db"
-        assert db.db_name == "MongoDB"
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
+
+    def test_database_is_the_database_the_facade_uses(self, db: MongoDB, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = None
+
+        db.get_site_settings()
+
+        assert db.database is mock_db
+        mock_db.site_content.find_one.assert_called_once()
 
     def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
         mock_find_one = mock_db.site_content.find_one
@@ -156,13 +163,18 @@ class TestMongoDB:
         }
         assert db.get_home_page_path("en") == "/blog/page/about"
 
-    def test_connection_closed_on_deletion(self, mock_client: tuple[Mock, Mock]):
+    def test_database_is_not_closed_when_the_facade_is_collected(
+        self, mock_client: tuple[Mock, Mock]
+    ):
         mongo_client, _ = mock_client
-        db = MongoDB("mongodb://localhost:27017", "test_db")
+        facade = MongoDB("mongodb://localhost:27017", "test_db")
+        database = facade.database
 
-        del db
+        del facade
+        gc.collect()
 
-        mongo_client.return_value.close.assert_called_once()
+        assert database is mongo_client.return_value["test_db"]
+        mongo_client.return_value.close.assert_not_called()
 
     def test_health_check_success(self, db: MongoDB, mongo_client: Mock):
         """Test health check when database is accessible"""

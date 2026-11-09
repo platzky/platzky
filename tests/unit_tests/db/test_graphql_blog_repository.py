@@ -363,6 +363,7 @@ class TestPages:
 
         assert [(p.slug, p.language, p.author) for p in pages] == [("o-nas", "pl", "Jane Doe")]
         assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
+        assert "where: {lang: $lang}" in str(mock_client.execute.call_args.args[0])
 
     def test_get_raises_not_found_for_unknown_slug(
         self, repository: GraphQLBlogRepository, mock_client: Mock

@@ -1,117 +1,45 @@
-from collections.abc import Callable
-from typing import cast
+import json
+from pathlib import Path
 
 import pytest
 
-from platzky.db.db import DB
 from platzky.db.json_db import Json
+from platzky.db.json_file_db import JsonFile
 from platzky.db.json_stores import MemoryStore
 
-
-def dummy_function_taking_one_argument(_: object):
-    return "test"
+DATA = {"site_content": {"pages": []}}
 
 
-def test_db_extension():
-    db = Json(
-        MemoryStore(
-            {
-                "DB": {
-                    "TYPE": "json",
-                    "DATA": {
-                        "site_content": {
-                            "pages": [
-                                {
-                                    "title": "test",
-                                    "slug": "test",
-                                    "contentInMarkdown": "test",
-                                },
-                                {
-                                    "title": "test2",
-                                    "slug": "test2",
-                                    "contentInMarkdown": "test2",
-                                },
-                            ]
-                        }
-                    },
-                }
-            }
+def test_document_exposes_the_data_the_database_reads():
+    db = Json(MemoryStore({"site_content": {"pages": [], "marker": 1}}))
+
+    assert db.document.data["site_content"]["marker"] == 1
+
+
+def test_document_edit_is_visible_to_the_database():
+    db = Json(MemoryStore({"site_content": {"pages": []}}))
+
+    with db.document.edit() as data:
+        data["site_content"]["pages"].append(
+            {"title": "t", "slug": "added", "contentInMarkdown": "c", "author": "a", "excerpt": "e"}
         )
-    )
 
-    # TODO remove ignores with proper plugin system
+    assert [page.slug for page in db.get_all_pages("en")] == ["added"]
+
+
+def test_document_edit_is_persisted_by_file_store(tmp_path: Path):
+    path = tmp_path / "data.json"
+    path.write_text(json.dumps(DATA))
+    db = JsonFile(str(path))
+
+    with db.document.edit() as data:
+        data["custom"] = {"key": "value"}
+
+    assert json.loads(path.read_text())["custom"] == {"key": "value"}
+
+
+def test_document_cannot_be_replaced():
+    db = Json(MemoryStore(DATA))
+
     with pytest.raises(AttributeError):
-        db.test()  # type: ignore[attr-defined] - Testing that non-existent method raises error
-
-    db.extend("test", dummy_function_taking_one_argument)
-    result = db.test()  # type: ignore[attr-defined] - Method added dynamically via extend()
-    assert result == "test"
-
-
-def test_db_doesnt_allow_its_children_to_add_new_methods():
-    with pytest.raises(TypeError):
-
-        class TestDB(DB):
-            def test(self):
-                return "test"
-
-
-def test_db_extend_error_cases():
-    db = Json(
-        MemoryStore(
-            {
-                "DB": {
-                    "TYPE": "json",
-                    "DATA": {"site_content": {"pages": []}},
-                }
-            }
-        )
-    )
-
-    non_callable = cast(Callable[..., object], object())
-
-    with pytest.raises(ValueError, match="not callable"):
-        db.extend("test_non_callable", non_callable)
-
-
-def test_db_extend_with_existing_name():
-    db = Json(
-        MemoryStore(
-            {
-                "DB": {
-                    "TYPE": "json",
-                    "DATA": {"site_content": {"pages": []}},
-                }
-            }
-        )
-    )
-
-    # First extension works fine
-    db.extend("test_function", dummy_function_taking_one_argument)
-
-    # For the test to fail, we need to mock setattr to make it raise an exception
-    # when attempting to set an existing attribute
-    original_setattr = setattr
-
-    def mocked_setattr(*args, **kwargs):
-        # Simulate an exception when setting an existing attribute
-        if args[1] == "test_function" or args[1] == "extend":
-            raise AttributeError("Cannot set attribute - already exists")
-        return original_setattr(*args, **kwargs)
-
-    # Apply the mock
-    import builtins
-
-    original = builtins.setattr
-    builtins.setattr = mocked_setattr
-
-    try:
-        # Now these should raise ValueError from the try/except in extend
-        with pytest.raises(ValueError, match="Failed to extend DB"):
-            db.extend("test_function", dummy_function_taking_one_argument)
-
-        with pytest.raises(ValueError, match="Failed to extend DB"):
-            db.extend("extend", dummy_function_taking_one_argument)
-    finally:
-        # Restore original setattr
-        builtins.setattr = original
+        setattr(db, "document", None)
