@@ -73,7 +73,5 @@ class TestGraphQLPluginConfigRepository:
 
         repository.get_all()
 
-        # gql 4 passes a GraphQLRequest wrapping the document; gql 3.4 the document itself.
-        request = mock_client.execute.call_args.args[0]
-        query = print_ast(getattr(request, "document", request))
+        query = print_ast(mock_client.execute.call_args.args[0].document)
         assert "pluginConfigs(stage: PUBLISHED, first: 100)" in query
