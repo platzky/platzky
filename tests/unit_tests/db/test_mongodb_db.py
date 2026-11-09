@@ -162,13 +162,13 @@ class TestMongoDB:
         }
         assert db.get_home_page_path("en") == "/blog/page/about"
 
-    def test_connection_closed_on_deletion(self, mock_client: tuple[Mock, Mock]):
+    def test_database_stays_usable_after_the_facade_is_gone(self, mock_client: tuple[Mock, Mock]):
         mongo_client, _ = mock_client
-        db = MongoDB("mongodb://localhost:27017", "test_db")
 
-        del db
+        database = MongoDB("mongodb://localhost:27017", "test_db").database
 
-        mongo_client.return_value.close.assert_called_once()
+        assert database is mongo_client.return_value["test_db"]
+        mongo_client.return_value.close.assert_not_called()
 
     def test_health_check_success(self, db: MongoDB, mongo_client: Mock):
         """Test health check when database is accessible"""

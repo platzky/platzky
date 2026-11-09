@@ -80,7 +80,8 @@ class MongoDB(DB):
 
         This is the supported extension point for host apps that build their
         own repositories on the same database (their own collections, queries
-        and indexes).
+        and indexes). It stays usable after this facade is gone: the facade
+        never closes the shared client.
         """
         return self._db
 
@@ -246,12 +247,3 @@ class MongoDB(DB):
         """
         # Simple ping to check if database is accessible
         self._client.admin.command("ping")
-
-    def _close_connection(self) -> None:
-        """Close the MongoDB connection"""
-        if self._client:
-            self._client.close()
-
-    def __del__(self):
-        """Ensure connection is closed when object is destroyed"""
-        self._close_connection()
