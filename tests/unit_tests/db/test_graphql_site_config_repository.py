@@ -35,12 +35,11 @@ class TestGetSiteSettings:
             "favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}],
             "themes": [{"primaryColor": "#0085A1", "secondaryColor": "#006073"}],
             "applicationSetups": [
-                {"language": "en", "applicationDescription": "Hello"},
-                {"language": "pl", "applicationDescription": "Cześć"},
+                {"applicationDescription": "Cześć"},
             ],
         }
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("pl")
 
         assert settings.logo is not None
         assert settings.logo.url == "https://example.com/logo.jpg"
@@ -48,7 +47,7 @@ class TestGetSiteSettings:
         assert settings.favicon_url == "https://example.com/favicon.ico"
         assert settings.primary_color == "#0085A1"
         assert settings.secondary_color == "#006073"
-        assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
+        assert settings.app_description == "Cześć"
         assert settings.font == ""
         mock_client.execute.assert_called_once()
 
@@ -62,13 +61,13 @@ class TestGetSiteSettings:
             "applicationSetups": [],
         }
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings.logo is None
         assert settings.favicon_url == ""
         assert settings.primary_color == "white"
         assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
+        assert settings.app_description == ""
 
     def test_favicon_missing_does_not_raise(
         self, repository: GraphQLSiteConfigRepository, mock_client: Mock
@@ -81,7 +80,7 @@ class TestGetSiteSettings:
             "applicationSetups": [],
         }
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings.favicon_url == ""
 
@@ -113,7 +112,7 @@ class TestNullRelationNodes:
     ):
         mock_client.execute.return_value = result
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings.logo is None
         assert settings.favicon_url == ""
@@ -128,23 +127,61 @@ def test_null_application_description_falls_back_to_empty_string(
         "logos": [],
         "favicons": [],
         "themes": [],
-        "applicationSetups": [{"language": "en", "applicationDescription": None}],
+        "applicationSetups": [{"applicationDescription": None}],
     }
 
-    assert repository.get_site_settings().app_description == {"en": ""}
+    assert repository.get_site_settings("en").app_description == ""
 
 
-def test_null_application_setups_is_treated_as_empty(
+def test_get_site_settings_queries_requested_language(
     repository: GraphQLSiteConfigRepository, mock_client: Mock
+):
+    mock_client.execute.return_value = {"applicationSetups": [{"applicationDescription": "Cześć"}]}
+
+    settings = repository.get_site_settings("pl")
+
+    assert settings.app_description == "Cześć"
+    assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
+    mock_client.execute.assert_called_once()
+
+
+def test_get_site_settings_queries_description_of_language_alongside_branding(
+    repository: GraphQLSiteConfigRepository, mock_client: Mock
+):
+    mock_client.execute.return_value = {"applicationSetups": []}
+
+    repository.get_site_settings("pl")
+
+    query = print_ast(mock_client.execute.call_args.args[0].document)
+    assert "applicationSetups(where: {language: $lang}, stage: PUBLISHED" in query
+    assert "applicationDescription" in query
+    assert "logos" in query
+    assert "favicons" in query
+    assert "themes" in query
+
+
+def test_name_and_title_are_not_read_from_the_cms(
+    repository: GraphQLSiteConfigRepository, mock_client: Mock
+):
+    mock_client.execute.return_value = {"applicationSetups": [{"applicationDescription": "Hi"}]}
+
+    settings = repository.get_site_settings("en")
+
+    assert (settings.app_description, settings.app_name, settings.app_title) == ("Hi", "", "")
+
+
+@pytest.mark.parametrize("setups", [None, [], [None]])
+def test_missing_application_setup_gives_empty_description(
+    repository: GraphQLSiteConfigRepository, mock_client: Mock, setups: list[None] | None
 ):
     mock_client.execute.return_value = {
         "logos": [],
         "favicons": [],
         "themes": [],
-        "applicationSetups": None,
+        "applicationSetups": setups,
     }
 
-    assert repository.get_site_settings().app_description == {}
+    assert repository.get_site_settings("en").app_description == ""
 
 
 def test_get_menu_items_in_lang(repository: GraphQLSiteConfigRepository, mock_client: Mock):
@@ -213,16 +250,6 @@ def test_get_home_page_path_null_nodes(
     assert repository.get_home_page_path("en") is None
 
 
-def test_null_application_setup_entry_is_skipped(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {
-        "applicationSetups": [None, {"language": "en", "applicationDescription": "Hi"}]
-    }
-
-    assert repository.get_site_settings().app_description == {"en": "Hi"}
-
-
 def test_get_blog_meta_is_not_supported_and_queries_nothing(
     repository: GraphQLSiteConfigRepository, mock_client: Mock
 ):
@@ -235,19 +262,6 @@ def test_get_footer_is_not_supported_and_queries_nothing(
 ):
     assert repository.get_footer("en") == Footer()
     mock_client.execute.assert_not_called()
-
-
-def test_get_site_settings_requests_more_than_default_page_size(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    # Hygraph returns only 10 entries by default; descriptions for later
-    # languages would be dropped.
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    repository.get_site_settings()
-
-    query = print_ast(mock_client.execute.call_args.args[0].document)
-    assert "applicationSetups(stage: PUBLISHED, first: 100)" in query
 
 
 def test_get_menu_items_requests_more_than_default_page_size(

@@ -172,13 +172,16 @@ class Json(DB):
         """
         return self._blog.posts.get_by_tag(tag, lang)
 
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings.
+            The app's site settings, with text empty where none is configured.
         """
-        return self._site_config.get_site_settings()
+        return self._site_config.get_site_settings(lang)
 
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.

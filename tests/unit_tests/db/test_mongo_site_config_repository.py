@@ -6,6 +6,12 @@ from platzky.db.site_config_repository import SiteSettings
 from platzky.models import Footer, PageMeta
 
 
+def _no_overrides() -> Mock:
+    localized_content = Mock()
+    cast(Mock, localized_content.find_one).return_value = None
+    return localized_content
+
+
 class TestMongoSiteConfigRepository:
     def test_get_site_settings(self):
         site_content = Mock()
@@ -16,11 +22,10 @@ class TestMongoSiteConfigRepository:
             "font": "Arial",
             "primary_color": "blue",
             "secondary_color": "green",
-            "app_description": {"en": "Hello"},
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), _no_overrides())
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
@@ -28,22 +33,54 @@ class TestMongoSiteConfigRepository:
         assert settings.font == "Arial"
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
-        assert settings.app_description == {"en": "Hello"}
-        cast(Mock, site_content.find_one).assert_called_once_with({"_id": "config"})
+        cast(Mock, site_content.find_one).assert_called_once_with(
+            {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
+        )
 
     def test_get_site_settings_defaults_when_no_document(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = None
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), _no_overrides())
 
-        settings = repository.get_site_settings()
+        assert repository.get_site_settings("en") == SiteSettings()
 
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.font == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
+    def test_get_site_settings_reads_overrides_from_localized_content_collection(self):
+        site_content = Mock()
+        cast(Mock, site_content.find_one).return_value = {
+            "_id": "config",
+            "app_name": "Default",
+            "app_title": "Default title",
+        }
+        localized_content = Mock()
+        cast(Mock, localized_content.find_one).return_value = {
+            "_id": "en",
+            "app_name": "English",
+            "logo_url": "/en.png",
+        }
+        repository = MongoSiteConfigRepository(site_content, Mock(), localized_content)
+
+        settings = repository.get_site_settings("en")
+
+        assert settings.app_name == "English"
+        assert settings.app_title == "Default title"
+        assert settings.logo is not None
+        assert settings.logo.url == "/en.png"
+        cast(Mock, localized_content.find_one).assert_called_once_with(
+            {"_id": "en"}, projection=list(SiteSettings.STORED_KEYS)
+        )
+
+    def test_get_site_settings_ignores_localized_content_inside_config_document(self):
+        site_content = Mock()
+        cast(Mock, site_content.find_one).return_value = {
+            "_id": "config",
+            "app_name": "Default",
+            "localized_content": {"en": {"app_name": "Embedded"}},
+        }
+        localized_content = Mock()
+        cast(Mock, localized_content.find_one).return_value = None
+        repository = MongoSiteConfigRepository(site_content, Mock(), localized_content)
+
+        assert repository.get_site_settings("en").app_name == "Default"
 
     def test_get_menu_items_in_lang(self):
         menu_items = Mock()
@@ -51,7 +88,7 @@ class TestMongoSiteConfigRepository:
             "_id": "en",
             "items": [{"name": "Home", "url": "/"}],
         }
-        repository = MongoSiteConfigRepository(Mock(), menu_items)
+        repository = MongoSiteConfigRepository(Mock(), menu_items, Mock())
 
         result = repository.get_menu_items_in_lang("en")
 
@@ -62,7 +99,7 @@ class TestMongoSiteConfigRepository:
     def test_get_menu_items_in_lang_no_data(self):
         menu_items = Mock()
         cast(Mock, menu_items.find_one).return_value = None
-        repository = MongoSiteConfigRepository(Mock(), menu_items)
+        repository = MongoSiteConfigRepository(Mock(), menu_items, Mock())
 
         assert repository.get_menu_items_in_lang("en") == []
 
@@ -72,14 +109,14 @@ class TestMongoSiteConfigRepository:
             "_id": "config",
             "home_page_path": "/blog/page/about",
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_home_page_path("en") == "/blog/page/about"
 
     def test_get_home_page_path_no_document(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = None
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_home_page_path("en") is None
 
@@ -94,9 +131,9 @@ class TestMongoSiteConfigRepository:
             "font": None,
             "app_description": None,
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), _no_overrides())
 
-        assert repository.get_site_settings() == SiteSettings()
+        assert repository.get_site_settings("en") == SiteSettings()
 
     def test_get_blog_meta(self):
         site_content = Mock()
@@ -104,7 +141,7 @@ class TestMongoSiteConfigRepository:
             "_id": "config",
             "blog_meta": {"en": {"title": "Reading notes", "description": "On Tolkien."}},
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_blog_meta("en") == PageMeta(
             title="Reading notes", description="On Tolkien."
@@ -114,7 +151,7 @@ class TestMongoSiteConfigRepository:
     def test_get_blog_meta_no_data(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = None
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_blog_meta("en") == PageMeta()
 
@@ -125,7 +162,7 @@ class TestMongoSiteConfigRepository:
             "_id": "config",
             "footer": {"content": {"en": "Footer", "pl": "Stopka"}},
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_footer("en").content == "Footer"
         assert repository.get_footer("pl").content == "Stopka"
@@ -135,7 +172,7 @@ class TestMongoSiteConfigRepository:
     def test_get_footer_not_configured(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = {"_id": "config"}
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_footer("en") == Footer()
         assert repository.get_footer("en").collapsible is False
@@ -143,7 +180,7 @@ class TestMongoSiteConfigRepository:
     def test_get_footer_no_data(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = None
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_footer("en") == Footer()
 
@@ -154,7 +191,7 @@ class TestMongoSiteConfigRepository:
             "_id": "config",
             "footer": {"content": {"en": "Footer"}, "collapsible": True},
         }
-        repository = MongoSiteConfigRepository(site_content, Mock())
+        repository = MongoSiteConfigRepository(site_content, Mock(), Mock())
 
         assert repository.get_footer("en") == Footer(content="Footer", collapsible=True)
         find_one.assert_called_once_with({"_id": "config"})

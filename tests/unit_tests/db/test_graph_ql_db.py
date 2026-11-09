@@ -196,9 +196,9 @@ def test_get_site_settings_delegates_to_site_config(
     db, _, _, site_config = graph_ql_db_with_mocked_repos
     site_config.get_site_settings.return_value = "sentinel"
 
-    result = db.get_site_settings()
+    result = db.get_site_settings("pl")
 
-    site_config.get_site_settings.assert_called_once()
+    site_config.get_site_settings.assert_called_once_with("pl")
     assert result == "sentinel"
 
 
@@ -294,7 +294,7 @@ def test_facade_and_repositories_share_one_client(mock_client: Mock):
 
         db.get_all_posts("en")
         db.get_plugins_data()
-        db.get_site_settings()
+        db.get_site_settings("en")
         db.health_check()
 
     client_cls.assert_called_once()

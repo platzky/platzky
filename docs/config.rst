@@ -325,6 +325,67 @@ Behavior:
 * If the configured path resolves back to ``/`` itself, Platzky falls back to the
   blog index instead of recursing.
 
+Site name, title and description
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The site name, page title, description and logo can be set once for the
+whole site and overridden per language in the site database. For a key
+and a language, Platzky uses the first of these that is set:
+
+1. ``localized_content[<language>][<key>]``
+2. the top-level ``<key>`` in the site content
+3. the built-in default
+
+Missing, ``null`` or empty values fall through to the next step. The keys are:
+
+* ``app_name``: site name. Default: ``APP_NAME``.
+* ``app_title``: default ``<title>`` of pages that do not set their own. Default:
+  the site name.
+* ``app_description``: meta description. Default: the site name.
+* ``logo_url``: logo image. Default: no logo.
+
+The site name is used for ``og:site_name``, the logo ``alt`` text, the navbar
+when there is no logo, and the RSS feed title.
+
+* **JSON file / Google Cloud Storage**: set the keys in the ``site_content``
+  object of your data file.
+
+  .. code-block:: json
+
+      {
+        "site_content": {
+          "app_title": "Mapa pojemników na odzież używaną | Rzut beretem",
+          "logo_url": "https://example.com/logo.png",
+          "localized_content": {
+            "en": {
+              "app_name": "DropLoop",
+              "app_title": "Used clothing bins map | DropLoop",
+              "logo_url": "https://example.com/droploop.png"
+            }
+          }
+        }
+      }
+
+  The old format, where ``app_description`` is a ``{language: text}`` object,
+  still works.
+
+* **MongoDB**: set the language-independent keys on the site config document
+  (``{"_id": "config", ...}`` in ``site_content``). Store the per-language
+  overrides as one document per language in the ``localized_content``
+  collection, with the language code as ``_id`` (like ``menu_items``). A
+  ``localized_content`` field inside the config document is not read.
+
+  .. code-block:: javascript
+
+      // site_content
+      {"_id": "config", "app_title": "Mapa pojemników | Rzut beretem"}
+      // localized_content
+      {"_id": "en", "app_name": "DropLoop", "app_title": "Bins map | DropLoop"}
+
+* **GraphQL (Hygraph)**: only ``applicationDescription`` of the ``applicationSetups``
+  entry for the current language is read, plus the logo as before. The other
+  keys stay empty until the Hygraph schema has matching fields.
+
 Feature Flags
 ~~~~~~~~~~~~~
 

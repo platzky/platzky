@@ -151,13 +151,16 @@ class GraphQL(DB):
         """
         self._blog.posts.add_comment(author_name, comment, post_slug)
 
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings.
+            The app's site settings, with text empty where none is configured.
         """
-        return self._site_config.get_site_settings()
+        return self._site_config.get_site_settings(lang)
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

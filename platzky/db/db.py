@@ -109,8 +109,15 @@ class DB(ABC):
         pass
 
     @abstractmethod
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app."""
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The app's site settings, with text empty where none is configured.
+        """
         pass
 
     @abstractmethod

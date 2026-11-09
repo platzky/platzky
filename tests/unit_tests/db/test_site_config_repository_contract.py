@@ -25,8 +25,20 @@ _SITE_CONTENT = {
     "favicon_url": "/favicon.ico",
     "primary_color": "blue",
     "secondary_color": "green",
-    "app_description": {"en": "Hello", "pl": "Cześć"},
+    "app_name": "Default name",
+    "app_title": "Default title",
+    "app_description": "Default description",
+    "localized_content": {
+        "pl": {
+            "app_name": "Nazwa PL",
+            "app_title": "Tytuł PL",
+            "app_description": "Opis PL",
+            "logo_url": "/logo-pl.png",
+        }
+    },
 }
+
+_TEXT_KEYS = ["app_name", "app_title", "app_description"]
 
 _MENU_ITEMS = {
     "en": [{"name": "Home", "url": "/"}, {"name": "Blog", "url": "/blog"}],
@@ -45,7 +57,6 @@ def _json_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
 
 def _mongo_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
     config = Mock()
-    config.find_one.return_value = {"_id": "config", **site_content} if site_content else None
     menu_items = site_content.get("menu_items") or {}
 
     def find_menu(query: dict[str, Any]) -> dict[str, Any] | None:
@@ -54,7 +65,24 @@ def _mongo_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
 
     menu = Mock()
     menu.find_one.side_effect = find_menu
-    return MongoSiteConfigRepository(config, menu)
+
+    # Mongo keeps per-language overrides as one document per language.
+    config.find_one.return_value = (
+        {"_id": "config", **{k: v for k, v in site_content.items() if k != "localized_content"}}
+        if site_content
+        else None
+    )
+    localized_content = site_content.get("localized_content") or {}
+
+    def find_localized(query: dict[str, Any], projection: list[str]) -> dict[str, Any] | None:
+        entry = localized_content.get(query["_id"])
+        if entry is None:
+            return None
+        return {"_id": query["_id"], **{k: v for k, v in entry.items() if k in projection}}
+
+    localized = Mock()
+    localized.find_one.side_effect = find_localized
+    return MongoSiteConfigRepository(config, menu, localized)
 
 
 @pytest.fixture(
@@ -68,32 +96,157 @@ def make_repository(
 
 
 class TestSiteConfigRepositoryContract:
-    def test_get_site_settings_returns_configured_values(
+    def test_get_site_settings_returns_non_localized_values(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
     ):
-        repository = make_repository(_SITE_CONTENT)
-
-        settings = repository.get_site_settings()
+        settings = make_repository(_SITE_CONTENT).get_site_settings("en")
 
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
-        assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
+
+    def test_localized_content_wins_over_top_level(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        settings = make_repository(_SITE_CONTENT).get_site_settings("pl")
+
+        assert settings.app_name == "Nazwa PL"
+        assert settings.app_title == "Tytuł PL"
+        assert settings.app_description == "Opis PL"
+
+    def test_localized_logo_url_wins_over_top_level(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        settings = make_repository(_SITE_CONTENT).get_site_settings("pl")
+
+        assert settings.logo is not None
+        assert settings.logo.url == "/logo-pl.png"
+
+    def test_language_without_entry_uses_top_level_values(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        settings = make_repository(_SITE_CONTENT).get_site_settings("de")
+
+        assert settings.app_name == "Default name"
+        assert settings.app_title == "Default title"
+        assert settings.app_description == "Default description"
+        assert settings.logo is not None
+        assert settings.logo.url == "/logo.png"
+
+    def test_key_missing_from_localized_entry_uses_top_level_value(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository(
+            {**_SITE_CONTENT, "localized_content": {"en": {"app_name": "English name"}}}
+        )
+
+        settings = repository.get_site_settings("en")
+
+        assert settings.app_name == "English name"
+        assert settings.app_title == "Default title"
+
+    @pytest.mark.parametrize("empty", [None, ""], ids=["null", "empty"])
+    @pytest.mark.parametrize("key", _TEXT_KEYS)
+    def test_empty_localized_value_falls_through_to_top_level(
+        self,
+        make_repository: Callable[[dict[str, Any]], SiteConfigRepository],
+        key: str,
+        empty: str | None,
+    ):
+        repository = make_repository({**_SITE_CONTENT, "localized_content": {"en": {key: empty}}})
+
+        settings = repository.get_site_settings("en")
+
+        assert getattr(settings, key) == _SITE_CONTENT[key]
+
+    @pytest.mark.parametrize("empty", [None, ""], ids=["null", "empty"])
+    def test_empty_localized_logo_url_falls_through_to_top_level(
+        self,
+        make_repository: Callable[[dict[str, Any]], SiteConfigRepository],
+        empty: str | None,
+    ):
+        repository = make_repository(
+            {**_SITE_CONTENT, "localized_content": {"en": {"logo_url": empty}}}
+        )
+
+        settings = repository.get_site_settings("en")
+
+        assert settings.logo is not None
+        assert settings.logo.url == "/logo.png"
+
+    @pytest.mark.parametrize("localized_content", [None, {}, {"en": None}])
+    def test_missing_or_null_localized_content_uses_top_level_values(
+        self,
+        make_repository: Callable[[dict[str, Any]], SiteConfigRepository],
+        localized_content: dict[str, Any] | None,
+    ):
+        repository = make_repository({**_SITE_CONTENT, "localized_content": localized_content})
+
+        settings = repository.get_site_settings("en")
+
+        assert settings.app_name == "Default name"
+        assert settings.app_description == "Default description"
 
     def test_get_site_settings_returns_defaults_when_empty(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
     ):
-        repository = make_repository({})
-
-        settings = repository.get_site_settings()
+        settings = make_repository({}).get_site_settings("en")
 
         assert settings.logo is None
         assert settings.favicon_url == ""
         assert settings.primary_color == "white"
         assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
+        assert settings.font == ""
+        assert settings.app_name == ""
+        assert settings.app_title == ""
+        assert settings.app_description == ""
+
+    @pytest.mark.parametrize("key", _TEXT_KEYS)
+    def test_explicit_null_top_level_text_is_treated_as_unconfigured(
+        self,
+        make_repository: Callable[[dict[str, Any]], SiteConfigRepository],
+        key: str,
+    ):
+        settings = make_repository({key: None}).get_site_settings("en")
+
+        assert getattr(settings, key) == ""
+
+    def test_legacy_dict_app_description_resolves_by_language(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository({"app_description": {"en": "Hello", "pl": "Cześć"}})
+
+        assert repository.get_site_settings("en").app_description == "Hello"
+        assert repository.get_site_settings("pl").app_description == "Cześć"
+
+    def test_legacy_dict_app_description_is_empty_for_missing_language(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository({"app_description": {"en": "Hello"}})
+
+        assert repository.get_site_settings("de").app_description == ""
+
+    def test_localized_app_description_wins_over_legacy_dict(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository(
+            {
+                "app_description": {"en": "Legacy"},
+                "localized_content": {"en": {"app_description": "New"}},
+            }
+        )
+
+        assert repository.get_site_settings("en").app_description == "New"
+
+    def test_plain_top_level_logo_url_still_works(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        settings = make_repository({"logo_url": "/only.png"}).get_site_settings("en")
+
+        assert settings.logo is not None
+        assert settings.logo.url == "/only.png"
 
     @pytest.mark.parametrize(
         "site_content",

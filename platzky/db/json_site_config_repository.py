@@ -4,7 +4,7 @@ from typing_extensions import override
 
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.models import Footer, MenuItem, PageMeta
 
 
 class JsonSiteConfigRepository(SiteConfigRepository):
@@ -20,22 +20,18 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         self._document = document
 
     @override
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings.
+            The app's site settings, with text empty where none is configured.
         """
-        site_content = get_site_content(self._document.data)
-        logo_url = site_content.get("logo_url") or ""
-        return SiteSettings(
-            logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=site_content.get("favicon_url") or "",
-            primary_color=site_content.get("primary_color") or "white",
-            secondary_color=site_content.get("secondary_color") or "navy",
-            font=site_content.get("font") or "",
-            app_description=site_content.get("app_description") or {},
-        )
+        content = get_site_content(self._document.data)
+        localized = (content.get("localized_content") or {}).get(lang) or {}
+        return SiteSettings.from_layers(content, localized, lang)
 
     @override
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:

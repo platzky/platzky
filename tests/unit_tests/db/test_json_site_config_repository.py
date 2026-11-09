@@ -21,12 +21,11 @@ class TestJsonSiteConfigRepository:
                     "font": "Arial",
                     "primary_color": "blue",
                     "secondary_color": "green",
-                    "app_description": {"en": "Hello", "pl": "Cześć"},
                 }
             }
         )
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
@@ -34,7 +33,6 @@ class TestJsonSiteConfigRepository:
         assert settings.font == "Arial"
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
-        assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
 
     def test_get_site_settings_null_fields_fall_back_to_defaults(self):
         repository = _repository(
@@ -46,25 +44,14 @@ class TestJsonSiteConfigRepository:
                     "secondary_color": None,
                     "font": None,
                     "app_description": None,
+                    "localized_content": None,
                 }
             }
         )
 
-        settings = repository.get_site_settings()
+        settings = repository.get_site_settings("en")
 
         assert settings == SiteSettings()
-
-    def test_get_site_settings_defaults(self):
-        repository = _repository({"site_content": {}})
-
-        settings = repository.get_site_settings()
-
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.font == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
 
     def test_get_menu_items_in_lang(self):
         repository = _repository(

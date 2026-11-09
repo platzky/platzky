@@ -5,6 +5,7 @@ import pytest
 
 from platzky.db.exceptions import NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
+from platzky.db.site_config_repository import SiteSettings
 from platzky.models import Footer, MenuItem, PageMeta, Post
 
 
@@ -47,6 +48,7 @@ class TestMongoDB:
             mock_db.posts = Mock()
             mock_db.pages = Mock()
             mock_db.menu_items = Mock()
+            mock_db.localized_content = Mock()
             mock_db.plugins = Mock()
 
             yield mock_client, mock_db
@@ -77,13 +79,15 @@ class TestMongoDB:
 
     def test_database_is_the_database_the_facade_uses(self, db: MongoDB, mock_db: Mock):
         mock_db.site_content.find_one.return_value = None
+        mock_db.localized_content.find_one.return_value = None
 
-        db.get_site_settings()
+        db.get_site_settings("en")
 
         assert db.database is mock_db
         mock_db.site_content.find_one.assert_called_once()
 
     def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
+        mock_db.localized_content.find_one.return_value = None
         mock_find_one = mock_db.site_content.find_one
         mock_find_one.return_value = {
             "_id": "config",
@@ -95,10 +99,9 @@ class TestMongoDB:
             "secondary_color": "green",
         }
 
-        settings = db.get_site_settings()
+        settings = db.get_site_settings("en")
 
-        assert settings.app_description.get("en") == "English description"
-        assert settings.app_description.get("de") == "Deutsche Beschreibung"
+        assert settings.app_description == "English description"
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
@@ -106,7 +109,9 @@ class TestMongoDB:
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
         # One find_one call for all of the above, not one per field.
-        mock_find_one.assert_called_once_with({"_id": "config"})
+        mock_find_one.assert_called_once_with(
+            {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
+        )
 
     def test_get_blog_meta_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
         mock_db.site_content.find_one.return_value = {

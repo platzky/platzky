@@ -43,18 +43,18 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         self._client_getter = client_getter
 
     @override
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings.
+            The app's site settings. Only the description is per language; the
+            other text fields are empty.
         """
-        # applicationSetups holds one entry per language. Hygraph returns only
-        # 10 entries unless `first` is given (100 is the maximum per page), so
-        # ask for the maximum; a site with more than 100 languages is not a
-        # realistic case.
         query = gql("""
-            query MyQuery {
+            query MyQuery($lang: Lang!) {
               logos(stage: PUBLISHED) {
                 logo {
                   alternateText
@@ -72,20 +72,14 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
                 primaryColor
                 secondaryColor
               }
-              applicationSetups(stage: PUBLISHED, first: 100) {
-                language
+              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
                 applicationDescription
               }
             }
             """)
-        result = self._client_getter().execute(query)
+        result = self._client_getter().execute(query, variable_values={"lang": lang})
 
         theme = _first(result.get("themes"))
-        app_description = {
-            item["language"]: item.get("applicationDescription") or ""
-            for item in result.get("applicationSetups") or []
-            if item
-        }
 
         return SiteSettings(
             logo=_logo(_first(result.get("logos")).get("logo")),
@@ -93,7 +87,10 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             primary_color=theme.get("primaryColor") or "white",
             secondary_color=theme.get("secondaryColor") or "navy",
             font="",  # not implemented in GraphQL backend
-            app_description=app_description,
+            app_description=_first(result.get("applicationSetups")).get("applicationDescription")
+            or "",
+            # app_name/app_title are not read: they need new fields
+            # on Hygraph `applicationSetups` first.
         )
 
     @override

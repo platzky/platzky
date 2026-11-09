@@ -29,7 +29,7 @@ class TestFactoryFunctions:
         )
         db = db_from_config(config)
         assert isinstance(db, Json)
-        assert db.get_site_settings().app_description == {"en": "Configured"}
+        assert db.get_site_settings("en").app_description == "Configured"
 
 
 class TestJsonDb:
@@ -99,10 +99,9 @@ class TestJsonDb:
         return Json(MemoryStore(sample_data))
 
     def test_get_app_description(self, db: Json):
-        app_description = db.get_site_settings().app_description
-        assert app_description.get("en") == "English description"
-        assert app_description.get("de") == "Deutsche Beschreibung"
-        assert app_description.get("fr", "") == ""
+        assert db.get_site_settings("en").app_description == "English description"
+        assert db.get_site_settings("de").app_description == "Deutsche Beschreibung"
+        assert db.get_site_settings("fr").app_description == ""
 
     def test_get_blog_meta_forwards_to_site_config(self):
         blog_meta = {"en": {"title": "Reading notes", "description": "Notes."}}
@@ -251,7 +250,7 @@ class TestJsonDbSiteSettings:
         return Json(MemoryStore({"site_content": {}}))
 
     def test_get_site_settings(self, db_with_settings: Json):
-        settings = db_with_settings.get_site_settings()
+        settings = db_with_settings.get_site_settings("en")
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
@@ -260,13 +259,13 @@ class TestJsonDbSiteSettings:
         assert settings.secondary_color == "green"
 
     def test_get_site_settings_defaults(self, db_minimal: Json):
-        settings = db_minimal.get_site_settings()
+        settings = db_minimal.get_site_settings("en")
         assert settings.logo is None
         assert settings.favicon_url == ""
         assert settings.font == ""
         assert settings.primary_color == "white"
         assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
+        assert settings.app_description == ""
 
     def test_get_home_page_path_default(self, db_minimal: Json):
         assert db_minimal.get_home_page_path("en") is None
@@ -442,7 +441,7 @@ class TestJsonDbEmptyDb:
             db.get_all_posts("en")
 
         with pytest.raises(DBError, match="site_content section is missing"):
-            db.get_site_settings()
+            db.get_site_settings("en")
 
         with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")

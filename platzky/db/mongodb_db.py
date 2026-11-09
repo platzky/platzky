@@ -68,10 +68,11 @@ class MongoDB(DB):
         self._posts: Collection[Any] = self._db.posts
         self._pages: Collection[Any] = self._db.pages
         self._menu_items: Collection[Any] = self._db.menu_items
+        self._localized_content: Collection[Any] = self._db.localized_content
         self._plugins: Collection[Any] = self._db.plugins
         self._plugin_config: PluginConfigRepository = MongoPluginConfigRepository(self._plugins)
         self._site_config: SiteConfigRepository = MongoSiteConfigRepository(
-            self._site_content, self._menu_items
+            self._site_content, self._menu_items, self._localized_content
         )
 
     @property
@@ -213,13 +214,16 @@ class MongoDB(DB):
         if result.matched_count == 0:
             raise NotFoundError(f"Post with slug {post_slug} not found")
 
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
+    def get_site_settings(self, lang: str) -> SiteSettings:
+        """Retrieve branding and site text for the app in a specific language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings.
+            The app's site settings, with text empty where none is configured.
         """
-        return self._site_config.get_site_settings()
+        return self._site_config.get_site_settings(lang)
 
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
