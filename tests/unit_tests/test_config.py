@@ -222,6 +222,18 @@ class TestLanguages:
         with pytest.raises(ValidationError, match="needs a domain"):
             Config.model_validate(data)
 
+    def test_home_page_path_is_accepted_per_language(self) -> None:
+        languages = {"en": {**_EN, "home_page_path": "/blog/page/about"}, "pl": _PL}
+        config = Config.model_validate(_config_data(LANGUAGES=languages))
+        assert config.languages["en"].home_page_path == "/blog/page/about"
+        assert config.languages["pl"].home_page_path is None
+
+    @pytest.mark.parametrize("path", ["", "/"])
+    def test_home_page_path_must_not_be_empty_or_root(self, path: str) -> None:
+        data = _config_data(LANGUAGES={"en": {**_EN, "home_page_path": path}})
+        with pytest.raises(ValidationError, match="home_page_path"):
+            Config.model_validate(data)
+
     @pytest.mark.parametrize("lang_code", ["admin", "static", "lang", "blog", "pl pl", "pl/x"])
     def test_domainless_language_code_must_be_a_free_url_segment(self, lang_code: str) -> None:
         data = _config_data(DEFAULT_LANGUAGE="en", LANGUAGES={"en": _EN, lang_code: _PL})

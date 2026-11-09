@@ -66,23 +66,6 @@ class TestMongoSiteConfigRepository:
 
         assert repository.get_menu_items_in_lang("en") == []
 
-    def test_get_home_page_path(self):
-        site_content = Mock()
-        cast(Mock, site_content.find_one).return_value = {
-            "_id": "config",
-            "home_page_path": "/blog/page/about",
-        }
-        repository = MongoSiteConfigRepository(site_content, Mock())
-
-        assert repository.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_no_document(self):
-        site_content = Mock()
-        cast(Mock, site_content.find_one).return_value = None
-        repository = MongoSiteConfigRepository(site_content, Mock())
-
-        assert repository.get_home_page_path("en") is None
-
     def test_get_site_settings_null_fields_fall_back_to_defaults(self):
         site_content = Mock()
         cast(Mock, site_content.find_one).return_value = {

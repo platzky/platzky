@@ -51,25 +51,6 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         return [MenuItem.model_validate(x) for x in menu_items_raw.get(lang) or []]
 
     @override
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        ``home_page_path`` may be a single string (applies to every locale) or a
-        dict mapping locale codes to paths, with an optional "default" key used
-        when the current locale has no entry of its own.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured.
-        """
-        home_page_path = get_site_content(self._document.data).get("home_page_path")
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
-
-    @override
     def get_blog_meta(self, lang: str) -> PageMeta:
         """Retrieve the blog index's title and description for a specific language.
 

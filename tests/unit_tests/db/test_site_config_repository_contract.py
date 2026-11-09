@@ -139,43 +139,6 @@ class TestSiteConfigRepositoryContract:
 
         assert repository.get_menu_items_in_lang("en") == []
 
-    def test_get_home_page_path_returns_plain_string_for_any_locale(
-        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
-    ):
-        repository = make_repository({"home_page_path": "/welcome"})
-
-        assert repository.get_home_page_path("en") == "/welcome"
-
-    def test_get_home_page_path_returns_per_locale_value(
-        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
-    ):
-        repository = make_repository({"home_page_path": {"en": "/home", "pl": "/start"}})
-
-        assert repository.get_home_page_path("en") == "/home"
-        assert repository.get_home_page_path("pl") == "/start"
-
-    def test_get_home_page_path_falls_back_to_default_key(
-        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
-    ):
-        repository = make_repository({"home_page_path": {"en": "/home", "default": "/fallback"}})
-
-        assert repository.get_home_page_path("en") == "/home"
-        assert repository.get_home_page_path("de") == "/fallback"
-
-    def test_get_home_page_path_returns_none_for_unlisted_locale_without_default(
-        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
-    ):
-        repository = make_repository({"home_page_path": {"en": "/home"}})
-
-        assert repository.get_home_page_path("de") is None
-
-    def test_get_home_page_path_returns_none_when_unconfigured(
-        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
-    ):
-        repository = make_repository({})
-
-        assert repository.get_home_page_path("en") is None
-
     def test_get_footer_returns_content_in_requested_language(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
     ):

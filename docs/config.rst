@@ -167,6 +167,7 @@ Each language configuration includes:
 * ``flag``: Flag icon code (country code)
 * ``country``: Country code
 * ``domain`` (optional): Domain that serves this language
+* ``home_page_path`` (optional): Path rendered at this language's homepage (see `Homepage`_)
 
 .. code-block:: yaml
 
@@ -298,27 +299,28 @@ The root path (``/``) renders a configurable homepage instead of a fixed templat
 Platzky resolves the configured path against the application's own routes, so it can
 point at a page, a post, or any other registered route.
 
-The homepage path isn't set in ``config.yml`` — it lives in your site content,
-alongside posts and pages, so it can be changed without redeploying:
+The homepage path is set per language, as ``home_page_path`` in that language's
+``LANGUAGES`` entry:
 
-* **JSON file / Google Cloud Storage**: set ``home_page_path`` in the
-  ``site_content`` object of your data file.
+.. code-block:: yaml
 
-  .. code-block:: json
+    LANGUAGES:
+      en:
+        name: English
+        flag: uk
+        country: GB
+        home_page_path: /blog/page/about
+      pl:
+        name: polski
+        flag: pl
+        country: PL
+        home_page_path: /blog/page/o-nas
 
-      {
-        "site_content": {
-          "home_page_path": "/blog/page/about"
-        }
-      }
-
-* **MongoDB**: set ``home_page_path`` on the site config document.
-
-* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``ApplicationSetup`` model.
+The path must not be empty or ``/``; leave it out to use the blog index.
 
 Behavior:
 
-* If no homepage path is configured, ``/`` falls back to the blog index at
+* If a language has no ``home_page_path``, its root falls back to the blog index at
   ``BLOG_PREFIX``.
 * If the configured path doesn't resolve to a registered route, ``/`` renders the
   404 page.

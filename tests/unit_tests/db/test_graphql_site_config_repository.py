@@ -177,42 +177,6 @@ def test_get_menu_items_in_lang_empty_menu(
     assert repository.get_menu_items_in_lang("en") == []
 
 
-def test_get_home_page_path(repository: GraphQLSiteConfigRepository, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
-
-    assert repository.get_home_page_path("pl") == "/blog/page/about"
-    mock_client.execute.assert_called_once()
-    assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
-
-
-def test_get_home_page_path_missing(repository: GraphQLSiteConfigRepository, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{}]}
-
-    assert repository.get_home_page_path("en") is None
-
-
-def test_get_home_page_path_language_without_entry_is_none_and_has_no_default_fallback(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    """Unlike the Json backend, GraphQL has no "default" key: no entry means None."""
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    assert repository.get_home_page_path("en") is None
-
-
-@pytest.mark.parametrize(
-    "result",
-    [{"applicationSetups": None}, {"applicationSetups": [None]}, {}],
-    ids=["null-list", "null-entry", "missing"],
-)
-def test_get_home_page_path_null_nodes(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock, result: dict[str, Any]
-):
-    mock_client.execute.return_value = result
-
-    assert repository.get_home_page_path("en") is None
-
-
 def test_null_application_setup_entry_is_skipped(
     repository: GraphQLSiteConfigRepository, mock_client: Mock
 ):

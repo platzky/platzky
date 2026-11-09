@@ -28,6 +28,8 @@ class LanguageConfig(BaseModel):
         flag: Flag icon code (country code)
         country: Country code
         domain: Optional domain specific to this language
+        home_page_path: Optional site-relative path rendered at this language's homepage
+            (e.g. "/blog/page/about"); the blog index is used when unset
     """
 
     model_config = ConfigDict(frozen=True)
@@ -36,6 +38,7 @@ class LanguageConfig(BaseModel):
     flag: str
     country: str
     domain: t.Optional[str] = None
+    home_page_path: t.Optional[str] = None
 
     @field_validator("domain")
     @classmethod
@@ -47,6 +50,17 @@ class LanguageConfig(BaseModel):
                 "host in lowercase, so it would never match."
             )
         return domain
+
+    @field_validator("home_page_path")
+    @classmethod
+    def validate_home_page_path_is_not_root(cls, path: t.Optional[str]) -> t.Optional[str]:
+        """Reject an empty or root path, which would point the homepage at itself."""
+        if path in {"", "/"}:
+            raise ValueError(
+                f"home_page_path {path!r} must not be empty or '/': the homepage cannot point "
+                "at itself. Omit it to use the blog index."
+            )
+        return path
 
 
 Languages = dict[str, LanguageConfig]

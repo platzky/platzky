@@ -118,32 +118,6 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         return [MenuItem.model_validate(item) for item in menu_items.get("menuItems") or []]
 
     @override
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        Each language has its own ``applicationSetups`` entry in the CMS, so the
-        homepage path is looked up for the current locale's entry directly.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured for
-            this locale.
-        """
-        home_page_path_query = gql("""
-            query MyQuery($lang: Lang!) {
-              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
-                homePagePath
-              }
-            }
-            """)
-        result = self._client_getter().execute(
-            home_page_path_query, variable_values={"lang": locale}
-        )
-        return _first(result.get("applicationSetups")).get("homePagePath")
-
-    @override
     def get_blog_meta(self, lang: str) -> PageMeta:
         """Retrieve the blog index's title and description for a specific language.
 

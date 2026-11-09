@@ -183,21 +183,6 @@ class GraphQL(DB):
         """
         return self._site_config.get_footer(lang)
 
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        Each language has its own ``applicationSetups`` entry in the CMS, so the
-        homepage path is looked up for the current locale's entry directly.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured for
-            this locale.
-        """
-        return self._site_config.get_home_page_path(locale)
-
     def get_plugins_data(self) -> dict[str, PluginConfigBase]:
         """Retrieve configuration data for all plugins."""
         return self._plugin_config.get_all()
