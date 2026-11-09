@@ -38,8 +38,8 @@ def test_document_edit_is_persisted_by_file_store(tmp_path: Path):
     assert json.loads(path.read_text())["custom"] == {"key": "value"}
 
 
-def test_document_is_read_only():
+def test_document_cannot_be_replaced():
     db = Json(MemoryStore(DATA))
 
     with pytest.raises(AttributeError):
-        db.document = db.document  # type: ignore[misc]
+        setattr(db, "document", None)
