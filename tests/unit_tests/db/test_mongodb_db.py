@@ -1,3 +1,4 @@
+import gc
 from unittest.mock import Mock, patch
 
 import pytest
@@ -162,10 +163,15 @@ class TestMongoDB:
         }
         assert db.get_home_page_path("en") == "/blog/page/about"
 
-    def test_database_stays_usable_after_the_facade_is_gone(self, mock_client: tuple[Mock, Mock]):
+    def test_database_is_not_closed_when_the_facade_is_collected(
+        self, mock_client: tuple[Mock, Mock]
+    ):
         mongo_client, _ = mock_client
+        facade = MongoDB("mongodb://localhost:27017", "test_db")
+        database = facade.database
 
-        database = MongoDB("mongodb://localhost:27017", "test_db").database
+        del facade
+        gc.collect()
 
         assert database is mongo_client.return_value["test_db"]
         mongo_client.return_value.close.assert_not_called()
