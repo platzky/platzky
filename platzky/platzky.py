@@ -231,10 +231,10 @@ def _change_language_response(config: Config, lang: str) -> Response:
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     """Render the configured homepage, falling back to the blog index.
 
-    Resolves db.get_home_page_path() for the current request's locale through
-    the app's own URL map, so it can point at a page, a post, or any other
+    Resolves the current request's language's ``home_page_path`` through the
+    app's own URL map, so it can point at a page, a post, or any other
     registered route. Falls back to the blog index if no homepage is
-    configured for that locale, or if the configured path resolves back to
+    configured for that language, or if the configured path resolves back to
     this same route (which would otherwise recurse).
 
     Args:
@@ -244,12 +244,9 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     Returns:
         Rendered HTML of the resolved destination, or the 404 page.
     """
-    configured_home = app.db.get_home_page_path(app.get_locale())
-    target_path = (
-        configured_home
-        if isinstance(configured_home, str) and configured_home not in {"", "/"}
-        else f"{config.blog_prefix.rstrip('/')}/"
-    )
+    language_config = config.languages.get(app.get_locale())
+    configured_home = language_config.home_page_path if language_config else None
+    target_path = configured_home or f"{config.blog_prefix.rstrip('/')}/"
     try:
         endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
     except (NotFound, MethodNotAllowed):

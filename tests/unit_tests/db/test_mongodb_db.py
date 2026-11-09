@@ -156,13 +156,6 @@ class TestMongoDB:
         mock_db.plugins.find_one.return_value = None
         assert db.get_plugins_data() == {}
 
-    def test_get_home_page_path(self, db: MongoDB, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = {
-            "_id": "config",
-            "home_page_path": "/blog/page/about",
-        }
-        assert db.get_home_page_path("en") == "/blog/page/about"
-
     def test_database_is_not_closed_when_the_facade_is_collected(
         self, mock_client: tuple[Mock, Mock]
     ):

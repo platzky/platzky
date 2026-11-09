@@ -84,25 +84,6 @@ class TestJsonSiteConfigRepository:
         repository = _repository({"site_content": {}})
         assert repository.get_menu_items_in_lang("en") == []
 
-    def test_get_home_page_path(self):
-        repository = _repository({"site_content": {"home_page_path": "/blog/page/about"}})
-        assert repository.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_per_locale(self):
-        repository = _repository(
-            {
-                "site_content": {
-                    "home_page_path": {"en": "/en/about", "default": "/about"},
-                }
-            }
-        )
-        assert repository.get_home_page_path("en") == "/en/about"
-        assert repository.get_home_page_path("pl") == "/about"
-
-    def test_get_home_page_path_default(self):
-        repository = _repository({"site_content": {}})
-        assert repository.get_home_page_path("en") is None
-
     def test_get_blog_meta(self):
         blog_meta = {
             "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},

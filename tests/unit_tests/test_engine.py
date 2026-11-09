@@ -127,10 +127,16 @@ def _build_home_page_test_app(
     return create_app_from_config(config)
 
 
+_EN_LANGUAGE = {"name": "English", "flag": "us", "country": "US"}
+
+
+def _en_with_home(home_page_path: str) -> dict[str, Any]:
+    return {"en": {**_EN_LANGUAGE, "home_page_path": home_page_path}}
+
+
 def test_home_page_renders_configured_page():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/blog/page/about",
             "pages": [
                 {
                     "title": "About us",
@@ -140,7 +146,8 @@ def test_home_page_renders_configured_page():
                     "excerpt": "excerpt",
                 }
             ],
-        }
+        },
+        languages=_en_with_home("/blog/page/about"),
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -150,7 +157,6 @@ def test_home_page_renders_configured_page():
 def test_home_page_renders_configured_post():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/blog/welcome-post",
             "posts": [
                 {
                     "title": "Welcome",
@@ -164,7 +170,8 @@ def test_home_page_renders_configured_post():
                     "comments": [],
                 }
             ],
-        }
+        },
+        languages=_en_with_home("/blog/welcome-post"),
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -195,9 +202,18 @@ def test_home_page_falls_back_to_blog_index_when_not_configured():
 
 
 _BILINGUAL_LANGUAGES = {
-    "en": {"name": "English", "flag": "us", "country": "US"},
+    "en": _EN_LANGUAGE,
     "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
 }
+
+
+def _bilingual_languages(pl_home_page_path: str | None = None) -> dict[str, Any]:
+    return {
+        "en": {**_EN_LANGUAGE, "home_page_path": "/blog/page/about"},
+        "pl": {**_BILINGUAL_LANGUAGES["pl"], "home_page_path": pl_home_page_path},
+    }
+
+
 _ABOUT_PAGES = [
     {
         "title": "About us",
@@ -218,11 +234,8 @@ _ABOUT_PAGES = [
 
 def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") -> Engine:
     return _build_home_page_test_app(
-        {
-            "home_page_path": {"default": "/blog/page/about", "pl": pl_home_path},
-            "pages": _ABOUT_PAGES,
-        },
-        languages=_BILINGUAL_LANGUAGES,
+        {"pages": _ABOUT_PAGES},
+        languages=_bilingual_languages(pl_home_path),
         default_language="en",
     )
 
@@ -243,20 +256,20 @@ def test_home_page_resolves_domainless_language_home(pl_home_path: str):
 
 
 def test_home_page_404s_when_configured_path_does_not_resolve():
-    app = _build_home_page_test_app({"home_page_path": "/blog/page/does-not-exist"})
+    app = _build_home_page_test_app({}, languages=_en_with_home("/blog/page/does-not-exist"))
     response = app.test_client().get("/")
     assert response.status_code == 404
 
 
-def test_home_page_falls_back_when_configured_path_is_root():
+def test_home_page_falls_back_to_blog_index_for_language_without_path():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/",
+            "pages": _ABOUT_PAGES,
             "posts": [
                 {
                     "title": "Latest post",
                     "slug": "latest-post",
-                    "language": "en",
+                    "language": "pl",
                     "excerpt": "excerpt",
                     "author": "author",
                     "tags": [],
@@ -265,9 +278,11 @@ def test_home_page_falls_back_when_configured_path_is_root():
                     "comments": [],
                 }
             ],
-        }
+        },
+        languages=_bilingual_languages(),
+        default_language="en",
     )
-    response = app.test_client().get("/")
+    response = app.test_client().get("/pl/")
     assert response.status_code == 200
     assert b"Latest post" in response.data
 

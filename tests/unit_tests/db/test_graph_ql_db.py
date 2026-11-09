@@ -226,18 +226,6 @@ def test_get_menu_items_in_lang_delegates_to_site_config(
     assert result == ["sentinel"]
 
 
-def test_get_home_page_path_delegates_to_site_config(
-    graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
-):
-    db, _, _, site_config = graph_ql_db_with_mocked_repos
-    site_config.get_home_page_path.return_value = "/blog/page/about"
-
-    result = db.get_home_page_path("en")
-
-    site_config.get_home_page_path.assert_called_once_with("en")
-    assert result == "/blog/page/about"
-
-
 def test_get_blog_meta_delegates_to_site_config(
     graph_ql_db_with_mocked_repos: tuple[GraphQL, Mock, Mock, Mock],
 ):
