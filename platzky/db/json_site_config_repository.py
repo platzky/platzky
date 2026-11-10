@@ -8,6 +8,7 @@ from platzky.db.site_config_repository import (
     SiteConfigRepository,
     SiteContent,
     SiteContentSection,
+    parse_site_content,
 )
 
 
@@ -25,7 +26,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
 
     def _section(self) -> SiteContentSection:
         """Validate and return the stored ``site_content`` section."""
-        return SiteContentSection.model_validate(get_site_content(self._document.data))
+        return parse_site_content(get_site_content(self._document.data))
 
     @override
     def get_site_content(self) -> SiteContent:
