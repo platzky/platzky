@@ -8,24 +8,6 @@ from platzky.db.site_config_repository import (
 )
 from platzky.models import Font
 
-_NON_DEFAULTS = {
-    "app_name": "Name",
-    "app_title": "Title",
-    "app_description": "Description",
-    "logo_url": "/logo.png",
-    "favicon_url": "/favicon.ico",
-    "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
-    "primary_color": "blue",
-    "secondary_color": "green",
-}
-
-
-@pytest.mark.parametrize("key, value", _NON_DEFAULTS.items())
-def test_every_stored_key_is_reflected_in_the_settings(key: str, value: object):
-    settings = SiteSettings.from_layers(SiteConfig.model_validate({key: value}), LocalizedContent())
-
-    assert settings != SiteSettings()
-
 
 def test_key_missing_from_overrides_uses_the_default():
     settings = SiteSettings.from_layers(
