@@ -1,6 +1,7 @@
 """SiteConfigRepository implementation backed by a GraphQL (Hygraph) CMS."""
 
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, Callable
 
 from gql import Client, gql
@@ -47,19 +48,21 @@ def _is_set(value: object) -> bool:
     return value is not None and value != ""
 
 
-def _without_unset(values: Mapping[str, Any]) -> dict[str, Any]:
+def _without_unset(values: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return the fields an editor set, also in nested objects, so the rest take defaults.
 
     This is not a validation of the site content: in Hygraph, null means "not set".
     """
-    return {
-        key: _without_unset(value) if isinstance(value, Mapping) else value
-        for key, value in values.items()
-        if _is_set(value)
-    }
+    return MappingProxyType(
+        {
+            key: _without_unset(value) if isinstance(value, Mapping) else value
+            for key, value in values.items()
+            if _is_set(value)
+        }
+    )
 
 
-def _fields(entry: Mapping[str, Any]) -> dict[str, Any]:
+def _fields(entry: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return the entry's set fields, with the nested ``logo.image.url`` as ``logo_url``."""
     logo_url = ((entry.get("logo") or {}).get("image") or {}).get("url")
     return _without_unset(
