@@ -4,7 +4,6 @@ from typing_extensions import override
 
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.site_config_repository import (
-    LocalizedContent,
     SiteConfigRepository,
     SiteContent,
     SiteSettings,
@@ -24,9 +23,9 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         """
         self._document = document
 
-    def _localized(self, lang: str) -> LocalizedContent:
-        """Validate the site content and return the content of a language."""
-        return SiteContent.model_validate(get_site_content(self._document.data)).localized(lang)
+    def _content(self) -> SiteContent:
+        """Validate and return the stored site content."""
+        return SiteContent.model_validate(get_site_content(self._document.data))
 
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
@@ -38,7 +37,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The app's site settings, with text empty where none is configured.
         """
-        content = SiteContent.model_validate(get_site_content(self._document.data))
+        content = self._content()
         return SiteSettings.from_layers(content, content.localized(lang))
 
     @override
@@ -51,7 +50,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             Menu items in that language.
         """
-        return list(self._localized(lang).menu_items)
+        return list(self._content().localized(lang).menu_items)
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
@@ -64,7 +63,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return self._localized(locale).home_page_path or None
+        return self._content().localized(locale).home_page_path or None
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -76,7 +75,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The blog meta, empty if none is configured for the language.
         """
-        return self._localized(lang).blog_meta
+        return self._content().localized(lang).blog_meta
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -88,4 +87,4 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The footer, empty and not collapsible if none is configured.
         """
-        return self._localized(lang).footer
+        return self._content().localized(lang).footer

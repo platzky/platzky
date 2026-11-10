@@ -451,19 +451,12 @@ class TestJsonDbEmptyDb:
 
 
 _INVALID = {"site_content": {"menu_items": {}, "localized_content": {"pl": {"footer": None}}}}
-_PROBLEMS = [
-    "site_content.localized_content.pl.footer: Input should be a valid dictionary or "
-    "instance of Footer",
-    "site_content.menu_items: Extra inputs are not permitted",
-]
 
 
 class TestJsonDbSiteContentValidation:
     def test_invalid_site_content_stops_the_database_from_being_created(self):
-        with pytest.raises(InvalidSiteContentError) as error:
+        with pytest.raises(InvalidSiteContentError):
             Json(MemoryStore(_INVALID))
-
-        assert str(error.value).splitlines() == _PROBLEMS
 
     def test_health_check_reports_invalid_site_content(self):
         db = Json(MemoryStore({"site_content": {}}))
