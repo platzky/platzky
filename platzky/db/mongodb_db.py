@@ -14,7 +14,7 @@ from platzky.db.exceptions import NotFoundError
 from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.plugin_config_repository import PluginConfigRepository
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.db.site_config_repository import SiteSettings
 from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -70,9 +70,8 @@ class MongoDB(DB):
         self._localized_content: Collection[Any] = self._db.localized_content
         self._plugins: Collection[Any] = self._db.plugins
         self._plugin_config: PluginConfigRepository = MongoPluginConfigRepository(self._plugins)
-        site_config = MongoSiteConfigRepository(self._site_content, self._localized_content)
-        site_config.validate()
-        self._site_config: SiteConfigRepository = site_config
+        self._site_config = MongoSiteConfigRepository(self._site_content, self._localized_content)
+        self._site_config.validate()
 
     @property
     def database(self) -> Database[Any]:
@@ -243,7 +242,7 @@ class MongoDB(DB):
     def health_check(self) -> None:
         """Perform a health check on the MongoDB database.
 
-        Raises an exception if the database is not accessible.
+        Raises an exception if the database is not accessible or its site content is invalid.
         """
-        # Simple ping to check if database is accessible
         self._client.admin.command("ping")
+        self._site_config.validate()

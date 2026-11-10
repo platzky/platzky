@@ -39,7 +39,11 @@ def _entry(
 
 
 def _present(values: Mapping[str, Any]) -> dict[str, Any]:
-    """Drop the null and empty values, so they fall through to the next source."""
+    """Drop the null and empty values, so they fall through to the next source.
+
+    Hygraph answers null for every field an editor left unset, so here null means "not set";
+    it is not a validation of the site content.
+    """
     return {key: value for key, value in values.items() if value}
 
 

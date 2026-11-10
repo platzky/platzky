@@ -206,6 +206,14 @@ class TestMongoDB:
 
         mock_command.assert_called_once_with("ping")
 
+    def test_health_check_fails_on_site_content_made_invalid_after_start(
+        self, db: MongoDB, mock_db: Mock
+    ):
+        mock_db.localized_content.find.return_value = [{"_id": "pl", "unknown": "x"}]
+
+        with pytest.raises(InvalidSiteContentError):
+            db.health_check()
+
     def test_health_check_failure(self, db: MongoDB, mongo_client: Mock):
         """Test health check when database is not accessible"""
         mongo_client.return_value.admin.command.side_effect = Exception("Connection failed")
