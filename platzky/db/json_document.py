@@ -110,17 +110,6 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
-def _require_object(name: str, section: object) -> dict[str, Any]:
-    """Return the section if it is an object.
-
-    Raises:
-        InvalidDataError: If it is not (null included).
-    """
-    if not isinstance(section, dict):
-        raise InvalidDataError(f"{name}: Input should be a valid dictionary")
-    return section
-
-
 class JsonSection:
     """One top-level section of a `JsonDocument`: all a repository gets to see of it.
 
@@ -150,9 +139,7 @@ class JsonSection:
         Raises:
             InvalidDataError: If the section is present but not an object (null included).
         """
-        return MappingProxyType(
-            _require_object(self._name, self._document.data.get(self._name, {}))
-        )
+        return MappingProxyType(self._from_full_document(self._document.data))
 
     @contextmanager
     def edit(self) -> Generator[dict[str, Any]]:
@@ -165,5 +152,23 @@ class JsonSection:
         Raises:
             InvalidDataError: If the section is present but not an object (null included).
         """
-        with self._document.edit() as data:
-            yield _require_object(self._name, data.setdefault(self._name, {}))
+        with self._document.edit() as document:
+            document.setdefault(self._name, {})
+            yield self._from_full_document(document)
+
+    def _from_full_document(self, document: Mapping[str, Any]) -> dict[str, Any]:
+        """Take this section out of the full document.
+
+        Args:
+            document: The whole JSON document, all sections included.
+
+        Returns:
+            What the document holds under this section's key; empty if it holds nothing.
+
+        Raises:
+            InvalidDataError: If it holds something other than an object (null included).
+        """
+        section = document.get(self._name, {})
+        if not isinstance(section, dict):
+            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
+        return section
