@@ -189,9 +189,6 @@ class GraphQL(DB):
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
 
-        Each language has its own ``applicationSetups`` entry in the CMS, so the
-        homepage path is looked up for the current locale's entry directly.
-
         Args:
             locale: Language code (e.g., 'en', 'pl') of the current request.
 

@@ -1,11 +1,13 @@
 """Contract suite: every SiteConfigRepository behaves identically.
 
-Parametrized over every backend that implements it (so far Json, Mongo) so the
+Parametrized over every backend that implements it (Json, Mongo, GraphQL) so the
 independently-implemented repositories can't silently drift apart the way
 from-scratch implementations of the same thing easily could. Each backend gets a
 factory taking the same neutral `site_content` dict (the Json document's shape)
 and translating it into what that backend stores: the Json document itself, or
-a Mongo config document plus per-language menu and override documents.
+a Mongo config document plus per-language menu and override documents, or the
+Hygraph answer (the mock only maps fields, it never filters, so picking the
+language is left to the repository).
 How overrides fall back to the defaults is tested on `SiteSettings.from_layers`.
 """
 
@@ -14,7 +16,9 @@ from typing import Any, Callable
 from unittest.mock import Mock
 
 import pytest
+from gql import Client
 
+from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
 from platzky.db.json_document import JsonDocument
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import MemoryStore
@@ -75,9 +79,69 @@ def _mongo_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
     )
 
 
+def _for_language(site_content: Mapping[str, Any], field: str, lang: str) -> object:
+    return (site_content.get(field) or {}).get(lang)
+
+
+def _hygraph_default_entry(site_content: Mapping[str, Any]) -> dict[str, Any]:
+    logo_url = site_content.get("logo_url")
+    return {
+        "language": None,
+        "appName": site_content.get("app_name"),
+        "appTitle": site_content.get("app_title"),
+        "appDescription": site_content.get("app_description"),
+        "logo": {"image": {"url": logo_url}} if logo_url else None,
+    }
+
+
+def _hygraph_language_entry(site_content: Mapping[str, Any], lang: str) -> dict[str, Any]:
+    localized = (site_content.get("localized_content") or {}).get(lang) or {}
+    footer = site_content.get("footer") or {}
+    logo_url = localized.get("logo_url")
+    return {
+        "language": lang,
+        "appName": localized.get("app_name"),
+        "appTitle": localized.get("app_title"),
+        "appDescription": localized.get("app_description"),
+        "logo": {"image": {"url": logo_url}} if logo_url else None,
+        "blogMeta": _for_language(site_content, "blog_meta", lang),
+        "footer": {
+            "content": (footer.get("content") or {}).get(lang),
+            "collapsible": footer.get("collapsible"),
+        },
+        "homePagePath": _for_language(site_content, "home_page_path", lang),
+        "menuItems": _for_language(site_content, "menu_items", lang),
+    }
+
+
+def _graphql_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
+    languages = {
+        lang
+        for field in ("localized_content", "menu_items", "blog_meta", "home_page_path")
+        for lang in site_content.get(field) or {}
+    } | set((site_content.get("footer") or {}).get("content") or {})
+    entries = [_hygraph_default_entry(site_content)] + [
+        _hygraph_language_entry(site_content, lang) for lang in languages
+    ]
+    client = Mock(spec=Client)
+    client.execute.return_value = {
+        "localizedContents": entries,
+        "logos": [],
+        "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],
+        "themes": [
+            {
+                "primaryColor": site_content.get("primary_color"),
+                "secondaryColor": site_content.get("secondary_color"),
+                "font": site_content.get("font"),
+            }
+        ],
+    }
+    return GraphQLSiteConfigRepository(lambda: client)
+
+
 @pytest.fixture(
-    params=[_json_repository, _mongo_repository],
-    ids=["Json", "Mongo"],
+    params=[_json_repository, _mongo_repository, _graphql_repository],
+    ids=["Json", "Mongo", "GraphQL"],
 )
 def make_repository(
     request: pytest.FixtureRequest,
@@ -188,6 +252,8 @@ class TestSiteConfigRepositoryContract:
     def test_get_home_page_path_returns_plain_string_for_any_locale(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
     ):
+        if make_repository is _graphql_repository:
+            pytest.skip("a single home page path for every locale has no Hygraph equivalent")
         repository = make_repository({"home_page_path": "/welcome"})
 
         assert repository.get_home_page_path("en") == "/welcome"
@@ -203,6 +269,8 @@ class TestSiteConfigRepositoryContract:
     def test_get_home_page_path_falls_back_to_default_key(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
     ):
+        if make_repository is _graphql_repository:
+            pytest.skip("the default home page path key has no Hygraph equivalent")
         repository = make_repository({"home_page_path": {"en": "/home", "default": "/fallback"}})
 
         assert repository.get_home_page_path("en") == "/home"

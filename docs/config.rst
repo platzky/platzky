@@ -314,7 +314,8 @@ alongside posts and pages, so it can be changed without redeploying:
 
 * **MongoDB**: set ``home_page_path`` on the site config document.
 
-* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``ApplicationSetup`` model.
+* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``LocalizedContent`` entry of
+  each language.
 
 Behavior:
 
@@ -382,9 +383,22 @@ when there is no logo, and the RSS feed title.
       // localized_content
       {"_id": "en", "app_name": "DropLoop", "app_title": "Bins map | DropLoop"}
 
-* **GraphQL (Hygraph)**: only ``applicationDescription`` of the ``applicationSetups``
-  entry for the current language is read, plus the logo as before. The other
-  keys stay empty until the Hygraph schema has matching fields.
+* **GraphQL (Hygraph)**: store the text in the ``LocalizedContent`` model
+  (``localizedContents``). The entry without a ``language`` holds the defaults
+  and an entry with a language overrides them. The fields are ``appName``,
+  ``appTitle``, ``appDescription``, ``logo``, ``blogMeta`` (``title``,
+  ``description``), ``footer`` (``content``, ``collapsible``), ``homePagePath``
+  and ``menuItems`` (``name``, ``url``). The menu, home page path, blog meta and
+  footer are read from the entry of the current language only. The fallback
+  ``logos``, the ``favicons`` and the ``themes`` (``primaryColor``,
+  ``secondaryColor``, ``font``) stay language-independent.
+
+  Migrating an existing Hygraph project (a breaking change): create the
+  ``LocalizedContent`` model and add ``font`` to ``themes``; move
+  ``applicationDescription`` and ``homePagePath`` from each ``ApplicationSetup``
+  entry, and every ``MenuItem`` of a language, to that language's
+  ``LocalizedContent`` entry. ``applicationSetups`` and ``menuItems`` are no
+  longer read.
 
 Feature Flags
 ~~~~~~~~~~~~~

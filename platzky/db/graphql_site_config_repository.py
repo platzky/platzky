@@ -1,36 +1,104 @@
 """SiteConfigRepository implementation backed by a GraphQL (Hygraph) CMS."""
 
+from collections.abc import Mapping, Sequence
 from typing import Any, Callable
 
 from gql import Client, gql
 from typing_extensions import override
 
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.models import Footer, MenuItem, PageMeta
 
 # Relation nodes may be null in the CMS, so these helpers turn a null list, a
 # null entry or a null nested node into the documented default instead of raising.
 
 
-def _first(nodes: list[dict[str, Any] | None] | None) -> dict[str, Any]:
+def _first(nodes: Sequence[Mapping[str, Any] | None] | None) -> Mapping[str, Any]:
     """Return the first node of a CMS list, or an empty mapping if there is none."""
     return (nodes[0] if nodes else None) or {}
 
 
-def _logo(logo: dict[str, Any] | None) -> Image | None:
-    """Build the site logo from a CMS logo node, or None if it has no image."""
-    logo = logo or {}
-    url = (logo.get("image") or {}).get("url")
-    return Image(url=url, alternateText=logo.get("alternateText") or "") if url else None
+def _entry(
+    entries: Sequence[Mapping[str, Any] | None] | None, language: str | None
+) -> Mapping[str, Any]:
+    """Pick the `LocalizedContent` entry of a language.
+
+    Args:
+        entries: The `localizedContents` answer.
+        language: The language code, or None for the entry holding the defaults.
+
+    Returns:
+        The matching entry, or an empty mapping if there is none.
+    """
+    return next((e for e in entries or [] if e and e.get("language") == language), {})
+
+
+def _present(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop the null and empty values, so they fall through to the next source."""
+    return {key: value for key, value in values.items() if value}
+
+
+def _logo_url(logo: Mapping[str, Any] | None) -> str | None:
+    """Return the image URL of a CMS logo node, or None if it has no image."""
+    return ((logo or {}).get("image") or {}).get("url")
+
+
+def _entry_keys(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """Map a `LocalizedContent` entry to the `SiteSettings.STORED_KEYS` it sets."""
+    return _present(
+        {
+            "app_name": entry.get("appName"),
+            "app_title": entry.get("appTitle"),
+            "app_description": entry.get("appDescription"),
+            "logo_url": _logo_url(entry.get("logo")),
+        }
+    )
+
+
+_LOCALIZED_CONTENTS = "localizedContents(stage: PUBLISHED, first: 100)"
+
+_SITE_SETTINGS_QUERY = f"""
+    query MyQuery {{
+      {_LOCALIZED_CONTENTS} {{
+        language
+        appName
+        appTitle
+        appDescription
+        logo {{
+          image {{
+            url
+          }}
+        }}
+      }}
+      logos(stage: PUBLISHED) {{
+        logo {{
+          image {{
+            url
+          }}
+        }}
+      }}
+      favicons(stage: PUBLISHED) {{
+        favicon {{
+          url
+        }}
+      }}
+      themes(stage: PUBLISHED) {{
+        primaryColor
+        secondaryColor
+        font
+      }}
+    }}
+    """
 
 
 class GraphQLSiteConfigRepository(SiteConfigRepository):
     """Site config repository backed by a GraphQL CMS.
 
-    `get_site_settings()` combines what used to be four separate queries
-    (logo, favicon, theme colors, per-language app description) into one
-    request -- the same round-trip reduction `MongoSiteConfigRepository` gets
-    for free by fetching its whole config document in one `find_one`.
+    Per-language content lives in the `LocalizedContent` model: the entry without a
+    language holds the defaults and an entry with a language overrides them. Each
+    method makes one request and picks the entry in Python, so the selection rules
+    are the same as for the other backends. `get_site_settings()` also reads the
+    language-independent logo, favicon and theme in the same request.
     """
 
     def __init__(self, client_getter: Callable[[], Client]) -> None:
@@ -42,6 +110,11 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         """
         self._client_getter = client_getter
 
+    def _localized_contents(self, selection: str) -> Sequence[Mapping[str, Any] | None]:
+        """Fetch every `LocalizedContent` entry, with the language and the given selection."""
+        query = gql(f"query MyQuery {{ {_LOCALIZED_CONTENTS} {{ language {selection} }} }}")
+        return self._client_getter().execute(query).get("localizedContents") or []
+
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
         """Retrieve branding and site text for the app in a specific language.
@@ -50,47 +123,22 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings. Only the description is per language; the
-            other text fields are empty.
+            The app's site settings, with text empty where none is configured.
         """
-        query = gql("""
-            query MyQuery($lang: Lang!) {
-              logos(stage: PUBLISHED) {
-                logo {
-                  alternateText
-                  image {
-                    url
-                  }
-                }
-              }
-              favicons(stage: PUBLISHED) {
-                favicon {
-                  url
-                }
-              }
-              themes(stage: PUBLISHED) {
-                primaryColor
-                secondaryColor
-              }
-              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
-                applicationDescription
-              }
-            }
-            """)
-        result = self._client_getter().execute(query, variable_values={"lang": lang})
-
+        result = self._client_getter().execute(gql(_SITE_SETTINGS_QUERY))
+        entries = result.get("localizedContents")
         theme = _first(result.get("themes"))
-
-        return SiteSettings(
-            logo=_logo(_first(result.get("logos")).get("logo")),
-            favicon_url=(_first(result.get("favicons")).get("favicon") or {}).get("url") or "",
-            primary_color=theme.get("primaryColor") or "white",
-            secondary_color=theme.get("secondaryColor") or "navy",
-            font="",  # not implemented in GraphQL backend
-            app_description=_first(result.get("applicationSetups")).get("applicationDescription")
-            or "",
-            # app_name/app_title are not read: they need new fields
-            # on Hygraph `applicationSetups` first.
+        defaults = {
+            "logo_url": _logo_url(_first(result.get("logos")).get("logo")),
+            "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get("url"),
+            "primary_color": theme.get("primaryColor"),
+            "secondary_color": theme.get("secondaryColor"),
+            "font": theme.get("font"),
+        }
+        return SiteSettings.from_layers(
+            {**_present(defaults), **_entry_keys(_entry(entries, None))},
+            _entry_keys(_entry(entries, lang)),
+            lang,
         )
 
     @override
@@ -103,23 +151,12 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             Menu items in that language.
         """
-        menu_items_query = gql("""
-            query MyQuery($lang: Lang!) {
-              menuItems(where: {language: $lang}, stage: PUBLISHED, first: 100){
-                name
-                url
-              }
-            }
-            """)
-        menu_items = self._client_getter().execute(menu_items_query, variable_values={"lang": lang})
-        return [MenuItem.model_validate(item) for item in menu_items.get("menuItems") or []]
+        entry = _entry(self._localized_contents("menuItems { name url }"), lang)
+        return [MenuItem.model_validate(item) for item in entry.get("menuItems") or []]
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
-
-        Each language has its own ``applicationSetups`` entry in the CMS, so the
-        homepage path is looked up for the current locale's entry directly.
 
         Args:
             locale: Language code (e.g., 'en', 'pl') of the current request.
@@ -128,44 +165,37 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        home_page_path_query = gql("""
-            query MyQuery($lang: Lang!) {
-              applicationSetups(where: {language: $lang}, stage: PUBLISHED) {
-                homePagePath
-              }
-            }
-            """)
-        result = self._client_getter().execute(
-            home_page_path_query, variable_values={"lang": locale}
-        )
-        return _first(result.get("applicationSetups")).get("homePagePath")
+        return _entry(self._localized_contents("homePagePath"), locale).get("homePagePath")
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
         """Retrieve the blog index's title and description for a specific language.
 
-        The CMS schema has no blog meta content type, so this queries nothing and the blog
-        index uses its default title and the site's description.
-
         Args:
-            lang: Language code (e.g., 'en', 'pl'), unused.
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            An empty blog meta.
+            The blog meta, empty if none is configured for the language.
         """
-        return PageMeta()
+        entry = _entry(self._localized_contents("blogMeta { title description }"), lang)
+        blog_meta = entry.get("blogMeta") or {}
+        return PageMeta(
+            title=blog_meta.get("title") or "", description=blog_meta.get("description") or ""
+        )
 
     @override
     def get_footer(self, lang: str) -> Footer:
         """Retrieve the site-wide footer for a specific language.
 
-        The CMS schema has no footer content type, so this queries nothing and
-        shows no footer.
-
         Args:
-            lang: Language code (e.g., 'en', 'pl'), unused.
+            lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            An empty, non-collapsible footer.
+            The footer, empty and not collapsible if none is configured.
         """
-        return Footer()
+        entry = _entry(self._localized_contents("footer { content collapsible }"), lang)
+        footer = entry.get("footer") or {}
+        return Footer(
+            content=footer.get("content") or "",
+            collapsible=bool(footer.get("collapsible")),
+        )
