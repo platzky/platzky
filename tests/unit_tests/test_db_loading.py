@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 from platzky.config import Config
 from platzky.db import db_loader
-from platzky.db.site_config_repository import SiteContent
+from platzky.db.site_config_repository import SiteConfig
 
 
 def test_loading_json_db_dynamically():
@@ -33,11 +33,11 @@ def test_loading_json_file_db_dynamically():
     with patch("builtins.open", mock_open(read_data="data")):
         with patch(
             "json.load",
-            return_value={"site_content": {"app_description": "From file"}},
+            return_value={"site_config": {"app_description": "From file"}},
         ):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
-            assert db.site_config.get_site_content() == SiteContent(app_description="From file")
+            assert db.site_config.get_site_config() == SiteConfig(app_description="From file")
 
 
 def test_loading_google_json_db_dynamically():
@@ -51,7 +51,7 @@ def test_loading_google_json_db_dynamically():
         },
     }
 
-    expected_content = SiteContent(app_description="From bucket")
+    expected_content = SiteConfig(app_description="From bucket")
 
     with patch("platzky.db.google_json_db.Client") as mock_client:
         client_mock = MagicMock()
@@ -61,7 +61,7 @@ def test_loading_google_json_db_dynamically():
         client_mock.bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
         mock_blob.download_as_text.return_value = (
-            '{"site_content": {"app_description": "From bucket"}}'
+            '{"site_config": {"app_description": "From bucket"}}'
         )
 
         mock_client.return_value = client_mock
@@ -70,7 +70,7 @@ def test_loading_google_json_db_dynamically():
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
-        assert db.site_config.get_site_content() == expected_content
+        assert db.site_config.get_site_config() == expected_content
 
         mock_client.assert_called_once()
         mock_bucket.blob.assert_called_once_with("data.json")

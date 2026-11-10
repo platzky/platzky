@@ -63,12 +63,12 @@ class MongoDB(DB):
         self._blog = MongoBlogRepository(self._db.posts, self._db.pages, self._db.blog_meta)
         self._plugin_config = MongoPluginConfigRepository(self._db.plugins)
         self._site_config = MongoSiteConfigRepository(
-            self._db.site_content, self._db.localized_content
+            self._db.site_config, self._db.localized_content
         )
         self._validate()
 
     def _validate(self) -> None:
-        """Raise `InvalidSiteContentError` if the site content or the blog meta is invalid."""
+        """Raise `InvalidDataError` if the site config or the blog meta is invalid."""
         self._site_config.validate()
         self._blog.validate()
 

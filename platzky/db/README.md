@@ -40,7 +40,7 @@ in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 | Attribute | Protocol | File | Covers |
 |---|---|---|---|
 | `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments, and `get_meta(lang)`, the blog index's title and description |
-| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_content()` returns the site-wide `SiteContent` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them, and `SiteContentSection` is the whole JSON `site_content` section (also the Mongo `validate()` and `platzky check` format) |
+| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_config()` returns the site-wide `SiteConfig` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them |
 | `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
@@ -49,10 +49,20 @@ Implementations live in `<backend>_<repo>.py` (for example
 three repositories in its constructor, keeps them in private attributes and returns
 them from the `blog`, `site_config` and `plugin_config` properties; that, plus
 `health_check()`, is all a custom backend has to implement. A custom
-`SiteConfigRepository` maps its storage to the two models: `get_site_content()`
+`SiteConfigRepository` maps its storage to the two models: `get_site_config()`
 and `get_localized_content(lang)`; the contract suite in
 `tests/unit_tests/db/site_config_repository_contract.py` checks exactly that. The blog blueprint
 (`create_blog_blueprint`) receives `db.blog` only, not the `DB`.
+
+Each repository owns its storage and reads nothing else. In the JSON document,
+`site_config` (the site-wide keys and `localized_content`) belongs to
+`JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
+`plugins` to `JsonPluginConfigRepository`; each validates only its own section
+(`SiteConfigSection` and `BlogSection`, unknown keys and nulls are errors), and
+`Json.health_check()` and `platzky check` validate both through `validate_json_document`. In
+Mongo, the `site_config` collection (document `_id: "config"`) and `localized_content` belong to
+the site config repository, and `posts`, `pages` and `blog_meta` to the blog repository. Invalid
+stored data raises `InvalidDataError` in both.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so

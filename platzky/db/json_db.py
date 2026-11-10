@@ -1,5 +1,6 @@
 """In-memory JSON database implementation."""
 
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import Field
@@ -7,13 +8,16 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.json_blog_repository import JsonBlogRepository, parse_blog_meta
-from platzky.db.json_document import JsonDocument, get_site_content
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.json_blog_repository import SECTION as BLOG_SECTION
+from platzky.db.json_blog_repository import JsonBlogRepository, parse_blog
+from platzky.db.json_document import JsonDocument, get_section
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
-from platzky.db.json_site_config_repository import JsonSiteConfigRepository
+from platzky.db.json_site_config_repository import SECTION as SITE_CONFIG_SECTION
+from platzky.db.json_site_config_repository import JsonSiteConfigRepository, parse_site_config
 from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.db.plugin_config_repository import PluginConfigRepository
-from platzky.db.site_config_repository import SiteConfigRepository, parse_site_content
+from platzky.db.site_config_repository import SiteConfigRepository
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -46,17 +50,30 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 # TODO: Make all language-specific methods available without language parameter.
 # This will allow a default language and if there is one language,
 # there will be no need to pass it to the method or in db.
-def validate_json_site_content(site_content: object) -> None:
-    """Validate the ``site_content`` section of a JSON document, blog meta included.
+def validate_json_document(document: Mapping[str, Any]) -> None:
+    """Validate the ``site_config`` and ``blog`` sections of a JSON document.
+
+    The ``site_config`` section is required; an absent ``blog`` section is an empty blog. Plugin
+    settings are not checked.
 
     Args:
-        site_content: The ``site_content`` section of the document.
+        document: The loaded document.
 
     Raises:
-        InvalidSiteContentError: If it is invalid; the message lists every problem with its
+        InvalidDataError: If a section is invalid; the message lists every problem with its
             path, one per line.
     """
-    parse_blog_meta(parse_site_content(site_content).blog_meta)
+    errors: list[str] = []
+    try:
+        parse_site_config(document.get(SITE_CONFIG_SECTION))
+    except InvalidDataError as error:
+        errors.append(str(error))
+    try:
+        parse_blog(document.get(BLOG_SECTION, {}))
+    except InvalidDataError as error:
+        errors.append(str(error))
+    if errors:
+        raise InvalidDataError("\n".join(errors))
 
 
 class Json(DB):
@@ -77,12 +94,8 @@ class Json(DB):
         self._blog = JsonBlogRepository(document)
         self._plugin_config = JsonPluginConfigRepository(document)
         self._site_config = JsonSiteConfigRepository(document)
-        if "site_content" in document.data:
-            self._validate_site_content()
-
-    def _validate_site_content(self) -> None:
-        """Raise `InvalidSiteContentError` if the site content does not match its format."""
-        validate_json_site_content(get_site_content(self._document.data))
+        if SITE_CONFIG_SECTION in document.data:
+            validate_json_document(document.data)
 
     @property
     @override
@@ -117,6 +130,8 @@ class Json(DB):
     def health_check(self) -> None:
         """Perform a health check on the JSON database.
 
-        Raises an exception if the database is not accessible or its site content is invalid.
+        Raises an exception if the database is not accessible, has no ``site_config`` section,
+        or a section is invalid.
         """
-        self._validate_site_content()
+        get_section(self._document.data, SITE_CONFIG_SECTION)
+        validate_json_document(self._document.data)

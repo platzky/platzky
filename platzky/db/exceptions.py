@@ -1,5 +1,7 @@
 """Exceptions raised by database implementations."""
 
+from pydantic import ValidationError
+
 
 class DBError(Exception):
     """Base class for all database errors."""
@@ -17,5 +19,23 @@ class ReadOnlyStorageError(DBError):
     """The storage does not support writes."""
 
 
-class InvalidSiteContentError(DBError):
-    """The site content in the database does not match the site content format."""
+class InvalidDataError(DBError):
+    """The data in the database does not match its format."""
+
+    @classmethod
+    def from_validation_error(cls, error: ValidationError, *path: str) -> "InvalidDataError":
+        """Build the error from a pydantic one, listing every problem with its full path.
+
+        Args:
+            error: The validation error.
+            *path: Where the validated value lives, prepended to each problem's location.
+
+        Returns:
+            The error; its message has one ``path: problem`` line per problem.
+        """
+        return cls(
+            "\n".join(
+                ".".join([*path, *(str(part) for part in problem["loc"])]) + f": {problem['msg']}"
+                for problem in error.errors()
+            )
+        )

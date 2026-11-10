@@ -8,8 +8,8 @@ from typing_extensions import override
 
 from platzky.db.site_config_repository import (
     LocalizedContent,
+    SiteConfig,
     SiteConfigRepository,
-    SiteContent,
 )
 
 # The text fields that `Site` and `LocalizedContent` both have, answered in snake_case.
@@ -21,7 +21,7 @@ _TEXT_FIELDS = """
 """
 
 _SITE_CONTENT_QUERY = (
-    "query SiteContent {\n  sites(stage: PUBLISHED, first: 1) {"
+    "query SiteConfig {\n  sites(stage: PUBLISHED, first: 1) {"
     + _TEXT_FIELDS
     + """    favicon_url: faviconUrl
     primary_color: primaryColor
@@ -82,14 +82,14 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         self._client_getter = client_getter
 
     @override
-    def get_site_content(self) -> SiteContent:
+    def get_site_config(self) -> SiteConfig:
         """Retrieve the site-wide content.
 
         Returns:
             The site-wide content; null and missing fields are not set.
         """
         result = self._client_getter().execute(gql(_SITE_CONTENT_QUERY))
-        return SiteContent.model_validate(_fields(next(iter(result["sites"]), {})))
+        return SiteConfig.model_validate(_fields(next(iter(result["sites"]), {})))
 
     @override
     def get_localized_content(self, lang: str) -> LocalizedContent:

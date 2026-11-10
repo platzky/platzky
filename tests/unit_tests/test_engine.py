@@ -84,9 +84,10 @@ def test_www_redirects(use_www: bool):
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "site_content": {
+                "site_config": {},
+                "blog": {
                     "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
-                }
+                },
             },
         },
     }
@@ -109,7 +110,8 @@ def test_www_redirects(use_www: bool):
 
 
 def _build_home_page_test_app(
-    site_content: dict[str, Any],
+    site_config: dict[str, Any],
+    blog: dict[str, Any] | None = None,
     languages: dict[str, Any] | None = None,
     default_language: str | None = None,
 ):
@@ -119,7 +121,7 @@ def _build_home_page_test_app(
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
         "LANGUAGES": languages or {},
-        "DB": {"TYPE": "json", "DATA": {"site_content": site_content}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": site_config, "blog": blog or {}}},
     }
     if default_language is not None:
         config_data["DEFAULT_LANGUAGE"] = default_language
@@ -131,6 +133,8 @@ def test_home_page_renders_configured_page():
     app = _build_home_page_test_app(
         {
             "localized_content": {"en": {"home_page_path": "/blog/page/about"}},
+        },
+        {
             "pages": [
                 {
                     "title": "About us",
@@ -140,7 +144,7 @@ def test_home_page_renders_configured_page():
                     "excerpt": "excerpt",
                 }
             ],
-        }
+        },
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -151,6 +155,8 @@ def test_home_page_renders_configured_post():
     app = _build_home_page_test_app(
         {
             "localized_content": {"en": {"home_page_path": "/blog/welcome-post"}},
+        },
+        {
             "posts": [
                 {
                     "title": "Welcome",
@@ -164,7 +170,7 @@ def test_home_page_renders_configured_post():
                     "comments": [],
                 }
             ],
-        }
+        },
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -173,6 +179,7 @@ def test_home_page_renders_configured_post():
 
 def test_home_page_falls_back_to_blog_index_when_not_configured():
     app = _build_home_page_test_app(
+        {},
         {
             "posts": [
                 {
@@ -187,7 +194,7 @@ def test_home_page_falls_back_to_blog_index_when_not_configured():
                     "comments": [],
                 }
             ],
-        }
+        },
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -223,8 +230,8 @@ def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") 
                 "en": {"home_page_path": "/blog/page/about"},
                 "pl": {"home_page_path": pl_home_path},
             },
-            "pages": _ABOUT_PAGES,
         },
+        {"pages": _ABOUT_PAGES},
         languages=_BILINGUAL_LANGUAGES,
         default_language="en",
     )
@@ -257,6 +264,8 @@ def test_home_page_falls_back_when_configured_path_is_root():
     app = _build_home_page_test_app(
         {
             "localized_content": {"en": {"home_page_path": "/"}},
+        },
+        {
             "posts": [
                 {
                     "title": "Latest post",
@@ -270,7 +279,7 @@ def test_home_page_falls_back_when_configured_path_is_root():
                     "comments": [],
                 }
             ],
-        }
+        },
     )
     response = app.test_client().get("/")
     assert response.status_code == 200
@@ -331,7 +340,7 @@ def _build_dedicated_domain_test_app() -> Engine:
             "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
             "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
         },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
     }
     config = Config.model_validate(config_data)
     return create_app_from_config(config)
@@ -371,7 +380,7 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
                 "domain": "pl.example.com:5000",
             },
         },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
@@ -400,7 +409,7 @@ def test_locale_does_not_match_domain_on_a_different_port():
                 "domain": "pl.example.com:5000",
             },
         },
-        "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
@@ -638,9 +647,10 @@ def test_is_enabled_with_flag_on():
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "site_content": {
+                "site_config": {},
+                "blog": {
                     "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
-                }
+                },
             },
         },
     }
@@ -800,6 +810,7 @@ def _post(slug: str, title: str, language: str) -> dict[str, Any]:
 
 def _build_bilingual_blog_test_app() -> Engine:
     return _build_home_page_test_app(
+        {},
         {
             "posts": [
                 _post("english-post", "English post", "en"),
@@ -831,12 +842,13 @@ def _blog_head(response: TestResponse) -> tuple[str, str]:
 
 def test_blog_index_has_meta_in_its_language():
     app = _build_home_page_test_app(
+        {},
         {
             "posts": [
                 _post("the-hobbit", "The Hobbit", "en"),
                 _post("hobbit", "Hobbit", "pl"),
             ],
-            "blog_meta": {
+            "meta": {
                 "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
                 "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
             },
@@ -857,10 +869,8 @@ def test_blog_index_has_meta_in_its_language():
 
 def test_blog_index_without_meta_uses_defaults():
     app = _build_home_page_test_app(
-        {
-            "posts": [_post("the-hobbit", "The Hobbit", "en")],
-            "app_description": "A site about Tolkien's books.",
-        },
+        {"app_description": "A site about Tolkien's books."},
+        {"posts": [_post("the-hobbit", "The Hobbit", "en")]},
     )
     assert _blog_head(app.test_client().get("/blog/")) == (
         "Blog – testingApp",  # noqa: RUF001
@@ -904,7 +914,7 @@ def _build_three_language_test_app() -> Engine:
                 "pl": {"name": "polski", "flag": "pl", "country": "PL"},
                 "de": {"name": "Deutsch", "flag": "de", "country": "DE", "domain": "example.de"},
             },
-            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": _ABOUT_PAGES}}},
+            "DB": {"TYPE": "json", "DATA": {"site_config": {}, "blog": {"pages": _ABOUT_PAGES}}},
         }
     )
     return create_app_from_config(config)
@@ -980,6 +990,7 @@ def _language_suggestion_urls(response: TestResponse) -> dict[str, str]:
 
 def test_single_language_site_suggests_no_language():
     app = _build_home_page_test_app(
+        {},
         {"pages": _ABOUT_PAGES},
         languages={"en": _BILINGUAL_LANGUAGES["en"]},
         default_language="en",
@@ -1047,7 +1058,7 @@ def test_www_domains_serve_and_link_their_languages():
                     "domain": "www.example.de",
                 },
             },
-            "DB": {"TYPE": "json", "DATA": {"site_content": {}}},
+            "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
         }
     )
     client = create_app_from_config(config).test_client()

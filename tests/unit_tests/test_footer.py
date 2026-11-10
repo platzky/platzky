@@ -28,14 +28,12 @@ def _app(
     secondary_color: str | None = None,
     **content_overrides: object,
 ) -> Engine:
-    site_content: dict[str, Any] = {
-        "posts": [_content(**content_overrides)],
-        "pages": [_content(**content_overrides)],
-    }
+    site_config: dict[str, Any] = {}
     if secondary_color is not None:
-        site_content["secondary_color"] = secondary_color
+        site_config["secondary_color"] = secondary_color
     if footer is not None:
-        site_content["localized_content"] = {footer_lang: {"footer": footer}}
+        site_config["localized_content"] = {footer_lang: {"footer": footer}}
+    blog = {"posts": [_content(**content_overrides)], "pages": [_content(**content_overrides)]}
     config = Config.model_validate(
         {
             "APP_NAME": "testApp",
@@ -43,7 +41,10 @@ def _app(
             "USE_WWW": False,
             "BLOG_PREFIX": "/blog",
             "TRANSLATION_DIRECTORIES": [],
-            "DB": {"TYPE": "json", "DATA": {"site_content": site_content, "plugins": {}}},
+            "DB": {
+                "TYPE": "json",
+                "DATA": {"site_config": site_config, "blog": blog, "plugins": {}},
+            },
         }
     )
     return create_app_from_config(config)

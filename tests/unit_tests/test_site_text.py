@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, Tag
 from flask import render_template_string
 
 from platzky.config import Config
-from platzky.db.exceptions import InvalidSiteContentError
+from platzky.db.exceptions import InvalidDataError
 from platzky.engine import Engine
 from platzky.platzky import create_app_from_config
 
@@ -39,7 +39,7 @@ _POSTS = [
 ]
 
 
-def _build_app(site_content: dict[str, Any]) -> Engine:
+def _build_app(site_config: dict[str, Any]) -> Engine:
     config = Config.model_validate(
         {
             "APP_NAME": _CONFIG_NAME,
@@ -48,7 +48,7 @@ def _build_app(site_content: dict[str, Any]) -> Engine:
             "BLOG_PREFIX": "/blog",
             "LANGUAGES": _LANGUAGES,
             "DEFAULT_LANGUAGE": "en",
-            "DB": {"TYPE": "json", "DATA": {"site_content": {"posts": _POSTS, **site_content}}},
+            "DB": {"TYPE": "json", "DATA": {"site_config": site_config, "blog": {"posts": _POSTS}}},
         }
     )
     app = create_app_from_config(config)
@@ -205,6 +205,6 @@ def test_without_any_site_text_keys_everything_uses_config_app_name(prefix: str)
     assert _feed_title(feed.data) == _CONFIG_NAME
 
 
-def test_invalid_site_content_stops_the_application_from_starting():
-    with pytest.raises(InvalidSiteContentError, match=r"site_content\.home_page_path"):
+def test_invalid_site_config_stops_the_application_from_starting():
+    with pytest.raises(InvalidDataError, match=r"site_config\.home_page_path"):
         _build_app({"home_page_path": "/blog/page/about"})

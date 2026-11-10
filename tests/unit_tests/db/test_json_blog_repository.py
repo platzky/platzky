@@ -9,7 +9,7 @@ import pytest
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import (
     DBError,
-    InvalidSiteContentError,
+    InvalidDataError,
     NotFoundError,
     ReadOnlyStorageError,
 )
@@ -26,7 +26,7 @@ def _repository(store: JsonStore) -> JsonBlogRepository:
 
 def sample_data() -> dict[str, Any]:
     return {
-        "site_content": {
+        "blog": {
             "posts": [
                 {
                     "slug": "post-1",
@@ -85,7 +85,7 @@ def repository(store: JsonStore) -> JsonBlogRepository:
 
 class TestPosts:
     def test_get_raises_not_found_when_posts_key_missing(self):
-        repository = _repository(MemoryStore({"site_content": {}}))
+        repository = _repository(MemoryStore({"blog": {}}))
         with pytest.raises(NotFoundError):
             repository.posts.get("post-1")
 
@@ -100,7 +100,7 @@ class TestPosts:
 
     def test_get_returns_existing_comments_with_author_text_and_date(self):
         data = sample_data()
-        data["site_content"]["posts"][0]["comments"] = [
+        data["blog"]["posts"][0]["comments"] = [
             {"author": "Cat", "comment": "First!", "date": "2024-01-03T00:00:00+00:00"}
         ]
         repository = _repository(MemoryStore(data))
@@ -140,7 +140,7 @@ class TestPosts:
         assert [(c.author, c.comment) for c in reloaded.comments] == [("Alice", "Nice post!")]
 
     def test_null_posts_is_treated_as_missing(self):
-        repository = _repository(MemoryStore({"site_content": {"posts": None}}))
+        repository = _repository(MemoryStore({"blog": {"posts": None}}))
         assert repository.posts.get_all("en") == []
         assert repository.posts.get_by_tag("python", "en") == []
         with pytest.raises(NotFoundError):
@@ -148,13 +148,13 @@ class TestPosts:
 
     def test_null_tags_is_treated_as_missing(self):
         data = sample_data()
-        data["site_content"]["posts"][0]["tags"] = None
+        data["blog"]["posts"][0]["tags"] = None
         repository = _repository(MemoryStore(data))
         assert repository.posts.get_by_tag("python", "en") == []
 
     def test_add_comment_raises_not_found_when_posts_data_is_missing(self):
         data = sample_data()
-        del data["site_content"]["posts"]
+        del data["blog"]["posts"]
         repository = _repository(MemoryStore(data))
 
         with pytest.raises(NotFoundError):
@@ -167,17 +167,17 @@ class TestPosts:
         with pytest.raises(ReadOnlyStorageError):
             repository.posts.add_comment("Alice", "Nice post!", "post-1")
 
-        assert data["site_content"]["posts"][0]["comments"] == []
+        assert data["blog"]["posts"][0]["comments"] == []
 
     def test_add_comment_rollback_removes_comments_key_if_it_was_absent(self):
         data = sample_data()
-        del data["site_content"]["posts"][0]["comments"]
+        del data["blog"]["posts"][0]["comments"]
         repository = _repository(ReadOnlyStore(data))
 
         with pytest.raises(ReadOnlyStorageError):
             repository.posts.add_comment("Alice", "Nice post!", "post-1")
 
-        assert "comments" not in data["site_content"]["posts"][0]
+        assert "comments" not in data["blog"]["posts"][0]
 
 
 class TestPages:
@@ -187,27 +187,27 @@ class TestPages:
 
     def test_get_all_defaults_missing_language_to_en(self):
         data = sample_data()
-        del data["site_content"]["pages"][0]["language"]
+        del data["blog"]["pages"][0]["language"]
         repository = _repository(MemoryStore(data))
         assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
 
-    @pytest.mark.parametrize("site_content", [{}, {"pages": None}])
-    def test_get_all_treats_missing_or_null_pages_as_empty(self, site_content: dict[str, Any]):
-        repository = _repository(MemoryStore({"site_content": site_content}))
+    @pytest.mark.parametrize("blog", [{}, {"pages": None}])
+    def test_get_all_treats_missing_or_null_pages_as_empty(self, blog: dict[str, Any]):
+        repository = _repository(MemoryStore({"blog": blog}))
         assert repository.pages.get_all("en") == []
 
     def test_get_raises_not_found_when_pages_key_missing(self):
-        repository = _repository(MemoryStore({"site_content": {}}))
+        repository = _repository(MemoryStore({"blog": {}}))
         with pytest.raises(NotFoundError):
             repository.pages.get("page-1")
 
 
 class TestMeta:
     def test_missing_blog_meta_is_empty(self):
-        assert _repository(MemoryStore({"site_content": {}})).get_meta("en") == PageMeta()
+        assert _repository(MemoryStore({"blog": {}})).get_meta("en") == PageMeta()
 
     @pytest.mark.parametrize(
-        "blog_meta",
+        "meta",
         [
             {"en": {"unknown": "x"}},
             {"en": {"title": None}},
@@ -216,24 +216,33 @@ class TestMeta:
             ["en"],
         ],
     )
-    def test_invalid_blog_meta_is_rejected(self, blog_meta: object):
-        repository = _repository(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
+    def test_invalid_blog_meta_is_rejected(self, meta: object):
+        repository = _repository(MemoryStore({"blog": {"meta": meta}}))
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError, match=r"blog\.meta"):
             repository.get_meta("en")
 
 
-class TestSharedDocument:
-    def test_site_content_missing_raises_db_error(self):
+class TestBlogSection:
+    def test_missing_blog_section_is_an_empty_blog(self):
         repository = _repository(MemoryStore({}))
+
+        assert repository.posts.get_all("en") == []
+        assert repository.pages.get_all("en") == []
+        assert repository.get_meta("en") == PageMeta()
+
+    @pytest.mark.parametrize("content", [None, [], "text", 5])
+    def test_blog_not_a_dict_raises_db_error(self, content: object):
+        repository = _repository(MemoryStore({"blog": content}))
         with pytest.raises(DBError):
             repository.posts.get_all("en")
 
-    @pytest.mark.parametrize("content", [None, [], "text", 5])
-    def test_site_content_not_a_dict_raises_db_error(self, content: object):
-        repository = _repository(MemoryStore({"site_content": content}))
-        with pytest.raises(DBError):
-            repository.posts.get_all("en")
+    def test_site_config_is_not_read(self):
+        data = sample_data()
+        data["site_config"] = {"posts": [{"slug": "not-a-blog-post"}]}
+        repository = _repository(MemoryStore(data))
+
+        assert [p.slug for p in repository.posts.get_all("en")] == ["post-1"]
 
 
 def test_json_blog_repository_satisfies_blog_repository_protocol(
@@ -254,10 +263,10 @@ class TestJsonBlogRepositoryContract(BlogRepositoryContract):
         return _repository(
             MemoryStore(
                 {
-                    "site_content": {
+                    "blog": {
                         "posts": list(posts),
                         "pages": list(pages),
-                        "blog_meta": blog_meta,
+                        "meta": dict(blog_meta or {}),
                     }
                 }
             )

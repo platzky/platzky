@@ -38,9 +38,8 @@ class TestGoogleJsonDb:
         mock_blob = MagicMock()
         mock_blob.download_as_text.return_value = json.dumps(
             {
-                "site_content": {
-                    "posts": [{"slug": "post-1", "comments": []}],
-                }
+                "site_config": {},
+                "blog": {"posts": [{"slug": "post-1", "comments": []}]},
             }
         )
         mock_bucket.blob.return_value = mock_blob

@@ -1,17 +1,16 @@
 """SiteConfigRepository implementation backed by MongoDB collections."""
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TypeVar
 
+from pydantic import BaseModel, ValidationError
 from pymongo.collection import Collection
 from typing_extensions import override
 
-from platzky.db.site_config_repository import (
-    LocalizedContent,
-    SiteConfigRepository,
-    SiteContent,
-    parse_site_content,
-)
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
+
+_Model = TypeVar("_Model", bound=BaseModel)
 
 
 def _without_id(document: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -19,55 +18,70 @@ def _without_id(document: Mapping[str, Any] | None) -> dict[str, Any]:
     return {key: value for key, value in (document or {}).items() if key != "_id"}
 
 
+def _parse(model: type[_Model], document: Mapping[str, Any] | None, *path: str) -> _Model:
+    """Validate a stored document, without its ``_id``, as ``model``.
+
+    Raises:
+        InvalidDataError: If it is invalid; the message lists every problem with its path.
+    """
+    try:
+        return model.model_validate(_without_id(document))
+    except ValidationError as error:
+        raise InvalidDataError.from_validation_error(error, *path) from error
+
+
 class MongoSiteConfigRepository(SiteConfigRepository):
     """Site config repository backed by MongoDB collections.
 
-    The site-wide keys of `SiteContent` are one document (``{"_id": "config", ...}``) in the
-    site_content collection. The `LocalizedContent` of each language is one document
+    The site-wide keys of `SiteConfig` are one document (``{"_id": "config", ...}``) in the
+    site_config collection. The `LocalizedContent` of each language is one document
     (``{"_id": "<lang>", ...}``) in the localized_content collection.
     """
 
     def __init__(
         self,
-        site_content: Collection[Any],
+        site_config: Collection[Any],
         localized_content: Collection[Any],
     ) -> None:
         """Store references to the shared collections.
 
         Args:
-            site_content: The database's ``site_content`` collection.
+            site_config: The database's ``site_config`` collection.
             localized_content: The database's ``localized_content`` collection.
         """
-        self._site_content = site_content
+        self._site_config = site_config
         self._localized_content = localized_content
 
     def validate(self) -> None:
-        """Read the whole site content once and check it against the site content format.
+        """Read the whole site config once and check it against the site config format.
 
         Raises:
-            InvalidSiteContentError: If the config document or a language document is invalid;
+            InvalidDataError: If the config document or a language document is invalid;
                 unknown keys are reported too.
         """
-        parse_site_content(
-            {
-                **_without_id(self._site_content.find_one({"_id": "config"})),
-                "localized_content": {
-                    document["_id"]: _without_id(document)
-                    for document in self._localized_content.find()
-                },
-            }
-        )
+        errors: list[str] = []
+        for model, document, path in (
+            (SiteConfig, self._site_config.find_one({"_id": "config"}), ("site_config",)),
+            *(
+                (LocalizedContent, document, ("localized_content", str(document["_id"])))
+                for document in self._localized_content.find()
+            ),
+        ):
+            try:
+                _parse(model, document, *path)
+            except InvalidDataError as error:
+                errors.append(str(error))
+        if errors:
+            raise InvalidDataError("\n".join(errors))
 
     @override
-    def get_site_content(self) -> SiteContent:
+    def get_site_config(self) -> SiteConfig:
         """Retrieve the site-wide content.
 
         Returns:
             The site-wide content, with defaults where none is configured.
         """
-        return SiteContent.model_validate(
-            _without_id(self._site_content.find_one({"_id": "config"}))
-        )
+        return _parse(SiteConfig, self._site_config.find_one({"_id": "config"}), "site_config")
 
     @override
     def get_localized_content(self, lang: str) -> LocalizedContent:
@@ -79,6 +93,9 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The language's content, empty if none is configured for it.
         """
-        return LocalizedContent.model_validate(
-            _without_id(self._localized_content.find_one({"_id": lang}))
+        return _parse(
+            LocalizedContent,
+            self._localized_content.find_one({"_id": lang}),
+            "localized_content",
+            lang,
         )

@@ -2,7 +2,7 @@
 
 Subclass `SiteConfigRepositoryContract` in the backend's own test module (the class
 name must start with `Test` there so pytest collects it) and override the
-`make_repository` method. It takes a neutral `site_content` dict (the Json
+`make_repository` method. It takes a neutral `site_config` dict (the Json
 document's shape: the site-wide keys plus ``localized_content``) and builds a
 repository over whatever that backend stores. Inherited tests then run against that
 backend, so independently-implemented repositories cannot silently drift apart.
@@ -10,7 +10,7 @@ backend, so independently-implemented repositories cannot silently drift apart.
 A behaviour the backend cannot represent is opted out by overriding the test with
 `@pytest.mark.skip(reason=...)`, which keeps the gap visible in the test report.
 External database backends can reuse this module the same way.
-Each backend only has to map its stored content to `SiteContent` and `LocalizedContent`.
+Each backend only has to map its stored content to `SiteConfig` and `LocalizedContent`.
 How overrides fall back to the defaults is tested on `SiteSettings.from_layers`, and which
 keys are valid on the models, not here.
 
@@ -23,8 +23,8 @@ from typing import Any
 
 from platzky.db.site_config_repository import (
     LocalizedContent,
+    SiteConfig,
     SiteConfigRepository,
-    SiteContent,
 )
 from platzky.models import Font, Footer, MenuItem
 
@@ -58,11 +58,11 @@ SITE_CONTENT = {
 
 class SiteConfigRepositoryContract(ABC):
     @abstractmethod
-    def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
+    def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
         """Build a repository of the backend under test holding this site content."""
 
-    def test_get_site_content_returns_the_site_wide_values(self):
-        assert self.make_repository(SITE_CONTENT).get_site_content() == SiteContent(
+    def test_get_site_config_returns_the_site_wide_values(self):
+        assert self.make_repository(SITE_CONTENT).get_site_config() == SiteConfig(
             app_name="Literature",
             app_title="Literature | Reading notes",
             app_description="Notes on Tolkien's books",
@@ -73,8 +73,8 @@ class SiteConfigRepositoryContract(ABC):
             secondary_color="green",
         )
 
-    def test_get_site_content_returns_defaults_when_empty(self):
-        assert self.make_repository({}).get_site_content() == SiteContent()
+    def test_get_site_config_returns_defaults_when_empty(self):
+        assert self.make_repository({}).get_site_config() == SiteConfig()
 
     def test_get_localized_content_returns_the_entry_of_the_language(self):
         repository = self.make_repository(SITE_CONTENT)

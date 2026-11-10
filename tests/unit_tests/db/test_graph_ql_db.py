@@ -124,7 +124,7 @@ def test_facade_and_repositories_share_one_client(mock_client: Mock):
 
         db.blog.posts.get_all("en")
         db.plugin_config.get_all()
-        db.site_config.get_site_content()
+        db.site_config.get_site_config()
         db.health_check()
 
     client_cls.assert_called_once()

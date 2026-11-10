@@ -367,7 +367,7 @@ def create_engine(
         country = lang.country if lang else ""
         alternates = app.current_page_language_alternates()
         localized = app.db.site_config.get_localized_content(locale)
-        site_settings = SiteSettings.from_layers(app.db.site_config.get_site_content(), localized)
+        site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
         app_name = site_settings.app_name or config.app_name
         return {
             "app_name": app_name,

@@ -3,49 +3,86 @@
 `JsonBlogRepository` is the JSON-family (`JsonStore`) implementation of the
 `BlogRepository` protocol. It operates on a `JsonDocument` shared with the other
 JSON repositories (see `json_document` for why the dict is shared) and writes
-through `JsonDocument.edit()`.
+through `JsonDocument.edit()`. It owns the ``blog`` section (``posts``, ``pages``, ``meta``)
+and reads no other.
 """
 
 import datetime
 import logging
 from collections.abc import Mapping
+from typing import Any
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
-from platzky.db.json_document import JsonDocument, get_site_content
+from platzky.db.exceptions import DBError, InvalidDataError, NotFoundError
+from platzky.db.json_document import JsonDocument
 from platzky.models import Page, PageMeta, Post
 
 logger = logging.getLogger(__name__)
 
+SECTION = "blog"
+
 _BLOG_META = TypeAdapter(dict[str, PageMeta])
 
 
-def parse_blog_meta(blog_meta: object) -> Mapping[str, PageMeta]:
-    """Validate the ``blog_meta`` key of the site content, e.g. when the application starts.
+class BlogSection(BaseModel):
+    """The ``blog`` section of a JSON document, as stored.
+
+    Unknown keys and null values are errors. Posts and pages are checked one at a time when they
+    are read, so only their being lists of objects is checked here.
+
+    Attributes:
+        posts: Blog posts
+        pages: Pages
+        meta: The blog index meta by language code
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    posts: tuple[dict[str, Any], ...] = ()
+    pages: tuple[dict[str, Any], ...] = ()
+    meta: dict[str, PageMeta] = Field(default_factory=dict)
+
+
+def parse_blog(blog: object) -> BlogSection:
+    """Validate the ``blog`` section of a JSON document, e.g. when the application starts.
 
     Args:
-        blog_meta: The stored value: the blog index meta by language code. Null is an error.
+        blog: The ``blog`` section of the document.
 
     Returns:
-        The blog index meta by language code.
+        The validated section.
 
     Raises:
-        InvalidSiteContentError: If it is invalid; the message lists every problem with its
+        InvalidDataError: If it is invalid; the message lists every problem with its
             path, one per line.
     """
     try:
-        return _BLOG_META.validate_python(blog_meta)
+        return BlogSection.model_validate(blog)
     except ValidationError as error:
-        raise InvalidSiteContentError(
-            "\n".join(
-                ".".join(["site_content", "blog_meta", *(str(part) for part in problem["loc"])])
-                + f": {problem['msg']}"
-                for problem in error.errors()
-            )
-        ) from error
+        raise InvalidDataError.from_validation_error(error, SECTION) from error
+
+
+def _parse_meta(meta: object) -> Mapping[str, PageMeta]:
+    """Validate the ``meta`` key of the ``blog`` section; null is an error."""
+    try:
+        return _BLOG_META.validate_python(meta)
+    except ValidationError as error:
+        raise InvalidDataError.from_validation_error(error, SECTION, "meta") from error
+
+
+def _blog(data: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the ``blog`` section of a loaded document, empty if there is none.
+
+    Raises:
+        DBError: If the section is not an object.
+    """
+    blog = data.get(SECTION, {})
+    if not isinstance(blog, dict):
+        raise DBError("blog section is not an object")
+    return blog
 
 
 class _JsonPostRepository(PostRepository):
@@ -67,7 +104,7 @@ class _JsonPostRepository(PostRepository):
         Raises:
             NotFoundError: If posts data is missing, or no post has this slug.
         """
-        all_posts = get_site_content(self._document.data).get("posts")
+        all_posts = _blog(self._document.data).get("posts")
         if all_posts is None:
             raise NotFoundError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
@@ -87,7 +124,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts") or ()
+            for post in _blog(self._document.data).get("posts") or ()
             if post.get("language", "en") == lang
         ]
 
@@ -104,7 +141,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts") or ()
+            for post in _blog(self._document.data).get("posts") or ()
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -135,7 +172,7 @@ class _JsonPostRepository(PostRepository):
 
         try:
             with self._document.edit() as data:
-                posts = get_site_content(data).get("posts")
+                posts = _blog(data).get("posts")
                 if posts is None:
                     raise NotFoundError("Posts data is missing")
                 post = next((p for p in posts if p["slug"] == post_slug), None)
@@ -168,7 +205,7 @@ class _JsonPageRepository(PageRepository):
         Raises:
             NotFoundError: If pages data is missing, or no page has this slug.
         """
-        pages = get_site_content(self._document.data).get("pages")
+        pages = _blog(self._document.data).get("pages")
         if pages is None:
             raise NotFoundError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
@@ -188,7 +225,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in get_site_content(self._document.data).get("pages") or ()
+            for page in _blog(self._document.data).get("pages") or ()
             if page.get("language", "en") == lang
         ]
 
@@ -230,7 +267,7 @@ class JsonBlogRepository(BlogRepository):
             The blog index meta, empty if none is configured for the language.
 
         Raises:
-            InvalidSiteContentError: If the stored blog meta is invalid.
+            InvalidDataError: If the stored blog meta is invalid.
         """
-        meta = parse_blog_meta(get_site_content(self._document.data).get("blog_meta", {}))
+        meta = _parse_meta(_blog(self._document.data).get("meta", {}))
         return meta.get(lang, PageMeta())

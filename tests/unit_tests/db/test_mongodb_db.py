@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
+from platzky.db.exceptions import InvalidDataError, NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
 
 
@@ -42,12 +42,12 @@ class TestMongoDB:
             mock_client.return_value.__getitem__.return_value = mock_db
 
             # Set up collection mocks
-            mock_db.site_content = Mock()
+            mock_db.site_config = Mock()
             mock_db.posts = Mock()
             mock_db.pages = Mock()
             mock_db.localized_content = Mock()
             mock_db.plugins = Mock()
-            mock_db.site_content.find_one.return_value = None
+            mock_db.site_config.find_one.return_value = None
             mock_db.localized_content.find.return_value = []
             mock_db.blog_meta.find.return_value = []
 
@@ -91,25 +91,25 @@ class TestMongoDB:
         mock_client_instance.assert_called_once_with("mongodb://localhost:27017")
 
     def test_database_is_the_database_the_facade_uses(self, db: MongoDB, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = None
+        mock_db.site_config.find_one.return_value = None
         mock_db.localized_content.find_one.return_value = None
 
-        db.site_config.get_site_content()
+        db.site_config.get_site_config()
 
         assert db.database is mock_db
-        mock_db.site_content.find_one.assert_called()
+        mock_db.site_config.find_one.assert_called()
 
-    def test_invalid_site_content_stops_the_facade_from_being_created(self, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = {"_id": "config", "menu_items": {}}
+    def test_invalid_site_config_stops_the_facade_from_being_created(self, mock_db: Mock):
+        mock_db.site_config.find_one.return_value = {"_id": "config", "menu_items": {}}
         mock_db.localized_content.find.return_value = [{"_id": "pl", "footer": None}]
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             MongoDB("mongodb://localhost:27017", "test_db")
 
     def test_invalid_blog_meta_stops_the_facade_from_being_created(self, mock_db: Mock):
         mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             MongoDB("mongodb://localhost:27017", "test_db")
 
     def test_database_is_not_closed_when_the_facade_is_collected(
@@ -135,12 +135,12 @@ class TestMongoDB:
 
         mock_command.assert_called_once_with("ping")
 
-    def test_health_check_fails_on_site_content_made_invalid_after_start(
+    def test_health_check_fails_on_site_config_made_invalid_after_start(
         self, db: MongoDB, mock_db: Mock
     ):
         mock_db.localized_content.find.return_value = [{"_id": "pl", "unknown": "x"}]
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             db.health_check()
 
     def test_health_check_fails_on_blog_meta_made_invalid_after_start(
@@ -148,7 +148,7 @@ class TestMongoDB:
     ):
         mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             db.health_check()
 
     def test_health_check_failure(self, db: MongoDB, mongo_client: Mock):

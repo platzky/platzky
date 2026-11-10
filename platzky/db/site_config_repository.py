@@ -5,13 +5,10 @@ home page regardless of whether it has a blog, so this is kept separate from
 `BlogRepository` and `PluginConfigRepository`.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Any, Protocol
+from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from platzky.db.exceptions import InvalidSiteContentError
 from platzky.models import Font, Footer, MenuItem
 
 
@@ -20,7 +17,7 @@ class LocalizedContent(BaseModel):
 
     Unknown keys and null values are errors. Nothing here is inherited from
     another language, and only the four text keys fall back to the site-wide defaults of
-    `SiteContent` (see `SiteSettings.from_layers`).
+    `SiteConfig` (see `SiteSettings.from_layers`).
 
     Attributes:
         app_name: Site name; empty falls through to the site-wide default
@@ -47,7 +44,7 @@ DEFAULT_PRIMARY_COLOR = "white"
 DEFAULT_SECONDARY_COLOR = "navy"
 
 
-class SiteContent(BaseModel):
+class SiteConfig(BaseModel):
     """The site-wide content, shared by every backend.
 
     The texts and the logo are defaults that each language may override; the favicon, font and
@@ -76,68 +73,6 @@ class SiteContent(BaseModel):
     secondary_color: str = Field(default=DEFAULT_SECONDARY_COLOR, min_length=1)
 
 
-class SiteContentSection(SiteContent):
-    """The whole ``site_content`` section of a JSON document, as stored.
-
-    It is the site-wide `SiteContent` plus everything else the section holds: the content of
-    each language, and the blog's posts, pages and meta, which the blog repository owns and
-    validates. Unknown keys are an error.
-
-    Attributes:
-        posts: Blog posts, owned by the blog repository
-        pages: Pages, owned by the blog repository
-        blog_meta: The blog index meta by language, owned by the blog repository
-        localized_content: The per-language content, by language code
-    """
-
-    posts: Any = None
-    pages: Any = None
-    blog_meta: Any = Field(default_factory=dict)
-    localized_content: Mapping[str, LocalizedContent] = Field(
-        default_factory=lambda: MappingProxyType({})
-    )
-
-    @field_validator("localized_content", mode="after")
-    @classmethod
-    def _read_only(cls, value: Mapping[str, LocalizedContent]) -> Mapping[str, LocalizedContent]:
-        return MappingProxyType(dict(value))
-
-    def localized(self, lang: str) -> LocalizedContent:
-        """Return the content of a language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The language's content, empty if none is configured for it.
-        """
-        return self.localized_content.get(lang, LocalizedContent())
-
-
-def parse_site_content(site_content: object) -> SiteContentSection:
-    """Validate the site content as stored, e.g. when the application starts.
-
-    Args:
-        site_content: The ``site_content`` section of the database.
-
-    Returns:
-        The validated site content.
-
-    Raises:
-        InvalidSiteContentError: If it is invalid; the message lists every problem with its
-            path, one per line.
-    """
-    try:
-        return SiteContentSection.model_validate(site_content)
-    except ValidationError as error:
-        problems = (
-            ".".join(["site_content", *(str(part) for part in problem["loc"])])
-            + f": {problem['msg']}"
-            for problem in error.errors()
-        )
-        raise InvalidSiteContentError("\n".join(problems)) from error
-
-
 class SiteSettings(BaseModel):
     """Branding and site text for the app in one language, resolved as a single unit.
 
@@ -157,7 +92,7 @@ class SiteSettings(BaseModel):
     app_description: str = ""
 
     @classmethod
-    def from_layers(cls, defaults: SiteContent, localized: LocalizedContent) -> "SiteSettings":
+    def from_layers(cls, defaults: SiteConfig, localized: LocalizedContent) -> "SiteSettings":
         """Build the site settings for a language from its defaults and overrides.
 
         Each text key (app_name, app_title, app_description, logo_url) is taken from
@@ -187,7 +122,7 @@ class SiteSettings(BaseModel):
 class SiteConfigRepository(Protocol):
     """Repository for the site-wide and per-language site content."""
 
-    def get_site_content(self) -> SiteContent:
+    def get_site_config(self) -> SiteConfig:
         """Retrieve the site-wide content: texts and logo defaults, favicon, colors and font.
 
         Returns:

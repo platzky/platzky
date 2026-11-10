@@ -11,8 +11,8 @@ from graphql import print_ast
 from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
 from platzky.db.site_config_repository import (
     LocalizedContent,
+    SiteConfig,
     SiteConfigRepository,
-    SiteContent,
 )
 from platzky.models import Footer
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
@@ -27,13 +27,13 @@ _NO_LANGUAGE = {"lang": None}
 
 
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
-    def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
-        site_only = dict(site_content)
+    def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
+        site_only = dict(site_config)
         site_only.pop("localized_content", None)
         site_entry = _hygraph_entry(site_only)
         entries = {
             lang: _hygraph_entry(content)
-            for lang, content in site_content.get("localized_content", {}).items()
+            for lang, content in site_config.get("localized_content", {}).items()
         }
         client = Mock(spec=Client)
 
@@ -102,7 +102,7 @@ class TestRequests:
     ):
         mock_client.execute.return_value = result
 
-        assert repository.get_site_content() == SiteContent()
+        assert repository.get_site_config() == SiteConfig()
         assert repository.get_localized_content("en") == LocalizedContent()
 
     def test_false_and_zero_values_are_kept(

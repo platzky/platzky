@@ -12,12 +12,13 @@ mutated in place, never reassigned.
 Writes go through `JsonDocument.edit()`, which holds the write lock and persists
 the document on success; the lock and store are not exposed.
 
-`get_site_content` is the shared "read site_content, raise if missing" helper
-used by those repositories and `Json.health_check`.
+Each repository owns one top-level section of the document and reads only that one;
+`get_section` is the shared "read a section, raise if missing" helper.
 """
 
 import copy
 import threading
+from collections.abc import Mapping
 from types import TracebackType
 from typing import Any
 
@@ -108,19 +109,20 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
-def get_site_content(data: dict[str, Any]) -> dict[str, Any]:
-    """Return the site_content section of a loaded document.
+def get_section(data: Mapping[str, Any], name: str) -> Mapping[str, Any]:
+    """Return one top-level section of a loaded document.
 
     Args:
         data: The loaded document.
+        name: The section's key.
 
     Returns:
-        The site_content section.
+        The section.
 
     Raises:
-        DBError: If site_content is missing or not an object.
+        DBError: If the section is missing or not an object.
     """
-    content = data.get("site_content")
-    if not isinstance(content, dict):
-        raise DBError("site_content section is missing from database")
-    return content
+    section = data.get(name)
+    if not isinstance(section, dict):
+        raise DBError(f"{name} section is missing from database")
+    return section

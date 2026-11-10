@@ -9,7 +9,7 @@ from pymongo.collection import Collection
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
+from platzky.db.exceptions import InvalidDataError, NotFoundError
 from platzky.models import Page, PageMeta, Post
 
 
@@ -167,7 +167,7 @@ class MongoBlogRepository(BlogRepository):
         """Read the whole ``blog_meta`` collection once and validate every document.
 
         Raises:
-            InvalidSiteContentError: If a document is invalid; the message names its ``_id``
+            InvalidDataError: If a document is invalid; the message names its ``_id``
                 and lists every problem, one per line.
         """
         problems: list[str] = []
@@ -175,13 +175,15 @@ class MongoBlogRepository(BlogRepository):
             try:
                 _meta_of(document)
             except ValidationError as error:
-                problems.extend(
-                    ".".join(["blog_meta", str(document["_id"]), *(str(p) for p in e["loc"])])
-                    + f": {e['msg']}"
-                    for e in error.errors()
+                problems.append(
+                    str(
+                        InvalidDataError.from_validation_error(
+                            error, "blog_meta", str(document["_id"])
+                        )
+                    )
                 )
         if problems:
-            raise InvalidSiteContentError("\n".join(problems))
+            raise InvalidDataError("\n".join(problems))
 
     @override
     def get_meta(self, lang: str) -> PageMeta:

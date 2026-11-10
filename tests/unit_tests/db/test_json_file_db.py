@@ -12,12 +12,15 @@ class TestJsonFileDb:
     @pytest.fixture
     def sample_data(self) -> dict[str, object]:
         return {
-            "site_content": {
+            "site_config": {
                 "app_description": "Default description",
+                "logo_url": "/logo.png",
                 "localized_content": {
                     "en": {"app_description": "English description"},
                     "de": {"app_description": "Deutsche Beschreibung"},
                 },
+            },
+            "blog": {
                 "posts": [
                     {
                         "title": "Post 1",
@@ -33,8 +36,7 @@ class TestJsonFileDb:
                         "date": "2023-01-01T00:00:00",
                     }
                 ],
-                "logo_url": "/logo.png",
-            }
+            },
         }
 
     @pytest.fixture
@@ -69,7 +71,7 @@ class TestJsonFileDb:
 
         # Verify it was actually persisted to disk (not just kept in memory)
         persisted = json.loads(data_file.read_text())
-        persisted_comments = persisted["site_content"]["posts"][0]["comments"]
+        persisted_comments = persisted["blog"]["posts"][0]["comments"]
         assert len(persisted_comments) == 1
         assert persisted_comments[0]["author"] == "Test User"
 

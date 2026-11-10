@@ -15,7 +15,7 @@ POST = {
 }
 
 
-def _app(**site_content: object) -> Engine:
+def _app(**site_config: object) -> Engine:
     config = Config.model_validate(
         {
             "APP_NAME": "testApp",
@@ -25,7 +25,7 @@ def _app(**site_content: object) -> Engine:
             "TRANSLATION_DIRECTORIES": [],
             "DB": {
                 "TYPE": "json",
-                "DATA": {"site_content": {"posts": [POST], **site_content}, "plugins": {}},
+                "DATA": {"site_config": site_config, "blog": {"posts": [POST]}, "plugins": {}},
             },
         }
     )

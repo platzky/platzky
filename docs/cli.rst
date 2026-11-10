@@ -48,8 +48,9 @@ switch, and an application served by a production server is never in development
 -----------------
 
 Validate the site configuration of a JSON data file, for example before deploying it. It checks
-the site-configuration part of ``site_content`` (texts, theme and per-language content), not
-``posts`` and ``pages``. The same check runs when the application starts, so a data file that
+the ``site_config`` section (texts, theme and per-language content) and the ``blog`` section
+(the index meta per language; posts and pages must be lists of objects, their fields are not
+checked). The same check runs when the application starts, so a data file that
 fails it stops the application from starting:
 
 .. code-block:: bash
@@ -62,8 +63,9 @@ A problem is listed with its path, and the command exits with status 1:
 .. code-block:: bash
 
     $ platzky check data.json
-    site_content.localized_content.pl.menu_items.0.url: Field required
-    site_content.home_page_path: Extra inputs are not permitted
+    site_config.localized_content.pl.menu_items.0.url: Field required
+    site_config.home_page_path: Extra inputs are not permitted
+    blog.meta.pl.title: Input should be a valid string
 
 See :ref:`site-content` for the format.
 

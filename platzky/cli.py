@@ -8,8 +8,8 @@ from string import Template
 
 import click
 
-from platzky.db.exceptions import InvalidSiteContentError
-from platzky.db.json_db import validate_json_site_content
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.json_db import validate_json_document
 from platzky.platzky import create_app
 
 _TARGET_CONFIG_FILENAME = "config.yml"
@@ -87,8 +87,9 @@ def init(directory: Path) -> None:
 def check(file: Path) -> None:
     """Validate the site configuration in a JSON database FILE.
 
-    Checks the site-configuration part of ``site_content`` (texts, theme, per-language content);
-    the blog index meta is checked too; posts and pages are not. Prints OK and exits 0 when it
+    Checks the ``site_config`` section (texts, theme, per-language content) and the ``blog``
+    section (the index meta by language; posts and pages must be lists of objects, their fields
+    are not checked). Prints OK and exits 0 when it
     is valid; otherwise lists every problem with its path and exits 1.
     """
     try:
@@ -98,7 +99,7 @@ def check(file: Path) -> None:
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")
     try:
-        validate_json_site_content(document.get("site_content"))
-    except InvalidSiteContentError as error:
+        validate_json_document(document)
+    except InvalidDataError as error:
         raise click.ClickException(str(error)) from error
     click.echo("OK")

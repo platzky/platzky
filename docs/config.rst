@@ -351,8 +351,8 @@ site-wide keys or from another language:
 * ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
   the blog index.
 
-The blog is configured with its own data, next to its posts and pages:
-``blog_meta`` holds the ``title`` and ``description`` of the blog index per
+The blog is configured with its own data, next to its posts and pages (in the
+``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per
 language. Default: empty, which shows the default title and the site
 description. Unknown keys and ``null`` values are errors there too.
 
@@ -360,13 +360,14 @@ Unknown keys and ``null`` values are errors, and the application does not start
 with invalid site content. To check a JSON data file before deploying it, see
 :ref:`platzky check <cli-check>`.
 
-* **JSON file / Google Cloud Storage**: set the keys in the ``site_content``
-  object of your data file, next to ``posts`` and ``pages``.
+* **JSON file / Google Cloud Storage**: set the keys in the ``site_config``
+  object of your data file. The blog has its own ``blog`` object, with
+  ``posts``, ``pages`` and ``meta``.
 
   .. code-block:: json
 
       {
-        "site_content": {
+        "site_config": {
           "app_name": "Literature",
           "app_title": "Reading notes | Literature",
           "app_description": "Notes on Tolkien's books",
@@ -375,10 +376,6 @@ with invalid site content. To check a JSON data file before deploying it, see
           "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
           "primary_color": "white",
           "secondary_color": "navy",
-          "blog_meta": {
-            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
-            "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
-          },
           "localized_content": {
             "en": {
               "footer": {"content": "Notes by a reader", "collapsible": true},
@@ -395,16 +392,24 @@ with invalid site content. To check a JSON data file before deploying it, see
               "home_page_path": "/blog/page/o-nas"
             }
           }
+        },
+        "blog": {
+          "posts": [],
+          "pages": [],
+          "meta": {
+            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
+            "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
+          }
         }
       }
 
 * **MongoDB**: store the site-wide keys as the document ``{"_id": "config"}``
-  in the ``site_content`` collection, and each language's entry as one document
+  in the ``site_config`` collection, and each language's entry as one document
   in the ``localized_content`` collection, with the language code as ``_id``.
 
   .. code-block:: javascript
 
-      // site_content
+      // site_config
       {
         "_id": "config",
         "app_name": "Literature",

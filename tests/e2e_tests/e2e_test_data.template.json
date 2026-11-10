@@ -1,6 +1,51 @@
 {
-  "site_content": {
+  "site_config": {
     "app_description": "This is not only blogging platform",
+    "localized_content": {
+      "en": {
+        "footer": {
+          "content": "[link url=\"/blog/\"]English footer[/link]",
+          "collapsible": true
+        },
+        "menu_items": [
+          {
+            "name": "Home",
+            "url": "/"
+          },
+          {
+            "name": "The Fellowship of the Ring",
+            "url": "/blog/fellows"
+          },
+          {
+            "name": "Non-existing page",
+            "url": "/non-existing"
+          }
+        ]
+      },
+      "pl": {
+        "app_description": "To nie tylko platforma do blogowania",
+        "footer": {
+          "content": "[link url=\"/blog/\"]Polska stopka[/link]",
+          "collapsible": true
+        },
+        "menu_items": [
+          {
+            "name": "Strona domowa",
+            "url": "/"
+          },
+          {
+            "name": "Drużyna pierścienia",
+            "url": "/blog/druzyna"
+          },
+          {
+            "name": "Nieistniejąca strona",
+            "url": "/nie-dziala"
+          }
+        ]
+      }
+    }
+  },
+  "blog": {
     "posts": [
       {
         "title": "The Fellowship of the Ring",
@@ -164,51 +209,14 @@
         "excerpt": "page excerpt"
       }
     ],
-    "blog_meta": {
-      "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
-      "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."}
-    },
-    "localized_content": {
+    "meta": {
       "en": {
-        "footer": {
-          "content": "[link url=\"/blog/\"]English footer[/link]",
-          "collapsible": true
-        },
-        "menu_items": [
-          {
-            "name": "Home",
-            "url": "/"
-          },
-          {
-            "name": "The Fellowship of the Ring",
-            "url": "/blog/fellows"
-          },
-          {
-            "name": "Non-existing page",
-            "url": "/non-existing"
-          }
-        ]
+        "title": "Reading notes",
+        "description": "Notes on Tolkien's books."
       },
       "pl": {
-        "app_description": "To nie tylko platforma do blogowania",
-        "footer": {
-          "content": "[link url=\"/blog/\"]Polska stopka[/link]",
-          "collapsible": true
-        },
-        "menu_items": [
-          {
-            "name": "Strona domowa",
-            "url": "/"
-          },
-          {
-            "name": "Drużyna pierścienia",
-            "url": "/blog/druzyna"
-          },
-          {
-            "name": "Nieistniejąca strona",
-            "url": "/nie-dziala"
-          }
-        ]
+        "title": "Notatki z lektury",
+        "description": "Notatki o książkach Tolkiena."
       }
     }
   },
@@ -216,12 +224,19 @@
     "log_notifier": {
       "is_active": true,
       "config": {},
-      "allowed_topics": ["general", "content", "security"]
+      "allowed_topics": [
+        "general",
+        "content",
+        "security"
+      ]
     },
     "red_letter": {
       "is_active": true,
       "config": {},
-      "allowed_content_types": ["post", "page"]
+      "allowed_content_types": [
+        "post",
+        "page"
+      ]
     }
   }
 }

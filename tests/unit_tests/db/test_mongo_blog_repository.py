@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from platzky.db.blog_repository import BlogRepository
-from platzky.db.exceptions import InvalidSiteContentError
+from platzky.db.exceptions import InvalidDataError
 from platzky.db.mongo_blog_repository import MongoBlogRepository
 from tests.unit_tests.db.blog_repository_contract import PAGE, POST, BlogRepositoryContract
 
@@ -62,7 +62,7 @@ class TestMongoBlogRepository:
     ):
         blog_meta.find.return_value = [{"_id": "pl", "title": None}, {"_id": "en", "unknown": "x"}]
 
-        with pytest.raises(InvalidSiteContentError) as error:
+        with pytest.raises(InvalidDataError) as error:
             blog.validate()
 
         assert str(error.value) == (

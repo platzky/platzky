@@ -7,8 +7,8 @@ from platzky.config import Config
 from platzky.platzky import create_app_from_config
 
 
-def build_test_app(site_content_overrides: dict[str, Any] | None = None) -> Flask:
-    """Build the standard test app, optionally overriding `site_content` fields.
+def build_test_app(site_config_overrides: dict[str, Any] | None = None) -> Flask:
+    """Build the standard test app, optionally overriding `site_config` fields.
 
     An override value of `None` removes that field from the site content.
     """
@@ -26,8 +26,10 @@ def build_test_app(site_content_overrides: dict[str, Any] | None = None) -> Flas
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "site_content": {
+                "site_config": {
                     "logo_url": "https://example.com/logo.png",
+                },
+                "blog": {
                     "pages": [
                         {
                             "title": "test",
@@ -66,12 +68,12 @@ def build_test_app(site_content_overrides: dict[str, Any] | None = None) -> Flas
             },
         },
     }
-    site_content = config_data["DB"]["DATA"]["site_content"]
-    for key, value in (site_content_overrides or {}).items():
+    site_config = config_data["DB"]["DATA"]["site_config"]
+    for key, value in (site_config_overrides or {}).items():
         if value is None:
-            site_content.pop(key, None)
+            site_config.pop(key, None)
         else:
-            site_content[key] = value
+            site_config[key] = value
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
     assert isinstance(app, Flask)

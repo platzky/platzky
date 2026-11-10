@@ -17,7 +17,7 @@ from werkzeug.test import TestResponse
 from platzky.blog import blog
 from platzky.config import Config
 from platzky.db.exceptions import NotFoundError
-from platzky.db.site_config_repository import LocalizedContent, SiteContent
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.engine import Engine
 from platzky.models import Comment, Footer, Image, Post
 from platzky.platzky import create_engine
@@ -53,7 +53,7 @@ def test_app():
     db_mock.blog.posts.get.return_value = mocked_post
     db_mock.blog.posts.get_by_tag.return_value = [mocked_post]
     db_mock.blog.posts.get_all.return_value = [mocked_post]
-    db_mock.site_config.get_site_content.return_value = SiteContent()
+    db_mock.site_config.get_site_config.return_value = SiteConfig()
     db_mock.site_config.get_localized_content.return_value = LocalizedContent()
     config = Config.model_validate(
         {

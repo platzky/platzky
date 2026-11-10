@@ -1,12 +1,9 @@
-from typing import Any
-
 import pytest
 from pydantic import ValidationError
 
 from platzky.db.site_config_repository import (
     LocalizedContent,
-    SiteContent,
-    SiteContentSection,
+    SiteConfig,
     SiteSettings,
 )
 from platzky.models import Font
@@ -25,16 +22,14 @@ _NON_DEFAULTS = {
 
 @pytest.mark.parametrize("key, value", _NON_DEFAULTS.items())
 def test_every_stored_key_is_reflected_in_the_settings(key: str, value: object):
-    settings = SiteSettings.from_layers(
-        SiteContent.model_validate({key: value}), LocalizedContent()
-    )
+    settings = SiteSettings.from_layers(SiteConfig.model_validate({key: value}), LocalizedContent())
 
     assert settings != SiteSettings()
 
 
 def test_key_missing_from_overrides_uses_the_default():
     settings = SiteSettings.from_layers(
-        SiteContent(app_name="Default", app_title="Title"), LocalizedContent(app_name="English")
+        SiteConfig(app_name="Default", app_title="Title"), LocalizedContent(app_name="English")
     )
 
     assert settings == SiteSettings(app_name="English", app_title="Title")
@@ -42,7 +37,7 @@ def test_key_missing_from_overrides_uses_the_default():
 
 def test_empty_override_falls_through_to_the_default():
     settings = SiteSettings.from_layers(
-        SiteContent(app_name="Default", logo_url="/logo.png"),
+        SiteConfig(app_name="Default", logo_url="/logo.png"),
         LocalizedContent(app_name="", logo_url=""),
     )
 
@@ -51,7 +46,7 @@ def test_empty_override_falls_through_to_the_default():
 
 def test_global_values_are_not_overridden_by_a_language():
     settings = SiteSettings.from_layers(
-        SiteContent(
+        SiteConfig(
             font=Font(name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"),
             primary_color="blue",
         ),
@@ -64,54 +59,7 @@ def test_global_values_are_not_overridden_by_a_language():
     )
 
 
-@pytest.mark.parametrize("key", ["posts", "pages", "blog_meta"])
-def test_sections_owned_by_the_blog_repository_are_accepted(key: str):
-    SiteContentSection.model_validate({key: [{"title": "Anything"}]})
-
-
-@pytest.mark.parametrize(
-    "site_content",
-    [
-        {"menu_items": {"en": []}},
-        {"localized_content": {"en": {"blog_meta": {"title": "Notes"}}}},
-        {"footer": {"content": {"en": "Footer"}}},
-        {"home_page_path": "/blog/page/about"},
-        {"unknown": 1},
-        {"localized_content": {"en": {"unknown": 1}}},
-    ],
-)
-def test_unknown_keys_are_rejected(site_content: dict[str, Any]):
-    with pytest.raises(ValidationError):
-        SiteContentSection.model_validate(site_content)
-
-
-@pytest.mark.parametrize(
-    "site_content",
-    [
-        {"app_name": None},
-        {"localized_content": None},
-        {"localized_content": {"pl": None}},
-        {"localized_content": {"pl": {"app_name": None}}},
-        {"localized_content": {"pl": {"footer": None}}},
-        {"localized_content": {"pl": {"menu_items": None}}},
-        {"localized_content": {"pl": {"home_page_path": None}}},
-    ],
-)
-def test_null_is_rejected(site_content: dict[str, Any]):
-    with pytest.raises(ValidationError):
-        SiteContentSection.model_validate(site_content)
-
-
-def test_site_content_is_immutable():
-    content = SiteContentSection.model_validate({"localized_content": {"en": {}}})
-
-    with pytest.raises(ValidationError):
-        content.app_name = "Changed"
-    with pytest.raises(TypeError):
-        content.localized_content["pl"] = LocalizedContent()  # type: ignore[index]
-
-
 @pytest.mark.parametrize("key", ["primary_color", "secondary_color"])
 def test_empty_colour_is_rejected(key: str):
     with pytest.raises(ValidationError, match=key):
-        SiteContent.model_validate({key: ""})
+        SiteConfig.model_validate({key: ""})

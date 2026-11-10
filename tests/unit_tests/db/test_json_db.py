@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from platzky.db.exceptions import (
     DBError,
-    InvalidSiteContentError,
+    InvalidDataError,
     NotFoundError,
     ReadOnlyStorageError,
 )
@@ -21,27 +21,28 @@ class TestJsonDbConfig:
     def test_model_validation(self):
         config_data = {
             "TYPE": "json_db",
-            "DATA": {"site_content": {"app_description": "Test"}},
+            "DATA": {"site_config": {"app_description": "Test"}},
         }
         config = JsonDbConfig.model_validate(config_data)
-        assert config.data == {"site_content": {"app_description": "Test"}}
+        assert config.data == {"site_config": {"app_description": "Test"}}
 
 
 class TestFactoryFunctions:
     def test_db_from_config(self):
         config = JsonDbConfig(
-            TYPE="json_db", DATA={"site_content": {"app_description": "Configured"}}
+            TYPE="json_db", DATA={"site_config": {"app_description": "Configured"}}
         )
         db = db_from_config(config)
         assert isinstance(db, Json)
-        assert db.site_config.get_site_content().app_description == "Configured"
+        assert db.site_config.get_site_config().app_description == "Configured"
 
 
 class TestJsonDb:
     @pytest.fixture
     def sample_data(self) -> dict[str, Any]:
         return {
-            "site_content": {
+            "site_config": {},
+            "blog": {
                 "posts": [
                     {
                         "title": "Post 1",
@@ -94,13 +95,13 @@ class TestJsonDb:
         return Json(MemoryStore(sample_data))
 
     def test_get_post_missing_data(self):
-        db_without_posts = Json(MemoryStore({"site_content": {}}))
+        db_without_posts = Json(MemoryStore({"site_config": {}}))
         with pytest.raises(NotFoundError, match="Posts data is missing"):
             db_without_posts.blog.posts.get("any-slug")
 
     def test_get_post_with_missing_required_field(self, sample_data: dict[str, Any]):
         """ValidationError raised when required field is missing."""
-        sample_data["site_content"]["posts"].append(
+        sample_data["blog"]["posts"].append(
             {
                 "slug": "test-post",
                 "author": "Test Author",
@@ -120,7 +121,8 @@ class TestJsonDb:
         (comments, tags, language, date) even though they should be optional.
         """
         minimal_page_data = {
-            "site_content": {
+            "site_config": {},
+            "blog": {
                 "pages": [
                     {
                         "title": "About Us",
@@ -131,7 +133,7 @@ class TestJsonDb:
                         "coverImage": {"url": "/images/about.jpg"},
                     }
                 ]
-            }
+            },
         }
         db = Json(MemoryStore(minimal_page_data))
         page = db.blog.pages.get("about")
@@ -145,7 +147,7 @@ class TestJsonDb:
         assert page.date is None
 
     def test_get_posts_by_tag_with_empty_posts(self, sample_data: dict[str, Any]):
-        sample_data["site_content"]["posts"] = []
+        sample_data["blog"]["posts"] = []
         db = Json(MemoryStore(sample_data))
         posts = list(db.blog.posts.get_by_tag("tag1", "en"))
         assert len(posts) == 0
@@ -157,7 +159,8 @@ class TestJsonDbComments:
         return Json(
             MemoryStore(
                 {
-                    "site_content": {
+                    "site_config": {},
+                    "blog": {
                         "posts": [
                             {
                                 "title": "Post 1",
@@ -171,7 +174,7 @@ class TestJsonDbComments:
                                 "date": "2023-01-01T00:00:00",
                             }
                         ]
-                    }
+                    },
                 }
             )
         )
@@ -191,7 +194,8 @@ class TestJsonDbComments:
 
     def test_add_comment_persists_to_store(self):
         document: dict[str, Any] = {
-            "site_content": {
+            "site_config": {},
+            "blog": {
                 "posts": [
                     {
                         "title": "Post 1",
@@ -205,7 +209,7 @@ class TestJsonDbComments:
                         "date": "2023-01-01T00:00:00",
                     }
                 ]
-            }
+            },
         }
         store = Mock(spec=JsonStore)
         store.load.return_value = document
@@ -218,7 +222,7 @@ class TestJsonDbComments:
 
         store.save.assert_called_once()
         saved = store.save.call_args.args[0]
-        assert saved["site_content"]["posts"][0]["comments"] == [
+        assert saved["blog"]["posts"][0]["comments"] == [
             {"author": "Test User", "comment": "Great post!", "date": "2023-01-01T12:00:00"}
         ]
 
@@ -232,7 +236,8 @@ class TestJsonDbComments:
         db = Json(
             ReadOnlyStore(
                 {
-                    "site_content": {
+                    "site_config": {},
+                    "blog": {
                         "posts": [
                             {
                                 "title": "Post 1",
@@ -246,7 +251,7 @@ class TestJsonDbComments:
                                 "date": "2023-01-01T00:00:00",
                             }
                         ]
-                    }
+                    },
                 }
             )
         )
@@ -264,12 +269,12 @@ class TestJsonDbComments:
 
 class TestJsonDbHealthCheck:
     def test_health_check_success(self):
-        db = Json(MemoryStore({"site_content": {"posts": []}}))
+        db = Json(MemoryStore({"site_config": {}, "blog": {"posts": []}}))
         db.health_check()
 
-    def test_health_check_failure_no_site_content(self):
+    def test_health_check_failure_no_site_config(self):
         db = Json(MemoryStore({"other_data": "value"}))
-        with pytest.raises(DBError, match="site_content section is missing"):
+        with pytest.raises(DBError, match="site_config section is missing"):
             db.health_check()
 
 
@@ -277,33 +282,40 @@ class TestJsonDbEmptyDb:
     def test_empty_db_raises_exception_on_operations(self):
         db = Json(MemoryStore({}))
 
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.blog.posts.get_all("en")
+        with pytest.raises(DBError, match="site_config section is missing"):
+            db.site_config.get_site_config()
 
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.site_config.get_site_content()
+    def test_missing_blog_section_is_an_empty_blog(self):
+        db = Json(MemoryStore({}))
 
-        with pytest.raises(DBError, match="site_content section is missing"):
+        assert db.blog.posts.get_all("en") == []
+        assert db.blog.pages.get_all("en") == []
+        with pytest.raises(NotFoundError, match="Posts data is missing"):
             db.blog.posts.get("any-slug")
 
 
-class TestJsonDbSiteContentValidation:
-    def test_health_check_reports_invalid_site_content(self):
-        db = Json(MemoryStore({"site_content": {}}))
+class TestJsonDbSiteConfigValidation:
+    def test_health_check_reports_invalid_site_config(self):
+        db = Json(MemoryStore({"site_config": {}}))
         with db.document.edit() as data:
-            data["site_content"]["menu_items"] = {}
+            data["site_config"]["menu_items"] = {}
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             db.health_check()
 
     def test_health_check_reports_invalid_blog_meta(self):
-        db = Json(MemoryStore({"site_content": {}}))
+        db = Json(MemoryStore({"site_config": {}}))
         with db.document.edit() as data:
-            data["site_content"]["blog_meta"] = {"en": {"title": None}}
+            data["blog"] = {}
+            data["blog"]["meta"] = {"en": {"title": None}}
 
-        with pytest.raises(InvalidSiteContentError):
+        with pytest.raises(InvalidDataError):
             db.health_check()
 
+    def test_unknown_blog_key_stops_the_database_from_being_created(self):
+        with pytest.raises(InvalidDataError, match=r"blog\.blog_meta"):
+            Json(MemoryStore({"site_config": {}, "blog": {"blog_meta": {}}}))
+
     def test_invalid_blog_meta_stops_the_database_from_being_created(self):
-        with pytest.raises(InvalidSiteContentError):
-            Json(MemoryStore({"site_content": {"blog_meta": None}}))
+        with pytest.raises(InvalidDataError):
+            Json(MemoryStore({"site_config": {}, "blog": {"meta": None}}))

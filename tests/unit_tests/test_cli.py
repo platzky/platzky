@@ -66,10 +66,10 @@ class TestInit:
         assert config["APP_NAME"] == "My Platzky App"
         assert config["DB"] == {"TYPE": "json_file", "PATH": "data.json"}
         assert config["USE_WWW"] is False
-        content = json.loads((tmp_path / "data.json").read_text())["site_content"]
-        assert [post["slug"] for post in content["posts"]] == ["hello-platzky"]
-        assert [page["slug"] for page in content["pages"]] == ["about"]
-        assert content["localized_content"]["en"]["menu_items"] == [
+        document = json.loads((tmp_path / "data.json").read_text())
+        assert [post["slug"] for post in document["blog"]["posts"]] == ["hello-platzky"]
+        assert [page["slug"] for page in document["blog"]["pages"]] == ["about"]
+        assert document["site_config"]["localized_content"]["en"]["menu_items"] == [
             {"name": "Blog", "url": "/blog/"},
             {"name": "About", "url": "/blog/page/about"},
         ]
@@ -130,15 +130,15 @@ def _check(tmp_path: Path, document: object) -> Result:
 
 
 class TestCheck:
-    def test_valid_site_content_is_ok(self, tmp_path: Path):
+    def test_valid_site_config_is_ok(self, tmp_path: Path):
         result = _check(
             tmp_path,
             {
-                "site_content": {
+                "site_config": {
                     "app_name": "Literature",
-                    "posts": [],
                     "localized_content": {"pl": {"home_page_path": "/blog/page/o-nas"}},
-                }
+                },
+                "blog": {"posts": [], "meta": {"pl": {"title": "Notatki"}}},
             },
         )
 
@@ -155,7 +155,7 @@ class TestCheck:
         result = _check(
             tmp_path,
             {
-                "site_content": {
+                "site_config": {
                     "home_page_path": "/blog/page/about",
                     "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
                 }
@@ -164,16 +164,32 @@ class TestCheck:
 
         assert result.exit_code == 1
         assert result.output.splitlines() == [
-            "Error: site_content.localized_content.pl.menu_items.0.url: Field required",
-            "site_content.localized_content.pl.x: Extra inputs are not permitted",
-            "site_content.home_page_path: Extra inputs are not permitted",
+            "Error: site_config.localized_content.pl.menu_items.0.url: Field required",
+            "site_config.localized_content.pl.x: Extra inputs are not permitted",
+            "site_config.home_page_path: Extra inputs are not permitted",
         ]
 
-    def test_missing_site_content_is_an_error(self, tmp_path: Path):
+    def test_every_problem_in_the_blog_is_listed_with_its_path(self, tmp_path: Path):
+        result = _check(
+            tmp_path,
+            {
+                "site_config": {},
+                "blog": {"meta": {"pl": {"title": None}}, "blog_meta": {}, "posts": None},
+            },
+        )
+
+        assert result.exit_code == 1
+        assert result.output.splitlines() == [
+            "Error: blog.posts: Input should be a valid tuple",
+            "blog.meta.pl.title: Input should be a valid string",
+            "blog.blog_meta: Extra inputs are not permitted",
+        ]
+
+    def test_missing_site_config_is_an_error(self, tmp_path: Path):
         result = _check(tmp_path, {"plugins": {}})
 
         assert result.exit_code == 1
-        assert result.output.startswith("Error: site_content: ")
+        assert result.output.startswith("Error: site_config: ")
 
     def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
         data_file = tmp_path / "data.json"
