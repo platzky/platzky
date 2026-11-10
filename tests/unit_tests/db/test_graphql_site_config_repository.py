@@ -20,9 +20,6 @@ from tests.unit_tests.db.site_config_repository_contract import SiteConfigReposi
 _NO_LANGUAGE = {"lang": None}
 
 
-SCHEMA_REASON = "Hygraph's schema cannot store this: the server never returns such data"
-
-
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
         # With snake_case aliases, Hygraph answers in the neutral shape itself.
@@ -37,18 +34,6 @@ class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
 
         client.execute.side_effect = execute
         return GraphQLSiteConfigRepository(lambda: client)
-
-    @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_invalid_site_wide_value_is_an_invalid_data_error(self):
-        pass
-
-    @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_null_text_in_a_language_is_an_invalid_data_error(self):
-        pass
-
-    @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_unknown_key_in_a_language_is_an_invalid_data_error(self):
-        pass
 
 
 @pytest.fixture
@@ -97,9 +82,13 @@ class TestRequests:
                     "menu_items": [],
                 },
             },
+            {
+                "sites": [{"primary_color": "", "app_name": ""}],
+                "localizedContent": {"app_name": "", "footer": {"content": ""}},
+            },
         ],
     )
-    def test_null_nodes_fall_back_to_defaults(
+    def test_null_and_empty_values_fall_back_to_defaults(
         self,
         repository: GraphQLSiteConfigRepository,
         mock_client: Mock,

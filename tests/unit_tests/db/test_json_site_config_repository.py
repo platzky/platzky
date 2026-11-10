@@ -9,10 +9,10 @@ from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import MemoryStore
 from platzky.db.site_config_repository import SiteConfig, SiteConfigRepository
-from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
+from tests.unit_tests.db.site_config_repository_contract import StoredSiteConfigContract
 
 
-class TestJsonSiteConfigRepository(SiteConfigRepositoryContract):
+class TestJsonSiteConfigRepository(StoredSiteConfigContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
         return _repository(site_config)
 

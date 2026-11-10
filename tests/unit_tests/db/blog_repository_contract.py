@@ -8,9 +8,9 @@ backend's fake only maps fields and never filters: what the server decides is te
 backend's own file through the query variables it is sent, so each test seeds exactly what should
 come back.
 
-A behaviour the backend cannot represent is opted out by overriding the test with
-`@pytest.mark.skip(reason=...)`. This module is not named `test_*`, and the class not
-`Test*`, so pytest only collects the tests through the subclasses.
+Every backend satisfies every test here; one that cannot belongs in a narrower base class,
+not behind a skip. This module is not named `test_*`, and the class not `Test*`, so pytest
+only collects the tests through the subclasses.
 """
 
 from abc import ABC, abstractmethod

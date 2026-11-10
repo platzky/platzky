@@ -8,7 +8,7 @@ import pytest
 from platzky.db.exceptions import InvalidDataError
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
-from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
+from tests.unit_tests.db.site_config_repository_contract import StoredSiteConfigContract
 
 
 def _collection(documents: list[dict[str, Any]]) -> Mock:
@@ -20,7 +20,7 @@ def _collection(documents: list[dict[str, Any]]) -> Mock:
     return Mock(find_one=find_one, find=lambda: documents)
 
 
-class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
+class TestMongoSiteConfigRepository(StoredSiteConfigContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
         # Mongo keeps the site-wide keys in one document, and each language's content in a
         # document of its own.

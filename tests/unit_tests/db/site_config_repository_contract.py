@@ -7,8 +7,9 @@ document's shape: the site-wide keys plus ``localized_content``) and builds a
 repository over whatever that backend stores. Inherited tests then run against that
 backend, so independently-implemented repositories cannot silently drift apart.
 
-A behaviour the backend cannot represent is opted out by overriding the test with
-`@pytest.mark.skip(reason=...)`, which keeps the gap visible in the test report.
+A backend that stores arbitrary data (a JSON document, Mongo documents) must also reject
+invalid data: subclass `StoredSiteConfigContract` instead. A backend whose storage enforces
+its own schema (Hygraph) cannot hold such data, so it subclasses only the base contract.
 External database backends can reuse this module the same way.
 Each backend only has to map its stored content to `SiteConfig` and `LocalizedContent`.
 How overrides fall back to the defaults is tested on `SiteSettings.from_layers`, and which
@@ -100,7 +101,13 @@ class SiteConfigRepositoryContract(ABC):
     def test_get_localized_content_is_empty_for_unknown_language(self):
         assert self.make_repository(SITE_CONFIG).get_localized_content("de") == LocalizedContent()
 
-    # A backend may reject invalid data when it is built or when it is read.
+
+class StoredSiteConfigContract(SiteConfigRepositoryContract):
+    """The contract plus rejecting invalid stored data, for backends that store any data.
+
+    A backend may reject invalid data when it is built or when it is read.
+    """
+
     def test_invalid_site_wide_value_is_an_invalid_data_error(self):
         with pytest.raises(InvalidDataError, match=r"site_config\.primary_color"):
             self.make_repository({"primary_color": ""}).get_site_config()
