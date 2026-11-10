@@ -21,18 +21,17 @@ class TestJsonDocument:
         data = {"site_config": {}}
         assert JsonDocument(MemoryStore(data)).data is data
 
-    def test_edit_yields_the_same_dict_and_saves_on_success(self):
+    def test_edit_saves_a_copy_and_then_makes_it_the_document(self):
         store = Mock(spec=JsonStore)
-        data = {"site_config": {}}
-        store.load.return_value = data
+        store.load.return_value = {"site_config": {}}
         document = JsonDocument(store)
 
         with document.edit() as edited:
-            assert edited is data
             edited["x"] = 1
+            assert document.data == {"site_config": {}}
 
-        assert document.data is data
         store.save.assert_called_once_with({"site_config": {}, "x": 1})
+        assert document.data == {"site_config": {}, "x": 1}
 
     def test_edit_saves_when_block_returns_early(self):
         store = Mock(spec=JsonStore)
@@ -50,7 +49,7 @@ class TestJsonDocument:
             pass
         assert store.save.call_count == 2
 
-    def test_edit_releases_lock_and_restores_when_save_raises_base_exception(self):
+    def test_edit_releases_lock_and_keeps_the_document_when_save_raises_base_exception(self):
         store = Mock(spec=JsonStore)
         data = {"a": 1}
         store.load.return_value = data
@@ -64,9 +63,9 @@ class TestJsonDocument:
         with pytest.raises(KeyboardInterrupt):
             edit_and_save()
 
-        assert data == {"a": 1}
+        assert document.data == {"a": 1}
         edit_and_save()
-        assert data == {"a": 2}
+        assert document.data == {"a": 2}
 
     def test_edit_does_not_save_on_exception_and_releases_lock(self):
         store = Mock(spec=JsonStore)
@@ -87,7 +86,7 @@ class TestJsonDocument:
             pass
         store.save.assert_called_once()
 
-    def test_edit_restores_in_place_when_save_fails(self):
+    def test_edit_keeps_the_document_when_save_fails(self):
         store = Mock(spec=JsonStore)
         data = {"a": {"b": 1}}
         store.load.return_value = data
@@ -113,6 +112,15 @@ class TestJsonSection:
         assert dict(section) == {"x": 1}
         with pytest.raises(TypeError):
             section["x"] = 2  # type: ignore[index]
+
+    def test_section_shows_a_write_made_through_the_document(self):
+        document = JsonDocument(MemoryStore({"a": {"x": 1}}))
+        section = JsonSection(document, "a")
+
+        with document.edit() as data:
+            data["a"]["x"] = 2
+
+        assert dict(section) == {"x": 2}
 
     def test_missing_section_is_empty(self):
         assert dict(JsonSection(JsonDocument(MemoryStore({})), "a")) == {}

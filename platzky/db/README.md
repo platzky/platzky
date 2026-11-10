@@ -151,9 +151,11 @@ the `DB` object. Two read-only properties are the supported way in:
 - `db.document` on every JSON backend (`Json`, `JsonFile`, `GoogleJsonDb`,
   `GithubJsonDb`) returns the `JsonDocument`. Read the dict through
   `document.data`; every write must go through `document.edit()`, which holds
-  the write lock and persists atomically (and restores the document if the
-  block raises). Hold on to nested values only briefly: a rolled-back edit
-  replaces them with copies, so look them up from `data` on each call. On
+  the write lock, yields a copy of the document and makes it the document once
+  it is saved (if the block raises or the save fails, the copy is dropped).
+  Look `data` up on each read rather than keep it: a saved edit replaces it.
+  Platzky reads the `site_config` section once, when the database is built, so
+  later writes to it take effect only after a restart. On
   `GoogleJsonDb` and `GithubJsonDb` the store is read-only, so `edit()` raises
   `ReadOnlyStorageError` when the block exits.
 - `db.database` on `MongoDB` returns the pymongo `Database`, for the host app's

@@ -96,9 +96,11 @@ class Json(DB):
 
         This is the supported extension point for host apps that build their
         own repositories on the same storage. Read the dict through
-        ``document.data``; every write must go through ``document.edit()``
-        (``with db.document.edit() as data: ...``), which holds the write lock
-        and persists atomically.
+        ``document.data`` on each access; every write must go through
+        ``document.edit()`` (``with db.document.edit() as data: ...``), which
+        holds the write lock and replaces the document once the edit is saved.
+        The ``site_config`` section is read once, when the database is built,
+        so writes to it take effect only after a restart.
         """
         return self._document
 
