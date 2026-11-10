@@ -187,6 +187,21 @@ class Footer(BaseModel):
     collapsible: bool = False
 
 
+class Font(BaseModel):
+    """The site font: its CSS family name and the stylesheet that provides it.
+
+    Attributes:
+        name: CSS font-family value; empty keeps the default font
+        url: URL of the stylesheet that loads the font (e.g. a Google Fonts link); empty loads
+            none
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = ""
+    url: str = ""
+
+
 class PageMeta(BaseModel):
     """A page's title and description for search engines and link previews, in one language.
 

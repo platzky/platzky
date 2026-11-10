@@ -369,7 +369,7 @@ site-configuration part, not ``posts`` and ``pages``).
           "app_description": "Notes on Tolkien's books",
           "logo_url": "https://example.com/logo.png",
           "favicon_url": "https://example.com/favicon.ico",
-          "font": "Georgia",
+          "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
           "primary_color": "white",
           "secondary_color": "navy",
           "localized_content": {
@@ -403,7 +403,12 @@ site-configuration part, not ``posts`` and ``pages``).
   .. code-block:: javascript
 
       // site_content
-      {"_id": "config", "app_name": "Literature", "app_title": "Reading notes | Literature"}
+      {
+        "_id": "config",
+        "app_name": "Literature",
+        "app_title": "Reading notes | Literature",
+        "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"}
+      }
       // localized_content
       {
         "_id": "pl",
@@ -420,7 +425,7 @@ site-configuration part, not ``posts`` and ``pages``).
   ``blogMeta`` (``title``, ``description``), ``footer`` (``content``,
   ``collapsible``), ``homePagePath`` and ``menuItems`` (``name``, ``url``). The
   fallback ``logos``, the ``favicons`` and the ``themes`` (``primaryColor``,
-  ``secondaryColor``, ``font``) hold the site-wide keys.
+  ``secondaryColor``, ``font`` with ``name`` and ``url``) hold the site-wide keys.
 
 Feature Flags
 ~~~~~~~~~~~~~

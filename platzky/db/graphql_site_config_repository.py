@@ -109,7 +109,10 @@ _SITE_SETTINGS_QUERY = f"""
       themes(stage: PUBLISHED) {{
         primaryColor
         secondaryColor
-        font
+        font {{
+          name
+          url
+        }}
       }}
     }}
     """
@@ -164,7 +167,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
                     "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get("url"),
                     "primary_color": theme.get("primaryColor"),
                     "secondary_color": theme.get("secondaryColor"),
-                    "font": theme.get("font"),
+                    "font": _present(theme.get("font") or {}),
                 }
             )
         )

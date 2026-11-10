@@ -14,7 +14,7 @@ from platzky.db.exceptions import (
 )
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
+from platzky.models import Font, Footer, MenuItem, Page, PageMeta, Post
 
 
 class TestJsonDbConfig:
@@ -98,7 +98,7 @@ class TestJsonDb:
                 },
                 "logo_url": "/logo.png",
                 "favicon_url": "/favicon.ico",
-                "font": "Arial",
+                "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
                 "primary_color": "blue",
                 "secondary_color": "green",
             },
@@ -250,7 +250,10 @@ class TestJsonDbSiteSettings:
                     "site_content": {
                         "logo_url": "/logo.png",
                         "favicon_url": "/favicon.ico",
-                        "font": "Arial",
+                        "font": {
+                            "name": "Lora",
+                            "url": "https://fonts.googleapis.com/css2?family=Lora",
+                        },
                         "primary_color": "blue",
                         "secondary_color": "green",
                     }
@@ -267,7 +270,9 @@ class TestJsonDbSiteSettings:
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
-        assert settings.font == "Arial"
+        assert settings.font == Font(
+            name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"
+        )
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
 
@@ -275,7 +280,7 @@ class TestJsonDbSiteSettings:
         settings = db_minimal.get_site_settings("en")
         assert settings.logo is None
         assert settings.favicon_url == ""
-        assert settings.font == ""
+        assert settings.font == Font()
         assert settings.primary_color == "white"
         assert settings.secondary_color == "navy"
         assert settings.app_description == ""

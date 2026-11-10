@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from platzky.db.site_config_repository import LocalizedContent, SiteContent, SiteSettings
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.models import Font, Footer, Image, MenuItem, PageMeta
 
 _NON_DEFAULTS = {
     "app_name": "Name",
@@ -12,7 +12,7 @@ _NON_DEFAULTS = {
     "app_description": "Description",
     "logo_url": "/logo.png",
     "favicon_url": "/favicon.ico",
-    "font": "Arial",
+    "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
     "primary_color": "blue",
     "secondary_color": "green",
 }
@@ -62,10 +62,17 @@ def test_localized_logo_overrides_the_default():
 
 def test_global_values_are_not_overridden_by_a_language():
     settings = SiteSettings.from_layers(
-        SiteContent(font="Arial", primary_color="blue"), LocalizedContent()
+        SiteContent(
+            font=Font(name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"),
+            primary_color="blue",
+        ),
+        LocalizedContent(),
     )
 
-    assert settings == SiteSettings(font="Arial", primary_color="blue")
+    assert settings == SiteSettings(
+        font=Font(name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"),
+        primary_color="blue",
+    )
 
 
 def test_site_content_parses_the_documented_shape():

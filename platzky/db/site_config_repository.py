@@ -12,7 +12,7 @@ from typing import Any, ClassVar, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from platzky.db.exceptions import InvalidSiteContentError
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.models import Font, Footer, Image, MenuItem, PageMeta
 
 
 class LocalizedContent(BaseModel):
@@ -59,7 +59,7 @@ class SiteContent(BaseModel):
         app_description: Default meta description
         logo_url: Default logo image URL
         favicon_url: Favicon URL
-        font: Font family
+        font: Font family name and stylesheet
         primary_color: Primary theme color
         secondary_color: Secondary theme color
         posts: Blog posts, owned by the blog repository
@@ -74,7 +74,7 @@ class SiteContent(BaseModel):
     app_description: str = ""
     logo_url: str = ""
     favicon_url: str = ""
-    font: str = ""
+    font: Font = Font()
     primary_color: str = ""
     secondary_color: str = ""
     posts: Any = None
@@ -154,7 +154,7 @@ class SiteSettings(BaseModel):
     favicon_url: str = ""
     primary_color: str = "white"
     secondary_color: str = "navy"
-    font: str = ""
+    font: Font = Font()
     app_name: str = ""
     app_title: str = ""
     app_description: str = ""
@@ -181,7 +181,7 @@ class SiteSettings(BaseModel):
             favicon_url=defaults.favicon_url or "",
             primary_color=defaults.primary_color or "white",
             secondary_color=defaults.secondary_color or "navy",
-            font=defaults.font or "",
+            font=defaults.font,
             app_name=localized.app_name or defaults.app_name or "",
             app_title=localized.app_title or defaults.app_title or "",
             app_description=localized.app_description or defaults.app_description or "",

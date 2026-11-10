@@ -6,7 +6,7 @@ import pytest
 from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
 from platzky.db.site_config_repository import SiteSettings
-from platzky.models import Footer, MenuItem, PageMeta, Post
+from platzky.models import Font, Footer, MenuItem, PageMeta, Post
 
 
 class TestMongoDbConfig:
@@ -97,7 +97,7 @@ class TestMongoDB:
             "_id": "config",
             "logo_url": "/logo.png",
             "favicon_url": "/favicon.ico",
-            "font": "Arial",
+            "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
             "primary_color": "blue",
             "secondary_color": "green",
         }
@@ -108,7 +108,9 @@ class TestMongoDB:
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
-        assert settings.font == "Arial"
+        assert settings.font == Font(
+            name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"
+        )
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
         # One find_one call for all of the above, not one per field.

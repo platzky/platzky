@@ -20,14 +20,14 @@ collects the tests through the subclasses.
 from typing import Any
 
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.models import Font, Footer, Image, MenuItem, PageMeta
 
 SITE_CONTENT = {
     "logo_url": "/logo.png",
     "favicon_url": "/favicon.ico",
     "primary_color": "blue",
     "secondary_color": "green",
-    "font": "Arial",
+    "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
     "app_name": "Literature",
     "app_title": "Literature | Reading notes",
     "app_description": "Notes on Tolkien's books",
@@ -63,7 +63,7 @@ class SiteConfigRepositoryContract:
         assert settings == SiteSettings(
             logo=Image(url="/logo.png"),
             favicon_url="/favicon.ico",
-            font="Arial",
+            font=Font(name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"),
             primary_color="blue",
             secondary_color="green",
             app_name="Literature",
@@ -77,7 +77,7 @@ class SiteConfigRepositoryContract:
         assert settings == SiteSettings(
             logo=Image(url="/logo-pl.png"),
             favicon_url="/favicon.ico",
-            font="Arial",
+            font=Font(name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"),
             primary_color="blue",
             secondary_color="green",
             app_name="Literatura",
