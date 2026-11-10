@@ -39,16 +39,24 @@ class BlogSection(StrictModel):
     meta: ReadOnlyMapping[str, PageMeta]
 
 
-def _items(section: JsonSection, key: str) -> list[Any]:
+def _require_list(section_name: str, key: str, value: object) -> list[Any]:
+    """Return the posts or pages of a section as stored.
+
+    Raises:
+        InvalidDataError: If they are not a list (null included).
+    """
+    if not isinstance(value, list):
+        raise InvalidDataError(f"{section_name}.{key}: Input should be a valid list")
+    return value
+
+
+def _items(section: JsonSection, key: str) -> tuple[Mapping[str, Any], ...]:
     """Return the posts or pages the section holds, empty if it has none.
 
     Raises:
         InvalidDataError: If the key is present but not a list (null included).
     """
-    items = section.data.get(key, [])
-    if not isinstance(items, list):
-        raise InvalidDataError(f"{section.name}.{key}: Input should be a valid list")
-    return items
+    return tuple(_require_list(section.name, key, section.data.get(key, [])))
 
 
 class _JsonPostRepository(PostRepository):
@@ -136,10 +144,9 @@ class _JsonPostRepository(PostRepository):
         }
 
         try:
-            with self._section.edit():
-                post = next(
-                    (p for p in _items(self._section, "posts") if p["slug"] == post_slug), None
-                )
+            with self._section.edit() as blog:
+                posts = _require_list(self._section.name, "posts", blog.get("posts", []))
+                post = next((p for p in posts if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
                 post.setdefault("comments", []).append(comment_data)
