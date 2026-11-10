@@ -9,10 +9,10 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from platzky.models import Font, Footer, MenuItem
+from platzky.models import Font, Footer, MenuItem, StrictModel
 
 
-class LocalizedContent(BaseModel):
+class LocalizedContent(StrictModel):
     """The site content that is set per language, in the one format shared by every backend.
 
     Unknown keys and null values are errors. Nothing here is inherited from
@@ -29,8 +29,6 @@ class LocalizedContent(BaseModel):
         home_page_path: Site-relative path shown as the home page; empty for the blog index
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
     app_name: str = ""
     app_title: str = ""
     app_description: str = ""
@@ -44,7 +42,7 @@ DEFAULT_PRIMARY_COLOR = "white"
 DEFAULT_SECONDARY_COLOR = "navy"
 
 
-class SiteConfig(BaseModel):
+class SiteConfig(StrictModel):
     """The site-wide content, shared by every backend.
 
     The texts and the logo are defaults that each language may override; the favicon, font and
@@ -60,8 +58,6 @@ class SiteConfig(BaseModel):
         primary_color: Primary theme color
         secondary_color: Secondary theme color
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     app_name: str = ""
     app_title: str = ""

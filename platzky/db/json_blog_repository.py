@@ -13,8 +13,6 @@ from types import MappingProxyType
 from typing import Any
 
 from pydantic import (
-    BaseModel,
-    ConfigDict,
     Field,
     ValidationError,
     field_validator,
@@ -24,12 +22,12 @@ from typing_extensions import override
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import InvalidDataError, NotFoundError, format_problems
 from platzky.db.json_document import JsonSection
-from platzky.models import Page, PageMeta, Post
+from platzky.models import Page, PageMeta, Post, StrictModel
 
 logger = logging.getLogger(__name__)
 
 
-class BlogSection(BaseModel):
+class BlogSection(StrictModel):
     """The ``blog`` section of a JSON document, as stored.
 
     Unknown keys and null values are errors. Posts and pages are checked one at a time when they
@@ -40,8 +38,6 @@ class BlogSection(BaseModel):
         pages: Pages
         meta: The blog index meta by language code
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     posts: tuple[dict[str, Any], ...] = ()
     pages: tuple[dict[str, Any], ...] = ()

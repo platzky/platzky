@@ -18,6 +18,13 @@ def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
 
 DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
 
+
+class StrictModel(BaseModel):
+    """A model of stored data: immutable, and an unknown key is an error."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
 _STYLE_CLOSE_RE = re.compile(r"</\s*style\b", re.IGNORECASE)
 
 
@@ -172,7 +179,7 @@ class Post(BaseModel):
 Page = Post  # Page is an alias for Post (static pages use the same structure)
 
 
-class Footer(BaseModel):
+class Footer(StrictModel):
     """The site-wide footer and how it is presented.
 
     Attributes:
@@ -181,13 +188,11 @@ class Footer(BaseModel):
         collapsible: Whether readers may collapse the footer
     """
 
-    model_config = ConfigDict(frozen=True)
-
     content: str = ""
     collapsible: bool = False
 
 
-class Font(BaseModel):
+class Font(StrictModel):
     """The site font: its CSS family name and the stylesheet that provides it.
 
     Attributes:
@@ -196,21 +201,17 @@ class Font(BaseModel):
             none
     """
 
-    model_config = ConfigDict(frozen=True)
-
     name: str = ""
     url: str = ""
 
 
-class PageMeta(BaseModel):
+class PageMeta(StrictModel):
     """A page's title and description for search engines and link previews, in one language.
 
     Attributes:
         title: Page title; empty to use the page's default title
         description: Meta description; empty to use the site's description
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     title: str = ""
     description: str = ""
