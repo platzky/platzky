@@ -19,7 +19,7 @@ _SITE_CONFIG_QUERY = gql("""
         app_name: appName
         app_title: appTitle
         app_description: appDescription
-        logo { image { url } }
+        logo_url: logoUrl
         favicon_url: faviconUrl
         primary_color: primaryColor
         secondary_color: secondaryColor
@@ -34,7 +34,7 @@ _LOCALIZED_CONTENT_QUERY = gql("""
         app_name: appName
         app_title: appTitle
         app_description: appDescription
-        logo { image { url } }
+        logo_url: logoUrl
         home_page_path: homePagePath
         footer { content collapsible }
         menu_items: menuItems { name url }
@@ -59,14 +59,6 @@ def _without_unset(values: Mapping[str, Any]) -> Mapping[str, Any]:
             for key, value in values.items()
             if _is_set(value)
         }
-    )
-
-
-def _fields(entry: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return the entry's set fields, with the nested ``logo.image.url`` as ``logo_url``."""
-    logo_url = ((entry.get("logo") or {}).get("image") or {}).get("url")
-    return _without_unset(
-        {**{key: value for key, value in entry.items() if key != "logo"}, "logo_url": logo_url}
     )
 
 
@@ -95,7 +87,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             The site-wide content; null and missing fields are not set.
         """
         result = self._client_getter().execute(_SITE_CONFIG_QUERY)
-        return SiteConfig.model_validate(_fields(next(iter(result["sites"]), {})))
+        return SiteConfig.model_validate(_without_unset(next(iter(result["sites"]), {})))
 
     @override
     def get_localized_content(self, lang: str) -> LocalizedContent:
@@ -111,4 +103,4 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         result = self._client_getter().execute(
             _LOCALIZED_CONTENT_QUERY, variable_values={"lang": lang}
         )
-        return LocalizedContent.model_validate(_fields(result["localizedContent"] or {}))
+        return LocalizedContent.model_validate(_without_unset(result["localizedContent"] or {}))

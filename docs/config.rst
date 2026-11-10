@@ -435,12 +435,12 @@ with invalid site content. To check a JSON data file before deploying it, see
 
 * **GraphQL (Hygraph)**: two models. ``Site`` holds one entry (queried as
   ``sites``) with the site-wide content: ``appName``, ``appTitle``,
-  ``appDescription``, ``logo``, ``faviconUrl`` (a string), ``primaryColor``,
+  ``appDescription``, ``logoUrl`` and ``faviconUrl`` (strings), ``primaryColor``,
   ``secondaryColor`` and ``font`` (a component with ``name`` and ``url``).
   ``LocalizedContent`` holds one entry per language, with ``language`` (the
   ``Lang`` enum) required and unique, so the server picks the entry
   (``localizedContent(where: {language: $lang})``). Its fields are ``appName``,
-  ``appTitle``, ``appDescription``, ``logo``, ``homePagePath``, ``footer`` (``content``, ``collapsible``) and
+  ``appTitle``, ``appDescription``, ``logoUrl``, ``homePagePath``, ``footer`` (``content``, ``collapsible``) and
   ``menuItems`` (``name``, ``url``). The blog index meta is a third model,
   ``BlogMeta``, with ``language`` (the ``Lang`` enum) required and unique, and
   ``title`` and ``description``

@@ -17,12 +17,6 @@ from platzky.db.site_config_repository import (
 from platzky.models import Footer
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
-
-def _hygraph_entry(content: Mapping[str, Any]) -> dict[str, Any]:
-    """Map a neutral entry to what Hygraph answers for the aliased fields (nested logo)."""
-    return {**content, "logo": {"image": {"url": content.get("logo_url")}}}
-
-
 _NO_LANGUAGE = {"lang": None}
 
 
@@ -31,13 +25,9 @@ SCHEMA_REASON = "Hygraph's schema cannot store this: the server never returns su
 
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
-        site_only = dict(site_config)
-        site_only.pop("localized_content", None)
-        site_entry = _hygraph_entry(site_only)
-        entries = {
-            lang: _hygraph_entry(content)
-            for lang, content in site_config.get("localized_content", {}).items()
-        }
+        # With snake_case aliases, Hygraph answers in the neutral shape itself.
+        site_entry = {k: v for k, v in site_config.items() if k != "localized_content"}
+        entries = site_config.get("localized_content", {})
         client = Mock(spec=Client)
 
         def execute(
@@ -90,8 +80,8 @@ class TestRequests:
         [
             {"sites": [], "localizedContent": None},
             {
-                "sites": [{"logo": None, "font": None}],
-                "localizedContent": {"logo": {"image": None}},
+                "sites": [{"logo_url": None, "font": None}],
+                "localizedContent": {"logo_url": None},
             },
             {
                 "sites": [
