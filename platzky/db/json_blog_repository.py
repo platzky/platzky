@@ -39,8 +39,8 @@ class BlogSection(StrictModel):
         meta: The blog index meta by language code
     """
 
-    posts: tuple[dict[str, Any], ...] = ()
-    pages: tuple[dict[str, Any], ...] = ()
+    posts: tuple[Mapping[str, Any], ...] = ()
+    pages: tuple[Mapping[str, Any], ...] = ()
     meta: Mapping[str, PageMeta] = Field(default_factory=lambda: MappingProxyType({}))
 
     @field_validator("meta", mode="after")
@@ -49,7 +49,7 @@ class BlogSection(StrictModel):
         return MappingProxyType(dict(value))
 
 
-def _as_tuple(section_name: str, key: str, value: object) -> tuple[dict[str, Any], ...]:
+def _as_tuple(section_name: str, key: str, value: object) -> tuple[Mapping[str, Any], ...]:
     """Return the posts or pages a section holds, as a tuple.
 
     Raises:
@@ -60,7 +60,7 @@ def _as_tuple(section_name: str, key: str, value: object) -> tuple[dict[str, Any
     return tuple(value)
 
 
-def _items(section: JsonSection, key: str) -> tuple[dict[str, Any], ...] | None:
+def _items(section: JsonSection, key: str) -> tuple[Mapping[str, Any], ...] | None:
     """Return the posts or pages the section holds, None if it has none.
 
     Raises:
@@ -159,8 +159,8 @@ class _JsonPostRepository(PostRepository):
             with self._section.edit() as blog:
                 if "posts" not in blog:
                     raise NotFoundError("Posts data is missing")
-                posts = _as_tuple(self._section.name, "posts", blog["posts"])
-                post = next((p for p in posts if p["slug"] == post_slug), None)
+                _as_tuple(self._section.name, "posts", blog["posts"])  # raises unless a list
+                post = next((p for p in blog["posts"] if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
                 post.setdefault("comments", []).append(comment_data)
