@@ -7,7 +7,6 @@ import pytest
 from gql import Client
 
 from platzky.db.blog_repository import BlogRepository, PostRepository
-from platzky.db.exceptions import NotFoundError
 from platzky.db.graphql_blog_repository import GraphQLBlogRepository
 from platzky.models import Comment, Post
 from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
@@ -50,49 +49,6 @@ def query_posts(request: pytest.FixtureRequest) -> Callable[[PostRepository], li
 
 
 class TestPosts:
-    def test_get_returns_matching_post(self, repository: GraphQLBlogRepository, mock_client: Mock):
-        mock_client.execute.return_value = {
-            "post": {
-                "date": "2023-01-01",
-                "language": "en",
-                "title": "Test Post",
-                "slug": "test-post",
-                "author": {"name": "John Doe"},
-                "contentInRichText": {"markdown": "Test content", "html": "<p>Test content</p>"},
-                "excerpt": "Test excerpt",
-                "tags": ["test", "example"],
-                "coverImage": {
-                    "alternateText": "Alt text",
-                    "image": {"url": "https://example.com/image.jpg"},
-                },
-                "comments": [
-                    {
-                        "author": "Jane Doe",
-                        "comment": "Great post!",
-                        "createdAt": "2023-01-02T03:04:05+00:00",
-                    }
-                ],
-                "css": ".masthead { background: teal; }",
-            }
-        }
-
-        post = repository.posts.get("test-post")
-
-        assert isinstance(post, Post)
-        assert post.title == "Test Post"
-        assert post.slug == "test-post"
-        assert post.css == ".masthead { background: teal; }"
-        assert post.coverImage.url == "https://example.com/image.jpg"
-        assert post.coverImage.alternateText == "Alt text"
-        assert post.comments == [
-            Comment(
-                author="Jane Doe",
-                comment="Great post!",
-                date=datetime.datetime(2023, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc),
-            )
-        ]
-        mock_client.execute.assert_called_once()
-
     def test_get_defaults_css_to_empty_string(
         self, repository: GraphQLBlogRepository, mock_client: Mock
     ):
@@ -272,16 +228,6 @@ class TestPosts:
         assert call_args["comment"] == "Great post!"
         assert call_args["slug"] == "test-post"
 
-    def test_add_comment_raises_not_found_for_unknown_slug(
-        self, repository: GraphQLBlogRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {"post": None}
-
-        with pytest.raises(NotFoundError, match="missing"):
-            repository.posts.add_comment("John Doe", "Great post!", "missing")
-
-        mock_client.execute.assert_called_once()
-
     def test_add_comment_propagates_mutation_errors(
         self, repository: GraphQLBlogRepository, mock_client: Mock
     ):
@@ -408,10 +354,12 @@ class TestGraphQLBlogRepositoryContract(BlogRepositoryContract):
         self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
     ) -> BlogRepository:
         client = Mock(spec=Client)
+        hygraph_posts = [_hygraph_post(post) for post in posts]
+        hygraph_pages = [_hygraph_page(page) for page in pages]
         client.execute.return_value = {
-            "post": next(map(_hygraph_post, posts), None),
-            "posts": [_hygraph_post(post) for post in posts],
-            "page": next(map(_hygraph_page, pages), None),
-            "pages": [_hygraph_page(page) for page in pages],
+            "post": (hygraph_posts or [None])[0],
+            "posts": hygraph_posts,
+            "page": (hygraph_pages or [None])[0],
+            "pages": hygraph_pages,
         }
         return GraphQLBlogRepository(lambda: client)

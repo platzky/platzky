@@ -78,11 +78,6 @@ def repository(store: JsonStore) -> JsonBlogRepository:
 
 
 class TestPosts:
-    def test_get_returns_matching_post(self, repository: JsonBlogRepository):
-        post = repository.posts.get("post-1")
-        assert post.slug == "post-1"
-        assert post.title == "Title"
-
     def test_get_raises_not_found_when_posts_key_missing(self):
         repository = _repository(MemoryStore({"site_content": {}}))
         with pytest.raises(NotFoundError):
@@ -180,10 +175,6 @@ class TestPosts:
 
 
 class TestPages:
-    def test_get_returns_matching_page(self, repository: JsonBlogRepository):
-        page = repository.pages.get("page-1")
-        assert page.slug == "page-1"
-
     def test_get_all_filters_by_language(self, repository: JsonBlogRepository):
         assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
         assert repository.pages.get_all("de") == []

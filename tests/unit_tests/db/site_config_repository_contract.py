@@ -17,6 +17,7 @@ This module is not named `test_*`, and the class not `Test*`, so pytest only
 collects the tests through the subclasses.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any
 
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
@@ -52,10 +53,10 @@ SITE_CONTENT = {
 }
 
 
-class SiteConfigRepositoryContract:
+class SiteConfigRepositoryContract(ABC):
+    @abstractmethod
     def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
         """Build a repository of the backend under test holding this site content."""
-        raise NotImplementedError("subclasses build a repository of their backend")
 
     def test_get_site_settings_returns_non_localized_values(self):
         settings = self.make_repository(SITE_CONTENT).get_site_settings("en")

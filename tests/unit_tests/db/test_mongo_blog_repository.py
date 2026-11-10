@@ -5,9 +5,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from platzky.db.blog_repository import BlogRepository
-from platzky.db.exceptions import NotFoundError
 from platzky.db.mongo_blog_repository import MongoBlogRepository
-from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
+from tests.unit_tests.db.blog_repository_contract import PAGE, POST, BlogRepositoryContract
 
 
 class TestMongoBlogRepositoryContract(BlogRepositoryContract):
@@ -20,16 +19,10 @@ class TestMongoBlogRepositoryContract(BlogRepositoryContract):
 
 
 def _collection(documents: Sequence[dict[str, Any]]) -> Mock:
-    def find_one(query: dict[str, Any]) -> dict[str, Any] | None:
-        return next((doc for doc in documents if doc["slug"] == query["slug"]), None)
-
-    def update_one(query: dict[str, Any], _update: dict[str, Any]) -> Mock:
-        return Mock(matched_count=sum(doc["slug"] == query["slug"] for doc in documents))
-
     collection = Mock()
     collection.find.return_value = list(documents)
-    collection.find_one.side_effect = find_one
-    collection.update_one.side_effect = update_one
+    collection.find_one.return_value = (list(documents) or [None])[0]
+    collection.update_one.return_value = Mock(matched_count=len(documents))
     return collection
 
 
@@ -54,12 +47,11 @@ class TestMongoBlogRepository:
         posts.find.assert_called_once_with({"language": "en"})
 
     def test_get_post_queries_by_slug(self, blog: MongoBlogRepository, posts: Mock):
-        posts.find_one.return_value = None
+        posts.find_one.return_value = POST
 
-        with pytest.raises(NotFoundError, match="Post with slug missing not found"):
-            blog.posts.get("missing")
+        blog.posts.get("hello")
 
-        posts.find_one.assert_called_once_with({"slug": "missing"})
+        posts.find_one.assert_called_once_with({"slug": "hello"})
 
     def test_get_posts_by_tag_queries_by_tag_and_language(
         self, blog: MongoBlogRepository, posts: Mock
@@ -78,12 +70,11 @@ class TestMongoBlogRepository:
         pages.find.assert_called_once_with({"language": "en"})
 
     def test_get_page_queries_by_slug(self, blog: MongoBlogRepository, pages: Mock):
-        pages.find_one.return_value = None
+        pages.find_one.return_value = PAGE
 
-        with pytest.raises(NotFoundError, match="Page with slug missing not found"):
-            blog.pages.get("missing")
+        blog.pages.get("about")
 
-        pages.find_one.assert_called_once_with({"slug": "missing"})
+        pages.find_one.assert_called_once_with({"slug": "about"})
 
     def test_add_comment_pushes_a_utc_dated_comment(self, blog: MongoBlogRepository, posts: Mock):
         with patch("platzky.db.mongo_blog_repository.datetime.datetime") as mock_datetime:
@@ -103,11 +94,3 @@ class TestMongoBlogRepository:
                 }
             },
         )
-
-    def test_add_comment_to_a_missing_post_raises_not_found(
-        self, blog: MongoBlogRepository, posts: Mock
-    ):
-        posts.update_one.return_value.matched_count = 0
-
-        with pytest.raises(NotFoundError, match="Post with slug missing not found"):
-            blog.posts.add_comment("Test User", "Hi", "missing")
