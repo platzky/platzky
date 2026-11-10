@@ -4,7 +4,6 @@
 # Most of those tests just check if some content is displayed and if response code is as it should
 # These should also check how data is formatted, checked for multiple elements, etc.
 
-from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,7 +17,6 @@ from platzky.blog import blog
 from platzky.config import Config
 from platzky.db.exceptions import NotFoundError
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig
-from platzky.engine import Engine
 from platzky.models import Comment, Footer, Image, Post
 from platzky.platzky import create_engine
 
@@ -48,13 +46,18 @@ mocked_post = Post.model_validate(mocked_post_json)
 
 
 @pytest.fixture
-def test_app():
+def db_mock() -> MagicMock:
     db_mock = MagicMock()
     db_mock.blog.posts.get.return_value = mocked_post
     db_mock.blog.posts.get_by_tag.return_value = [mocked_post]
     db_mock.blog.posts.get_all.return_value = [mocked_post]
     db_mock.site_config.get_site_config.return_value = SiteConfig()
     db_mock.site_config.get_localized_content.return_value = LocalizedContent()
+    return db_mock
+
+
+@pytest.fixture
+def test_app(db_mock: MagicMock) -> FlaskClient:
     config = Config.model_validate(
         {
             "BLOG_PREFIX": "/prefix",  # TODO test without prefix in config (same for seo tests)
@@ -92,13 +95,12 @@ def post_contents_on_page(response: TestResponse) -> bool:
     return b"This is some content" in response.data
 
 
-def _render_with_footer(test_app: FlaskClient, footer: str) -> str:
+def _render_with_footer(test_app: FlaskClient, db_mock: MagicMock, footer: str) -> str:
     """Render base.html with a site-wide footer configured."""
-    app = cast(Engine, test_app.application)
-    cast(MagicMock, app.db.site_config.get_localized_content).return_value = LocalizedContent(
+    db_mock.site_config.get_localized_content.return_value = LocalizedContent(
         footer=Footer(content=footer)
     )
-    with app.test_request_context():
+    with test_app.application.test_request_context():
         return render_template_string('{% extends "base.html" %}')
 
 
@@ -107,8 +109,10 @@ def test_footer_is_not_rendered_when_page_does_not_fill_it(test_app: FlaskClient
     assert b'id="footer-row"' not in response.data
 
 
-def test_footer_is_rendered_below_main_row_when_page_fills_it(test_app: FlaskClient):
-    html = _render_with_footer(test_app, "<p>under the content</p>")
+def test_footer_is_rendered_below_main_row_when_page_fills_it(
+    test_app: FlaskClient, db_mock: MagicMock
+):
+    html = _render_with_footer(test_app, db_mock, "<p>under the content</p>")
     assert 'id="footer-row"' in html
     assert "<p>under the content</p>" in html
     assert html.index('id="main-row"') < html.index('id="footer-row"')
@@ -121,21 +125,17 @@ def test_usual_post(test_app: FlaskClient):
     assert post_contents_on_page(response)
 
 
-def test_not_existing_post(test_app: FlaskClient):
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.posts.get).side_effect = (
-        NotFoundError("Post not found")
-    )
+def test_not_existing_post(test_app: FlaskClient, db_mock: MagicMock):
+    db_mock.blog.posts.get.side_effect = NotFoundError("Post not found")
     response = test_app.get("/prefix/slughorn")
     assert response.status_code == 404
 
 
-def test_corrupt_post_is_not_masked_as_404(test_app: FlaskClient):
+def test_corrupt_post_is_not_masked_as_404(test_app: FlaskClient, db_mock: MagicMock):
     def get_corrupt_post(_slug: str) -> Post:
         return Post.model_validate({"slug": "broken"})
 
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.posts.get).side_effect = (
-        get_corrupt_post
-    )
+    db_mock.blog.posts.get.side_effect = get_corrupt_post
     with pytest.raises(ValidationError):
         test_app.get("/prefix/broken")
 
@@ -156,36 +156,19 @@ def test_all_posts(test_app: FlaskClient):
     assert not post_contents_on_page(response)
 
 
-def test_all_posts_sorted(test_app: FlaskClient):
-    # Create posts with different dates to test sorting
-    post1 = Post.model_validate({**mocked_post_json, "date": "2021-01-01"})
-    post2 = Post.model_validate({**mocked_post_json, "date": "2021-02-01"})
-    post3 = Post.model_validate({**mocked_post_json, "date": "2021-03-01"})
+def test_all_posts_sorted(test_app: FlaskClient, db_mock: MagicMock):
+    db_mock.blog.posts.get_all.return_value = [
+        Post.model_validate({**mocked_post_json, "title": title, "date": date})
+        for title, date in [
+            ("January", "2021-01-01"),
+            ("March", "2021-03-01"),
+            ("February", "2021-02-01"),
+        ]
+    ]
 
-    # Set up the mock to return multiple posts
-    mock_get_all_posts = cast(MagicMock, cast(Engine, test_app.application).db.blog.posts.get_all)
-    mock_get_all_posts.return_value = [post1, post2, post3]
+    html = test_app.get("/prefix/").get_data(as_text=True)
 
-    # Call the endpoint
-    response = test_app.get("/prefix/")
-
-    # Verify the response
-    assert response.status_code == 200
-
-    # The posts should be sorted in reverse order (newest first)
-    # Since we can't easily check the order in the HTML, we'll verify
-    # the mock was called correctly
-    assert mock_get_all_posts.called
-
-    # Directly test the sorting logic to ensure posts are in reverse chronological order
-    sorted_posts = sorted(mock_get_all_posts.return_value, reverse=True)
-    # Verify posts are sorted newest to oldest (post.date is now a datetime object)
-    assert sorted_posts[0].date > sorted_posts[1].date  # Newest first
-    assert sorted_posts[1].date > sorted_posts[2].date
-    # Verify the order is: post3 > post2 > post1
-    assert sorted_posts[0] == post3
-    assert sorted_posts[1] == post2
-    assert sorted_posts[2] == post1
+    assert html.index("March") < html.index("February") < html.index("January")
 
 
 def test_tag_filter(test_app: FlaskClient):
@@ -207,57 +190,53 @@ def test_posting_new_comment(test_app: FlaskClient):
     assert f"{fresh_comment_content}".encode("utf-8") in response.data
 
 
-def test_not_existing_page(test_app: FlaskClient):
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.pages.get).side_effect = (
-        NotFoundError("Page not found")
-    )
+def test_not_existing_page(test_app: FlaskClient, db_mock: MagicMock):
+    db_mock.blog.pages.get.side_effect = NotFoundError("Page not found")
     response = test_app.get("/prefix/page/not-existing-page")
     assert response.status_code == 404
 
 
-def test_page(test_app: FlaskClient):
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.pages.get).return_value = mocked_post
+def test_page(test_app: FlaskClient, db_mock: MagicMock):
+    db_mock.blog.pages.get.return_value = mocked_post
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 200
     # Check that the page template is rendered correctly
     assert b"post title" in response.data
 
 
-def test_page_without_cover_image(test_app: FlaskClient):
+def test_page_without_cover_image(test_app: FlaskClient, db_mock: MagicMock):
     post_copy = mocked_post.model_copy(deep=True)
     post_copy.coverImage = Image()
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.pages.get).return_value = post_copy
+    db_mock.blog.pages.get.return_value = post_copy
     response = test_app.get("/prefix/page/blabla")
     assert response.status_code == 200
 
 
-def test_page_renders_css_field(test_app: FlaskClient):
+def test_page_renders_css_field(test_app: FlaskClient, db_mock: MagicMock):
     page = Post.model_validate({**mocked_post_json, "css": ".masthead { background: teal; }"})
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.pages.get).return_value = page
+    db_mock.blog.pages.get.return_value = page
     response = test_app.get("/prefix/page/blabla")
     assert b"<style>.masthead { background: teal; }</style>" in response.data
 
 
-def test_post_renders_css_field(test_app: FlaskClient):
+def test_post_renders_css_field(test_app: FlaskClient, db_mock: MagicMock):
     post = Post.model_validate({**mocked_post_json, "css": ".masthead { background: teal; }"})
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.posts.get).return_value = post
+    db_mock.blog.posts.get.return_value = post
     response = test_app.get("/prefix/slug")
     assert b"<style>.masthead { background: teal; }</style>" in response.data
 
 
-def _mock_get_page_with_bad_css(test_app: FlaskClient) -> None:
+def _mock_get_page_with_bad_css(db_mock: MagicMock) -> None:
     def get_page_with_bad_css(_slug: str) -> Post:
         return Post.model_validate(
             {**mocked_post_json, "css": "</style><script>alert(1)</script><style>"}
         )
 
-    cast(MagicMock, cast(Engine, test_app.application).db.blog.pages.get).side_effect = (
-        get_page_with_bad_css
-    )
+    db_mock.blog.pages.get.side_effect = get_page_with_bad_css
 
 
-def test_page_with_style_breakout_css_is_never_rendered(test_app: FlaskClient):
-    _mock_get_page_with_bad_css(test_app)
+def test_page_with_style_breakout_css_is_never_rendered(test_app: FlaskClient, db_mock: MagicMock):
+    _mock_get_page_with_bad_css(db_mock)
     with pytest.raises(ValidationError, match="css"):
         test_app.get("/prefix/page/blabla")
 
