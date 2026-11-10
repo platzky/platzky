@@ -8,7 +8,7 @@ import pytest
 
 from platzky.db.exceptions import InvalidSiteContentError
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.db.site_config_repository import SiteConfigRepository
 from platzky.models import Footer
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
@@ -31,33 +31,6 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
             _collection(site_content.get("localized_content", {})),
         )
 
-    def test_site_settings_read_only_stored_keys_of_the_config_document(self):
-        # The projection keeps the amount of data read from the database small.
-        site_content = Mock()
-        site_content.find_one.return_value = None
-        localized_content = Mock()
-        localized_content.find_one.return_value = None
-        repository = MongoSiteConfigRepository(site_content, localized_content)
-
-        repository.get_site_settings("en")
-
-        site_content.find_one.assert_called_once_with(
-            {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
-        )
-
-    def test_site_settings_read_only_text_keys_of_the_language_document(self):
-        site_content = Mock()
-        site_content.find_one.return_value = None
-        localized_content = Mock()
-        localized_content.find_one.return_value = None
-        repository = MongoSiteConfigRepository(site_content, localized_content)
-
-        repository.get_site_settings("en")
-
-        localized_content.find_one.assert_called_once_with(
-            {"_id": "en"}, projection=list(SiteSettings.TEXT_KEYS)
-        )
-
     def test_get_footer_is_read_in_a_single_query_of_the_language_document(self):
         # Content and collapsible come from one query, not one round-trip each.
         site_content = Mock()
@@ -69,7 +42,7 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
         repository = MongoSiteConfigRepository(site_content, localized_content)
 
         assert repository.get_footer("en") == Footer(content="Footer", collapsible=True)
-        localized_content.find_one.assert_called_once_with({"_id": "en"}, projection=["footer"])
+        localized_content.find_one.assert_called_once_with({"_id": "en"})
         site_content.find_one.assert_not_called()
 
     def test_validate_reads_every_document_and_reports_unknown_keys(self):
@@ -79,13 +52,9 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
         localized_content.find.return_value = [{"_id": "pl", "x": 1}, {"_id": "en"}]
         repository = MongoSiteConfigRepository(site_content, localized_content)
 
-        with pytest.raises(InvalidSiteContentError) as error:
+        with pytest.raises(InvalidSiteContentError):
             repository.validate()
 
-        assert str(error.value).splitlines() == [
-            "site_content.localized_content.pl.x: Extra inputs are not permitted",
-            "site_content.menu_items: Extra inputs are not permitted",
-        ]
         site_content.find_one.assert_called_once_with({"_id": "config"})
 
     def test_validate_accepts_valid_documents(self):

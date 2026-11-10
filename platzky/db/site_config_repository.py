@@ -7,7 +7,7 @@ home page regardless of whether it has a blog, so this is kept separate from
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any, ClassVar, Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -133,23 +133,6 @@ class SiteSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    TEXT_KEYS: ClassVar[tuple[str, ...]] = (
-        "app_name",
-        "app_title",
-        "app_description",
-        "logo_url",
-    )
-    """The keys a language may override, e.g. for a database projection of its content."""
-
-    STORED_KEYS: ClassVar[tuple[str, ...]] = (
-        *TEXT_KEYS,
-        "favicon_url",
-        "font",
-        "primary_color",
-        "secondary_color",
-    )
-    """The site-wide keys `from_layers` reads, e.g. for a database projection."""
-
     logo: Image | None = None
     favicon_url: str = ""
     primary_color: str = "white"
@@ -178,13 +161,13 @@ class SiteSettings(BaseModel):
         logo_url = localized.logo_url or defaults.logo_url
         return cls(
             logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=defaults.favicon_url or "",
+            favicon_url=defaults.favicon_url,
             primary_color=defaults.primary_color or "white",
             secondary_color=defaults.secondary_color or "navy",
             font=defaults.font,
-            app_name=localized.app_name or defaults.app_name or "",
-            app_title=localized.app_title or defaults.app_title or "",
-            app_description=localized.app_description or defaults.app_description or "",
+            app_name=localized.app_name or defaults.app_name,
+            app_title=localized.app_title or defaults.app_title,
+            app_description=localized.app_description or defaults.app_description,
         )
 
 

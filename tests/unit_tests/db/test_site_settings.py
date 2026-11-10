@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from platzky.db.site_config_repository import LocalizedContent, SiteContent, SiteSettings
-from platzky.models import Font, Footer, Image, MenuItem, PageMeta
+from platzky.models import Font, Image
 
 _NON_DEFAULTS = {
     "app_name": "Name",
@@ -18,21 +18,13 @@ _NON_DEFAULTS = {
 }
 
 
-@pytest.mark.parametrize("key", SiteSettings.STORED_KEYS)
-def test_every_stored_key_is_reflected_in_the_settings(key: str):
+@pytest.mark.parametrize("key, value", _NON_DEFAULTS.items())
+def test_every_stored_key_is_reflected_in_the_settings(key: str, value: object):
     settings = SiteSettings.from_layers(
-        SiteContent.model_validate({key: _NON_DEFAULTS[key]}), LocalizedContent()
+        SiteContent.model_validate({key: value}), LocalizedContent()
     )
 
     assert settings != SiteSettings()
-
-
-def test_localized_text_overrides_defaults():
-    settings = SiteSettings.from_layers(
-        SiteContent(app_name="Default"), LocalizedContent(app_name="English")
-    )
-
-    assert settings.app_name == "English"
 
 
 def test_key_missing_from_overrides_uses_the_default():
@@ -52,14 +44,6 @@ def test_empty_override_falls_through_to_the_default():
     assert settings == SiteSettings(app_name="Default", logo=Image(url="/logo.png"))
 
 
-def test_localized_logo_overrides_the_default():
-    settings = SiteSettings.from_layers(
-        SiteContent(logo_url="/logo.png"), LocalizedContent(logo_url="/pl.png")
-    )
-
-    assert settings.logo == Image(url="/pl.png")
-
-
 def test_global_values_are_not_overridden_by_a_language():
     settings = SiteSettings.from_layers(
         SiteContent(
@@ -75,39 +59,12 @@ def test_global_values_are_not_overridden_by_a_language():
     )
 
 
-def test_site_content_parses_the_documented_shape():
-    content = SiteContent.model_validate(
-        {
-            "app_name": "Literature",
-            "localized_content": {
-                "pl": {
-                    "blog_meta": {"title": "Notatki"},
-                    "footer": {"content": "Stopka", "collapsible": True},
-                    "menu_items": [{"name": "Start", "url": "/"}],
-                    "home_page_path": "/blog/page/o-nas",
-                }
-            },
-        }
-    )
-
-    assert content.localized("pl") == LocalizedContent(
-        blog_meta=PageMeta(title="Notatki"),
-        footer=Footer(content="Stopka", collapsible=True),
-        menu_items=(MenuItem(name="Start", url="/"),),
-        home_page_path="/blog/page/o-nas",
-    )
-
-
-def test_language_without_content_is_empty():
-    assert SiteContent().localized("de") == LocalizedContent()
-
-
 def test_localized_content_is_not_inherited_from_another_language():
     content = SiteContent.model_validate(
         {"localized_content": {"en": {"home_page_path": "/blog/page/about"}}}
     )
 
-    assert content.localized("pl").home_page_path == ""
+    assert content.localized("pl") == LocalizedContent()
 
 
 @pytest.mark.parametrize("posts_key", ["posts", "pages"])

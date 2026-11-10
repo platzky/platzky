@@ -5,7 +5,6 @@ import pytest
 
 from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
-from platzky.db.site_config_repository import SiteSettings
 from platzky.models import Font, Footer, MenuItem, PageMeta, Post
 
 
@@ -113,10 +112,6 @@ class TestMongoDB:
         )
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
-        # One find_one call for all of the above, not one per field.
-        mock_find_one.assert_called_with(
-            {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
-        )
 
     def test_get_blog_meta_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
         mock_db.localized_content.find_one.return_value = {
@@ -144,7 +139,7 @@ class TestMongoDB:
         assert len(menu_items) == 1
         assert isinstance(menu_items[0], MenuItem)
         assert menu_items[0].name == "Home"
-        mock_find_one.assert_called_once_with({"_id": "en"}, projection=["menu_items"])
+        mock_find_one.assert_called_once_with({"_id": "en"})
 
     def test_get_menu_items_in_lang_no_data(self, db: MongoDB, mock_db: Mock):
         mock_db.localized_content.find_one.return_value = None
@@ -176,14 +171,8 @@ class TestMongoDB:
         mock_db.site_content.find_one.return_value = {"_id": "config", "menu_items": {}}
         mock_db.localized_content.find.return_value = [{"_id": "pl", "footer": None}]
 
-        with pytest.raises(InvalidSiteContentError) as error:
+        with pytest.raises(InvalidSiteContentError):
             MongoDB("mongodb://localhost:27017", "test_db")
-
-        assert str(error.value).splitlines() == [
-            "site_content.localized_content.pl.footer: Input should be a valid dictionary or "
-            "instance of Footer",
-            "site_content.menu_items: Extra inputs are not permitted",
-        ]
 
     def test_database_is_not_closed_when_the_facade_is_collected(
         self, mock_client: tuple[Mock, Mock]

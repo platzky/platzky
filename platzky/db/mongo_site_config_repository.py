@@ -26,8 +26,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
 
     The site-wide keys of `SiteContent` are one document (``{"_id": "config", ...}``) in the
     site_content collection. The `LocalizedContent` of each language is one document
-    (``{"_id": "<lang>", ...}``) in the localized_content collection. Every method reads only
-    the keys it needs.
+    (``{"_id": "<lang>", ...}``) in the localized_content collection.
     """
 
     def __init__(
@@ -44,9 +43,9 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         self._site_content = site_content
         self._localized_content = localized_content
 
-    def _localized(self, lang: str, keys: tuple[str, ...]) -> LocalizedContent:
-        """Read the given keys of a language's document."""
-        document = self._localized_content.find_one({"_id": lang}, projection=list(keys))
+    def _localized(self, lang: str) -> LocalizedContent:
+        """Read the document of a language."""
+        document = self._localized_content.find_one({"_id": lang})
         return LocalizedContent.model_validate(_without_id(document))
 
     def validate(self) -> None:
@@ -76,12 +75,10 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The app's site settings, with text empty where none is configured.
         """
-        config = self._site_content.find_one(
-            {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
-        )
+        config = self._site_content.find_one({"_id": "config"})
         return SiteSettings.from_layers(
             SiteContent.model_validate(_without_id(config)),
-            self._localized(lang, SiteSettings.TEXT_KEYS),
+            self._localized(lang),
         )
 
     @override
@@ -94,7 +91,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             Menu items in that language.
         """
-        return list(self._localized(lang, ("menu_items",)).menu_items)
+        return list(self._localized(lang).menu_items)
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
@@ -107,7 +104,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return self._localized(locale, ("home_page_path",)).home_page_path or None
+        return self._localized(locale).home_page_path or None
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -119,7 +116,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The blog meta, empty if none is configured for the language.
         """
-        return self._localized(lang, ("blog_meta",)).blog_meta
+        return self._localized(lang).blog_meta
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -131,4 +128,4 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The footer, empty and not collapsible if none is configured.
         """
-        return self._localized(lang, ("footer",)).footer
+        return self._localized(lang).footer
