@@ -34,8 +34,8 @@ class BlogSection(StrictModel):
     are read, so only their being lists of objects is checked here.
 
     Attributes:
-        posts: Blog posts
-        pages: Pages
+        posts: Raw blog posts; each is validated as a `Post` when it is read
+        pages: Raw pages; each is validated as a `Page` when it is read
         meta: The blog index meta by language code
     """
 
