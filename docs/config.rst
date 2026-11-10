@@ -421,8 +421,9 @@ with invalid site content. To check a JSON data file before deploying it, see
   logo. The fields are ``appName``, ``appTitle``, ``appDescription``, ``logo``,
   ``blogMeta`` (``title``, ``description``), ``footer`` (``content``,
   ``collapsible``), ``homePagePath`` and ``menuItems`` (``name``, ``url``). The
-  ``favicons`` and the ``themes`` (``primaryColor``, ``secondaryColor``, ``font``
-  with ``name`` and ``url``) hold the site-wide keys.
+  site-wide ``faviconUrl`` (a string), ``primaryColor``, ``secondaryColor`` and
+  ``font`` (a component with ``name`` and ``url``) are read only from the entry
+  without a ``language``; on a language entry they are ignored.
 
 Feature Flags
 ~~~~~~~~~~~~~

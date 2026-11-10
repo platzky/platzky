@@ -13,7 +13,9 @@ from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
-def _hygraph_entry(language: str | None, content: Mapping[str, Any]) -> dict[str, Any]:
+def _hygraph_entry(
+    language: str | None, content: Mapping[str, Any], *, globals_: bool = False
+) -> dict[str, Any]:
     """Map a neutral entry to a Hygraph `LocalizedContent` entry (camelCase, nested logo)."""
     logo_url = content.get("logo_url")
     return {
@@ -26,6 +28,16 @@ def _hygraph_entry(language: str | None, content: Mapping[str, Any]) -> dict[str
         "footer": content.get("footer"),
         "homePagePath": content.get("home_page_path"),
         "menuItems": content.get("menu_items"),
+        **(
+            {
+                "faviconUrl": content.get("favicon_url"),
+                "primaryColor": content.get("primary_color"),
+                "secondaryColor": content.get("secondary_color"),
+                "font": content.get("font"),
+            }
+            if globals_
+            else {}
+        ),
     }
 
 
@@ -35,16 +47,8 @@ class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
         client = Mock(spec=Client)
         client.execute.return_value = {
             "localizedContents": [
-                _hygraph_entry(None, site_content),
+                _hygraph_entry(None, site_content, globals_=True),
                 *(_hygraph_entry(lang, content) for lang, content in localized_content.items()),
-            ],
-            "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],
-            "themes": [
-                {
-                    "primaryColor": site_content.get("primary_color"),
-                    "secondaryColor": site_content.get("secondary_color"),
-                    "font": site_content.get("font"),
-                }
             ],
         }
         return GraphQLSiteConfigRepository(lambda: client)
@@ -80,15 +84,22 @@ class TestGetSiteSettings:
         [
             {
                 "localizedContents": [None, {"language": None, "logo": None}],
-                "favicons": [{"favicon": None}],
-                "themes": [None],
             },
             {
                 "localizedContents": [{"language": None, "logo": {"image": None}}],
-                "favicons": [None],
-                "themes": [{"primaryColor": None, "secondaryColor": None, "font": None}],
             },
-            {"localizedContents": None, "favicons": None, "themes": None},
+            {
+                "localizedContents": [
+                    {
+                        "language": None,
+                        "faviconUrl": None,
+                        "primaryColor": None,
+                        "secondaryColor": None,
+                        "font": None,
+                    }
+                ]
+            },
+            {"localizedContents": None},
         ],
     )
     def test_null_nodes_fall_back_to_defaults(

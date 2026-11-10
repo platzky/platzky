@@ -18,11 +18,6 @@ from platzky.models import Footer, MenuItem, PageMeta
 # null entry or a null nested node into the documented default instead of raising.
 
 
-def _first(nodes: Sequence[Mapping[str, Any] | None] | None) -> Mapping[str, Any]:
-    """Return the first node of a CMS list, or an empty mapping if there is none."""
-    return (nodes[0] if nodes else None) or {}
-
-
 def _entry(
     entries: Sequence[Mapping[str, Any] | None] | None, language: str | None
 ) -> Mapping[str, Any]:
@@ -81,6 +76,10 @@ _LOCALIZED_CONTENTS = """
         appTitle
         appDescription
         logo { image { url } }
+        faviconUrl
+        primaryColor
+        secondaryColor
+        font { name url }
         homePagePath
         blogMeta { title description }
         footer { content collapsible }
@@ -90,16 +89,6 @@ _LOCALIZED_CONTENTS = """
 
 _LOCALIZED_CONTENTS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + "}"
 
-_SITE_SETTINGS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + """
-      favicons(stage: PUBLISHED) { favicon { url } }
-      themes(stage: PUBLISHED) {
-        primaryColor
-        secondaryColor
-        font { name url }
-      }
-    }
-    """
-
 
 class GraphQLSiteConfigRepository(SiteConfigRepository):
     """Site config repository backed by a GraphQL CMS.
@@ -107,8 +96,9 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
     Per-language content lives in the `LocalizedContent` model: the entry without a
     language holds the defaults and an entry with a language overrides them. Each
     method makes one request and picks the entry in Python, so the selection rules
-    are the same as for the other backends. `get_site_settings()` also reads the
-    language-independent logo, favicon and theme in the same request.
+    are the same as for the other backends. The entry without a
+    language also holds the site-wide logo, favicon, colors and font; language entries
+    do not use them.
     """
 
     def __init__(self, client_getter: Callable[[], Client]) -> None:
@@ -135,24 +125,22 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             The app's site settings, with text empty where none is configured.
         """
-        result = self._client_getter().execute(gql(_SITE_SETTINGS_QUERY))
-        entries = result.get("localizedContents")
-        theme = _first(result.get("themes"))
-        defaults = _localized_content(_entry(entries, None))
+        entries = (
+            self._client_getter().execute(gql(_LOCALIZED_CONTENTS_QUERY)).get("localizedContents")
+        )
+        defaults = _entry(entries, None)
         site_content = SiteContent.model_validate(
             {
-                "app_name": defaults.app_name,
-                "app_title": defaults.app_title,
-                "app_description": defaults.app_description,
                 **_present(
                     {
-                        "logo_url": defaults.logo_url,
-                        "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get(
-                            "url"
-                        ),
-                        "primary_color": theme.get("primaryColor"),
-                        "secondary_color": theme.get("secondaryColor"),
-                        "font": _present(theme.get("font") or {}),
+                        "app_name": defaults.get("appName"),
+                        "app_title": defaults.get("appTitle"),
+                        "app_description": defaults.get("appDescription"),
+                        "logo_url": ((defaults.get("logo") or {}).get("image") or {}).get("url"),
+                        "favicon_url": defaults.get("faviconUrl"),
+                        "primary_color": defaults.get("primaryColor"),
+                        "secondary_color": defaults.get("secondaryColor"),
+                        "font": _present(defaults.get("font") or {}),
                     }
                 ),
             }
