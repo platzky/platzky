@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, Tag
 from flask import render_template_string
 
 from platzky.config import Config
+from platzky.db.exceptions import InvalidSiteContentError
 from platzky.engine import Engine
 from platzky.platzky import create_app_from_config
 
@@ -260,3 +261,8 @@ def test_without_any_site_text_keys_everything_uses_config_app_name(prefix: str)
     assert isinstance(image, Tag)
     assert image.get("alt") == f"{_CONFIG_NAME} logo"
     assert _feed_title(feed.data) == _CONFIG_NAME
+
+
+def test_invalid_site_content_stops_the_application_from_starting():
+    with pytest.raises(InvalidSiteContentError, match=r"site_content\.home_page_path"):
+        _build_app({"home_page_path": "/blog/page/about"})

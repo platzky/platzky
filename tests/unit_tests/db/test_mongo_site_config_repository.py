@@ -4,6 +4,9 @@ from collections.abc import Mapping
 from typing import Any
 from unittest.mock import Mock
 
+import pytest
+
+from platzky.db.exceptions import InvalidSiteContentError
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from platzky.models import Footer
@@ -23,10 +26,9 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
         # Mongo keeps the site-wide keys in one document, and each language's content in a
         # document of its own.
         config = {k: v for k, v in site_content.items() if k != "localized_content"}
-        localized_content = site_content.get("localized_content") or {}
         return MongoSiteConfigRepository(
             _collection({"config": config}),
-            _collection({lang: content for lang, content in localized_content.items() if content}),
+            _collection(site_content.get("localized_content", {})),
         )
 
     def test_site_settings_read_only_stored_keys_of_the_config_document(self):
@@ -69,3 +71,27 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
         assert repository.get_footer("en") == Footer(content="Footer", collapsible=True)
         localized_content.find_one.assert_called_once_with({"_id": "en"}, projection=["footer"])
         site_content.find_one.assert_not_called()
+
+    def test_validate_reads_every_document_and_reports_unknown_keys(self):
+        site_content = Mock()
+        site_content.find_one.return_value = {"_id": "config", "menu_items": {}}
+        localized_content = Mock()
+        localized_content.find.return_value = [{"_id": "pl", "x": 1}, {"_id": "en"}]
+        repository = MongoSiteConfigRepository(site_content, localized_content)
+
+        with pytest.raises(InvalidSiteContentError) as error:
+            repository.validate()
+
+        assert str(error.value).splitlines() == [
+            "site_content.localized_content.pl.x: Extra inputs are not permitted",
+            "site_content.menu_items: Extra inputs are not permitted",
+        ]
+        site_content.find_one.assert_called_once_with({"_id": "config"})
+
+    def test_validate_accepts_valid_documents(self):
+        site_content = Mock()
+        site_content.find_one.return_value = {"_id": "config", "app_name": "Literature"}
+        localized_content = Mock()
+        localized_content.find.return_value = [{"_id": "pl", "app_name": "Literatura"}]
+
+        MongoSiteConfigRepository(site_content, localized_content).validate()

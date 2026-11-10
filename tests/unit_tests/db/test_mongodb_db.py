@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
 from platzky.db.mongodb_db import MongoDB, MongoDbConfig, db_from_config
 from platzky.db.site_config_repository import SiteSettings
 from platzky.models import Footer, MenuItem, PageMeta, Post
@@ -49,6 +49,8 @@ class TestMongoDB:
             mock_db.pages = Mock()
             mock_db.localized_content = Mock()
             mock_db.plugins = Mock()
+            mock_db.site_content.find_one.return_value = None
+            mock_db.localized_content.find.return_value = []
 
             yield mock_client, mock_db
 
@@ -83,7 +85,7 @@ class TestMongoDB:
         db.get_site_settings("en")
 
         assert db.database is mock_db
-        mock_db.site_content.find_one.assert_called_once()
+        mock_db.site_content.find_one.assert_called()
 
     def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
         mock_db.localized_content.find_one.return_value = {
@@ -110,7 +112,7 @@ class TestMongoDB:
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
         # One find_one call for all of the above, not one per field.
-        mock_find_one.assert_called_once_with(
+        mock_find_one.assert_called_with(
             {"_id": "config"}, projection=list(SiteSettings.STORED_KEYS)
         )
 
@@ -167,6 +169,19 @@ class TestMongoDB:
             "home_page_path": "/blog/page/about",
         }
         assert db.get_home_page_path("en") == "/blog/page/about"
+
+    def test_invalid_site_content_stops_the_facade_from_being_created(self, mock_db: Mock):
+        mock_db.site_content.find_one.return_value = {"_id": "config", "menu_items": {}}
+        mock_db.localized_content.find.return_value = [{"_id": "pl", "footer": None}]
+
+        with pytest.raises(InvalidSiteContentError) as error:
+            MongoDB("mongodb://localhost:27017", "test_db")
+
+        assert str(error.value).splitlines() == [
+            "site_content.localized_content.pl.footer: Input should be a valid dictionary or "
+            "instance of Footer",
+            "site_content.menu_items: Extra inputs are not permitted",
+        ]
 
     def test_database_is_not_closed_when_the_facade_is_collected(
         self, mock_client: tuple[Mock, Mock]

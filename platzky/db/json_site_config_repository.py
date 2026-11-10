@@ -64,7 +64,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return self._localized(locale).home_page_path
+        return self._localized(locale).home_page_path or None
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

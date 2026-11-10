@@ -45,7 +45,10 @@ switch, and an application served by a production server is never in development
 ``platzky check``
 -----------------
 
-Validate the site content of a JSON data file, for example before deploying it:
+Validate the site configuration of a JSON data file, for example before deploying it. It checks
+the site-configuration part of ``site_content`` (texts, theme and per-language content), not
+``posts`` and ``pages``. The same check runs when the application starts, so a data file that
+fails it stops the application from starting:
 
 .. code-block:: bash
 

@@ -31,12 +31,12 @@ def _hygraph_entry(language: str | None, content: Mapping[str, Any]) -> dict[str
 
 
 def _graphql_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
-    localized_content = site_content.get("localized_content") or {}
+    localized_content = site_content.get("localized_content", {})
     client = Mock(spec=Client)
     client.execute.return_value = {
         "localizedContents": [
             _hygraph_entry(None, site_content),
-            *(_hygraph_entry(lang, content or {}) for lang, content in localized_content.items()),
+            *(_hygraph_entry(lang, content) for lang, content in localized_content.items()),
         ],
         "logos": [],
         "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],

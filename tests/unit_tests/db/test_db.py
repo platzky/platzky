@@ -11,9 +11,9 @@ DATA = {"site_content": {"pages": []}}
 
 
 def test_document_exposes_the_data_the_database_reads():
-    db = Json(MemoryStore({"site_content": {"pages": [], "marker": 1}}))
+    db = Json(MemoryStore({"site_content": {"pages": [], "app_name": "Marker"}}))
 
-    assert db.document.data["site_content"]["marker"] == 1
+    assert db.document.data["site_content"]["app_name"] == "Marker"
 
 
 def test_document_edit_is_visible_to_the_database():

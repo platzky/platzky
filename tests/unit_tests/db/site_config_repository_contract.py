@@ -10,15 +10,14 @@ backend, so independently-implemented repositories cannot silently drift apart.
 A behaviour the backend cannot represent is opted out by overriding the test with
 `@pytest.mark.skip(reason=...)`, which keeps the gap visible in the test report.
 External database backends can reuse this module the same way.
-How overrides fall back to the defaults is tested on `SiteSettings.from_layers`.
+How overrides fall back to the defaults is tested on `SiteSettings.from_layers`, and which
+keys are valid on `SiteContent`, not here.
 
 This module is not named `test_*`, and the class not `Test*`, so pytest only
 collects the tests through the subclasses.
 """
 
 from typing import Any
-
-import pytest
 
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from platzky.models import Footer, Image, MenuItem, PageMeta
@@ -85,45 +84,6 @@ class SiteConfigRepositoryContract:
             app_title="Literatura | Notatki z lektur",
             app_description="Notatki o książkach Tolkiena",
         )
-
-    def test_language_without_entry_uses_top_level_values(self):
-        settings = self.make_repository(SITE_CONTENT).get_site_settings("de")
-
-        assert settings == SiteSettings(
-            logo=Image(url="/logo.png"),
-            favicon_url="/favicon.ico",
-            font="Arial",
-            primary_color="blue",
-            secondary_color="green",
-            app_name="Literature",
-            app_title="Literature | Reading notes",
-            app_description="Notes on Tolkien's books",
-        )
-
-    @pytest.mark.parametrize("localized_content", [None, {}, {"en": None}])
-    def test_missing_or_null_localized_content_uses_top_level_values(
-        self, localized_content: dict[str, Any] | None
-    ):
-        repository = self.make_repository({**SITE_CONTENT, "localized_content": localized_content})
-
-        settings = repository.get_site_settings("en")
-
-        assert settings.app_name == "Literature"
-        assert settings.app_description == "Notes on Tolkien's books"
-
-    def test_null_top_level_values_fall_back_to_defaults(self):
-        repository = self.make_repository(
-            {
-                "logo_url": None,
-                "favicon_url": None,
-                "primary_color": None,
-                "secondary_color": None,
-                "font": None,
-                "app_description": None,
-            }
-        )
-
-        assert repository.get_site_settings("en") == SiteSettings()
 
     def test_get_site_settings_returns_defaults_when_empty(self):
         assert self.make_repository({}).get_site_settings("en") == SiteSettings()

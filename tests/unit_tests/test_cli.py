@@ -185,7 +185,22 @@ class TestCheck:
         result = CliRunner().invoke(cli, ["check", str(data_file)])
 
         assert result.exit_code == 1
-        assert result.output.startswith(f"Error: {data_file} is not a JSON object")
+        assert result.output.startswith(f"Error: {data_file} cannot be read as JSON")
+
+    def test_file_that_is_not_utf8_is_an_error(self, tmp_path: Path):
+        data_file = tmp_path / "data.json"
+        data_file.write_bytes(b"\xff\xfe{}")
+
+        result = CliRunner().invoke(cli, ["check", str(data_file)])
+
+        assert result.exit_code == 1
+        assert result.output.startswith(f"Error: {data_file} cannot be read as JSON")
+
+    def test_json_that_is_not_an_object_is_an_error(self, tmp_path: Path):
+        result = _check(tmp_path, [])
+
+        assert result.exit_code == 1
+        assert result.output == f"Error: {tmp_path / 'data.json'} is not a JSON object\n"
 
     def test_missing_file_is_an_error(self, tmp_path: Path):
         result = CliRunner().invoke(cli, ["check", str(tmp_path / "absent.json")])

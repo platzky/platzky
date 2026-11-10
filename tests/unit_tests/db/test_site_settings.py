@@ -43,11 +43,10 @@ def test_key_missing_from_overrides_uses_the_default():
     assert settings == SiteSettings(app_name="English", app_title="Title")
 
 
-@pytest.mark.parametrize("empty", [None, ""], ids=["null", "empty"])
-def test_empty_override_falls_through_to_the_default(empty: str | None):
+def test_empty_override_falls_through_to_the_default():
     settings = SiteSettings.from_layers(
         SiteContent(app_name="Default", logo_url="/logo.png"),
-        LocalizedContent(app_name=empty, logo_url=empty),
+        LocalizedContent(app_name="", logo_url=""),
     )
 
     assert settings == SiteSettings(app_name="Default", logo=Image(url="/logo.png"))
@@ -59,15 +58,6 @@ def test_localized_logo_overrides_the_default():
     )
 
     assert settings.logo == Image(url="/pl.png")
-
-
-@pytest.mark.parametrize("key", SiteSettings.STORED_KEYS)
-def test_null_value_is_treated_as_unconfigured(key: str):
-    settings = SiteSettings.from_layers(
-        SiteContent.model_validate({key: None}), LocalizedContent.model_validate({key: None})
-    )
-
-    assert settings == SiteSettings()
 
 
 def test_global_values_are_not_overridden_by_a_language():
@@ -110,15 +100,7 @@ def test_localized_content_is_not_inherited_from_another_language():
         {"localized_content": {"en": {"home_page_path": "/blog/page/about"}}}
     )
 
-    assert content.localized("pl").home_page_path is None
-
-
-def test_null_per_language_sections_are_unconfigured():
-    content = LocalizedContent.model_validate(
-        {"blog_meta": None, "footer": None, "menu_items": None, "home_page_path": None}
-    )
-
-    assert content == LocalizedContent()
+    assert content.localized("pl").home_page_path == ""
 
 
 @pytest.mark.parametrize("posts_key", ["posts", "pages"])
@@ -138,6 +120,24 @@ def test_sections_owned_by_the_blog_repository_are_accepted(posts_key: str):
     ],
 )
 def test_unknown_keys_are_rejected(site_content: dict[str, Any]):
+    with pytest.raises(ValidationError):
+        SiteContent.model_validate(site_content)
+
+
+@pytest.mark.parametrize(
+    "site_content",
+    [
+        {"app_name": None},
+        {"localized_content": None},
+        {"localized_content": {"pl": None}},
+        {"localized_content": {"pl": {"app_name": None}}},
+        {"localized_content": {"pl": {"footer": None}}},
+        {"localized_content": {"pl": {"blog_meta": None}}},
+        {"localized_content": {"pl": {"menu_items": None}}},
+        {"localized_content": {"pl": {"home_page_path": None}}},
+    ],
+)
+def test_null_is_rejected(site_content: dict[str, Any]):
     with pytest.raises(ValidationError):
         SiteContent.model_validate(site_content)
 

@@ -11,6 +11,7 @@ from platzky.db.site_config_repository import (
     SiteConfigRepository,
     SiteContent,
     SiteSettings,
+    parse_site_content,
 )
 from platzky.models import Footer, MenuItem, PageMeta
 
@@ -47,6 +48,23 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         """Read the given keys of a language's document."""
         document = self._localized_content.find_one({"_id": lang}, projection=list(keys))
         return LocalizedContent.model_validate(_without_id(document))
+
+    def validate(self) -> None:
+        """Read the whole site content once and check it against the site content format.
+
+        Raises:
+            InvalidSiteContentError: If the config document or a language document is invalid;
+                unknown keys are reported too.
+        """
+        parse_site_content(
+            {
+                **_without_id(self._site_content.find_one({"_id": "config"})),
+                "localized_content": {
+                    document["_id"]: _without_id(document)
+                    for document in self._localized_content.find()
+                },
+            }
+        )
 
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
@@ -89,7 +107,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return self._localized(locale, ("home_page_path",)).home_page_path
+        return self._localized(locale, ("home_page_path",)).home_page_path or None
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

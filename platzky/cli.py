@@ -1,17 +1,15 @@
 """Command line interface for running a Platzky application."""
 
 import json
-from collections.abc import Iterable
 from importlib.resources import files
 from pathlib import Path
 from secrets import token_hex
 from string import Template
 
 import click
-from pydantic import ValidationError
-from pydantic_core import ErrorDetails
 
-from platzky.db.site_config_repository import SiteContent
+from platzky.db.exceptions import InvalidSiteContentError
+from platzky.db.site_config_repository import parse_site_content
 from platzky.platzky import create_app
 
 _TARGET_CONFIG_FILENAME = "config.yml"
@@ -34,21 +32,6 @@ def _render_scaffold(filename: str, **values: str) -> str:
     """
     scaffold_file = files("platzky").joinpath(_SCAFFOLD_DIR).joinpath(filename)
     return Template(scaffold_file.read_text(encoding="utf-8")).substitute(values)
-
-
-def _describe_errors(errors: Iterable[ErrorDetails]) -> str:
-    """List validation errors one per line, each with the path of the value it is about.
-
-    Args:
-        errors: The errors of validating ``site_content``
-
-    Returns:
-        One ``site_content.<path>: <message>`` line per error
-    """
-    return "\n".join(
-        ".".join(["site_content", *(str(part) for part in error["loc"])]) + f": {error['msg']}"
-        for error in errors
-    )
 
 
 @click.group()
@@ -102,18 +85,21 @@ def init(directory: Path) -> None:
 @cli.command()
 @click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def check(file: Path) -> None:
-    """Validate the site content of a JSON database FILE.
+    """Validate the site configuration in a JSON database FILE.
 
-    Prints OK and exits 0 when it is valid; otherwise lists every problem with its path and
-    exits 1.
+    Checks the site-configuration part of ``site_content`` (texts, theme, per-language content);
+    posts and pages are not checked. Prints OK and exits 0 when it is valid; otherwise lists
+    every problem with its path and exits 1.
     """
     try:
-        site_content = json.loads(file.read_text(encoding="utf-8")).get("site_content")
-    except (json.JSONDecodeError, AttributeError) as error:
-        raise click.ClickException(f"{file} is not a JSON object: {error}") from error
+        document = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise click.ClickException(f"{file} cannot be read as JSON: {error}") from error
+    if not isinstance(document, dict):
+        raise click.ClickException(f"{file} is not a JSON object")
     try:
-        SiteContent.model_validate(site_content)
-    except ValidationError as error:
-        click.echo(_describe_errors(error.errors()), err=True)
+        parse_site_content(document.get("site_content"))
+    except InvalidSiteContentError as error:
+        click.echo(str(error), err=True)
         raise click.exceptions.Exit(1) from error
     click.echo("OK")

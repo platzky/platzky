@@ -70,9 +70,9 @@ class MongoDB(DB):
         self._localized_content: Collection[Any] = self._db.localized_content
         self._plugins: Collection[Any] = self._db.plugins
         self._plugin_config: PluginConfigRepository = MongoPluginConfigRepository(self._plugins)
-        self._site_config: SiteConfigRepository = MongoSiteConfigRepository(
-            self._site_content, self._localized_content
-        )
+        site_config = MongoSiteConfigRepository(self._site_content, self._localized_content)
+        site_config.validate()
+        self._site_config: SiteConfigRepository = site_config
 
     @property
     def database(self) -> Database[Any]:

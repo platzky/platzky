@@ -330,7 +330,7 @@ Platzky uses the first of these that is set:
 2. the top-level ``<key>`` in the site content
 3. the built-in default
 
-Missing, ``null`` or empty values fall through to the next step. The keys are:
+Missing or empty values fall through to the next step. The keys are:
 
 * ``app_name``: site name. Default: ``APP_NAME``.
 * ``app_title``: default ``<title>`` of pages that do not set their own. Default:
@@ -353,8 +353,9 @@ site-wide keys or from another language:
 * ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
   the blog index.
 
-Unknown keys in a language's entry are an error. ``platzky check`` validates a
-JSON data file.
+Unknown keys and ``null`` values are errors, and the application does not start
+with invalid site content. ``platzky check`` validates a JSON data file (its
+site-configuration part, not ``posts`` and ``pages``).
 
 * **JSON file / Google Cloud Storage**: set the keys in the ``site_content``
   object of your data file, next to ``posts`` and ``pages``.

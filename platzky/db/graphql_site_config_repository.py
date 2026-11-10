@@ -59,14 +59,18 @@ def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
     """
     return LocalizedContent.model_validate(
         {
-            "app_name": entry.get("appName"),
-            "app_title": entry.get("appTitle"),
-            "app_description": entry.get("appDescription"),
-            "logo_url": _logo_url(entry.get("logo")),
+            **_present(
+                {
+                    "app_name": entry.get("appName"),
+                    "app_title": entry.get("appTitle"),
+                    "app_description": entry.get("appDescription"),
+                    "logo_url": _logo_url(entry.get("logo")),
+                    "home_page_path": entry.get("homePagePath"),
+                }
+            ),
             "blog_meta": _present(entry.get("blogMeta") or {}),
             "footer": _present(entry.get("footer") or {}),
             "menu_items": [item for item in entry.get("menuItems") or [] if item],
-            "home_page_path": entry.get("homePagePath"),
         }
     )
 
@@ -186,9 +190,12 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return _localized_content(
-            _entry(self._localized_contents("homePagePath"), locale)
-        ).home_page_path
+        return (
+            _localized_content(
+                _entry(self._localized_contents("homePagePath"), locale)
+            ).home_page_path
+            or None
+        )
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:

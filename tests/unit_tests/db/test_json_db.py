@@ -6,7 +6,12 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
+from platzky.db.exceptions import (
+    DBError,
+    InvalidSiteContentError,
+    NotFoundError,
+    ReadOnlyStorageError,
+)
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
 from platzky.models import Footer, MenuItem, Page, PageMeta, Post
@@ -438,3 +443,27 @@ class TestJsonDbEmptyDb:
 
         with pytest.raises(DBError, match="site_content section is missing"):
             db.get_post("any-slug")
+
+
+_INVALID = {"site_content": {"menu_items": {}, "localized_content": {"pl": {"footer": None}}}}
+_PROBLEMS = [
+    "site_content.localized_content.pl.footer: Input should be a valid dictionary or "
+    "instance of Footer",
+    "site_content.menu_items: Extra inputs are not permitted",
+]
+
+
+class TestJsonDbSiteContentValidation:
+    def test_invalid_site_content_stops_the_database_from_being_created(self):
+        with pytest.raises(InvalidSiteContentError) as error:
+            Json(MemoryStore(_INVALID))
+
+        assert str(error.value).splitlines() == _PROBLEMS
+
+    def test_health_check_reports_invalid_site_content(self):
+        db = Json(MemoryStore({"site_content": {}}))
+        with db.document.edit() as data:
+            data["site_content"]["menu_items"] = {}
+
+        with pytest.raises(InvalidSiteContentError):
+            db.health_check()

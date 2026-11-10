@@ -13,7 +13,11 @@ from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.db.plugin_config_repository import PluginConfigRepository
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.db.site_config_repository import (
+    SiteConfigRepository,
+    SiteSettings,
+    parse_site_content,
+)
 from platzky.models import Footer, MenuItem, Page, PageMeta, Post
 from platzky.plugin.plugin_config import PluginConfigBase
 
@@ -66,6 +70,12 @@ class Json(DB):
         self._blog: BlogRepository = JsonBlogRepository(document)
         self._plugin_config: PluginConfigRepository = JsonPluginConfigRepository(document)
         self._site_config: SiteConfigRepository = JsonSiteConfigRepository(document)
+        if "site_content" in document.data:
+            self._validate_site_content()
+
+    def _validate_site_content(self) -> None:
+        """Raise `InvalidSiteContentError` if the site content does not match its format."""
+        parse_site_content(get_site_content(self._document.data))
 
     @property
     def document(self) -> JsonDocument:
@@ -220,7 +230,6 @@ class Json(DB):
     def health_check(self) -> None:
         """Perform a health check on the JSON database.
 
-        Raises an exception if the database is not accessible.
+        Raises an exception if the database is not accessible or its site content is invalid.
         """
-        # Try to access site_content to ensure basic structure is valid
-        get_site_content(self._document.data)
+        self._validate_site_content()

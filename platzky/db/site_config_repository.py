@@ -9,46 +9,40 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, ClassVar, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from platzky.db.exceptions import InvalidSiteContentError
 from platzky.models import Footer, Image, MenuItem, PageMeta
 
 
 class LocalizedContent(BaseModel):
     """The site content that is set per language, in the one format shared by every backend.
 
-    Unknown keys are an error. A null value counts as not set. Nothing here is inherited from
+    Unknown keys and null values are errors. Nothing here is inherited from
     another language, and only the four text keys fall back to the site-wide defaults of
     `SiteContent` (see `SiteSettings.from_layers`).
 
     Attributes:
-        app_name: Site name; empty or null falls through to the site-wide default
-        app_title: Site title; empty or null falls through to the site-wide default
-        app_description: Meta description; empty or null falls through to the site-wide default
-        logo_url: Logo image URL; empty or null falls through to the site-wide default
+        app_name: Site name; empty falls through to the site-wide default
+        app_title: Site title; empty falls through to the site-wide default
+        app_description: Meta description; empty falls through to the site-wide default
+        logo_url: Logo image URL; empty falls through to the site-wide default
         blog_meta: The blog index's title and description
         footer: The site-wide footer
         menu_items: The navigation menu
-        home_page_path: Site-relative path shown as the home page, if overridden
+        home_page_path: Site-relative path shown as the home page; empty for the blog index
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    app_name: str | None = None
-    app_title: str | None = None
-    app_description: str | None = None
-    logo_url: str | None = None
+    app_name: str = ""
+    app_title: str = ""
+    app_description: str = ""
+    logo_url: str = ""
     blog_meta: PageMeta = PageMeta()
     footer: Footer = Footer()
     menu_items: tuple[MenuItem, ...] = ()
-    home_page_path: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _drop_nulls(cls, values: object) -> object:
-        if isinstance(values, Mapping):
-            return {key: value for key, value in values.items() if value is not None}
-        return values
+    home_page_path: str = ""
 
 
 class SiteContent(BaseModel):
@@ -75,28 +69,19 @@ class SiteContent(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    app_name: str | None = None
-    app_title: str | None = None
-    app_description: str | None = None
-    logo_url: str | None = None
-    favicon_url: str | None = None
-    font: str | None = None
-    primary_color: str | None = None
-    secondary_color: str | None = None
+    app_name: str = ""
+    app_title: str = ""
+    app_description: str = ""
+    logo_url: str = ""
+    favicon_url: str = ""
+    font: str = ""
+    primary_color: str = ""
+    secondary_color: str = ""
     posts: Any = None
     pages: Any = None
     localized_content: Mapping[str, LocalizedContent] = Field(
         default_factory=lambda: MappingProxyType({})
     )
-
-    @field_validator("localized_content", mode="before")
-    @classmethod
-    def _drop_nulls(cls, value: object) -> object:
-        if value is None:
-            return {}
-        if isinstance(value, Mapping):
-            return {lang: content for lang, content in value.items() if content is not None}
-        return value
 
     @field_validator("localized_content", mode="after")
     @classmethod
@@ -113,6 +98,30 @@ class SiteContent(BaseModel):
             The language's content, empty if none is configured for it.
         """
         return self.localized_content.get(lang, LocalizedContent())
+
+
+def parse_site_content(site_content: object) -> SiteContent:
+    """Validate the site content as stored, e.g. when the application starts.
+
+    Args:
+        site_content: The ``site_content`` section of the database.
+
+    Returns:
+        The validated site content.
+
+    Raises:
+        InvalidSiteContentError: If it is invalid; the message lists every problem with its
+            path, one per line.
+    """
+    try:
+        return SiteContent.model_validate(site_content)
+    except ValidationError as error:
+        problems = (
+            ".".join(["site_content", *(str(part) for part in problem["loc"])])
+            + f": {problem['msg']}"
+            for problem in error.errors()
+        )
+        raise InvalidSiteContentError("\n".join(problems)) from error
 
 
 class SiteSettings(BaseModel):
@@ -155,7 +164,7 @@ class SiteSettings(BaseModel):
         """Build the site settings for a language from its defaults and overrides.
 
         Each text key (app_name, app_title, app_description, logo_url) is taken from
-        ``localized`` if set there, else from ``defaults``, else left empty. Null and empty
+        ``localized`` if set there, else from ``defaults``, else left empty. Empty
         values fall through to the next source. The favicon, font and colors come from
         ``defaults`` only.
 

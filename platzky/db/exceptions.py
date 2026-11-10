@@ -15,3 +15,7 @@ class NotFoundError(DBError, ValueError):
 
 class ReadOnlyStorageError(DBError):
     """The storage does not support writes."""
+
+
+class InvalidSiteContentError(DBError):
+    """The site content in the database does not match the site content format."""
