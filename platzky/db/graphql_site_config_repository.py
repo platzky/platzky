@@ -1,6 +1,6 @@
 """SiteConfigRepository implementation backed by a GraphQL (Hygraph) CMS."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any, Callable
 
 from gql import Client, gql
@@ -14,23 +14,43 @@ from platzky.db.site_config_repository import (
 )
 from platzky.models import Footer, MenuItem, PageMeta
 
-# Relation nodes may be null in the CMS, so these helpers turn a null list, a
-# null entry or a null nested node into the documented default instead of raising.
+_SITE_FIELDS = """
+        appName
+        appTitle
+        appDescription
+        logo { image { url } }
+        faviconUrl
+        primaryColor
+        secondaryColor
+        font { name url }
+"""
 
+_LOCALIZED_FIELDS = """
+        appName
+        appTitle
+        appDescription
+        logo { image { url } }
+        homePagePath
+        blogMeta { title description }
+        footer { content collapsible }
+        menuItems { name url }
+"""
 
-def _entry(
-    entries: Sequence[Mapping[str, Any] | None] | None, language: str | None
-) -> Mapping[str, Any]:
-    """Pick the `LocalizedContent` entry of a language.
+_LOCALIZED = "localized: localizedContent(where: {language: $lang}, stage: PUBLISHED) {"
 
-    Args:
-        entries: The `localizedContents` answer.
-        language: The language code, or None for the entry holding the defaults.
+_SITE_SETTINGS_QUERY = (
+    "query SiteSettings($lang: Lang!) {\n"
+    "  site: sites(stage: PUBLISHED, first: 1) {"
+    + _SITE_FIELDS
+    + "  }\n  "
+    + _LOCALIZED
+    + _LOCALIZED_FIELDS
+    + "  }\n}"
+)
 
-    Returns:
-        The matching entry, or an empty mapping if there is none.
-    """
-    return next((e for e in entries or [] if e and e.get("language") == language), {})
+_CONTENT_QUERY = (
+    "query LocalizedContent($lang: Lang!) {\n  " + _LOCALIZED + _LOCALIZED_FIELDS + "  }\n}"
+)
 
 
 def _present(values: Mapping[str, Any]) -> dict[str, Any]:
@@ -42,11 +62,37 @@ def _present(values: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in values.items() if value}
 
 
+def _logo_url(entry: Mapping[str, Any]) -> str | None:
+    """Return the URL of the entry's logo, None if the logo or its image is not set."""
+    url: str | None = ((entry.get("logo") or {}).get("image") or {}).get("url")
+    return url
+
+
+def _site_content(entry: Mapping[str, Any]) -> SiteContent:
+    """Map a `Site` CMS entry to the shared model; null and missing fields are not set."""
+    return SiteContent.model_validate(
+        {
+            **_present(
+                {
+                    "app_name": entry.get("appName"),
+                    "app_title": entry.get("appTitle"),
+                    "app_description": entry.get("appDescription"),
+                    "logo_url": _logo_url(entry),
+                    "favicon_url": entry.get("faviconUrl"),
+                    "primary_color": entry.get("primaryColor"),
+                    "secondary_color": entry.get("secondaryColor"),
+                }
+            ),
+            "font": _present(entry.get("font") or {}),
+        }
+    )
+
+
 def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
-    """Map the fields of a `LocalizedContent` CMS entry that it has to the shared model.
+    """Map a `LocalizedContent` CMS entry to the shared model.
 
     Args:
-        entry: The CMS entry, with any of its fields selected.
+        entry: The CMS entry, or an empty mapping for a language without one.
 
     Returns:
         The entry's content; null and missing fields are not set.
@@ -58,47 +104,23 @@ def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
                     "app_name": entry.get("appName"),
                     "app_title": entry.get("appTitle"),
                     "app_description": entry.get("appDescription"),
-                    "logo_url": ((entry.get("logo") or {}).get("image") or {}).get("url"),
+                    "logo_url": _logo_url(entry),
                     "home_page_path": entry.get("homePagePath"),
                 }
             ),
             "blog_meta": _present(entry.get("blogMeta") or {}),
             "footer": _present(entry.get("footer") or {}),
-            "menu_items": [item for item in entry.get("menuItems") or [] if item],
+            "menu_items": entry.get("menuItems", []),
         }
     )
-
-
-_LOCALIZED_CONTENTS = """
-      localizedContents(stage: PUBLISHED, first: 100) {
-        language
-        appName
-        appTitle
-        appDescription
-        logo { image { url } }
-        faviconUrl
-        primaryColor
-        secondaryColor
-        font { name url }
-        homePagePath
-        blogMeta { title description }
-        footer { content collapsible }
-        menuItems { name url }
-      }
-"""
-
-_LOCALIZED_CONTENTS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + "}"
 
 
 class GraphQLSiteConfigRepository(SiteConfigRepository):
     """Site config repository backed by a GraphQL CMS.
 
-    Per-language content lives in the `LocalizedContent` model: the entry without a
-    language holds the defaults and an entry with a language overrides them. Each
-    method makes one request and picks the entry in Python, so the selection rules
-    are the same as for the other backends. The entry without a
-    language also holds the site-wide logo, favicon, colors and font; language entries
-    do not use them.
+    The `Site` model (one entry) holds the site-wide content, and the `LocalizedContent`
+    model holds one entry per language (`language` is required and unique). The server
+    picks the entry of the requested language, so each method makes one request.
     """
 
     def __init__(self, client_getter: Callable[[], Client]) -> None:
@@ -112,8 +134,8 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
 
     def _content(self, lang: str) -> LocalizedContent:
         """Fetch the `LocalizedContent` entry of a language."""
-        result = self._client_getter().execute(gql(_LOCALIZED_CONTENTS_QUERY))
-        return _localized_content(_entry(result.get("localizedContents"), lang))
+        result = self._client_getter().execute(gql(_CONTENT_QUERY), variable_values={"lang": lang})
+        return _localized_content(result["localized"] or {})
 
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
@@ -125,27 +147,13 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             The app's site settings, with text empty where none is configured.
         """
-        entries = (
-            self._client_getter().execute(gql(_LOCALIZED_CONTENTS_QUERY)).get("localizedContents")
+        result = self._client_getter().execute(
+            gql(_SITE_SETTINGS_QUERY), variable_values={"lang": lang}
         )
-        defaults = _entry(entries, None)
-        site_content = SiteContent.model_validate(
-            {
-                **_present(
-                    {
-                        "app_name": defaults.get("appName"),
-                        "app_title": defaults.get("appTitle"),
-                        "app_description": defaults.get("appDescription"),
-                        "logo_url": ((defaults.get("logo") or {}).get("image") or {}).get("url"),
-                        "favicon_url": defaults.get("faviconUrl"),
-                        "primary_color": defaults.get("primaryColor"),
-                        "secondary_color": defaults.get("secondaryColor"),
-                        "font": _present(defaults.get("font") or {}),
-                    }
-                ),
-            }
+        return SiteSettings.from_layers(
+            _site_content(next(iter(result["site"]), {})),
+            _localized_content(result["localized"] or {}),
         )
-        return SiteSettings.from_layers(site_content, _localized_content(_entry(entries, lang)))
 
     @override
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:

@@ -284,9 +284,8 @@ def test_facade_and_repositories_share_one_client(mock_client: Mock):
     mock_client.execute.return_value = {
         "posts": [],
         "pluginConfigs": [],
-        "favicons": [],
-        "themes": [],
-        "localizedContents": [],
+        "site": [],
+        "localized": None,
     }
     with patch("platzky.db.graphql_client.Client", return_value=mock_client) as client_cls:
         db = GraphQL("https://test.endpoint", "test_token")

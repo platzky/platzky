@@ -415,15 +415,16 @@ with invalid site content. To check a JSON data file before deploying it, see
         "home_page_path": "/blog/page/o-nas"
       }
 
-* **GraphQL (Hygraph)**: store a language's entry in the ``LocalizedContent``
-  model (``localizedContents``), with the language in ``language``. The entry
-  without a ``language`` holds the site-wide defaults of the texts and the
-  logo. The fields are ``appName``, ``appTitle``, ``appDescription``, ``logo``,
-  ``blogMeta`` (``title``, ``description``), ``footer`` (``content``,
-  ``collapsible``), ``homePagePath`` and ``menuItems`` (``name``, ``url``). The
-  site-wide ``faviconUrl`` (a string), ``primaryColor``, ``secondaryColor`` and
-  ``font`` (a component with ``name`` and ``url``) are read only from the entry
-  without a ``language``; on a language entry they are ignored.
+* **GraphQL (Hygraph)**: two models. ``Site`` holds one entry (queried as
+  ``sites``) with the site-wide content: ``appName``, ``appTitle``,
+  ``appDescription``, ``logo``, ``faviconUrl`` (a string), ``primaryColor``,
+  ``secondaryColor`` and ``font`` (a component with ``name`` and ``url``).
+  ``LocalizedContent`` holds one entry per language, with ``language`` (the
+  ``Lang`` enum) required and unique, so the server picks the entry
+  (``localizedContent(where: {language: $lang})``). Its fields are ``appName``,
+  ``appTitle``, ``appDescription``, ``logo``, ``homePagePath``, ``blogMeta``
+  (``title``, ``description``), ``footer`` (``content``, ``collapsible``) and
+  ``menuItems`` (``name``, ``url``).
 
 Feature Flags
 ~~~~~~~~~~~~~
