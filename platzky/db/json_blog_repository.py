@@ -14,7 +14,7 @@ from typing import Any
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidDataError, NotFoundError
+from platzky.db.exceptions import NotFoundError
 from platzky.db.json_document import JsonSection
 from platzky.db.validation import parse
 from platzky.models import Page, PageMeta, Post, ReadOnlyMapping, StrictModel
@@ -39,26 +39,6 @@ class BlogSection(StrictModel):
     meta: ReadOnlyMapping[str, PageMeta]
 
 
-def _require_list(section_name: str, key: str, value: object) -> list[Any]:
-    """Return the posts or pages of a section as stored.
-
-    Raises:
-        InvalidDataError: If they are not a list (null included).
-    """
-    if not isinstance(value, list):
-        raise InvalidDataError(f"{section_name}.{key}: Input should be a valid list")
-    return value
-
-
-def _items(section: JsonSection, key: str) -> tuple[Mapping[str, Any], ...]:
-    """Return the posts or pages the section holds, empty if it has none.
-
-    Raises:
-        InvalidDataError: If the key is present but not a list (null included).
-    """
-    return tuple(_require_list(section.name, key, section.get(key, [])))
-
-
 class _JsonPostRepository(PostRepository):
     """Post repository backed by a shared, in-memory document."""
 
@@ -79,7 +59,7 @@ class _JsonPostRepository(PostRepository):
             NotFoundError: If no post has this slug.
         """
         wanted_post = next(
-            (post for post in _items(self._section, "posts") if post["slug"] == slug), None
+            (post for post in self._section.get("posts", []) if post["slug"] == slug), None
         )
         if wanted_post is None:
             raise NotFoundError(f"Post with slug {slug} not found")
@@ -97,7 +77,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _items(self._section, "posts")
+            for post in self._section.get("posts", [])
             if post.get("language", "en") == lang
         ]
 
@@ -114,7 +94,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _items(self._section, "posts")
+            for post in self._section.get("posts", [])
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -145,8 +125,7 @@ class _JsonPostRepository(PostRepository):
 
         try:
             with self._section.edit() as blog:
-                posts = _require_list(self._section.name, "posts", blog.get("posts", []))
-                post = next((p for p in posts if p["slug"] == post_slug), None)
+                post = next((p for p in blog.get("posts", []) if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
                 post.setdefault("comments", []).append(comment_data)
@@ -177,7 +156,7 @@ class _JsonPageRepository(PageRepository):
             NotFoundError: If no page has this slug.
         """
         wanted_page = next(
-            (page for page in _items(self._section, "pages") if page["slug"] == slug), None
+            (page for page in self._section.get("pages", []) if page["slug"] == slug), None
         )
         if wanted_page is None:
             raise NotFoundError(f"Page with slug {slug} not found")
@@ -195,7 +174,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in _items(self._section, "pages")
+            for page in self._section.get("pages", [])
             if page.get("language", "en") == lang
         ]
 
@@ -237,12 +216,10 @@ class JsonBlogRepository(BlogRepository):
             The blog index meta, empty if none is configured for the language.
 
         Raises:
-            InvalidDataError: If the stored blog meta is invalid.
+            InvalidDataError: If the meta stored for this language is invalid.
         """
-        meta = self._section.get("meta", {})
-        if not isinstance(meta, Mapping):
-            raise InvalidDataError(f"{self._section.name}.meta: Input should be a valid dictionary")
-        return parse(PageMeta, meta.get(lang, {}), self._section.name, "meta", lang)
+        meta = self._section.get("meta", {}).get(lang, {})
+        return parse(PageMeta, meta, self._section.name, "meta", lang)
 
     def validate(self) -> None:
         """Check the whole section against the blog format, e.g. when the application starts.

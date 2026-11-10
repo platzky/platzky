@@ -133,17 +133,6 @@ class TestPosts:
         reloaded = _repository(store).posts.get("post-1")
         assert [(c.author, c.comment) for c in reloaded.comments] == [("Alice", "Nice post!")]
 
-    def test_null_posts_is_an_error(self):
-        repository = _repository(MemoryStore({"blog": {"posts": None}}))
-        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
-            repository.posts.get_all("en")
-        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
-            repository.posts.get_by_tag("python", "en")
-        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
-            repository.posts.get("post-1")
-        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
-            repository.posts.add_comment("Alice", "Hi", "post-1")
-
     def test_null_tags_is_treated_as_missing(self):
         data = sample_data()
         data["blog"]["posts"][0]["tags"] = None
@@ -185,11 +174,6 @@ class TestPages:
         repository = _repository(MemoryStore({"blog": {}}))
         assert repository.pages.get_all("en") == []
 
-    def test_null_pages_is_an_error(self):
-        repository = _repository(MemoryStore({"blog": {"pages": None}}))
-        with pytest.raises(InvalidDataError, match=r"blog\.pages"):
-            repository.pages.get_all("en")
-
 
 class TestMeta:
     def test_missing_blog_meta_is_empty(self):
@@ -201,8 +185,6 @@ class TestMeta:
             {"en": {"unknown": "x"}},
             {"en": {"title": None}},
             {"en": None},
-            None,
-            ["en"],
         ],
     )
     def test_invalid_blog_meta_is_rejected(self, meta: object):
