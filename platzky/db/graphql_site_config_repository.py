@@ -79,42 +79,31 @@ def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
     )
 
 
-_LOCALIZED_CONTENTS = "localizedContents(stage: PUBLISHED, first: 100)"
-
-_SITE_SETTINGS_QUERY = f"""
-    query MyQuery {{
-      {_LOCALIZED_CONTENTS} {{
+_LOCALIZED_CONTENTS = """
+      localizedContents(stage: PUBLISHED, first: 100) {
         language
         appName
         appTitle
         appDescription
-        logo {{
-          image {{
-            url
-          }}
-        }}
-      }}
-      logos(stage: PUBLISHED) {{
-        logo {{
-          image {{
-            url
-          }}
-        }}
-      }}
-      favicons(stage: PUBLISHED) {{
-        favicon {{
-          url
-        }}
-      }}
-      themes(stage: PUBLISHED) {{
+        logo { image { url } }
+        homePagePath
+        blogMeta { title description }
+        footer { content collapsible }
+        menuItems { name url }
+      }
+"""
+
+_LOCALIZED_CONTENTS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + "}"
+
+_SITE_SETTINGS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + """
+      logos(stage: PUBLISHED) { logo { image { url } } }
+      favicons(stage: PUBLISHED) { favicon { url } }
+      themes(stage: PUBLISHED) {
         primaryColor
         secondaryColor
-        font {{
-          name
-          url
-        }}
-      }}
-    }}
+        font { name url }
+      }
+    }
     """
 
 
@@ -137,10 +126,10 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         """
         self._client_getter = client_getter
 
-    def _localized_contents(self, selection: str) -> Sequence[Mapping[str, Any] | None]:
-        """Fetch every `LocalizedContent` entry, with the language and the given selection."""
-        query = gql(f"query MyQuery {{ {_LOCALIZED_CONTENTS} {{ language {selection} }} }}")
-        return self._client_getter().execute(query).get("localizedContents") or []
+    def _content(self, lang: str) -> LocalizedContent:
+        """Fetch the `LocalizedContent` entry of a language."""
+        result = self._client_getter().execute(gql(_LOCALIZED_CONTENTS_QUERY))
+        return _localized_content(_entry(result.get("localizedContents"), lang))
 
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
@@ -157,19 +146,23 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         theme = _first(result.get("themes"))
         defaults = _localized_content(_entry(entries, None))
         site_content = SiteContent.model_validate(
-            _present(
-                {
-                    "app_name": defaults.app_name,
-                    "app_title": defaults.app_title,
-                    "app_description": defaults.app_description,
-                    "logo_url": defaults.logo_url
-                    or _logo_url(_first(result.get("logos")).get("logo")),
-                    "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get("url"),
-                    "primary_color": theme.get("primaryColor"),
-                    "secondary_color": theme.get("secondaryColor"),
-                    "font": _present(theme.get("font") or {}),
-                }
-            )
+            {
+                "app_name": defaults.app_name,
+                "app_title": defaults.app_title,
+                "app_description": defaults.app_description,
+                **_present(
+                    {
+                        "logo_url": defaults.logo_url
+                        or _logo_url(_first(result.get("logos")).get("logo")),
+                        "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get(
+                            "url"
+                        ),
+                        "primary_color": theme.get("primaryColor"),
+                        "secondary_color": theme.get("secondaryColor"),
+                        "font": _present(theme.get("font") or {}),
+                    }
+                ),
+            }
         )
         return SiteSettings.from_layers(site_content, _localized_content(_entry(entries, lang)))
 
@@ -183,8 +176,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             Menu items in that language.
         """
-        entry = _entry(self._localized_contents("menuItems { name url }"), lang)
-        return list(_localized_content(entry).menu_items)
+        return list(self._content(lang).menu_items)
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
@@ -197,12 +189,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return (
-            _localized_content(
-                _entry(self._localized_contents("homePagePath"), locale)
-            ).home_page_path
-            or None
-        )
+        return self._content(locale).home_page_path or None
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -214,8 +201,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             The blog meta, empty if none is configured for the language.
         """
-        entry = _entry(self._localized_contents("blogMeta { title description }"), lang)
-        return _localized_content(entry).blog_meta
+        return self._content(lang).blog_meta
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -227,5 +213,4 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             The footer, empty and not collapsible if none is configured.
         """
-        entry = _entry(self._localized_contents("footer { content collapsible }"), lang)
-        return _localized_content(entry).footer
+        return self._content(lang).footer
