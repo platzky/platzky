@@ -134,21 +134,12 @@ def test_logo_alt_uses_localized_app_name(prefix: str, lang: str):
 
 
 @pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_page_without_own_title_shows_localized_app_title(prefix: str, lang: str):
+def test_page_without_own_title_shows_localized_app_title_and_description(prefix: str, lang: str):
     app = _build_app(_PER_LANGUAGE)
 
     soup = _soup(app, f"{prefix}{_PLAIN_PAGE}")
 
-    assert _title(soup) == _TITLES[lang]
-
-
-@pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_meta_description_uses_localized_app_description(prefix: str, lang: str):
-    app = _build_app(_PER_LANGUAGE)
-
-    soup = _soup(app, f"{prefix}{_PLAIN_PAGE}")
-
-    assert _description(soup) == _DESCRIPTIONS[lang]
+    assert (_title(soup), _description(soup)) == (_TITLES[lang], _DESCRIPTIONS[lang])
 
 
 @pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)

@@ -31,7 +31,7 @@ from platzky.db.site_config_repository import (
 )
 from platzky.models import Font, Footer, MenuItem
 
-SITE_CONTENT = {
+SITE_CONFIG = {
     "logo_url": "/logo.png",
     "favicon_url": "/favicon.ico",
     "primary_color": "blue",
@@ -62,10 +62,10 @@ SITE_CONTENT = {
 class SiteConfigRepositoryContract(ABC):
     @abstractmethod
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
-        """Build a repository of the backend under test holding this site content."""
+        """Build a repository of the backend under test holding this site config."""
 
     def test_get_site_config_returns_the_site_wide_values(self):
-        assert self.make_repository(SITE_CONTENT).get_site_config() == SiteConfig(
+        assert self.make_repository(SITE_CONFIG).get_site_config() == SiteConfig(
             app_name="Literature",
             app_title="Literature | Reading notes",
             app_description="Notes on Tolkien's books",
@@ -80,7 +80,7 @@ class SiteConfigRepositoryContract(ABC):
         assert self.make_repository({}).get_site_config() == SiteConfig()
 
     def test_get_localized_content_returns_the_entry_of_the_language(self):
-        repository = self.make_repository(SITE_CONTENT)
+        repository = self.make_repository(SITE_CONFIG)
 
         assert repository.get_localized_content("en") == LocalizedContent(
             footer=Footer(content="English footer", collapsible=True),
@@ -98,7 +98,7 @@ class SiteConfigRepositoryContract(ABC):
         )
 
     def test_get_localized_content_is_empty_for_unknown_language(self):
-        assert self.make_repository(SITE_CONTENT).get_localized_content("de") == LocalizedContent()
+        assert self.make_repository(SITE_CONFIG).get_localized_content("de") == LocalizedContent()
 
     def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
         repository = self.make_repository({"primary_color": ""})

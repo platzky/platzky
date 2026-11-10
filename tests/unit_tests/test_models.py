@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.models import (
     Color,
     Font,
@@ -162,7 +163,7 @@ class TestCssField:
             make_post(css="</STYLE  ><script>alert(1)</script>")
 
 
-@pytest.mark.parametrize("model", [Footer, Font, PageMeta])
+@pytest.mark.parametrize("model", [Footer, Font, PageMeta, SiteConfig, LocalizedContent])
 def test_stored_data_model_rejects_an_unknown_key(model: type[StrictModel]):
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         model.model_validate({"unknown": "x"})

@@ -10,7 +10,6 @@ from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import (
     DBError,
     InvalidDataError,
-    NotFoundError,
     ReadOnlyStorageError,
 )
 from platzky.db.json_blog_repository import JsonBlogRepository
@@ -84,11 +83,6 @@ def repository(store: JsonStore) -> JsonBlogRepository:
 
 
 class TestPosts:
-    def test_get_raises_not_found_when_posts_key_missing(self):
-        repository = _repository(MemoryStore({"blog": {}}))
-        with pytest.raises(NotFoundError):
-            repository.posts.get("post-1")
-
     def test_get_all_filters_by_language(self, repository: JsonBlogRepository):
         posts = repository.posts.get_all("en")
         assert [p.slug for p in posts] == ["post-1"]
@@ -156,14 +150,6 @@ class TestPosts:
         repository = _repository(MemoryStore(data))
         assert repository.posts.get_by_tag("python", "en") == []
 
-    def test_add_comment_raises_not_found_when_posts_data_is_missing(self):
-        data = sample_data()
-        del data["blog"]["posts"]
-        repository = _repository(MemoryStore(data))
-
-        with pytest.raises(NotFoundError):
-            repository.posts.add_comment("Alice", "Nice post!", "post-1")
-
     def test_add_comment_rolls_back_on_save_failure(self):
         data = sample_data()
         repository = _repository(ReadOnlyStore(data))
@@ -203,11 +189,6 @@ class TestPages:
         repository = _repository(MemoryStore({"blog": {"pages": None}}))
         with pytest.raises(InvalidDataError, match=r"blog\.pages"):
             repository.pages.get_all("en")
-
-    def test_get_raises_not_found_when_pages_key_missing(self):
-        repository = _repository(MemoryStore({"blog": {}}))
-        with pytest.raises(NotFoundError):
-            repository.pages.get("page-1")
 
 
 class TestMeta:

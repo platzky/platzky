@@ -10,7 +10,7 @@ from platzky.platzky import create_app_from_config
 def build_test_app(site_config_overrides: dict[str, Any] | None = None) -> Flask:
     """Build the standard test app, optionally overriding `site_config` fields.
 
-    An override value of `None` removes that field from the site content.
+    An override value of `None` removes that field from the site config.
     """
     config_data: dict[str, Any] = {
         "APP_NAME": "testing App Name",

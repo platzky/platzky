@@ -99,18 +99,17 @@ class TestMongoDB:
         assert db.database is mock_db
         mock_db.site_config.find_one.assert_called()
 
-    def test_invalid_site_config_stops_the_facade_from_being_created(self, mock_db: Mock):
+    def test_invalid_site_config_and_blog_meta_stop_the_facade_from_being_created(
+        self, mock_db: Mock
+    ):
         mock_db.site_config.find_one.return_value = {"_id": "config", "menu_items": {}}
-        mock_db.localized_content.find.return_value = [{"_id": "pl", "footer": None}]
-
-        with pytest.raises(InvalidDataError):
-            MongoDB("mongodb://localhost:27017", "test_db")
-
-    def test_invalid_blog_meta_stops_the_facade_from_being_created(self, mock_db: Mock):
         mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
 
-        with pytest.raises(InvalidDataError):
+        with pytest.raises(InvalidDataError) as error:
             MongoDB("mongodb://localhost:27017", "test_db")
+
+        assert "menu_items" in str(error.value)
+        assert "title" in str(error.value)
 
     def test_database_is_not_closed_when_the_facade_is_collected(
         self, mock_client: tuple[Mock, Mock]
@@ -135,21 +134,17 @@ class TestMongoDB:
 
         mock_command.assert_called_once_with("ping")
 
-    def test_health_check_fails_on_site_config_made_invalid_after_start(
+    def test_health_check_reports_site_config_and_blog_meta_made_invalid_after_start(
         self, db: MongoDB, mock_db: Mock
     ):
         mock_db.localized_content.find.return_value = [{"_id": "pl", "unknown": "x"}]
-
-        with pytest.raises(InvalidDataError):
-            db.health_check()
-
-    def test_health_check_fails_on_blog_meta_made_invalid_after_start(
-        self, db: MongoDB, mock_db: Mock
-    ):
         mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
 
-        with pytest.raises(InvalidDataError):
+        with pytest.raises(InvalidDataError) as error:
             db.health_check()
+
+        assert "unknown" in str(error.value)
+        assert "title" in str(error.value)
 
     def test_health_check_failure(self, db: MongoDB, mongo_client: Mock):
         """Test health check when database is not accessible"""

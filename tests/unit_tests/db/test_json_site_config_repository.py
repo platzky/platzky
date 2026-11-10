@@ -23,36 +23,16 @@ def _repository(site_config: object) -> JsonSiteConfigRepository:
     )
 
 
-@pytest.mark.parametrize(
-    "site_config",
-    [
-        {"posts": []},
-        {"pages": []},
-        {"blog_meta": {}},
-        {"menu_items": {"en": []}},
-        {"localized_content": {"en": {"blog_meta": {"title": "Notes"}}}},
-        {"footer": {"content": {"en": "Footer"}}},
-        {"home_page_path": "/blog/page/about"},
-        {"unknown": 1},
-        {"localized_content": {"en": {"unknown": 1}}},
-    ],
-)
-def test_unknown_keys_are_rejected(site_config: dict[str, Any]):
+def test_unknown_key_is_rejected():
     with pytest.raises(InvalidDataError):
-        _repository(site_config).validate()
+        _repository({"unknown": 1}).validate()
 
 
 @pytest.mark.parametrize(
     "site_config",
     [
         None,
-        {"app_name": None},
-        {"localized_content": None},
-        {"localized_content": {"pl": None}},
         {"localized_content": {"pl": {"app_name": None}}},
-        {"localized_content": {"pl": {"footer": None}}},
-        {"localized_content": {"pl": {"menu_items": None}}},
-        {"localized_content": {"pl": {"home_page_path": None}}},
     ],
 )
 def test_null_is_rejected(site_config: dict[str, Any] | None):

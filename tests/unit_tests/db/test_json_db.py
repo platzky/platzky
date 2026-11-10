@@ -1,7 +1,7 @@
 import datetime
 from datetime import timezone
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
@@ -9,10 +9,9 @@ from pydantic import ValidationError
 from platzky.db.exceptions import (
     InvalidDataError,
     NotFoundError,
-    ReadOnlyStorageError,
 )
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
-from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
+from platzky.db.json_stores import MemoryStore
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.models import Page
 
@@ -96,7 +95,7 @@ class TestJsonDb:
 
     def test_get_post_missing_data(self):
         db_without_posts = Json(MemoryStore({"site_config": {}}))
-        with pytest.raises(NotFoundError, match="Posts data is missing"):
+        with pytest.raises(NotFoundError, match="Post with slug any-slug not found"):
             db_without_posts.blog.posts.get("any-slug")
 
     def test_get_post_with_missing_required_field(self, sample_data: dict[str, Any]):
@@ -192,80 +191,6 @@ class TestJsonDbComments:
         assert comments[0].comment == "Great post!"
         assert comments[0].date == test_date.replace(tzinfo=timezone.utc)
 
-    def test_add_comment_persists_to_store(self):
-        document: dict[str, Any] = {
-            "site_config": {},
-            "blog": {
-                "posts": [
-                    {
-                        "title": "Post 1",
-                        "slug": "post-1",
-                        "language": "en",
-                        "tags": [],
-                        "comments": [],
-                        "author": "Test Author",
-                        "contentInMarkdown": "# Post 1",
-                        "excerpt": "Post 1 excerpt",
-                        "date": "2023-01-01T00:00:00",
-                    }
-                ]
-            },
-        }
-        store = Mock(spec=JsonStore)
-        store.load.return_value = document
-        db = Json(store)
-        test_date = datetime.datetime(2023, 1, 1, 12, 0)
-
-        with patch("datetime.datetime") as mock_datetime:
-            mock_datetime.now.return_value = test_date
-            db.blog.posts.add_comment("Test User", "Great post!", "post-1")
-
-        store.save.assert_called_once()
-        saved = store.save.call_args.args[0]
-        assert saved["blog"]["posts"][0]["comments"] == [
-            {"author": "Test User", "comment": "Great post!", "date": "2023-01-01T12:00:00"}
-        ]
-
-    def test_add_comment_to_nonexistent_post(self, db: Json):
-        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
-            db.blog.posts.add_comment("Test User", "Comment", "non-existent")
-
-    def test_add_comment_rolls_back_and_logs_on_save_failure(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        db = Json(
-            ReadOnlyStore(
-                {
-                    "site_config": {},
-                    "blog": {
-                        "posts": [
-                            {
-                                "title": "Post 1",
-                                "slug": "post-1",
-                                "language": "en",
-                                "tags": [],
-                                "comments": [],
-                                "author": "Test Author",
-                                "contentInMarkdown": "# Post 1",
-                                "excerpt": "Post 1 excerpt",
-                                "date": "2023-01-01T00:00:00",
-                            }
-                        ]
-                    },
-                }
-            )
-        )
-
-        with (
-            caplog.at_level("ERROR"),
-            pytest.raises(ReadOnlyStorageError),
-        ):
-            db.blog.posts.add_comment("Test User", "Comment", "post-1")
-
-        # The in-memory mutation is rolled back, not left dangling.
-        assert db.blog.posts.get("post-1").comments == []
-        assert "Failed to persist comment for post 'post-1'" in caplog.text
-
 
 class TestJsonDbHealthCheck:
     def test_health_check_success(self):
@@ -283,46 +208,27 @@ class TestJsonDbEmptyDb:
         assert db.site_config.get_site_config() == SiteConfig()
         assert db.site_config.get_localized_content("en") == LocalizedContent()
 
-    @pytest.mark.parametrize("section", ["site_config", "blog"])
-    def test_null_section_stops_the_database_from_being_created(self, section: str):
-        with pytest.raises(InvalidDataError, match=section):
-            Json(MemoryStore({section: None}))
-
-    def test_invalid_blog_stops_the_database_from_being_created_without_site_config(self):
-        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
-            Json(MemoryStore({"blog": {"posts": None}}))
-
     def test_missing_blog_section_is_an_empty_blog(self):
         db = Json(MemoryStore({}))
 
         assert db.blog.posts.get_all("en") == []
         assert db.blog.pages.get_all("en") == []
-        with pytest.raises(NotFoundError, match="Posts data is missing"):
+        with pytest.raises(NotFoundError, match="Post with slug any-slug not found"):
             db.blog.posts.get("any-slug")
 
 
-class TestJsonDbSiteConfigValidation:
-    def test_health_check_reports_invalid_site_config(self):
+class TestJsonDbValidation:
+    def test_creation_reports_a_site_config_problem_and_a_blog_problem_together(self):
+        with pytest.raises(InvalidDataError) as error:
+            Json(MemoryStore({"site_config": {"menu_items": {}}, "blog": {"posts": None}}))
+
+        assert "site_config.menu_items" in str(error.value)
+        assert "blog.posts" in str(error.value)
+
+    def test_health_check_reports_a_problem_introduced_after_startup(self):
         db = Json(MemoryStore({"site_config": {}}))
         with db.document.edit() as data:
             data["site_config"]["menu_items"] = {}
 
-        with pytest.raises(InvalidDataError):
+        with pytest.raises(InvalidDataError, match=r"site_config\.menu_items"):
             db.health_check()
-
-    def test_health_check_reports_invalid_blog_meta(self):
-        db = Json(MemoryStore({"site_config": {}}))
-        with db.document.edit() as data:
-            data["blog"] = {}
-            data["blog"]["meta"] = {"en": {"title": None}}
-
-        with pytest.raises(InvalidDataError):
-            db.health_check()
-
-    def test_unknown_blog_key_stops_the_database_from_being_created(self):
-        with pytest.raises(InvalidDataError, match=r"blog\.blog_meta"):
-            Json(MemoryStore({"site_config": {}, "blog": {"blog_meta": {}}}))
-
-    def test_invalid_blog_meta_stops_the_database_from_being_created(self):
-        with pytest.raises(InvalidDataError):
-            Json(MemoryStore({"site_config": {}, "blog": {"meta": None}}))

@@ -36,7 +36,7 @@ def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
 
 
 def _mock_db() -> MagicMock:
-    """A database mock whose site content is real and empty, as every page render reads it."""
+    """A database mock whose site config is real and empty, as every page render reads it."""
     db = MagicMock()
     db.site_config.get_site_config.return_value = SiteConfig()
     db.site_config.get_localized_content.return_value = LocalizedContent()

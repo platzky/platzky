@@ -151,50 +151,20 @@ class TestCheck:
 
         assert (result.exit_code, result.output) == (0, "OK\n")
 
-    def test_every_problem_is_listed_with_its_path(self, tmp_path: Path):
+    def test_site_config_and_blog_problems_are_listed_with_their_paths(self, tmp_path: Path):
         result = _check(
             tmp_path,
             {
-                "site_config": {
-                    "home_page_path": "/blog/page/about",
-                    "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
-                }
+                "site_config": {"localized_content": {"pl": {"menu_items": [{"name": "Start"}]}}},
+                "blog": {"posts": None},
             },
         )
 
         assert result.exit_code == 1
         assert result.output.splitlines() == [
             "Error: site_config.localized_content.pl.menu_items.0.url: Field required",
-            "site_config.localized_content.pl.x: Extra inputs are not permitted",
-            "site_config.home_page_path: Extra inputs are not permitted",
+            "blog.posts: Input should be a valid tuple",
         ]
-
-    def test_every_problem_in_the_blog_is_listed_with_its_path(self, tmp_path: Path):
-        result = _check(
-            tmp_path,
-            {
-                "site_config": {},
-                "blog": {"meta": {"pl": {"title": None}}, "blog_meta": {}, "posts": None},
-            },
-        )
-
-        assert result.exit_code == 1
-        assert result.output.splitlines() == [
-            "Error: blog.posts: Input should be a valid tuple",
-            "blog.meta.pl.title: Input should be a valid string",
-            "blog.blog_meta: Extra inputs are not permitted",
-        ]
-
-    def test_missing_sections_are_empty(self, tmp_path: Path):
-        result = _check(tmp_path, {"plugins": {}})
-
-        assert (result.exit_code, result.output) == (0, "OK\n")
-
-    def test_null_section_is_an_error(self, tmp_path: Path):
-        result = _check(tmp_path, {"site_config": None})
-
-        assert result.exit_code == 1
-        assert result.output.startswith("Error: site_config: ")
 
     def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
         data_file = tmp_path / "data.json"

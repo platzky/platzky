@@ -2,10 +2,10 @@
 
 Subclass `BlogRepositoryContract` in the backend's own test module (the class name
 must start with `Test` there so pytest collects it) and override `make_repository`.
-It takes neutral `posts` / `pages` / `blog_meta` data (the Json document's shape) and builds a
-repository over whatever that backend stores. A remote backend's fake only maps
-fields and never filters: what the server decides is tested in the backend's own
-file through the query variables it is sent, so each test seeds exactly what should
+It takes neutral `posts` / `pages` / `blog_meta` data (the Json ``blog`` section's ``posts``,
+``pages`` and ``meta``) and builds a repository over whatever that backend stores. A remote
+backend's fake only maps fields and never filters: what the server decides is tested in the
+backend's own file through the query variables it is sent, so each test seeds exactly what should
 come back.
 
 A behaviour the backend cannot represent is opted out by overriding the test with
