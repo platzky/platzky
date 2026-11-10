@@ -9,20 +9,15 @@
 import datetime
 import logging
 from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Any
 
-from pydantic import (
-    Field,
-    field_validator,
-)
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import InvalidDataError, NotFoundError
 from platzky.db.json_document import JsonSection
 from platzky.db.validation import parse
-from platzky.models import Page, PageMeta, Post, StrictModel
+from platzky.models import Page, PageMeta, Post, ReadOnlyMapping, StrictModel
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +36,7 @@ class BlogSection(StrictModel):
 
     posts: tuple[Mapping[str, Any], ...] = ()
     pages: tuple[Mapping[str, Any], ...] = ()
-    meta: Mapping[str, PageMeta] = Field(default_factory=lambda: MappingProxyType({}))
-
-    @field_validator("meta", mode="after")
-    @classmethod
-    def _read_only(cls, value: Mapping[str, PageMeta]) -> Mapping[str, PageMeta]:
-        return MappingProxyType(dict(value))
+    meta: ReadOnlyMapping[str, PageMeta]
 
 
 def _as_tuple(section_name: str, key: str, value: object) -> tuple[Mapping[str, Any], ...]:

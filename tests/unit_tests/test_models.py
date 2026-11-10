@@ -4,7 +4,17 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from platzky.models import Color, Font, Footer, Image, Page, PageMeta, Post, StrictModel
+from platzky.models import (
+    Color,
+    Font,
+    Footer,
+    Image,
+    Page,
+    PageMeta,
+    Post,
+    ReadOnlyMapping,
+    StrictModel,
+)
 
 
 def make_post(**overrides) -> Post:
@@ -156,3 +166,15 @@ class TestCssField:
 def test_stored_data_model_rejects_an_unknown_key(model: type[StrictModel]):
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         model.model_validate({"unknown": "x"})
+
+
+class _Counts(StrictModel):
+    counts: ReadOnlyMapping[str, int]
+
+
+@pytest.mark.parametrize("data", [{}, {"counts": {"a": 1}}], ids=["default", "given"])
+def test_read_only_mapping_cannot_be_changed(data: dict[str, Any]):
+    counts = _Counts.model_validate(data).counts
+
+    with pytest.raises(TypeError):
+        counts["b"] = 2  # type: ignore[index]

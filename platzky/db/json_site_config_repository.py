@@ -4,15 +4,12 @@ It gets only the ``site_config`` section of the document: the site-wide `SiteCon
 the ``localized_content`` of each language.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
-
-from pydantic import Field, field_validator
 from typing_extensions import override
 
 from platzky.db.json_document import JsonSection
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
 from platzky.db.validation import parse
+from platzky.models import ReadOnlyMapping
 
 
 class SiteConfigSection(SiteConfig):
@@ -25,14 +22,7 @@ class SiteConfigSection(SiteConfig):
         localized_content: The per-language content, by language code
     """
 
-    localized_content: Mapping[str, LocalizedContent] = Field(
-        default_factory=lambda: MappingProxyType({})
-    )
-
-    @field_validator("localized_content", mode="after")
-    @classmethod
-    def _read_only(cls, value: Mapping[str, LocalizedContent]) -> Mapping[str, LocalizedContent]:
-        return MappingProxyType(dict(value))
+    localized_content: ReadOnlyMapping[str, LocalizedContent]
 
 
 class JsonSiteConfigRepository(SiteConfigRepository):

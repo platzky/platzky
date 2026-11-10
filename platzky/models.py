@@ -3,7 +3,9 @@
 import datetime
 import functools
 import re
-from typing import Annotated
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Annotated, TypeVar
 
 import humanize
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
@@ -17,6 +19,28 @@ def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
 
 
 DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
+
+
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+def _read_only(value: Mapping[_K, _V]) -> Mapping[_K, _V]:
+    """Return a read-only copy of a validated mapping."""
+    return MappingProxyType(dict(value))
+
+
+ReadOnlyMapping = Annotated[
+    Mapping[_K, _V],
+    AfterValidator(_read_only),
+    Field(default_factory=dict, validate_default=True),
+]
+"""A model field holding a mapping that cannot be changed after validation.
+
+``frozen=True`` only stops a field from being reassigned; pydantic still stores a plain,
+mutable ``dict`` in it. Use ``ReadOnlyMapping[str, X]`` for such fields; it defaults to an
+empty mapping.
+"""
 
 
 class StrictModel(BaseModel):
