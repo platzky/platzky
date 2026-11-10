@@ -16,8 +16,9 @@ The database layer is built on an abstract base class (`DB`): a container of thr
 
 `Json`, `JsonFile`, `GoogleJsonDb`, and `GithubJsonDb` are one data model (a
 JSON document) with different persistence transports, not four independent
-implementations. `Json` holds all the document logic (posts, pages, menu
-items, comments, ...) and delegates *where the bytes live* to a
+implementations. The logic (posts, pages, site config, comments, ...) is in
+the JSON repositories, which `Json` builds over the one shared document; `Json`
+delegates *where the bytes live* to a
 `JsonStore` (see `platzky/db/json_stores.py`):
 
 - `MemoryStore` — in-memory only, used by the plain `Json` backend.
@@ -57,8 +58,8 @@ and `get_localized_content(lang)`; the contract suite in
 Each repository owns its storage and sees nothing else. In the JSON document, each JSON repository is given a `JsonSection` (a read-only view of its section with an `edit()` that yields only that section), not the document. The sections are:
 `site_config` (the site-wide keys and `localized_content`) belongs to
 `JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
-`plugins` to `JsonPluginConfigRepository`; each has a `validate()` for its own section
-(unknown keys and nulls are errors), as the Mongo repositories do, and `Json` calls both at startup and in
+`plugins` to `JsonPluginConfigRepository`; the site config and blog repositories have a `validate()` for
+their own section (unknown keys and nulls are errors), as the Mongo ones do, and `Json` calls both at startup and in
 `health_check()`, reporting all problems together; `platzky check` builds the `Json` facade from the file. In
 Mongo, the `site_config` collection (document `_id: "config"`) and `localized_content` belong to
 the site config repository, and `posts`, `pages` and `blog_meta` to the blog repository. Invalid
@@ -66,8 +67,8 @@ stored data raises `InvalidDataError` in both.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so
-inside `with document.edit() as data:`, which holds the lock, yields the dict and
-saves it on success (nothing is saved if the block raises).
+inside `with section.edit() as data:` on its `JsonSection`, which holds the lock, yields
+only its section and saves the document on success (nothing is saved if the block raises).
 
 To add a new repository:
 

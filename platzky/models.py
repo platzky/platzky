@@ -204,7 +204,7 @@ Page = Post  # Page is an alias for Post (static pages use the same structure)
 
 
 class Footer(StrictModel):
-    """The site-wide footer and how it is presented.
+    """The footer of one language and how it is presented.
 
     Attributes:
         content: Footer content in Markdown with shortcodes, for one language. Empty shows no

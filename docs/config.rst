@@ -354,10 +354,10 @@ site-wide keys or from another language:
 The blog is configured with its own data, next to its posts and pages (in the
 ``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per
 language. Default: empty, which shows the default title and the site
-description. Unknown keys and ``null`` values are errors there too.
+description.
 
-Unknown keys and ``null`` values are errors, and the application does not start
-with invalid site content. To check a JSON data file before deploying it, see
+Unknown keys and ``null`` values are errors in all of this, and the application
+does not start with invalid site content. To check a JSON data file before deploying it, see
 :ref:`platzky check <cli-check>`.
 
 * **JSON file / Google Cloud Storage**: set the keys in the ``site_config``
