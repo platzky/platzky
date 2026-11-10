@@ -75,7 +75,6 @@ def test_app():
     app = create_engine(config, db_mock)
     blog_blueprint = blog.create_blog_blueprint(
         db_mock.blog,
-        db_mock.site_config,
         config.blog_prefix,
         app.get_locale,
         content_transformer=app.transform_content,

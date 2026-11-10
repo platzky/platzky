@@ -8,7 +8,7 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Page, Post
+from platzky.models import Page, PageMeta, Post
 
 
 class _MongoPostRepository(PostRepository):
@@ -124,15 +124,23 @@ class _MongoPageRepository(PageRepository):
 
 
 class MongoBlogRepository(BlogRepository):
-    """BlogRepository implementation backed by the ``posts`` and ``pages`` collections."""
+    """BlogRepository implementation backed by the posts, pages and blog meta collections.
 
-    def __init__(self, posts: Collection[Any], pages: Collection[Any]) -> None:
+    ``blog_meta`` holds one document per language, with the language code as ``_id``, and the
+    fields ``title`` and ``description``.
+    """
+
+    def __init__(
+        self, posts: Collection[Any], pages: Collection[Any], blog_meta: Collection[Any]
+    ) -> None:
         """Build the post/page repositories over the shared collections.
 
         Args:
             posts: The database's ``posts`` collection.
             pages: The database's ``pages`` collection.
+            blog_meta: The database's ``blog_meta`` collection.
         """
+        self._blog_meta = blog_meta
         self._post_repository = _MongoPostRepository(posts)
         self._page_repository = _MongoPageRepository(pages)
 
@@ -147,3 +155,18 @@ class MongoBlogRepository(BlogRepository):
     def pages(self) -> PageRepository:
         """Return the page repository."""
         return self._page_repository
+
+    @override
+    def get_meta(self, lang: str) -> PageMeta:
+        """Retrieve the title and description of the blog index.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The blog index meta, empty if none is configured for the language.
+        """
+        document = self._blog_meta.find_one({"_id": lang}) or {}
+        return PageMeta.model_validate(
+            {key: value for key, value in document.items() if key != "_id"}
+        )

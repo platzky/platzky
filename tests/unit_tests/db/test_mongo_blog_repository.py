@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -10,12 +10,25 @@ from tests.unit_tests.db.blog_repository_contract import PAGE, POST, BlogReposit
 
 
 class TestMongoBlogRepositoryContract(BlogRepositoryContract):
-    """Collections are fakes that look documents up by slug and never filter."""
+    """Collections are fakes that look documents up by slug (meta by ``_id``) and never filter."""
 
     def make_repository(
-        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+        self,
+        posts: Sequence[dict[str, Any]] = (),
+        pages: Sequence[dict[str, Any]] = (),
+        blog_meta: Mapping[str, Mapping[str, str]] | None = None,
     ) -> BlogRepository:
-        return MongoBlogRepository(_collection(posts), _collection(pages))
+        meta = Mock()
+        meta.find_one.side_effect = _meta_lookup(blog_meta or {})
+        return MongoBlogRepository(_collection(posts), _collection(pages), meta)
+
+
+def _meta_lookup(blog_meta: Mapping[str, Mapping[str, str]]) -> Callable[[dict[str, str]], Any]:
+    def find_one(query: dict[str, str]) -> dict[str, str] | None:
+        lang = query["_id"]
+        return {"_id": lang, **blog_meta[lang]} if lang in blog_meta else None
+
+    return find_one
 
 
 def _collection(documents: Sequence[dict[str, Any]]) -> Mock:
@@ -36,8 +49,19 @@ class TestMongoBlogRepository:
         return Mock()
 
     @pytest.fixture
-    def blog(self, posts: Mock, pages: Mock) -> MongoBlogRepository:
-        return MongoBlogRepository(posts, pages)
+    def blog_meta(self) -> Mock:
+        return Mock()
+
+    @pytest.fixture
+    def blog(self, posts: Mock, pages: Mock, blog_meta: Mock) -> MongoBlogRepository:
+        return MongoBlogRepository(posts, pages, blog_meta)
+
+    def test_get_meta_queries_by_language_id(self, blog: MongoBlogRepository, blog_meta: Mock):
+        blog_meta.find_one.return_value = None
+
+        blog.get_meta("pl")
+
+        blog_meta.find_one.assert_called_once_with({"_id": "pl"})
 
     def test_get_all_posts_queries_by_language(self, blog: MongoBlogRepository, posts: Mock):
         posts.find.return_value = []

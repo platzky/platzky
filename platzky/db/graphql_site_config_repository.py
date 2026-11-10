@@ -36,7 +36,6 @@ _LOCALIZED_CONTENT_QUERY = (
     "  localizedContent(where: {language: $lang}, stage: PUBLISHED) {"
     + _TEXT_FIELDS
     + """    home_page_path: homePagePath
-    blog_meta: blogMeta { title description }
     footer { content collapsible }
     menu_items: menuItems { name url }
   }

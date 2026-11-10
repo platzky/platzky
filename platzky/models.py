@@ -210,7 +210,7 @@ class PageMeta(BaseModel):
         description: Meta description; empty to use the site's description
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     title: str = ""
     description: str = ""

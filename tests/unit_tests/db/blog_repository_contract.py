@@ -2,7 +2,7 @@
 
 Subclass `BlogRepositoryContract` in the backend's own test module (the class name
 must start with `Test` there so pytest collects it) and override `make_repository`.
-It takes neutral `posts` / `pages` data (the Json document's shape) and builds a
+It takes neutral `posts` / `pages` / `blog_meta` data (the Json document's shape) and builds a
 repository over whatever that backend stores. A remote backend's fake only maps
 fields and never filters: what the server decides is tested in the backend's own
 file through the query variables it is sent, so each test seeds exactly what should
@@ -14,14 +14,14 @@ A behaviour the backend cannot represent is opted out by overriding the test wit
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Page, Post
+from platzky.models import Page, PageMeta, Post
 
 POST = {
     "slug": "hello",
@@ -55,9 +55,15 @@ _OTHERPAGE = {**PAGE, "slug": "kontakt", "title": "Kontakt"}
 class BlogRepositoryContract(ABC):
     @abstractmethod
     def make_repository(
-        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+        self,
+        posts: Sequence[dict[str, Any]] = (),
+        pages: Sequence[dict[str, Any]] = (),
+        blog_meta: Mapping[str, Mapping[str, str]] | None = None,
     ) -> BlogRepository:
-        """Build a repository of one backend holding these posts and pages."""
+        """Build a repository of one backend holding these posts, pages and blog meta.
+
+        `blog_meta` maps a language code to its ``title`` and ``description``.
+        """
 
     def test_get_returns_every_field(self):
         repository = self.make_repository(posts=[POST])
@@ -111,3 +117,19 @@ class BlogRepositoryContract(ABC):
         pages = repository.pages.get_all("pl")
 
         assert list(pages) == [Page.model_validate(PAGE), Page.model_validate(_OTHERPAGE)]
+
+    def test_get_meta_returns_the_meta_of_the_language(self):
+        repository = self.make_repository(
+            blog_meta={"pl": {"title": "Notatki", "description": "Wszystkie notatki"}}
+        )
+
+        meta = repository.get_meta("pl")
+
+        assert meta == PageMeta(title="Notatki", description="Wszystkie notatki")
+
+    def test_get_meta_of_unconfigured_language_is_empty(self):
+        repository = self.make_repository(blog_meta={"pl": {"title": "Notatki"}})
+
+        meta = repository.get_meta("en")
+
+        assert meta == PageMeta()

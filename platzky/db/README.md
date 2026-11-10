@@ -39,8 +39,8 @@ in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 
 | Attribute | Protocol | File | Covers |
 |---|---|---|---|
-| `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
-| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_content()` returns the site-wide `SiteContent` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, blog meta, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them, and `SiteContentSection` is the whole JSON `site_content` section (also the Mongo `validate()` and `platzky check` format) |
+| `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments, and `get_meta(lang)`, the blog index's title and description |
+| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_content()` returns the site-wide `SiteContent` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them, and `SiteContentSection` is the whole JSON `site_content` section (also the Mongo `validate()` and `platzky check` format) |
 | `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
@@ -52,7 +52,7 @@ them from the `blog`, `site_config` and `plugin_config` properties; that, plus
 `SiteConfigRepository` maps its storage to the two models: `get_site_content()`
 and `get_localized_content(lang)`; the contract suite in
 `tests/unit_tests/db/site_config_repository_contract.py` checks exactly that. The blog blueprint
-(`create_blog_blueprint`) receives `db.blog` and `db.site_config`, not the `DB`.
+(`create_blog_blueprint`) receives `db.blog` only, not the `DB`.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so

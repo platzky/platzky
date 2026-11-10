@@ -1,16 +1,22 @@
 import datetime
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from platzky.db.blog_repository import BlogRepository
-from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
+from platzky.db.exceptions import (
+    DBError,
+    InvalidSiteContentError,
+    NotFoundError,
+    ReadOnlyStorageError,
+)
 from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument
 from platzky.db.json_stores import FileStore, JsonStore, MemoryStore, ReadOnlyStore
+from platzky.models import PageMeta
 from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
 
 
@@ -196,6 +202,30 @@ class TestPages:
             repository.pages.get("page-1")
 
 
+class TestMeta:
+    def test_missing_or_null_blog_meta_is_empty(self):
+        assert _repository(MemoryStore({"site_content": {}})).get_meta("en") == PageMeta()
+        assert (
+            _repository(MemoryStore({"site_content": {"blog_meta": None}})).get_meta("en")
+            == PageMeta()
+        )
+
+    @pytest.mark.parametrize(
+        "blog_meta",
+        [
+            {"en": {"unknown": "x"}},
+            {"en": {"title": None}},
+            {"en": None},
+            ["en"],
+        ],
+    )
+    def test_invalid_blog_meta_is_rejected(self, blog_meta: object):
+        repository = _repository(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
+
+        with pytest.raises(InvalidSiteContentError):
+            repository.get_meta("en")
+
+
 class TestSharedDocument:
     def test_site_content_missing_raises_db_error(self):
         repository = _repository(MemoryStore({}))
@@ -219,8 +249,19 @@ def test_json_blog_repository_satisfies_blog_repository_protocol(
 
 class TestJsonBlogRepositoryContract(BlogRepositoryContract):
     def make_repository(
-        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+        self,
+        posts: Sequence[dict[str, Any]] = (),
+        pages: Sequence[dict[str, Any]] = (),
+        blog_meta: Mapping[str, Mapping[str, str]] | None = None,
     ) -> BlogRepository:
         return _repository(
-            MemoryStore({"site_content": {"posts": list(posts), "pages": list(pages)}})
+            MemoryStore(
+                {
+                    "site_content": {
+                        "posts": list(posts),
+                        "pages": list(pages),
+                        "blog_meta": blog_meta,
+                    }
+                }
+            )
         )

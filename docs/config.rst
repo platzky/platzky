@@ -344,14 +344,17 @@ when there is no logo, and the RSS feed title.
 These keys exist in a language's entry only, and are not inherited from the
 site-wide keys or from another language:
 
-* ``blog_meta``: ``title`` and ``description`` of the blog index. Default:
-  empty, which shows the default title and the site description.
 * ``footer``: ``content`` (Markdown with shortcodes) and ``collapsible``
   (whether readers may collapse it). Default: no footer.
 * ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
   no menu.
 * ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
   the blog index.
+
+The blog is configured with its own data, next to its posts and pages:
+``blog_meta`` holds the ``title`` and ``description`` of the blog index per
+language. Default: empty, which shows the default title and the site
+description. Unknown keys and ``null`` values are errors there too.
 
 Unknown keys and ``null`` values are errors, and the application does not start
 with invalid site content. To check a JSON data file before deploying it, see
@@ -372,9 +375,12 @@ with invalid site content. To check a JSON data file before deploying it, see
           "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
           "primary_color": "white",
           "secondary_color": "navy",
+          "blog_meta": {
+            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
+            "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
+          },
           "localized_content": {
             "en": {
-              "blog_meta": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
               "footer": {"content": "Notes by a reader", "collapsible": true},
               "menu_items": [{"name": "Notes", "url": "/blog/"}],
               "home_page_path": "/blog/page/about"
@@ -384,7 +390,6 @@ with invalid site content. To check a JSON data file before deploying it, see
               "app_title": "Notatki z lektury | Literatura",
               "app_description": "Notatki o książkach Tolkiena",
               "logo_url": "https://example.com/logo-pl.png",
-              "blog_meta": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"},
               "footer": {"content": "Notatki czytelnika", "collapsible": true},
               "menu_items": [{"name": "Notatki", "url": "/blog/"}],
               "home_page_path": "/blog/page/o-nas"
@@ -415,6 +420,14 @@ with invalid site content. To check a JSON data file before deploying it, see
         "home_page_path": "/blog/page/o-nas"
       }
 
+  The blog index meta is the ``blog_meta`` collection, one document per
+  language with the language code as ``_id``:
+
+  .. code-block:: javascript
+
+      // blog_meta
+      {"_id": "pl", "title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
+
 * **GraphQL (Hygraph)**: two models. ``Site`` holds one entry (queried as
   ``sites``) with the site-wide content: ``appName``, ``appTitle``,
   ``appDescription``, ``logo``, ``faviconUrl`` (a string), ``primaryColor``,
@@ -422,9 +435,11 @@ with invalid site content. To check a JSON data file before deploying it, see
   ``LocalizedContent`` holds one entry per language, with ``language`` (the
   ``Lang`` enum) required and unique, so the server picks the entry
   (``localizedContent(where: {language: $lang})``). Its fields are ``appName``,
-  ``appTitle``, ``appDescription``, ``logo``, ``homePagePath``, ``blogMeta``
-  (``title``, ``description``), ``footer`` (``content``, ``collapsible``) and
-  ``menuItems`` (``name``, ``url``).
+  ``appTitle``, ``appDescription``, ``logo``, ``homePagePath``, ``footer`` (``content``, ``collapsible``) and
+  ``menuItems`` (``name``, ``url``). The blog index meta is a third model,
+  ``BlogMeta``, with ``language`` (the ``Lang`` enum) required and unique, and
+  ``title`` and ``description``
+  (``blogMeta(where: {language: $lang})``).
 
 Feature Flags
 ~~~~~~~~~~~~~

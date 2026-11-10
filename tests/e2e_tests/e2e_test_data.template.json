@@ -164,9 +164,12 @@
         "excerpt": "page excerpt"
       }
     ],
+    "blog_meta": {
+      "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+      "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."}
+    },
     "localized_content": {
       "en": {
-        "blog_meta": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
         "footer": {
           "content": "[link url=\"/blog/\"]English footer[/link]",
           "collapsible": true
@@ -188,7 +191,6 @@
       },
       "pl": {
         "app_description": "To nie tylko platforma do blogowania",
-        "blog_meta": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."},
         "footer": {
           "content": "[link url=\"/blog/\"]Polska stopka[/link]",
           "collapsible": true

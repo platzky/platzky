@@ -12,7 +12,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from platzky.db.exceptions import InvalidSiteContentError
-from platzky.models import Font, Footer, MenuItem, PageMeta
+from platzky.models import Font, Footer, MenuItem
 
 
 class LocalizedContent(BaseModel):
@@ -27,7 +27,6 @@ class LocalizedContent(BaseModel):
         app_title: Site title; empty falls through to the site-wide default
         app_description: Meta description; empty falls through to the site-wide default
         logo_url: Logo image URL; empty falls through to the site-wide default
-        blog_meta: The blog index's title and description
         footer: The site-wide footer
         menu_items: The navigation menu
         home_page_path: Site-relative path shown as the home page; empty for the blog index
@@ -39,7 +38,6 @@ class LocalizedContent(BaseModel):
     app_title: str = ""
     app_description: str = ""
     logo_url: str = ""
-    blog_meta: PageMeta = PageMeta()
     footer: Footer = Footer()
     menu_items: tuple[MenuItem, ...] = ()
     home_page_path: str = ""
@@ -82,17 +80,19 @@ class SiteContentSection(SiteContent):
     """The whole ``site_content`` section of a JSON document, as stored.
 
     It is the site-wide `SiteContent` plus everything else the section holds: the content of
-    each language, and the blog's posts and pages, which the blog repository owns and
+    each language, and the blog's posts, pages and meta, which the blog repository owns and
     validates. Unknown keys are an error.
 
     Attributes:
         posts: Blog posts, owned by the blog repository
         pages: Pages, owned by the blog repository
+        blog_meta: The blog index meta by language, owned by the blog repository
         localized_content: The per-language content, by language code
     """
 
     posts: Any = None
     pages: Any = None
+    blog_meta: Any = None
     localized_content: Mapping[str, LocalizedContent] = Field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -196,7 +196,7 @@ class SiteConfigRepository(Protocol):
         ...
 
     def get_localized_content(self, lang: str) -> LocalizedContent:
-        """Retrieve the content of one language: menu, footer, blog meta, home page, texts.
+        """Retrieve the content of one language: menu, footer, home page, texts.
 
         Args:
             lang: Language code (e.g., 'en', 'pl').

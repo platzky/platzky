@@ -60,7 +60,7 @@ class MongoDB(DB):
         self._client: MongoClient[Any] = MongoClient(connection_string)
         self._db: Database[Any] = self._client[database_name]
 
-        self._blog = MongoBlogRepository(self._db.posts, self._db.pages)
+        self._blog = MongoBlogRepository(self._db.posts, self._db.pages, self._db.blog_meta)
         self._plugin_config = MongoPluginConfigRepository(self._db.plugins)
         self._site_config = MongoSiteConfigRepository(
             self._db.site_content, self._db.localized_content

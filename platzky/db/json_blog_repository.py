@@ -8,15 +8,44 @@ through `JsonDocument.edit()`.
 
 import datetime
 import logging
+from collections.abc import Mapping
 
+from pydantic import TypeAdapter, ValidationError
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
 from platzky.db.json_document import JsonDocument, get_site_content
-from platzky.models import Page, Post
+from platzky.models import Page, PageMeta, Post
 
 logger = logging.getLogger(__name__)
+
+_BLOG_META = TypeAdapter(dict[str, PageMeta])
+
+
+def parse_blog_meta(blog_meta: object) -> Mapping[str, PageMeta]:
+    """Validate the ``blog_meta`` key of the site content, e.g. when the application starts.
+
+    Args:
+        blog_meta: The stored value: the blog index meta by language code, or None if absent.
+
+    Returns:
+        The blog index meta by language code.
+
+    Raises:
+        InvalidSiteContentError: If it is invalid; the message lists every problem with its
+            path, one per line.
+    """
+    try:
+        return _BLOG_META.validate_python({} if blog_meta is None else blog_meta)
+    except ValidationError as error:
+        raise InvalidSiteContentError(
+            "\n".join(
+                ".".join(["site_content", "blog_meta", *(str(part) for part in problem["loc"])])
+                + f": {problem['msg']}"
+                for problem in error.errors()
+            )
+        ) from error
 
 
 class _JsonPostRepository(PostRepository):
@@ -174,6 +203,7 @@ class JsonBlogRepository(BlogRepository):
             document: The loaded document, shared with the other JSON
                 repositories.
         """
+        self._document = document
         self._posts = _JsonPostRepository(document)
         self._pages = _JsonPageRepository(document)
 
@@ -188,3 +218,19 @@ class JsonBlogRepository(BlogRepository):
     def pages(self) -> PageRepository:
         """Return the page repository."""
         return self._pages
+
+    @override
+    def get_meta(self, lang: str) -> PageMeta:
+        """Retrieve the title and description of the blog index.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The blog index meta, empty if none is configured for the language.
+
+        Raises:
+            InvalidSiteContentError: If the stored blog meta is invalid.
+        """
+        meta = parse_blog_meta(get_site_content(self._document.data).get("blog_meta"))
+        return meta.get(lang, PageMeta())

@@ -14,7 +14,6 @@ from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
-from platzky.db.site_config_repository import SiteConfigRepository
 from platzky.models import Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
@@ -29,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 def create_blog_blueprint(
     blog_repository: BlogRepository,
-    site_config: SiteConfigRepository,
     blog_prefix: str,
     locale_func: Callable[[], str],
     content_transformer: Callable[[ContentSource | str, FilterContentType], str],
@@ -37,8 +35,7 @@ def create_blog_blueprint(
     """Create and configure the blog blueprint with all routes and handlers.
 
     Args:
-        blog_repository: Repository of the posts and pages to serve
-        site_config: Repository of the site settings the blog index reads (its meta)
+        blog_repository: Repository of the posts, pages and index meta to serve
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
         content_transformer: Function applied to post/page content before rendering
@@ -107,7 +104,7 @@ def create_blog_blueprint(
         return render_template(
             "blog.html",
             posts=posts_sorted,
-            blog_meta=site_config.get_localized_content(lang).blog_meta,
+            blog_meta=blog_repository.get_meta(lang),
         )
 
     @blog.route("/feed", methods=["GET"], multilang=True)
@@ -232,7 +229,7 @@ def create_blog_blueprint(
             "blog.html",
             posts=posts,
             subtitle=f" - tag: {tag}",
-            blog_meta=site_config.get_localized_content(lang).blog_meta,
+            blog_meta=blog_repository.get_meta(lang),
         )
 
     return blog

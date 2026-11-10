@@ -565,7 +565,6 @@ def create_app_from_config(
 
     blog_blueprint = blog.create_blog_blueprint(
         blog_repository=engine.db.blog,
-        site_config=engine.db.site_config,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,

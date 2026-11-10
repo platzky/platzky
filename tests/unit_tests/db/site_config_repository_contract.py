@@ -26,7 +26,7 @@ from platzky.db.site_config_repository import (
     SiteConfigRepository,
     SiteContent,
 )
-from platzky.models import Font, Footer, MenuItem, PageMeta
+from platzky.models import Font, Footer, MenuItem
 
 SITE_CONTENT = {
     "logo_url": "/logo.png",
@@ -39,7 +39,6 @@ SITE_CONTENT = {
     "app_description": "Notes on Tolkien's books",
     "localized_content": {
         "en": {
-            "blog_meta": {"title": "Reading notes", "description": "All the notes"},
             "footer": {"content": "English footer", "collapsible": True},
             "menu_items": [{"name": "Home", "url": "/"}, {"name": "Notes", "url": "/blog"}],
             "home_page_path": "/blog/page/about",
@@ -49,7 +48,6 @@ SITE_CONTENT = {
             "app_title": "Literatura | Notatki z lektur",
             "app_description": "Notatki o książkach Tolkiena",
             "logo_url": "/logo-pl.png",
-            "blog_meta": {"title": "Notatki", "description": "Wszystkie notatki"},
             "footer": {"content": "Stopka"},
             "menu_items": [{"name": "Start", "url": "/"}],
             "home_page_path": "/blog/page/o-nas",
@@ -82,7 +80,6 @@ class SiteConfigRepositoryContract(ABC):
         repository = self.make_repository(SITE_CONTENT)
 
         assert repository.get_localized_content("en") == LocalizedContent(
-            blog_meta=PageMeta(title="Reading notes", description="All the notes"),
             footer=Footer(content="English footer", collapsible=True),
             menu_items=(MenuItem(name="Home", url="/"), MenuItem(name="Notes", url="/blog")),
             home_page_path="/blog/page/about",
@@ -92,7 +89,6 @@ class SiteConfigRepositoryContract(ABC):
             app_title="Literatura | Notatki z lektur",
             app_description="Notatki o książkach Tolkiena",
             logo_url="/logo-pl.png",
-            blog_meta=PageMeta(title="Notatki", description="Wszystkie notatki"),
             footer=Footer(content="Stopka"),
             menu_items=(MenuItem(name="Start", url="/"),),
             home_page_path="/blog/page/o-nas",

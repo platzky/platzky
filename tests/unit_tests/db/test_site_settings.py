@@ -64,16 +64,16 @@ def test_global_values_are_not_overridden_by_a_language():
     )
 
 
-@pytest.mark.parametrize("posts_key", ["posts", "pages"])
-def test_sections_owned_by_the_blog_repository_are_accepted(posts_key: str):
-    SiteContentSection.model_validate({posts_key: [{"title": "Anything"}]})
+@pytest.mark.parametrize("key", ["posts", "pages", "blog_meta"])
+def test_sections_owned_by_the_blog_repository_are_accepted(key: str):
+    SiteContentSection.model_validate({key: [{"title": "Anything"}]})
 
 
 @pytest.mark.parametrize(
     "site_content",
     [
         {"menu_items": {"en": []}},
-        {"blog_meta": {"en": {"title": "Notes"}}},
+        {"localized_content": {"en": {"blog_meta": {"title": "Notes"}}}},
         {"footer": {"content": {"en": "Footer"}}},
         {"home_page_path": "/blog/page/about"},
         {"unknown": 1},
@@ -93,7 +93,6 @@ def test_unknown_keys_are_rejected(site_content: dict[str, Any]):
         {"localized_content": {"pl": None}},
         {"localized_content": {"pl": {"app_name": None}}},
         {"localized_content": {"pl": {"footer": None}}},
-        {"localized_content": {"pl": {"blog_meta": None}}},
         {"localized_content": {"pl": {"menu_items": None}}},
         {"localized_content": {"pl": {"home_page_path": None}}},
     ],

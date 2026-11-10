@@ -9,6 +9,7 @@ from string import Template
 import click
 
 from platzky.db.exceptions import InvalidSiteContentError
+from platzky.db.json_blog_repository import parse_blog_meta
 from platzky.db.site_config_repository import parse_site_content
 from platzky.platzky import create_app
 
@@ -88,8 +89,8 @@ def check(file: Path) -> None:
     """Validate the site configuration in a JSON database FILE.
 
     Checks the site-configuration part of ``site_content`` (texts, theme, per-language content);
-    posts and pages are not checked. Prints OK and exits 0 when it is valid; otherwise lists
-    every problem with its path and exits 1.
+    the blog index meta is checked too; posts and pages are not. Prints OK and exits 0 when it
+    is valid; otherwise lists every problem with its path and exits 1.
     """
     try:
         document = json.loads(file.read_text(encoding="utf-8"))
@@ -98,7 +99,7 @@ def check(file: Path) -> None:
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")
     try:
-        parse_site_content(document.get("site_content"))
+        parse_blog_meta(parse_site_content(document.get("site_content")).blog_meta)
     except InvalidSiteContentError as error:
         raise click.ClickException(str(error)) from error
     click.echo("OK")

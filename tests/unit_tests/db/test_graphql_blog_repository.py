@@ -1,5 +1,5 @@
 import datetime
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from unittest.mock import Mock
 
@@ -8,7 +8,7 @@ from gql import Client
 
 from platzky.db.blog_repository import BlogRepository, PostRepository
 from platzky.db.graphql_blog_repository import GraphQLBlogRepository
-from platzky.models import Comment, Post
+from platzky.models import Comment, PageMeta, Post
 from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
 
 
@@ -46,6 +46,22 @@ _POST_QUERIES: dict[str, Callable[[PostRepository], list[Post]]] = {
 @pytest.fixture(params=_POST_QUERIES.values(), ids=list(_POST_QUERIES))
 def query_posts(request: pytest.FixtureRequest) -> Callable[[PostRepository], list[Post]]:
     return request.param
+
+
+class TestMeta:
+    def test_null_fields_are_empty(self, repository: GraphQLBlogRepository, mock_client: Mock):
+        mock_client.execute.return_value = {"blogMeta": {"title": "Notes", "description": None}}
+
+        meta = repository.get_meta("en")
+
+        assert meta == PageMeta(title="Notes")
+
+    def test_queries_by_language(self, repository: GraphQLBlogRepository, mock_client: Mock):
+        mock_client.execute.return_value = {"blogMeta": None}
+
+        repository.get_meta("pl")
+
+        assert mock_client.execute.call_args.kwargs == {"variable_values": {"lang": "pl"}}
 
 
 class TestPosts:
@@ -351,15 +367,23 @@ def _hygraph_page(page: dict[str, Any]) -> dict[str, Any]:
 
 class TestGraphQLBlogRepositoryContract(BlogRepositoryContract):
     def make_repository(
-        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+        self,
+        posts: Sequence[dict[str, Any]] = (),
+        pages: Sequence[dict[str, Any]] = (),
+        blog_meta: Mapping[str, Mapping[str, str]] | None = None,
     ) -> BlogRepository:
         client = Mock(spec=Client)
         hygraph_posts = [_hygraph_post(post) for post in posts]
         hygraph_pages = [_hygraph_page(page) for page in pages]
-        client.execute.return_value = {
-            "post": (hygraph_posts or [None])[0],
-            "posts": hygraph_posts,
-            "page": (hygraph_pages or [None])[0],
-            "pages": hygraph_pages,
-        }
+
+        def execute(_query: object, variable_values: Mapping[str, str]) -> dict[str, Any]:
+            return {
+                "post": (hygraph_posts or [None])[0],
+                "posts": hygraph_posts,
+                "page": (hygraph_pages or [None])[0],
+                "pages": hygraph_pages,
+                "blogMeta": (blog_meta or {}).get(variable_values.get("lang", "")),
+            }
+
+        client.execute.side_effect = execute
         return GraphQLBlogRepository(lambda: client)

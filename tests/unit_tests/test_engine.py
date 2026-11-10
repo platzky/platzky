@@ -836,19 +836,9 @@ def test_blog_index_has_meta_in_its_language():
                 _post("the-hobbit", "The Hobbit", "en"),
                 _post("hobbit", "Hobbit", "pl"),
             ],
-            "localized_content": {
-                "en": {
-                    "blog_meta": {
-                        "title": "Reading notes",
-                        "description": "Notes on Tolkien's books.",
-                    }
-                },
-                "pl": {
-                    "blog_meta": {
-                        "title": "Notatki",
-                        "description": "Notatki o książkach Tolkiena.",
-                    }
-                },
+            "blog_meta": {
+                "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+                "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
             },
         },
         languages=_BILINGUAL_LANGUAGES,

@@ -88,7 +88,6 @@ class TestRequests:
                     }
                 ],
                 "localizedContent": {
-                    "blog_meta": None,
                     "footer": {"content": None, "collapsible": None},
                     "menu_items": [],
                 },

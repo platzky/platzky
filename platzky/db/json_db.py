@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.json_blog_repository import JsonBlogRepository
+from platzky.db.json_blog_repository import JsonBlogRepository, parse_blog_meta
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
@@ -69,7 +69,7 @@ class Json(DB):
 
     def _validate_site_content(self) -> None:
         """Raise `InvalidSiteContentError` if the site content does not match its format."""
-        parse_site_content(get_site_content(self._document.data))
+        parse_blog_meta(parse_site_content(get_site_content(self._document.data)).blog_meta)
 
     @property
     @override
