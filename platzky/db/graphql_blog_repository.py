@@ -83,6 +83,16 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_BLOG_META_QUERY = gql("""
+    query BlogMeta($lang: Lang!) {
+      blogMeta(where: {language: $lang}, stage: PUBLISHED) {
+        title
+        description
+      }
+    }
+    """)
+
+
 class _GraphQLPostRepository(PostRepository):
     """Post repository backed by a GraphQL CMS."""
 
@@ -391,16 +401,9 @@ class GraphQLBlogRepository(BlogRepository):
             The blog index meta, empty if none is configured for the language. Fields an
             editor left unset (null in Hygraph) are not set, so they are empty.
         """
-        meta_query = gql("""
-            query BlogMeta($lang: Lang!) {
-              blogMeta(where: {language: $lang}, stage: PUBLISHED) {
-                title
-                description
-              }
-            }
-            """)
         raw_meta = (
-            self._get_client().execute(meta_query, variable_values={"lang": lang})["blogMeta"] or {}
+            self._get_client().execute(_BLOG_META_QUERY, variable_values={"lang": lang})["blogMeta"]
+            or {}
         )
         return PageMeta.model_validate(
             {key: value for key, value in raw_meta.items() if value not in (None, "")}

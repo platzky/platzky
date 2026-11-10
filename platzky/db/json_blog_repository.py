@@ -16,7 +16,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -28,8 +27,6 @@ from platzky.db.json_document import JsonSection
 from platzky.models import Page, PageMeta, Post
 
 logger = logging.getLogger(__name__)
-
-_META = TypeAdapter(Mapping[str, PageMeta])
 
 
 class BlogSection(BaseModel):
@@ -261,11 +258,16 @@ class JsonBlogRepository(BlogRepository):
         Raises:
             InvalidDataError: If the stored blog meta is invalid.
         """
+        meta = self._section.data.get("meta", {})
+        if not isinstance(meta, Mapping):
+            raise InvalidDataError(f"{self._section.name}.meta: Input should be a valid dictionary")
         try:
-            meta = _META.validate_python(self._section.data.get("meta", {}))
+            result = PageMeta.model_validate(meta.get(lang, {}))
         except ValidationError as error:
-            raise InvalidDataError(format_problems(error, self._section.name, "meta")) from error
-        return meta.get(lang, PageMeta())
+            raise InvalidDataError(
+                format_problems(error, self._section.name, "meta", lang)
+            ) from error
+        return result
 
     def validate(self) -> None:
         """Check the whole section against the blog format, e.g. when the application starts.
