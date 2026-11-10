@@ -12,35 +12,34 @@ from platzky.db.site_config_repository import (
     SiteConfigRepository,
 )
 
-# The text fields that `Site` and `LocalizedContent` both have, answered in snake_case.
-_TEXT_FIELDS = """
-    app_name: appName
-    app_title: appTitle
-    app_description: appDescription
-    logo { image { url } }
-"""
+_SITE_CONFIG_QUERY = gql("""
+    query SiteConfig {
+      sites(stage: PUBLISHED, first: 1) {
+        app_name: appName
+        app_title: appTitle
+        app_description: appDescription
+        logo { image { url } }
+        favicon_url: faviconUrl
+        primary_color: primaryColor
+        secondary_color: secondaryColor
+        font { name url }
+      }
+    }
+    """)
 
-_SITE_CONTENT_QUERY = (
-    "query SiteConfig {\n  sites(stage: PUBLISHED, first: 1) {"
-    + _TEXT_FIELDS
-    + """    favicon_url: faviconUrl
-    primary_color: primaryColor
-    secondary_color: secondaryColor
-    font { name url }
-  }
-}"""
-)
-
-_LOCALIZED_CONTENT_QUERY = (
-    "query LocalizedContent($lang: Lang!) {\n"
-    "  localizedContent(where: {language: $lang}, stage: PUBLISHED) {"
-    + _TEXT_FIELDS
-    + """    home_page_path: homePagePath
-    footer { content collapsible }
-    menu_items: menuItems { name url }
-  }
-}"""
-)
+_LOCALIZED_CONTENT_QUERY = gql("""
+    query LocalizedContent($lang: Lang!) {
+      localizedContent(where: {language: $lang}, stage: PUBLISHED) {
+        app_name: appName
+        app_title: appTitle
+        app_description: appDescription
+        logo { image { url } }
+        home_page_path: homePagePath
+        footer { content collapsible }
+        menu_items: menuItems { name url }
+      }
+    }
+    """)
 
 
 def _present(values: Mapping[str, Any]) -> dict[str, Any]:
@@ -88,7 +87,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         Returns:
             The site-wide content; null and missing fields are not set.
         """
-        result = self._client_getter().execute(gql(_SITE_CONTENT_QUERY))
+        result = self._client_getter().execute(_SITE_CONFIG_QUERY)
         return SiteConfig.model_validate(_fields(next(iter(result["sites"]), {})))
 
     @override
@@ -103,6 +102,6 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             fields are not set.
         """
         result = self._client_getter().execute(
-            gql(_LOCALIZED_CONTENT_QUERY), variable_values={"lang": lang}
+            _LOCALIZED_CONTENT_QUERY, variable_values={"lang": lang}
         )
         return LocalizedContent.model_validate(_fields(result["localizedContent"] or {}))
