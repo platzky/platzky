@@ -9,12 +9,12 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import validate_all
 from platzky.db.mongo_blog_repository import MongoBlogRepository
 from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.plugin_config_repository import PluginConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
+from platzky.db.validation import validate_all
 
 
 def db_config_type() -> type["MongoDbConfig"]:

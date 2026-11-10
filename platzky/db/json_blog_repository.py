@@ -14,14 +14,14 @@ from typing import Any
 
 from pydantic import (
     Field,
-    ValidationError,
     field_validator,
 )
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidDataError, NotFoundError, format_problems
+from platzky.db.exceptions import InvalidDataError, NotFoundError
 from platzky.db.json_document import JsonSection
+from platzky.db.validation import parse
 from platzky.models import Page, PageMeta, Post, StrictModel
 
 logger = logging.getLogger(__name__)
@@ -257,13 +257,7 @@ class JsonBlogRepository(BlogRepository):
         meta = self._section.data.get("meta", {})
         if not isinstance(meta, Mapping):
             raise InvalidDataError(f"{self._section.name}.meta: Input should be a valid dictionary")
-        try:
-            result = PageMeta.model_validate(meta.get(lang, {}))
-        except ValidationError as error:
-            raise InvalidDataError(
-                format_problems(error, self._section.name, "meta", lang)
-            ) from error
-        return result
+        return parse(PageMeta, meta.get(lang, {}), self._section.name, "meta", lang)
 
     def validate(self) -> None:
         """Check the whole section against the blog format, e.g. when the application starts.
@@ -272,7 +266,4 @@ class JsonBlogRepository(BlogRepository):
             InvalidDataError: If it is invalid; the message lists every problem with its
                 path, one per line.
         """
-        try:
-            BlogSection.model_validate(self._section.data)
-        except ValidationError as error:
-            raise InvalidDataError(format_problems(error, self._section.name)) from error
+        parse(BlogSection, self._section.data, self._section.name)

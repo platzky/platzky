@@ -2,33 +2,18 @@
 
 from collections.abc import Mapping
 from functools import partial
-from typing import Any, TypeVar
+from typing import Any
 
-from pydantic import BaseModel, ValidationError
 from pymongo.collection import Collection
 from typing_extensions import override
 
-from platzky.db.exceptions import InvalidDataError, format_problems, validate_all
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
-
-_Model = TypeVar("_Model", bound=BaseModel)
+from platzky.db.validation import parse, validate_all
 
 
 def _without_id(document: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return a stored document's fields without its ``_id``, empty if there is no document."""
     return {key: value for key, value in (document or {}).items() if key != "_id"}
-
-
-def _parse(model: type[_Model], document: Mapping[str, Any] | None, *path: str) -> _Model:
-    """Validate a stored document, without its ``_id``, as ``model``.
-
-    Raises:
-        InvalidDataError: If it is invalid; the message lists every problem with its path.
-    """
-    try:
-        return model.model_validate(_without_id(document))
-    except ValidationError as error:
-        raise InvalidDataError(format_problems(error, *path)) from error
 
 
 class MongoSiteConfigRepository(SiteConfigRepository):
@@ -63,13 +48,16 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         validate_all(
             (
                 partial(
-                    _parse, SiteConfig, self._site_config.find_one({"_id": "config"}), "site_config"
+                    parse,
+                    SiteConfig,
+                    _without_id(self._site_config.find_one({"_id": "config"})),
+                    "site_config",
                 ),
                 *(
                     partial(
-                        _parse,
+                        parse,
                         LocalizedContent,
-                        document,
+                        _without_id(document),
                         "localized_content",
                         str(document["_id"]),
                     )
@@ -85,7 +73,11 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The site-wide content, with defaults where none is configured.
         """
-        return _parse(SiteConfig, self._site_config.find_one({"_id": "config"}), "site_config")
+        return parse(
+            SiteConfig,
+            _without_id(self._site_config.find_one({"_id": "config"})),
+            "site_config",
+        )
 
     @override
     def get_localized_content(self, lang: str) -> LocalizedContent:
@@ -97,9 +89,9 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         Returns:
             The language's content, empty if none is configured for it.
         """
-        return _parse(
+        return parse(
             LocalizedContent,
-            self._localized_content.find_one({"_id": lang}),
+            _without_id(self._localized_content.find_one({"_id": lang})),
             "localized_content",
             lang,
         )

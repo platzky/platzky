@@ -5,12 +5,12 @@ from collections.abc import Mapping
 from functools import partial
 from typing import Any
 
-from pydantic import ValidationError
 from pymongo.collection import Collection
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidDataError, NotFoundError, format_problems, validate_all
+from platzky.db.exceptions import NotFoundError
+from platzky.db.validation import parse, validate_all
 from platzky.models import Page, PageMeta, Post
 
 
@@ -20,12 +20,12 @@ def _meta_of(document: Mapping[str, Any], lang: str) -> PageMeta:
     Raises:
         InvalidDataError: If the document is invalid; the message lists every problem with its path.
     """
-    try:
-        return PageMeta.model_validate(
-            {key: value for key, value in document.items() if key != "_id"}
-        )
-    except ValidationError as error:
-        raise InvalidDataError(format_problems(error, "blog_meta", lang)) from error
+    return parse(
+        PageMeta,
+        {key: value for key, value in document.items() if key != "_id"},
+        "blog_meta",
+        lang,
+    )
 
 
 class _MongoPostRepository(PostRepository):

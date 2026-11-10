@@ -7,7 +7,6 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import validate_all
 from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
@@ -15,6 +14,7 @@ from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.db.plugin_config_repository import PluginConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
+from platzky.db.validation import validate_all
 
 
 def db_config_type() -> type["JsonDbConfig"]:

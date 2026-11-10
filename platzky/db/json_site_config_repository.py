@@ -7,12 +7,12 @@ the ``localized_content`` of each language.
 from collections.abc import Mapping
 from types import MappingProxyType
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, field_validator
 from typing_extensions import override
 
-from platzky.db.exceptions import InvalidDataError, format_problems
 from platzky.db.json_document import JsonSection
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
+from platzky.db.validation import parse
 
 
 class SiteConfigSection(SiteConfig):
@@ -49,10 +49,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
 
     def _parsed(self) -> SiteConfigSection:
         """Validate and return the stored section."""
-        try:
-            return SiteConfigSection.model_validate(self._section.data)
-        except ValidationError as error:
-            raise InvalidDataError(format_problems(error, self._section.name)) from error
+        return parse(SiteConfigSection, self._section.data, self._section.name)
 
     def validate(self) -> None:
         """Check the section against the site config format, e.g. when the application starts.
