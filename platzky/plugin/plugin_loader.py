@@ -93,7 +93,7 @@ def plugify(app: Engine) -> Engine:
         PluginError: if a configured plugin cannot be loaded or initialised
     """
     try:
-        plugins_data = app.db.get_plugins_data()
+        plugins_data = app.db.plugin_config.get_all()
     except ValidationError as e:
         raise PluginError(f"Invalid plugin configuration in database: {e}") from e
 

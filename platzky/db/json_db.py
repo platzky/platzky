@@ -3,23 +3,14 @@
 from typing import Any
 
 from pydantic import Field
-from typing_extensions import override
 
-from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
 from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
-from platzky.db.plugin_config_repository import PluginConfigRepository
-from platzky.db.site_config_repository import (
-    SiteConfigRepository,
-    SiteSettings,
-    parse_site_content,
-)
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
-from platzky.plugin.plugin_config import PluginConfigBase
+from platzky.db.site_config_repository import parse_site_content
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -67,9 +58,9 @@ class Json(DB):
         super().__init__()
         document = JsonDocument(store)
         self._document = document
-        self._blog: BlogRepository = JsonBlogRepository(document)
-        self._plugin_config: PluginConfigRepository = JsonPluginConfigRepository(document)
-        self._site_config: SiteConfigRepository = JsonSiteConfigRepository(document)
+        self.blog = JsonBlogRepository(document)
+        self.plugin_config = JsonPluginConfigRepository(document)
+        self.site_config = JsonSiteConfigRepository(document)
         if "site_content" in document.data:
             self._validate_site_content()
 
@@ -88,144 +79,6 @@ class Json(DB):
         and persists atomically.
         """
         return self._document
-
-    @override
-    def get_blog_meta(self, lang: str) -> PageMeta:
-        """Retrieve the blog index's title and description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            The blog meta, empty if none is configured for the language
-        """
-        return self._site_config.get_blog_meta(lang)
-
-    @override
-    def get_footer(self, lang: str) -> Footer:
-        """Retrieve the site-wide footer for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            The footer, empty and not collapsible if none is configured
-        """
-        return self._site_config.get_footer(lang)
-
-    def get_all_posts(self, lang: str) -> list[Post]:
-        """Retrieve all posts for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            List of Post objects
-        """
-        return self._blog.posts.get_all(lang)
-
-    @override
-    def get_all_pages(self, lang: str) -> list[Page]:
-        """Retrieve all pages for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            List of Page objects
-        """
-        return self._blog.pages.get_all(lang)
-
-    def get_post(self, slug: str) -> Post:
-        """Returns a post matching the given slug.
-
-        Args:
-            slug: URL-friendly identifier for the post
-
-        Returns:
-            Post object
-
-        Raises:
-            NotFoundError: If posts data is missing or post not found
-        """
-        return self._blog.posts.get(slug)
-
-    def get_page(self, slug: str) -> Page:
-        """Retrieve a page by its slug.
-
-        Args:
-            slug: URL-friendly identifier for the page
-
-        Returns:
-            Page object
-
-        Raises:
-            NotFoundError: If pages data is missing or page not found
-        """
-        return self._blog.pages.get(slug)
-
-    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
-        """Retrieve menu items for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl')
-
-        Returns:
-            List of MenuItem objects
-        """
-        return self._site_config.get_menu_items_in_lang(lang)
-
-    def get_posts_by_tag(self, tag: str, lang: str) -> list[Post]:
-        """Retrieve posts filtered by tag and language.
-
-        Returns a list of posts, unlike generators which can only be iterated once.
-        """
-        return self._blog.posts.get_by_tag(tag, lang)
-
-    def get_site_settings(self, lang: str) -> SiteSettings:
-        """Retrieve branding and site text for the app in a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The app's site settings, with text empty where none is configured.
-        """
-        return self._site_config.get_site_settings(lang)
-
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured for
-            this locale.
-        """
-        return self._site_config.get_home_page_path(locale)
-
-    def add_comment(self, author_name: str, comment: str, post_slug: str) -> None:
-        """Add a new comment to a post.
-
-        Store dates in UTC with timezone info for consistency with MongoDB backend.
-        This ensures accurate time delta calculations regardless of server timezone.
-        Legacy dates without timezone info are still supported for backward compatibility.
-
-        Args:
-            author_name: Name of the comment author
-            comment: Comment text content
-            post_slug: URL-friendly identifier of the post
-
-        Raises:
-            NotFoundError: If post not found
-            ReadOnlyStorageError: If the backend does not support writes
-        """
-        self._blog.posts.add_comment(author_name, comment, post_slug)
-
-    def get_plugins_data(self) -> dict[str, PluginConfigBase]:
-        """Retrieve configuration data for all plugins."""
-        return self._plugin_config.get_all()
 
     def health_check(self) -> None:
         """Perform a health check on the JSON database.

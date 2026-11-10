@@ -4,7 +4,7 @@ This directory contains the database abstraction layer for the Platzky applicati
 
 ## Architecture
 
-The database layer is built on an abstract base class (DB) that defines a common interface. Multiple implementations are provided for different storage backends:
+The database layer is built on an abstract base class (`DB`): a container of three repositories (`blog`, `site_config`, `plugin_config`) plus a `health_check()`. `DB` has no data-access methods of its own. Multiple implementations are provided for different storage backends:
 
 - **Json**: Base implementation for JSON data sources
 - **JsonFile**: Local JSON file storage
@@ -34,22 +34,21 @@ to be duplicated.
 
 ### Repositories
 
-Behind the `DB` interface, data access is split into repositories, each a
-`typing.Protocol`:
+A `DB` exposes its data access as three repositories, each a `typing.Protocol`,
+in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 
-| Protocol | File | Covers |
-|---|---|---|
-| `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
-| `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta; the stored format is the `SiteContent` and `LocalizedContent` models in the same file |
-| `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
+| Attribute | Protocol | File | Covers |
+|---|---|---|---|
+| `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
+| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta; the stored format is the `SiteContent` and `LocalizedContent` models in the same file |
+| `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
 `json_blog_repository.py`, `mongo_plugin_config_repository.py`). Every backend
-(`json`, `graphql`, `mongo`) implements the site config and plugin config
-repositories. The blog repository exists for `json` and `graphql` only: `MongoDB`
-keeps its blog logic (posts, pages, comments) inline in the facade. Otherwise a
-`DB` subclass builds its repositories and forwards each method to them, in
-`self._blog`, `self._site_config` and `self._plugin_config`.
+(`json`, `graphql`, `mongo`) implements all three. A `DB` subclass builds its
+three repositories in its constructor and assigns them to `self.blog`,
+`self.site_config` and `self.plugin_config`; that, plus `health_check()`, is all a
+custom backend has to implement.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so
@@ -60,14 +59,14 @@ To add a new repository:
 
 1. Define its Protocol in a new `platzky/db/<name>.py`.
 2. Add one implementation per backend, named `<backend>_<name>.py`.
-3. Build each one in the matching `DB` subclass and forward the `DB` methods to it.
+3. Declare it as an attribute on `DB` and build it in each `DB` subclass.
 4. Add one test file per implementation, and a contract test parametrized over every
    backend that implements it. For a remote backend (GraphQL) the contract's mock returns
    exactly what the server would answer in that test and never re-implements server logic
    such as filtering; what the server decides is tested in the backend's own file through
    the query variables it is sent. A backend that fails the contract has a bug: mark the
    test `xfail` with a link to the issue instead of special-casing the backend.
-5. Add facade delegation tests to each backend's `DB` test file.
+5. Test in each backend's `DB` test file that the constructor wires the repository.
 
 
 ## Configuration
@@ -121,9 +120,9 @@ from platzky.db.db_loader import get_db
 # db_config is loaded from your application config
 db = get_db(db_config)
 
-# Now you can use any of the standard DB methods
-posts = db.get_all_posts("en")
-menu_items = db.get_menu_items_in_lang("en")
+# Use the repositories
+posts = db.blog.posts.get_all("en")
+menu_items = db.site_config.get_menu_items_in_lang("en")
 ```
 
 ## Extending: host-app repositories

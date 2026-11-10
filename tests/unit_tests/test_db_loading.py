@@ -37,7 +37,9 @@ def test_loading_json_file_db_dynamically():
         ):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
-            assert db.get_site_settings("en") == SiteSettings(app_description="From file")
+            assert db.site_config.get_site_settings("en") == SiteSettings(
+                app_description="From file"
+            )
 
 
 def test_loading_google_json_db_dynamically():
@@ -70,7 +72,7 @@ def test_loading_google_json_db_dynamically():
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
-        assert db.get_site_settings("en") == expected_settings
+        assert db.site_config.get_site_settings("en") == expected_settings
 
         mock_client.assert_called_once()
         mock_bucket.blob.assert_called_once_with("data.json")

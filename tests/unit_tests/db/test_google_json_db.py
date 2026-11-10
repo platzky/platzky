@@ -48,4 +48,4 @@ class TestGoogleJsonDb:
         db = GoogleJsonDb("test-bucket", "test-blob.json")
 
         with pytest.raises(ReadOnlyStorageError):
-            db.add_comment("Test User", "New comment", "post-1")
+            db.blog.posts.add_comment("Test User", "New comment", "post-1")

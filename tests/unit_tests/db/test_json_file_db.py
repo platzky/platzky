@@ -45,16 +45,16 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.get_site_settings("en").app_description == "English description"
-            assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
+            assert db.site_config.get_site_settings("en").app_description == "English description"
+            assert [post.slug for post in db.blog.posts.get_all("en")] == ["post-1"]
 
     def test_get_site_settings(self, sample_data: dict[str, object], mock_file_path: str):
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.get_site_settings("en").app_description == "English description"
-            assert db.get_site_settings("de").app_description == "Deutsche Beschreibung"
-            assert db.get_site_settings("fr").app_description == "Default description"
+            assert db.site_config.get_site_settings("en").app_description == "English description"
+            assert db.site_config.get_site_settings("de").app_description == "Deutsche Beschreibung"
+            assert db.site_config.get_site_settings("fr").app_description == "Default description"
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
         data_file = tmp_path / "data.json"
@@ -64,10 +64,10 @@ class TestJsonFileDb:
         with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
             db = JsonFile(str(data_file))
-            db.add_comment("Test User", "New comment", "post-1")
+            db.blog.posts.add_comment("Test User", "New comment", "post-1")
 
         # Verify the comment is visible through the db's public interface
-        comments = db.get_post("post-1").comments
+        comments = db.blog.posts.get("post-1").comments
         assert len(comments) == 1
         assert comments[0].author == "Test User"
         assert comments[0].comment == "New comment"
@@ -111,7 +111,7 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            posts = db.get_all_posts("en")
+            posts = db.blog.posts.get_all("en")
             assert len(posts) == 1
             assert posts[0].title == "Post 1"
             assert posts[0].slug == "post-1"
@@ -120,7 +120,7 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            post = db.get_post("post-1")
+            post = db.blog.posts.get("post-1")
             assert post.title == "Post 1"
             assert post.slug == "post-1"
 
@@ -128,4 +128,4 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)), pytest.raises(ValueError):
             db = JsonFile(mock_file_path)
-            db.get_post("non-existent")
+            db.blog.posts.get("non-existent")

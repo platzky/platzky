@@ -38,7 +38,7 @@ def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
 def _mock_db() -> MagicMock:
     """A database mock whose footer is a real, empty one, as every page render reads it."""
     db = MagicMock()
-    db.get_footer.return_value = Footer()
+    db.site_config.get_footer.return_value = Footer()
     return db
 
 

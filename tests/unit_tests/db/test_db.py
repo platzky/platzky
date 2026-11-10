@@ -24,7 +24,7 @@ def test_document_edit_is_visible_to_the_database():
             {"title": "t", "slug": "added", "contentInMarkdown": "c", "author": "a", "excerpt": "e"}
         )
 
-    assert [page.slug for page in db.get_all_pages("en")] == ["added"]
+    assert [page.slug for page in db.blog.pages.get_all("en")] == ["added"]
 
 
 def test_document_edit_is_persisted_by_file_store(tmp_path: Path):

@@ -231,7 +231,7 @@ def _change_language_response(config: Config, lang: str) -> Response:
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     """Render the configured homepage, falling back to the blog index.
 
-    Resolves db.get_home_page_path() for the current request's locale through
+    Resolves db.site_config.get_home_page_path() for the current request's locale through
     the app's own URL map, so it can point at a page, a post, or any other
     registered route. Falls back to the blog index if no homepage is
     configured for that locale, or if the configured path resolves back to
@@ -244,7 +244,7 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     Returns:
         Rendered HTML of the resolved destination, or the 404 page.
     """
-    configured_home = app.db.get_home_page_path(app.get_locale())
+    configured_home = app.db.site_config.get_home_page_path(app.get_locale())
     target_path = (
         configured_home
         if isinstance(configured_home, str) and configured_home not in {"", "/"}
@@ -364,7 +364,7 @@ def create_engine(
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
         alternates = app.current_page_language_alternates()
-        site_settings = app.db.get_site_settings(locale)
+        site_settings = app.db.site_config.get_site_settings(locale)
         app_name = site_settings.app_name or config.app_name
         return {
             "app_name": app_name,
@@ -381,7 +381,7 @@ def create_engine(
             "language_alternates": alternates,
             "language_suggestions": _language_suggestions(config, locale, alternates),
             "url_link": _url_encode,
-            "menu_items": app.db.get_menu_items_in_lang(locale),
+            "menu_items": app.db.site_config.get_menu_items_in_lang(locale),
             "logo_url": site_settings.logo.url if site_settings.logo else "",
             "favicon_url": site_settings.favicon_url,
             "font": site_settings.font,
@@ -415,7 +415,7 @@ def create_engine(
             Dictionary with the rendered ``footer`` (empty when none is configured) and
             ``footer_collapsible``, whether readers may collapse it
         """
-        footer = app.db.get_footer(app.get_locale())
+        footer = app.db.site_config.get_footer(app.get_locale())
         return {
             "footer": _rendered_footer(app, footer.content),
             "footer_collapsible": footer.collapsible,
