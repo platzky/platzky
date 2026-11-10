@@ -56,7 +56,7 @@ def _items(section: JsonSection, key: str) -> tuple[Mapping[str, Any], ...]:
     Raises:
         InvalidDataError: If the key is present but not a list (null included).
     """
-    return tuple(_require_list(section.name, key, section.data.get(key, [])))
+    return tuple(_require_list(section.name, key, section.get(key, [])))
 
 
 class _JsonPostRepository(PostRepository):
@@ -239,7 +239,7 @@ class JsonBlogRepository(BlogRepository):
         Raises:
             InvalidDataError: If the stored blog meta is invalid.
         """
-        meta = self._section.data.get("meta", {})
+        meta = self._section.get("meta", {})
         if not isinstance(meta, Mapping):
             raise InvalidDataError(f"{self._section.name}.meta: Input should be a valid dictionary")
         return parse(PageMeta, meta.get(lang, {}), self._section.name, "meta", lang)
@@ -251,4 +251,4 @@ class JsonBlogRepository(BlogRepository):
             InvalidDataError: If it is invalid; the message lists every problem with its
                 path, one per line.
         """
-        parse(BlogSection, self._section.data, self._section.name)
+        parse(BlogSection, self._section, self._section.name)

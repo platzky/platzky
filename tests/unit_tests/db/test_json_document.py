@@ -107,28 +107,22 @@ class TestJsonDocument:
 
 
 class TestJsonSection:
-    def test_data_is_the_section_only(self):
+    def test_section_is_a_read_only_mapping_of_its_content_only(self):
         section = JsonSection(JsonDocument(MemoryStore({"a": {"x": 1}, "b": {"y": 2}})), "a")
 
-        assert dict(section.data) == {"x": 1}
-
-    def test_data_is_read_only(self):
-        section = JsonSection(JsonDocument(MemoryStore({"a": {"x": 1}})), "a")
-
+        assert dict(section) == {"x": 1}
         with pytest.raises(TypeError):
-            section.data["x"] = 2  # type: ignore[index]
+            section["x"] = 2  # type: ignore[index]
 
     def test_missing_section_is_empty(self):
-        assert dict(JsonSection(JsonDocument(MemoryStore({})), "a").data) == {}
+        assert dict(JsonSection(JsonDocument(MemoryStore({})), "a")) == {}
 
     @pytest.mark.parametrize("value", [None, [], "text", 5])
     def test_section_that_is_not_an_object_is_an_error(self, value: object):
-        section = JsonSection(JsonDocument(MemoryStore({"a": value})), "a")
-
         with pytest.raises(InvalidDataError, match=r"^a: "):
-            section.data
+            JsonSection(JsonDocument(MemoryStore({"a": value})), "a")
 
-    def test_edit_yields_the_section_and_saves_the_document(self):
+    def test_edit_saves_the_document_and_then_shows_the_change(self):
         store = Mock(spec=JsonStore)
         store.load.return_value = {"a": {"x": 1}, "b": 2}
         section = JsonSection(JsonDocument(store), "a")
@@ -137,6 +131,7 @@ class TestJsonSection:
             edited["x"] = 5
 
         store.save.assert_called_once_with({"a": {"x": 5}, "b": 2})
+        assert dict(section) == {"x": 5}
 
     def test_edit_creates_a_missing_section(self):
         store = Mock(spec=JsonStore)
@@ -147,7 +142,7 @@ class TestJsonSection:
 
         store.save.assert_called_once_with({"a": {"x": 5}})
 
-    def test_edit_restores_the_document_when_the_block_raises(self):
+    def test_edit_that_raises_changes_nothing(self):
         document = JsonDocument(MemoryStore({"a": {"x": 1}}))
         section = JsonSection(document, "a")
 
@@ -155,13 +150,22 @@ class TestJsonSection:
             edited["x"] = 5
             raise RuntimeError
 
-        assert document.data == {"a": {"x": 1}}
+        assert (document.data, dict(section)) == ({"a": {"x": 1}}, {"x": 1})
 
-    def test_edit_of_a_section_that_is_not_an_object_is_an_error_and_releases_the_lock(self):
-        document = JsonDocument(MemoryStore({"a": None}))
-        section = JsonSection(document, "a")
+    def test_edit_whose_save_fails_changes_nothing(self):
+        store = Mock(spec=JsonStore)
+        store.load.return_value = {"a": {"x": 1}}
+        store.save.side_effect = OSError("disk")
+        section = JsonSection(JsonDocument(store), "a")
 
-        with pytest.raises(InvalidDataError), section.edit():
-            pass
-        with pytest.raises(InvalidDataError), section.edit():
-            pass
+        with pytest.raises(OSError, match="disk"), section.edit() as edited:
+            edited["x"] = 5
+
+        assert dict(section) == {"x": 1}
+
+    def test_readers_never_see_an_edit_in_progress(self):
+        section = JsonSection(JsonDocument(MemoryStore({"a": {"x": 1}})), "a")
+
+        with section.edit() as edited:
+            edited["x"] = 5
+            assert dict(section) == {"x": 1}

@@ -248,9 +248,8 @@ class TestBlogSection:
 
     @pytest.mark.parametrize("content", [None, [], "text", 5])
     def test_blog_not_a_dict_raises_db_error(self, content: object):
-        repository = _repository(MemoryStore({"blog": content}))
         with pytest.raises(DBError):
-            repository.posts.get_all("en")
+            _repository(MemoryStore({"blog": content}))
 
     def test_site_config_is_not_read(self):
         data = sample_data()

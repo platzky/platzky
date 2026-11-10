@@ -26,6 +26,4 @@ class JsonPluginConfigRepository(PluginConfigRepository):
         Returns:
             Mapping of plugin name to its validated configuration.
         """
-        return {
-            name: PluginConfigBase.model_validate(cfg) for name, cfg in self._section.data.items()
-        }
+        return {name: PluginConfigBase.model_validate(cfg) for name, cfg in self._section.items()}

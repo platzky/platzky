@@ -27,6 +27,5 @@ class TestJsonPluginConfigRepository:
         assert repository.get_all() == {}
 
     def test_get_all_raises_when_plugins_is_none(self):
-        repository = _repository({"plugins": None})
         with pytest.raises(InvalidDataError, match="plugins"):
-            repository.get_all()
+            _repository({"plugins": None})

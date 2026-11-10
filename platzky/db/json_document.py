@@ -18,10 +18,12 @@ view of it, so it can neither read nor write the rest.
 
 import copy
 import threading
-from collections.abc import Generator, Mapping
+from collections.abc import Generator, Iterator, Mapping
 from contextlib import contextmanager
-from types import MappingProxyType, TracebackType
+from types import TracebackType
 from typing import Any
+
+from typing_extensions import override
 
 from platzky.db.exceptions import InvalidDataError
 from platzky.db.json_stores import JsonStore
@@ -110,65 +112,65 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
-class JsonSection:
+class JsonSection(Mapping[str, Any]):
     """One top-level section of a `JsonDocument`: all a repository gets to see of it.
 
     A repository that owns the ``blog`` section holds a `JsonSection` named ``blog``, and can
-    neither read nor write anything else in the document.
+    neither read nor write anything else in the document. The section is a read-only mapping
+    of its content; `edit()` changes it.
+
+    The section keeps its own content: an edit works on a copy, which replaces the content only
+    once the document is saved, so readers never see a half-done or failed edit. Nothing else
+    should write this section's key through `JsonDocument` directly; the section would not see it.
     """
 
     def __init__(self, document: JsonDocument, name: str) -> None:
-        """Create the view of one section.
+        """Take one section out of a loaded document.
 
         Args:
             document: The loaded document.
             name: The section's key in the document.
+
+        Raises:
+            InvalidDataError: If the document holds something other than an object under the
+                key (null included).
         """
+        content = document.data.get(name, {})
+        if not isinstance(content, dict):
+            raise InvalidDataError(f"{name}: Input should be a valid dictionary")
         self._document = document
         self._name = name
+        self._content: dict[str, Any] = content
 
     @property
     def name(self) -> str:
         """The section's key in the document."""
         return self._name
 
-    @property
-    def data(self) -> Mapping[str, Any]:
-        """The section, read-only; empty if the document has none.
+    @override
+    def __getitem__(self, key: str) -> Any:
+        return self._content[key]
 
-        Raises:
-            InvalidDataError: If the section is present but not an object (null included).
-        """
-        return MappingProxyType(self._from_full_document(self._document.data))
+    @override
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._content)
+
+    @override
+    def __len__(self) -> int:
+        return len(self._content)
 
     @contextmanager
     def edit(self) -> Generator[dict[str, Any]]:
-        """Like `JsonDocument.edit()`, but yield only this section, created if missing.
+        """Yield a copy of the section to change; it replaces the section once saved.
+
+        The document's write lock is held throughout, and the whole document is persisted. If
+        the block raises or saving fails, the section and the document stay as they were.
 
         Yields:
-            The section dict, to be mutated in place; the document is persisted on a clean exit
-            and restored otherwise.
-
-        Raises:
-            InvalidDataError: If the section is present but not an object (null included).
+            A copy of the section's content, to be mutated in place.
         """
         with self._document.edit() as document:
-            document.setdefault(self._name, {})
-            yield self._from_full_document(document)
-
-    def _from_full_document(self, document: Mapping[str, Any]) -> dict[str, Any]:
-        """Take this section out of the full document.
-
-        Args:
-            document: The whole JSON document, all sections included.
-
-        Returns:
-            What the document holds under this section's key; empty if it holds nothing.
-
-        Raises:
-            InvalidDataError: If it holds something other than an object (null included).
-        """
-        section = document.get(self._name, {})
-        if not isinstance(section, dict):
-            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
-        return section
+            draft = copy.deepcopy(self._content)
+            yield draft
+            document[self._name] = draft
+        self._content = draft

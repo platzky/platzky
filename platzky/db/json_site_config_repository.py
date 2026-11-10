@@ -39,7 +39,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
 
     def _parsed(self) -> SiteConfigSection:
         """Validate and return the stored section."""
-        return parse(SiteConfigSection, self._section.data, self._section.name)
+        return parse(SiteConfigSection, self._section, self._section.name)
 
     def validate(self) -> None:
         """Check the section against the site config format, e.g. when the application starts.
