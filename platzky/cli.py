@@ -100,7 +100,7 @@ def check(file: Path) -> None:
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")
     try:
-        Json(MemoryStore(document)).validate()
+        Json(MemoryStore(document))
     except InvalidDataError as error:
         raise click.ClickException(str(error)) from error
     click.echo("OK")

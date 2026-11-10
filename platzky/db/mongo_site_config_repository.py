@@ -47,12 +47,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         """
         validate_all(
             (
-                partial(
-                    parse,
-                    SiteConfig,
-                    _without_id(self._site_config.find_one({"_id": "config"})),
-                    "site_config",
-                ),
+                self.get_site_config,
                 *(
                     partial(
                         parse,

@@ -39,25 +39,16 @@ class BlogSection(StrictModel):
     meta: ReadOnlyMapping[str, PageMeta]
 
 
-def _as_tuple(section_name: str, key: str, value: object) -> tuple[Mapping[str, Any], ...]:
-    """Return the posts or pages a section holds, as a tuple.
-
-    Raises:
-        InvalidDataError: If the value is not a list (null included).
-    """
-    if not isinstance(value, list):
-        raise InvalidDataError(f"{section_name}.{key}: Input should be a valid list")
-    return tuple(value)
-
-
-def _items(section: JsonSection, key: str) -> tuple[Mapping[str, Any], ...] | None:
-    """Return the posts or pages the section holds, None if it has none.
+def _items(section: JsonSection, key: str) -> list[Any]:
+    """Return the posts or pages the section holds, empty if it has none.
 
     Raises:
         InvalidDataError: If the key is present but not a list (null included).
     """
-    data = section.data
-    return _as_tuple(section.name, key, data[key]) if key in data else None
+    items = section.data.get(key, [])
+    if not isinstance(items, list):
+        raise InvalidDataError(f"{section.name}.{key}: Input should be a valid list")
+    return items
 
 
 class _JsonPostRepository(PostRepository):
@@ -77,12 +68,11 @@ class _JsonPostRepository(PostRepository):
             The matching post.
 
         Raises:
-            NotFoundError: If posts data is missing, or no post has this slug.
+            NotFoundError: If no post has this slug.
         """
-        all_posts = _items(self._section, "posts")
-        if all_posts is None:
-            raise NotFoundError("Posts data is missing")
-        wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
+        wanted_post = next(
+            (post for post in _items(self._section, "posts") if post["slug"] == slug), None
+        )
         if wanted_post is None:
             raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
@@ -99,7 +89,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _items(self._section, "posts") or ()
+            for post in _items(self._section, "posts")
             if post.get("language", "en") == lang
         ]
 
@@ -116,7 +106,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _items(self._section, "posts") or ()
+            for post in _items(self._section, "posts")
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -146,11 +136,10 @@ class _JsonPostRepository(PostRepository):
         }
 
         try:
-            with self._section.edit() as blog:
-                if "posts" not in blog:
-                    raise NotFoundError("Posts data is missing")
-                _as_tuple(self._section.name, "posts", blog["posts"])  # raises unless a list
-                post = next((p for p in blog["posts"] if p["slug"] == post_slug), None)
+            with self._section.edit():
+                post = next(
+                    (p for p in _items(self._section, "posts") if p["slug"] == post_slug), None
+                )
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
                 post.setdefault("comments", []).append(comment_data)
@@ -178,12 +167,11 @@ class _JsonPageRepository(PageRepository):
             The matching page.
 
         Raises:
-            NotFoundError: If pages data is missing, or no page has this slug.
+            NotFoundError: If no page has this slug.
         """
-        pages = _items(self._section, "pages")
-        if pages is None:
-            raise NotFoundError("Pages data is missing")
-        wanted_page = next((page for page in pages if page["slug"] == slug), None)
+        wanted_page = next(
+            (page for page in _items(self._section, "pages") if page["slug"] == slug), None
+        )
         if wanted_page is None:
             raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(wanted_page)
@@ -200,7 +188,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in _items(self._section, "pages") or ()
+            for page in _items(self._section, "pages")
             if page.get("language", "en") == lang
         ]
 

@@ -110,6 +110,17 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
+def _require_object(name: str, section: object) -> dict[str, Any]:
+    """Return the section if it is an object.
+
+    Raises:
+        InvalidDataError: If it is not (null included).
+    """
+    if not isinstance(section, dict):
+        raise InvalidDataError(f"{name}: Input should be a valid dictionary")
+    return section
+
+
 class JsonSection:
     """One top-level section of a `JsonDocument`: all a repository gets to see of it.
 
@@ -139,10 +150,9 @@ class JsonSection:
         Raises:
             InvalidDataError: If the section is present but not an object (null included).
         """
-        section = self._document.data.get(self._name, {})
-        if not isinstance(section, dict):
-            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
-        return MappingProxyType(section)
+        return MappingProxyType(
+            _require_object(self._name, self._document.data.get(self._name, {}))
+        )
 
     @contextmanager
     def edit(self) -> Generator[dict[str, Any]]:
@@ -156,7 +166,4 @@ class JsonSection:
             InvalidDataError: If the section is present but not an object (null included).
         """
         with self._document.edit() as data:
-            section = data.setdefault(self._name, {})
-            if not isinstance(section, dict):
-                raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
-            yield section
+            yield _require_object(self._name, data.setdefault(self._name, {}))

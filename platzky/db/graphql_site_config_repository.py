@@ -43,11 +43,6 @@ _LOCALIZED_CONTENT_QUERY = gql("""
     """)
 
 
-def _is_set(value: object) -> bool:
-    """Return whether an editor set a field: Hygraph answers null for one left unset."""
-    return value is not None and value != ""
-
-
 def _without_unset(values: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return the fields an editor set, also in nested objects, so the rest take defaults.
 
@@ -57,7 +52,7 @@ def _without_unset(values: Mapping[str, Any]) -> Mapping[str, Any]:
         {
             key: _without_unset(value) if isinstance(value, Mapping) else value
             for key, value in values.items()
-            if _is_set(value)
+            if value not in (None, "")
         }
     )
 

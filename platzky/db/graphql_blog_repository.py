@@ -406,5 +406,5 @@ class GraphQLBlogRepository(BlogRepository):
             or {}
         )
         return PageMeta.model_validate(
-            {key: value for key, value in raw_meta.items() if value not in (None, "")}
+            {key: value for key, value in raw_meta.items() if value is not None}
         )

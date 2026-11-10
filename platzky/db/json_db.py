@@ -67,9 +67,9 @@ class Json(DB):
         self._blog = JsonBlogRepository(JsonSection(document, "blog"))
         self._plugin_config = JsonPluginConfigRepository(JsonSection(document, "plugins"))
         self._site_config = JsonSiteConfigRepository(JsonSection(document, "site_config"))
-        self.validate()
+        self._validate()
 
-    def validate(self) -> None:
+    def _validate(self) -> None:
         """Check the site config and the blog sections against their formats.
 
         Raises:
@@ -113,4 +113,4 @@ class Json(DB):
 
         Raises an exception if the database is not accessible or a section is invalid.
         """
-        self.validate()
+        self._validate()
