@@ -355,13 +355,14 @@ when there is no logo, and the RSS feed title.
 
       {
         "site_content": {
-          "app_title": "Mapa pojemników na odzież używaną | Rzut beretem",
+          "app_name": "Literature",
+          "app_title": "Reading notes | Literature",
           "logo_url": "https://example.com/logo.png",
           "localized_content": {
-            "en": {
-              "app_name": "DropLoop",
-              "app_title": "Used clothing bins map | DropLoop",
-              "logo_url": "https://example.com/droploop.png"
+            "pl": {
+              "app_name": "Literatura",
+              "app_title": "Notatki z lektury | Literatura",
+              "logo_url": "https://example.com/logo-pl.png"
             }
           }
         }
@@ -379,9 +380,9 @@ when there is no logo, and the RSS feed title.
   .. code-block:: javascript
 
       // site_content
-      {"_id": "config", "app_title": "Mapa pojemników | Rzut beretem"}
+      {"_id": "config", "app_name": "Literature", "app_title": "Reading notes | Literature"}
       // localized_content
-      {"_id": "en", "app_name": "DropLoop", "app_title": "Bins map | DropLoop"}
+      {"_id": "pl", "app_name": "Literatura", "app_title": "Notatki z lektury | Literatura"}
 
 * **GraphQL (Hygraph)**: store the text in the ``LocalizedContent`` model
   (``localizedContents``). The entry without a ``language`` holds the defaults
