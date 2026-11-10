@@ -130,7 +130,7 @@ def _build_home_page_test_app(
 def test_home_page_renders_configured_page():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/blog/page/about",
+            "localized_content": {"en": {"home_page_path": "/blog/page/about"}},
             "pages": [
                 {
                     "title": "About us",
@@ -150,7 +150,7 @@ def test_home_page_renders_configured_page():
 def test_home_page_renders_configured_post():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/blog/welcome-post",
+            "localized_content": {"en": {"home_page_path": "/blog/welcome-post"}},
             "posts": [
                 {
                     "title": "Welcome",
@@ -219,7 +219,10 @@ _ABOUT_PAGES = [
 def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") -> Engine:
     return _build_home_page_test_app(
         {
-            "home_page_path": {"default": "/blog/page/about", "pl": pl_home_path},
+            "localized_content": {
+                "en": {"home_page_path": "/blog/page/about"},
+                "pl": {"home_page_path": pl_home_path},
+            },
             "pages": _ABOUT_PAGES,
         },
         languages=_BILINGUAL_LANGUAGES,
@@ -243,7 +246,9 @@ def test_home_page_resolves_domainless_language_home(pl_home_path: str):
 
 
 def test_home_page_404s_when_configured_path_does_not_resolve():
-    app = _build_home_page_test_app({"home_page_path": "/blog/page/does-not-exist"})
+    app = _build_home_page_test_app(
+        {"localized_content": {"en": {"home_page_path": "/blog/page/does-not-exist"}}}
+    )
     response = app.test_client().get("/")
     assert response.status_code == 404
 
@@ -251,7 +256,7 @@ def test_home_page_404s_when_configured_path_does_not_resolve():
 def test_home_page_falls_back_when_configured_path_is_root():
     app = _build_home_page_test_app(
         {
-            "home_page_path": "/",
+            "localized_content": {"en": {"home_page_path": "/"}},
             "posts": [
                 {
                     "title": "Latest post",
@@ -831,9 +836,19 @@ def test_blog_index_has_meta_in_its_language():
                 _post("the-hobbit", "The Hobbit", "en"),
                 _post("hobbit", "Hobbit", "pl"),
             ],
-            "blog_meta": {
-                "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
-                "pl": {"title": "Notatki", "description": "Notatki o książkach Tolkiena."},
+            "localized_content": {
+                "en": {
+                    "blog_meta": {
+                        "title": "Reading notes",
+                        "description": "Notes on Tolkien's books.",
+                    }
+                },
+                "pl": {
+                    "blog_meta": {
+                        "title": "Notatki",
+                        "description": "Notatki o książkach Tolkiena.",
+                    }
+                },
             },
         },
         languages=_BILINGUAL_LANGUAGES,
@@ -854,7 +869,7 @@ def test_blog_index_without_meta_uses_defaults():
     app = _build_home_page_test_app(
         {
             "posts": [_post("the-hobbit", "The Hobbit", "en")],
-            "app_description": {"en": "A site about Tolkien's books."},
+            "app_description": "A site about Tolkien's books.",
         },
     )
     assert _blog_head(app.test_client().get("/blog/")) == (

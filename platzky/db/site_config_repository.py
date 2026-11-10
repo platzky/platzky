@@ -6,11 +6,113 @@ home page regardless of whether it has a blog, so this is kept separate from
 """
 
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, ClassVar, Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from platzky.models import Footer, Image, MenuItem, PageMeta
+
+
+class LocalizedContent(BaseModel):
+    """The site content that is set per language, in the one format shared by every backend.
+
+    Unknown keys are an error. A null value counts as not set. Nothing here is inherited from
+    another language, and only the four text keys fall back to the site-wide defaults of
+    `SiteContent` (see `SiteSettings.from_layers`).
+
+    Attributes:
+        app_name: Site name; empty or null falls through to the site-wide default
+        app_title: Site title; empty or null falls through to the site-wide default
+        app_description: Meta description; empty or null falls through to the site-wide default
+        logo_url: Logo image URL; empty or null falls through to the site-wide default
+        blog_meta: The blog index's title and description
+        footer: The site-wide footer
+        menu_items: The navigation menu
+        home_page_path: Site-relative path shown as the home page, if overridden
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    app_name: str | None = None
+    app_title: str | None = None
+    app_description: str | None = None
+    logo_url: str | None = None
+    blog_meta: PageMeta = PageMeta()
+    footer: Footer = Footer()
+    menu_items: tuple[MenuItem, ...] = ()
+    home_page_path: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls(cls, values: object) -> object:
+        if isinstance(values, Mapping):
+            return {key: value for key, value in values.items() if value is not None}
+        return values
+
+
+class SiteContent(BaseModel):
+    """The site-configuration part of the ``site_content`` section, shared by every backend.
+
+    The texts and the logo are defaults that each language may override; the favicon, font and
+    colors are global. Everything else is per language, in ``localized_content``. Unknown keys
+    are an error, except ``posts`` and ``pages``: the blog repository owns and validates those
+    in the same section.
+
+    Attributes:
+        app_name: Default site name
+        app_title: Default site title
+        app_description: Default meta description
+        logo_url: Default logo image URL
+        favicon_url: Favicon URL
+        font: Font family
+        primary_color: Primary theme color
+        secondary_color: Secondary theme color
+        posts: Blog posts, owned by the blog repository
+        pages: Pages, owned by the blog repository
+        localized_content: The per-language content, by language code
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    app_name: str | None = None
+    app_title: str | None = None
+    app_description: str | None = None
+    logo_url: str | None = None
+    favicon_url: str | None = None
+    font: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    posts: Any = None
+    pages: Any = None
+    localized_content: Mapping[str, LocalizedContent] = Field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+    @field_validator("localized_content", mode="before")
+    @classmethod
+    def _drop_nulls(cls, value: object) -> object:
+        if value is None:
+            return {}
+        if isinstance(value, Mapping):
+            return {lang: content for lang, content in value.items() if content is not None}
+        return value
+
+    @field_validator("localized_content", mode="after")
+    @classmethod
+    def _read_only(cls, value: Mapping[str, LocalizedContent]) -> Mapping[str, LocalizedContent]:
+        return MappingProxyType(dict(value))
+
+    def localized(self, lang: str) -> LocalizedContent:
+        """Return the content of a language.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The language's content, empty if none is configured for it.
+        """
+        return self.localized_content.get(lang, LocalizedContent())
 
 
 class SiteSettings(BaseModel):
@@ -22,17 +124,22 @@ class SiteSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    STORED_KEYS: ClassVar[tuple[str, ...]] = (
+    TEXT_KEYS: ClassVar[tuple[str, ...]] = (
         "app_name",
         "app_title",
         "app_description",
         "logo_url",
+    )
+    """The keys a language may override, e.g. for a database projection of its content."""
+
+    STORED_KEYS: ClassVar[tuple[str, ...]] = (
+        *TEXT_KEYS,
         "favicon_url",
         "font",
         "primary_color",
         "secondary_color",
     )
-    """The site-content keys `from_layers` reads, e.g. for a database projection."""
+    """The site-wide keys `from_layers` reads, e.g. for a database projection."""
 
     logo: Image | None = None
     favicon_url: str = ""
@@ -44,47 +151,31 @@ class SiteSettings(BaseModel):
     app_description: str = ""
 
     @classmethod
-    def from_layers(
-        cls, defaults: Mapping[str, Any], localized: Mapping[str, Any], lang: str
-    ) -> "SiteSettings":
+    def from_layers(cls, defaults: SiteContent, localized: LocalizedContent) -> "SiteSettings":
         """Build the site settings for a language from its defaults and overrides.
 
         Each text key (app_name, app_title, app_description, logo_url) is taken from
-        ``localized`` if set there, else from ``defaults``, else left empty. Missing,
-        null and empty values fall through to the next source. Only the keys in
-        `STORED_KEYS` are read.
-
-        ``lang`` is used only for the legacy format, where a top-level
-        ``app_description`` in ``defaults`` is a ``{lang: text}`` dict.
+        ``localized`` if set there, else from ``defaults``, else left empty. Null and empty
+        values fall through to the next source. The favicon, font and colors come from
+        ``defaults`` only.
 
         Args:
-            defaults: The language-independent site content (JSON ``site_content``
-                or the Mongo ``config`` document).
-            localized: The overrides for this language (empty if there are none).
-            lang: Language code (e.g., 'en', 'pl'), for the legacy description only.
+            defaults: The site-wide content.
+            localized: The overrides for this language.
 
         Returns:
             The site settings for that language.
         """
-        stored = {key: defaults.get(key) for key in cls.STORED_KEYS}
-        overrides = {key: localized.get(key) for key in cls.STORED_KEYS}
-        description = stored["app_description"]
-        if isinstance(description, dict):
-            stored["app_description"] = description.get(lang)
-
-        def text(key: str) -> str:
-            return overrides[key] or stored[key] or ""
-
-        logo_url = text("logo_url")
+        logo_url = localized.logo_url or defaults.logo_url
         return cls(
             logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=stored["favicon_url"] or "",
-            primary_color=stored["primary_color"] or "white",
-            secondary_color=stored["secondary_color"] or "navy",
-            font=stored["font"] or "",
-            app_name=text("app_name"),
-            app_title=text("app_title"),
-            app_description=text("app_description"),
+            favicon_url=defaults.favicon_url or "",
+            primary_color=defaults.primary_color or "white",
+            secondary_color=defaults.secondary_color or "navy",
+            font=defaults.font or "",
+            app_name=localized.app_name or defaults.app_name or "",
+            app_title=localized.app_title or defaults.app_title or "",
+            app_description=localized.app_description or defaults.app_description or "",
         )
 
 

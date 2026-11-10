@@ -6,7 +6,7 @@ import re
 from typing import Annotated
 
 import humanize
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 
 def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
@@ -75,6 +75,8 @@ class MenuItem(BaseModel):
         name: Display name of the menu item
         url: Target URL for the menu item link
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     url: str
@@ -179,6 +181,8 @@ class Footer(BaseModel):
         collapsible: Whether readers may collapse the footer
     """
 
+    model_config = ConfigDict(frozen=True)
+
     content: str = ""
     collapsible: bool = False
 
@@ -190,6 +194,8 @@ class PageMeta(BaseModel):
         title: Page title; empty to use the page's default title
         description: Meta description; empty to use the site's description
     """
+
+    model_config = ConfigDict(frozen=True)
 
     title: str = ""
     description: str = ""

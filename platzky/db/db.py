@@ -135,7 +135,7 @@ class DB(ABC):
         Returns:
             A path such as "/blog/page/about" or "/blog/some-post", resolved
             against the app's own routes. None if no homepage override is configured
-            for this locale (or globally).
+            for this locale.
         """
         pass
 

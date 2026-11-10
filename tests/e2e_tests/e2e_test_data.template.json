@@ -1,20 +1,6 @@
 {
   "site_content": {
-    "app_description":{
-        "en": "This is not only blogging platform",
-        "pl": "To nie tylko platforma do blogowania"
-    },
-    "blog_meta": {
-        "en": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
-        "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."}
-    },
-    "footer": {
-        "content": {
-            "en": "[link url=\"/blog/\"]English footer[/link]",
-            "pl": "[link url=\"/blog/\"]Polska stopka[/link]"
-        },
-        "collapsible": true
-    },
+    "app_description": "This is not only blogging platform",
     "posts": [
       {
         "title": "The Fellowship of the Ring",
@@ -178,35 +164,50 @@
         "excerpt": "page excerpt"
       }
     ],
-    "menu_items": {
-      "pl": [
-        {
-          "name": "Strona domowa",
-          "url": "/"
+    "localized_content": {
+      "en": {
+        "blog_meta": {"title": "Reading notes", "description": "Notes on Tolkien's books."},
+        "footer": {
+          "content": "[link url=\"/blog/\"]English footer[/link]",
+          "collapsible": true
         },
-        {
-          "name": "Drużyna pierścienia",
-          "url": "/blog/druzyna"
+        "menu_items": [
+          {
+            "name": "Home",
+            "url": "/"
+          },
+          {
+            "name": "The Fellowship of the Ring",
+            "url": "/blog/fellows"
+          },
+          {
+            "name": "Non-existing page",
+            "url": "/non-existing"
+          }
+        ]
+      },
+      "pl": {
+        "app_description": "To nie tylko platforma do blogowania",
+        "blog_meta": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena."},
+        "footer": {
+          "content": "[link url=\"/blog/\"]Polska stopka[/link]",
+          "collapsible": true
         },
-        {
-          "name": "Nieistniejąca strona",
-          "url": "/nie-dziala"
-        }
-      ],
-      "en": [
-        {
-          "name": "Home",
-          "url": "/"
-        },
-        {
-          "name": "The Fellowship of the Ring",
-          "url": "/blog/fellows"
-        },
-        {
-          "name": "Non-existing page",
-          "url": "/non-existing"
-        }
-      ]
+        "menu_items": [
+          {
+            "name": "Strona domowa",
+            "url": "/"
+          },
+          {
+            "name": "Drużyna pierścienia",
+            "url": "/blog/druzyna"
+          },
+          {
+            "name": "Nieistniejąca strona",
+            "url": "/nie-dziala"
+          }
+        ]
+      }
     }
   },
   "plugins": {

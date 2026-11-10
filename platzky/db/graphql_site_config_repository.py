@@ -6,7 +6,12 @@ from typing import Any, Callable
 from gql import Client, gql
 from typing_extensions import override
 
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.db.site_config_repository import (
+    LocalizedContent,
+    SiteConfigRepository,
+    SiteContent,
+    SiteSettings,
+)
 from platzky.models import Footer, MenuItem, PageMeta
 
 # Relation nodes may be null in the CMS, so these helpers turn a null list, a
@@ -43,14 +48,25 @@ def _logo_url(logo: Mapping[str, Any] | None) -> str | None:
     return ((logo or {}).get("image") or {}).get("url")
 
 
-def _entry_keys(entry: Mapping[str, Any]) -> dict[str, Any]:
-    """Map a `LocalizedContent` entry to the `SiteSettings.STORED_KEYS` it sets."""
-    return _present(
+def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
+    """Map the fields of a `LocalizedContent` CMS entry that it has to the shared model.
+
+    Args:
+        entry: The CMS entry, with any of its fields selected.
+
+    Returns:
+        The entry's content; null and missing fields are not set.
+    """
+    return LocalizedContent.model_validate(
         {
             "app_name": entry.get("appName"),
             "app_title": entry.get("appTitle"),
             "app_description": entry.get("appDescription"),
             "logo_url": _logo_url(entry.get("logo")),
+            "blog_meta": _present(entry.get("blogMeta") or {}),
+            "footer": _present(entry.get("footer") or {}),
+            "menu_items": [item for item in entry.get("menuItems") or [] if item],
+            "home_page_path": entry.get("homePagePath"),
         }
     )
 
@@ -128,18 +144,23 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         result = self._client_getter().execute(gql(_SITE_SETTINGS_QUERY))
         entries = result.get("localizedContents")
         theme = _first(result.get("themes"))
-        defaults = {
-            "logo_url": _logo_url(_first(result.get("logos")).get("logo")),
-            "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get("url"),
-            "primary_color": theme.get("primaryColor"),
-            "secondary_color": theme.get("secondaryColor"),
-            "font": theme.get("font"),
-        }
-        return SiteSettings.from_layers(
-            {**_present(defaults), **_entry_keys(_entry(entries, None))},
-            _entry_keys(_entry(entries, lang)),
-            lang,
+        defaults = _localized_content(_entry(entries, None))
+        site_content = SiteContent.model_validate(
+            _present(
+                {
+                    "app_name": defaults.app_name,
+                    "app_title": defaults.app_title,
+                    "app_description": defaults.app_description,
+                    "logo_url": defaults.logo_url
+                    or _logo_url(_first(result.get("logos")).get("logo")),
+                    "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get("url"),
+                    "primary_color": theme.get("primaryColor"),
+                    "secondary_color": theme.get("secondaryColor"),
+                    "font": theme.get("font"),
+                }
+            )
         )
+        return SiteSettings.from_layers(site_content, _localized_content(_entry(entries, lang)))
 
     @override
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
@@ -152,7 +173,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             Menu items in that language.
         """
         entry = _entry(self._localized_contents("menuItems { name url }"), lang)
-        return [MenuItem.model_validate(item) for item in entry.get("menuItems") or []]
+        return list(_localized_content(entry).menu_items)
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
@@ -165,7 +186,9 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             Homepage path, or None if no homepage override is configured for
             this locale.
         """
-        return _entry(self._localized_contents("homePagePath"), locale).get("homePagePath")
+        return _localized_content(
+            _entry(self._localized_contents("homePagePath"), locale)
+        ).home_page_path
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -178,10 +201,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             The blog meta, empty if none is configured for the language.
         """
         entry = _entry(self._localized_contents("blogMeta { title description }"), lang)
-        blog_meta = entry.get("blogMeta") or {}
-        return PageMeta(
-            title=blog_meta.get("title") or "", description=blog_meta.get("description") or ""
-        )
+        return _localized_content(entry).blog_meta
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -194,8 +214,4 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
             The footer, empty and not collapsible if none is configured.
         """
         entry = _entry(self._localized_contents("footer { content collapsible }"), lang)
-        footer = entry.get("footer") or {}
-        return Footer(
-            content=footer.get("content") or "",
-            collapsible=bool(footer.get("collapsible")),
-        )
+        return _localized_content(entry).footer

@@ -33,7 +33,7 @@ def test_loading_json_file_db_dynamically():
     with patch("builtins.open", mock_open(read_data="data")):
         with patch(
             "json.load",
-            return_value={"site_content": {"app_description": {"en": "From file"}}},
+            return_value={"site_content": {"app_description": "From file"}},
         ):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
@@ -61,7 +61,7 @@ def test_loading_google_json_db_dynamically():
         client_mock.bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
         mock_blob.download_as_text.return_value = (
-            '{"site_content": {"app_description": {"en": "From bucket"}}}'
+            '{"site_content": {"app_description": "From bucket"}}'
         )
 
         mock_client.return_value = client_mock

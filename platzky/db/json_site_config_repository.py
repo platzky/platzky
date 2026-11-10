@@ -3,7 +3,12 @@
 from typing_extensions import override
 
 from platzky.db.json_document import JsonDocument, get_site_content
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
+from platzky.db.site_config_repository import (
+    LocalizedContent,
+    SiteConfigRepository,
+    SiteContent,
+    SiteSettings,
+)
 from platzky.models import Footer, MenuItem, PageMeta
 
 
@@ -19,6 +24,10 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         """
         self._document = document
 
+    def _localized(self, lang: str) -> LocalizedContent:
+        """Validate the site content and return the content of a language."""
+        return SiteContent.model_validate(get_site_content(self._document.data)).localized(lang)
+
     @override
     def get_site_settings(self, lang: str) -> SiteSettings:
         """Retrieve branding and site text for the app in a specific language.
@@ -29,9 +38,8 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The app's site settings, with text empty where none is configured.
         """
-        content = get_site_content(self._document.data)
-        localized = (content.get("localized_content") or {}).get(lang) or {}
-        return SiteSettings.from_layers(content, localized, lang)
+        content = SiteContent.model_validate(get_site_content(self._document.data))
+        return SiteSettings.from_layers(content, content.localized(lang))
 
     @override
     def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
@@ -43,27 +51,20 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             Menu items in that language.
         """
-        menu_items_raw = get_site_content(self._document.data).get("menu_items") or {}
-        return [MenuItem.model_validate(x) for x in menu_items_raw.get(lang) or []]
+        return list(self._localized(lang).menu_items)
 
     @override
     def get_home_page_path(self, locale: str) -> str | None:
         """Retrieve the site-relative path configured as the site's homepage.
 
-        ``home_page_path`` may be a single string (applies to every locale) or a
-        dict mapping locale codes to paths, with an optional "default" key used
-        when the current locale has no entry of its own.
-
         Args:
             locale: Language code (e.g., 'en', 'pl') of the current request.
 
         Returns:
-            Homepage path, or None if no homepage override is configured.
+            Homepage path, or None if no homepage override is configured for
+            this locale.
         """
-        home_page_path = get_site_content(self._document.data).get("home_page_path")
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
+        return self._localized(locale).home_page_path
 
     @override
     def get_blog_meta(self, lang: str) -> PageMeta:
@@ -75,8 +76,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The blog meta, empty if none is configured for the language.
         """
-        blog_meta = get_site_content(self._document.data).get("blog_meta") or {}
-        return PageMeta(**(blog_meta.get(lang) or {}))
+        return self._localized(lang).blog_meta
 
     @override
     def get_footer(self, lang: str) -> Footer:
@@ -88,9 +88,4 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The footer, empty and not collapsible if none is configured.
         """
-        # Explicit nulls count as missing: the footer is rendered on every page.
-        footer = get_site_content(self._document.data).get("footer") or {}
-        return Footer(
-            content=(footer.get("content") or {}).get(lang) or "",
-            collapsible=bool(footer.get("collapsible", False)),
-        )
+        return self._localized(lang).footer

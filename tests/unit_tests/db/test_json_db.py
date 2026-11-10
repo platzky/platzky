@@ -16,16 +16,16 @@ class TestJsonDbConfig:
     def test_model_validation(self):
         config_data = {
             "TYPE": "json_db",
-            "DATA": {"site_content": {"app_description": {"en": "Test"}}},
+            "DATA": {"site_content": {"app_description": "Test"}},
         }
         config = JsonDbConfig.model_validate(config_data)
-        assert config.data == {"site_content": {"app_description": {"en": "Test"}}}
+        assert config.data == {"site_content": {"app_description": "Test"}}
 
 
 class TestFactoryFunctions:
     def test_db_from_config(self):
         config = JsonDbConfig(
-            TYPE="json_db", DATA={"site_content": {"app_description": {"en": "Configured"}}}
+            TYPE="json_db", DATA={"site_content": {"app_description": "Configured"}}
         )
         db = db_from_config(config)
         assert isinstance(db, Json)
@@ -37,7 +37,7 @@ class TestJsonDb:
     def sample_data(self) -> dict[str, Any]:
         return {
             "site_content": {
-                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
+                "app_description": "Default description",
                 "posts": [
                     {
                         "title": "Post 1",
@@ -81,9 +81,15 @@ class TestJsonDb:
                         "date": "2023-01-03T00:00:00",
                     }
                 ],
-                "menu_items": {
-                    "en": [{"name": "Home", "url": "/", "weight": 1}],
-                    "de": [{"name": "Startseite", "url": "/", "weight": 1}],
+                "localized_content": {
+                    "en": {
+                        "app_description": "English description",
+                        "menu_items": [{"name": "Home", "url": "/", "weight": 1}],
+                    },
+                    "de": {
+                        "app_description": "Deutsche Beschreibung",
+                        "menu_items": [{"name": "Startseite", "url": "/", "weight": 1}],
+                    },
                 },
                 "logo_url": "/logo.png",
                 "favicon_url": "/favicon.ico",
@@ -101,16 +107,18 @@ class TestJsonDb:
     def test_get_app_description(self, db: Json):
         assert db.get_site_settings("en").app_description == "English description"
         assert db.get_site_settings("de").app_description == "Deutsche Beschreibung"
-        assert db.get_site_settings("fr").app_description == ""
+        assert db.get_site_settings("fr").app_description == "Default description"
 
     def test_get_blog_meta_forwards_to_site_config(self):
-        blog_meta = {"en": {"title": "Reading notes", "description": "Notes."}}
-        db = Json(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
-        assert db.get_blog_meta("en") == PageMeta(**blog_meta["en"])
+        blog_meta = {"title": "Reading notes", "description": "Notes."}
+        db = Json(
+            MemoryStore({"site_content": {"localized_content": {"en": {"blog_meta": blog_meta}}}})
+        )
+        assert db.get_blog_meta("en") == PageMeta(**blog_meta)
 
     def test_get_footer_forwards_to_site_config(self):
-        footer = {"content": {"en": "Footer"}, "collapsible": True}
-        db = Json(MemoryStore({"site_content": {"footer": footer}}))
+        footer = {"content": "Footer", "collapsible": True}
+        db = Json(MemoryStore({"site_content": {"localized_content": {"en": {"footer": footer}}}}))
         assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
 
     def test_get_all_posts(self, db: Json):
@@ -271,32 +279,17 @@ class TestJsonDbSiteSettings:
         assert db_minimal.get_home_page_path("en") is None
 
     def test_get_home_page_path(self):
-        db = Json(MemoryStore({"site_content": {"home_page_path": "/blog/page/about"}}))
-        assert db.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_per_locale(self):
         db = Json(
             MemoryStore(
                 {
                     "site_content": {
-                        "home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"}
+                        "localized_content": {"pl": {"home_page_path": "/blog/page/o-nas"}}
                     }
                 }
             )
         )
         assert db.get_home_page_path("pl") == "/blog/page/o-nas"
-        assert db.get_home_page_path("en") == "/blog/"
-
-    def test_get_home_page_path_per_locale_no_default(self):
-        db = Json(MemoryStore({"site_content": {"home_page_path": {"pl": "/blog/page/o-nas"}}}))
         assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(self):
-        """Only an absent key falls back to "default" — a present key returns its value as-is."""
-        db = Json(
-            MemoryStore({"site_content": {"home_page_path": {"default": "/blog/", "pl": ""}}})
-        )
-        assert db.get_home_page_path("pl") == ""
 
 
 class TestJsonDbComments:

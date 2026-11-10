@@ -34,13 +34,14 @@ def _app(
     }
     if secondary_color is not None:
         site_content["secondary_color"] = secondary_color
-    footer: dict[str, Any] = {}
-    if site_footer is not None:
-        footer["content"] = site_footer
+    localized_content: dict[str, Any] = {}
+    for lang, content in (site_footer or {}).items():
+        localized_content[lang] = {"footer": {"content": content}}
     if collapsible is not None:
-        footer["collapsible"] = collapsible
-    if footer:
-        site_content["footer"] = footer
+        for entry in localized_content.values():
+            entry["footer"]["collapsible"] = collapsible
+    if localized_content:
+        site_content["localized_content"] = localized_content
     config = Config.model_validate(
         {
             "APP_NAME": "testApp",

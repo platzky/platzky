@@ -14,53 +14,30 @@ from platzky.models import Image
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
-def _for_language(site_content: Mapping[str, Any], field: str, lang: str) -> object:
-    return (site_content.get(field) or {}).get(lang)
-
-
-def _hygraph_default_entry(site_content: Mapping[str, Any]) -> dict[str, Any]:
-    logo_url = site_content.get("logo_url")
+def _hygraph_entry(language: str | None, content: Mapping[str, Any]) -> dict[str, Any]:
+    """Map a neutral entry to a Hygraph `LocalizedContent` entry (camelCase, nested logo)."""
+    logo_url = content.get("logo_url")
     return {
-        "language": None,
-        "appName": site_content.get("app_name"),
-        "appTitle": site_content.get("app_title"),
-        "appDescription": site_content.get("app_description"),
+        "language": language,
+        "appName": content.get("app_name"),
+        "appTitle": content.get("app_title"),
+        "appDescription": content.get("app_description"),
         "logo": {"image": {"url": logo_url}} if logo_url else None,
-    }
-
-
-def _hygraph_language_entry(site_content: Mapping[str, Any], lang: str) -> dict[str, Any]:
-    localized = (site_content.get("localized_content") or {}).get(lang) or {}
-    footer = site_content.get("footer") or {}
-    logo_url = localized.get("logo_url")
-    return {
-        "language": lang,
-        "appName": localized.get("app_name"),
-        "appTitle": localized.get("app_title"),
-        "appDescription": localized.get("app_description"),
-        "logo": {"image": {"url": logo_url}} if logo_url else None,
-        "blogMeta": _for_language(site_content, "blog_meta", lang),
-        "footer": {
-            "content": (footer.get("content") or {}).get(lang),
-            "collapsible": footer.get("collapsible"),
-        },
-        "homePagePath": _for_language(site_content, "home_page_path", lang),
-        "menuItems": _for_language(site_content, "menu_items", lang),
+        "blogMeta": content.get("blog_meta"),
+        "footer": content.get("footer"),
+        "homePagePath": content.get("home_page_path"),
+        "menuItems": content.get("menu_items"),
     }
 
 
 def _graphql_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
-    languages = {
-        lang
-        for field in ("localized_content", "menu_items", "blog_meta", "home_page_path")
-        for lang in site_content.get(field) or {}
-    } | set((site_content.get("footer") or {}).get("content") or {})
-    entries = [_hygraph_default_entry(site_content)] + [
-        _hygraph_language_entry(site_content, lang) for lang in languages
-    ]
+    localized_content = site_content.get("localized_content") or {}
     client = Mock(spec=Client)
     client.execute.return_value = {
-        "localizedContents": entries,
+        "localizedContents": [
+            _hygraph_entry(None, site_content),
+            *(_hygraph_entry(lang, content or {}) for lang, content in localized_content.items()),
+        ],
         "logos": [],
         "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],
         "themes": [
@@ -77,14 +54,6 @@ def _graphql_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
         return _graphql_repository(site_content)
-
-    @pytest.mark.skip(reason="a single home page path for every locale has no Hygraph equivalent")
-    def test_get_home_page_path_returns_plain_string_for_any_locale(self):
-        raise NotImplementedError
-
-    @pytest.mark.skip(reason="the default home page path key has no Hygraph equivalent")
-    def test_get_home_page_path_falls_back_to_default_key(self):
-        raise NotImplementedError
 
 
 @pytest.fixture

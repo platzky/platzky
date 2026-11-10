@@ -47,7 +47,6 @@ class TestMongoDB:
             mock_db.site_content = Mock()
             mock_db.posts = Mock()
             mock_db.pages = Mock()
-            mock_db.menu_items = Mock()
             mock_db.localized_content = Mock()
             mock_db.plugins = Mock()
 
@@ -87,11 +86,13 @@ class TestMongoDB:
         mock_db.site_content.find_one.assert_called_once()
 
     def test_get_site_settings(self, db: MongoDB, mock_db: Mock):
-        mock_db.localized_content.find_one.return_value = None
+        mock_db.localized_content.find_one.return_value = {
+            "_id": "en",
+            "app_description": "English description",
+        }
         mock_find_one = mock_db.site_content.find_one
         mock_find_one.return_value = {
             "_id": "config",
-            "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
             "logo_url": "/logo.png",
             "favicon_url": "/favicon.ico",
             "font": "Arial",
@@ -114,25 +115,24 @@ class TestMongoDB:
         )
 
     def test_get_blog_meta_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = {
-            "_id": "config",
-            "blog_meta": {"en": {"title": "Reading notes", "description": "On Tolkien."}},
+        mock_db.localized_content.find_one.return_value = {
+            "_id": "en",
+            "blog_meta": {"title": "Reading notes", "description": "On Tolkien."},
         }
         assert db.get_blog_meta("en") == PageMeta(title="Reading notes", description="On Tolkien.")
 
     def test_get_footer_forwards_to_site_config(self, db: MongoDB, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = {
-            "_id": "config",
-            "footer": {"content": {"en": "Footer"}, "collapsible": True},
+        mock_db.localized_content.find_one.return_value = {
+            "_id": "en",
+            "footer": {"content": "Footer", "collapsible": True},
         }
         assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
 
     def test_get_menu_items_in_lang(self, db: MongoDB, mock_db: Mock):
-        # Mock menu items data
-        mock_find_one = mock_db.menu_items.find_one
+        mock_find_one = mock_db.localized_content.find_one
         mock_find_one.return_value = {
             "_id": "en",
-            "items": [{"name": "Home", "url": "/", "weight": 1}],
+            "menu_items": [{"name": "Home", "url": "/", "weight": 1}],
         }
 
         menu_items = db.get_menu_items_in_lang("en")
@@ -140,10 +140,10 @@ class TestMongoDB:
         assert len(menu_items) == 1
         assert isinstance(menu_items[0], MenuItem)
         assert menu_items[0].name == "Home"
-        mock_find_one.assert_called_once_with({"_id": "en"})
+        mock_find_one.assert_called_once_with({"_id": "en"}, projection=["menu_items"])
 
     def test_get_menu_items_in_lang_no_data(self, db: MongoDB, mock_db: Mock):
-        mock_db.menu_items.find_one.return_value = None
+        mock_db.localized_content.find_one.return_value = None
         menu_items = db.get_menu_items_in_lang("fr")
         assert len(menu_items) == 0
 
@@ -162,8 +162,8 @@ class TestMongoDB:
         assert db.get_plugins_data() == {}
 
     def test_get_home_page_path(self, db: MongoDB, mock_db: Mock):
-        mock_db.site_content.find_one.return_value = {
-            "_id": "config",
+        mock_db.localized_content.find_one.return_value = {
+            "_id": "en",
             "home_page_path": "/blog/page/about",
         }
         assert db.get_home_page_path("en") == "/blog/page/about"

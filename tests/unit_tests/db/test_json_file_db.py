@@ -13,7 +13,11 @@ class TestJsonFileDb:
     def sample_data(self) -> dict[str, object]:
         return {
             "site_content": {
-                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
+                "app_description": "Default description",
+                "localized_content": {
+                    "en": {"app_description": "English description"},
+                    "de": {"app_description": "Deutsche Beschreibung"},
+                },
                 "posts": [
                     {
                         "title": "Post 1",
@@ -50,7 +54,7 @@ class TestJsonFileDb:
             db = JsonFile(mock_file_path)
             assert db.get_site_settings("en").app_description == "English description"
             assert db.get_site_settings("de").app_description == "Deutsche Beschreibung"
-            assert db.get_site_settings("fr").app_description == ""
+            assert db.get_site_settings("fr").app_description == "Default description"
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
         data_file = tmp_path / "data.json"

@@ -217,13 +217,6 @@ def test_top_level_defaults_are_used_for_language_without_localized_entry():
     assert _description(pl_plain) == _DEFAULT_DESCRIPTION
 
 
-def test_legacy_dict_app_description_is_rendered_for_current_language():
-    app = _build_app({"app_description": _DESCRIPTIONS})
-
-    assert _description(_soup(app, _PLAIN_PAGE)) == _DESCRIPTIONS["en"]
-    assert _description(_soup(app, "/pl" + _PLAIN_PAGE)) == _DESCRIPTIONS["pl"]
-
-
 def test_app_title_missing_falls_back_to_localized_app_name():
     app = _build_app({"localized_content": {"pl": {"app_name": _NAMES["pl"]}}})
 
