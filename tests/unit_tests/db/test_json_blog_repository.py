@@ -1,5 +1,6 @@
 import datetime
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
 from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument
 from platzky.db.json_stores import FileStore, JsonStore, MemoryStore, ReadOnlyStore
+from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
 
 
 def _repository(store: JsonStore) -> JsonBlogRepository:
@@ -81,10 +83,6 @@ class TestPosts:
         assert post.slug == "post-1"
         assert post.title == "Title"
 
-    def test_get_raises_not_found_for_unknown_slug(self, repository: JsonBlogRepository):
-        with pytest.raises(NotFoundError):
-            repository.posts.get("missing")
-
     def test_get_raises_not_found_when_posts_key_missing(self):
         repository = _repository(MemoryStore({"site_content": {}}))
         with pytest.raises(NotFoundError):
@@ -153,10 +151,6 @@ class TestPosts:
         repository = _repository(MemoryStore(data))
         assert repository.posts.get_by_tag("python", "en") == []
 
-    def test_add_comment_raises_not_found_for_unknown_slug(self, repository: JsonBlogRepository):
-        with pytest.raises(NotFoundError):
-            repository.posts.add_comment("Alice", "Nice post!", "missing")
-
     def test_add_comment_raises_not_found_when_posts_data_is_missing(self):
         data = sample_data()
         del data["site_content"]["posts"]
@@ -189,10 +183,6 @@ class TestPages:
     def test_get_returns_matching_page(self, repository: JsonBlogRepository):
         page = repository.pages.get("page-1")
         assert page.slug == "page-1"
-
-    def test_get_raises_not_found_for_unknown_slug(self, repository: JsonBlogRepository):
-        with pytest.raises(NotFoundError):
-            repository.pages.get("missing")
 
     def test_get_all_filters_by_language(self, repository: JsonBlogRepository):
         assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
@@ -234,3 +224,12 @@ def test_json_blog_repository_satisfies_blog_repository_protocol(
     """Structural check: pyright rejects this assignment if the shape drifts."""
     conforms: BlogRepository = repository
     assert conforms is repository
+
+
+class TestJsonBlogRepositoryContract(BlogRepositoryContract):
+    def make_repository(
+        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+    ) -> BlogRepository:
+        return _repository(
+            MemoryStore({"site_content": {"posts": list(posts), "pages": list(pages)}})
+        )

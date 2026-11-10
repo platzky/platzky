@@ -1,13 +1,16 @@
 import datetime
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
+from gql import Client
 
 from platzky.db.blog_repository import BlogRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
 from platzky.db.graphql_blog_repository import GraphQLBlogRepository
 from platzky.models import Comment, Post
+from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
 
 
 @pytest.fixture
@@ -115,14 +118,6 @@ class TestPosts:
         post = repository.posts.get("test-post")
 
         assert post.css == ""
-
-    def test_get_raises_not_found_for_unknown_slug(
-        self, repository: GraphQLBlogRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {"post": None}
-
-        with pytest.raises(NotFoundError, match="missing"):
-            repository.posts.get("missing")
 
     def test_get_all_returns_posts(self, repository: GraphQLBlogRepository, mock_client: Mock):
         mock_client.execute.return_value = {
@@ -365,14 +360,6 @@ class TestPages:
         assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
         assert "where: {lang: $lang}" in str(mock_client.execute.call_args.args[0])
 
-    def test_get_raises_not_found_for_unknown_slug(
-        self, repository: GraphQLBlogRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {"page": None}
-
-        with pytest.raises(NotFoundError, match="missing"):
-            repository.pages.get("missing")
-
 
 def test_graphql_blog_repository_satisfies_blog_repository_protocol(
     repository: GraphQLBlogRepository,
@@ -380,3 +367,51 @@ def test_graphql_blog_repository_satisfies_blog_repository_protocol(
     """Structural check: pyright rejects this assignment if the shape drifts."""
     conforms: BlogRepository = repository
     assert conforms is repository
+
+
+def _hygraph_post(post: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "slug": post["slug"],
+        "title": post["title"],
+        "author": {"name": post["author"]},
+        "contentInRichText": {"html": post["contentInMarkdown"]},
+        "excerpt": post["excerpt"],
+        "language": post["language"],
+        "tags": post["tags"],
+        "date": post["date"],
+        "css": post["css"],
+        "coverImage": {
+            "alternateText": post["coverImage"]["alternateText"],
+            "image": {"url": post["coverImage"]["url"]},
+        },
+        "comments": [
+            {"author": c["author"], "comment": c["comment"], "createdAt": c["date"]}
+            for c in post["comments"]
+        ],
+    }
+
+
+def _hygraph_page(page: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "slug": page["slug"],
+        "title": page["title"],
+        "author": {"name": page["author"]},
+        "contentInMarkdown": page["contentInMarkdown"],
+        "lang": page["language"],
+        "css": page["css"],
+        "coverImage": {"url": page["coverImage"]["url"]},
+    }
+
+
+class TestGraphQLBlogRepositoryContract(BlogRepositoryContract):
+    def make_repository(
+        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+    ) -> BlogRepository:
+        client = Mock(spec=Client)
+        client.execute.return_value = {
+            "post": next(map(_hygraph_post, posts), None),
+            "posts": [_hygraph_post(post) for post in posts],
+            "page": next(map(_hygraph_page, pages), None),
+            "pages": [_hygraph_page(page) for page in pages],
+        }
+        return GraphQLBlogRepository(lambda: client)

@@ -3,14 +3,17 @@
 from typing import Any
 
 from pydantic import Field
+from typing_extensions import override
 
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
 from platzky.db.json_blog_repository import JsonBlogRepository
 from platzky.db.json_document import JsonDocument, get_site_content
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
-from platzky.db.site_config_repository import parse_site_content
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository, parse_site_content
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -58,15 +61,33 @@ class Json(DB):
         super().__init__()
         document = JsonDocument(store)
         self._document = document
-        self.blog = JsonBlogRepository(document)
-        self.plugin_config = JsonPluginConfigRepository(document)
-        self.site_config = JsonSiteConfigRepository(document)
+        self._blog = JsonBlogRepository(document)
+        self._plugin_config = JsonPluginConfigRepository(document)
+        self._site_config = JsonSiteConfigRepository(document)
         if "site_content" in document.data:
             self._validate_site_content()
 
     def _validate_site_content(self) -> None:
         """Raise `InvalidSiteContentError` if the site content does not match its format."""
         parse_site_content(get_site_content(self._document.data))
+
+    @property
+    @override
+    def blog(self) -> BlogRepository:
+        """The blog repository."""
+        return self._blog
+
+    @property
+    @override
+    def site_config(self) -> SiteConfigRepository:
+        """The site config repository."""
+        return self._site_config
+
+    @property
+    @override
+    def plugin_config(self) -> PluginConfigRepository:
+        """The plugin config repository."""
+        return self._plugin_config
 
     @property
     def document(self) -> JsonDocument:

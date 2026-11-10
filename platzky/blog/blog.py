@@ -12,8 +12,9 @@ from werkzeug.wrappers import Response
 
 from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
-from platzky.db.db import DB
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
+from platzky.db.site_config_repository import SiteConfigRepository
 from platzky.models import Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
@@ -27,7 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_blog_blueprint(
-    db: DB,
+    blog_repository: BlogRepository,
+    site_config: SiteConfigRepository,
     blog_prefix: str,
     locale_func: Callable[[], str],
     content_transformer: Callable[[ContentSource | str, FilterContentType], str],
@@ -35,7 +37,8 @@ def create_blog_blueprint(
     """Create and configure the blog blueprint with all routes and handlers.
 
     Args:
-        db: Database instance for accessing blog content
+        blog_repository: Repository of the posts and pages to serve
+        site_config: Repository of the site settings the blog index reads (its meta)
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
         content_transformer: Function applied to post/page content before rendering
@@ -79,14 +82,14 @@ def create_blog_blueprint(
         """List every post in a language for the sitemap, dated when it has a date."""
         return [
             SitemapEntry(url(post_slug=post.slug), post.date)
-            for post in db.blog.posts.get_all(lang)
+            for post in blog_repository.posts.get_all(lang)
         ]
 
     def page_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
         """List every page in a language for the sitemap, dated when it has a date."""
         return [
             SitemapEntry(url(page_slug=page.slug), page.date)
-            for page in db.blog.pages.get_all(lang)
+            for page in blog_repository.pages.get_all(lang)
         ]
 
     @blog.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
@@ -97,12 +100,12 @@ def create_blog_blueprint(
             Rendered HTML template with all blog posts
         """
         lang = locale_func()
-        posts = db.blog.posts.get_all(lang)
+        posts = blog_repository.posts.get_all(lang)
         if not posts:
             abort(404)
         posts_sorted = sorted(posts, reverse=True)
         return render_template(
-            "blog.html", posts=posts_sorted, blog_meta=db.site_config.get_blog_meta(lang)
+            "blog.html", posts=posts_sorted, blog_meta=site_config.get_blog_meta(lang)
         )
 
     @blog.route("/feed", methods=["GET"], multilang=True)
@@ -113,7 +116,9 @@ def create_blog_blueprint(
             XML response containing the RSS/Atom feed
         """
         lang = locale_func()
-        response = make_response(render_template("feed.xml", posts=db.blog.posts.get_all(lang)))
+        response = make_response(
+            render_template("feed.xml", posts=blog_repository.posts.get_all(lang))
+        )
         response.headers["Content-Type"] = "application/xml"
         return response
 
@@ -132,7 +137,7 @@ def create_blog_blueprint(
         """
         comment = request.form.to_dict()
         try:
-            db.blog.posts.add_comment(
+            blog_repository.posts.add_comment(
                 post_slug=post_slug,
                 author_name=comment["author_name"],
                 comment=comment["comment"],
@@ -150,7 +155,7 @@ def create_blog_blueprint(
         """Helper to fetch content from database or abort with 404.
 
         Args:
-            getter_func: Database getter function (e.g., db.blog.posts.get, db.blog.pages.get)
+            getter_func: Database getter function (e.g., a repository's ``get``)
             slug: Content slug to fetch
 
         Returns:
@@ -175,7 +180,7 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the blog post
         """
-        post = _get_content_or_404(db.blog.posts.get, post_slug)
+        post = _get_content_or_404(blog_repository.posts.get, post_slug)
         return render_template(
             "post.html",
             post=post,
@@ -198,7 +203,7 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the page
         """
-        page = _get_content_or_404(db.blog.pages.get, page_slug)
+        page = _get_content_or_404(blog_repository.pages.get, page_slug)
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",
@@ -220,12 +225,12 @@ def create_blog_blueprint(
             Rendered HTML template with filtered blog posts
         """
         lang = locale_func()
-        posts = db.blog.posts.get_by_tag(tag, lang)
+        posts = blog_repository.posts.get_by_tag(tag, lang)
         return render_template(
             "blog.html",
             posts=posts,
             subtitle=f" - tag: {tag}",
-            blog_meta=db.site_config.get_blog_meta(lang),
+            blog_meta=site_config.get_blog_meta(lang),
         )
 
     return blog

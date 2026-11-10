@@ -4,13 +4,16 @@ from typing import Any
 
 from pydantic import Field
 from pymongo import MongoClient
-from pymongo.collection import Collection
 from pymongo.database import Database
+from typing_extensions import override
 
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
 from platzky.db.mongo_blog_repository import MongoBlogRepository
 from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository
 
 
 def db_config_type() -> type["MongoDbConfig"]:
@@ -57,19 +60,30 @@ class MongoDB(DB):
         self._client: MongoClient[Any] = MongoClient(connection_string)
         self._db: Database[Any] = self._client[database_name]
 
-        # Collection references
-        self._site_content: Collection[Any] = self._db.site_content
-        self._posts: Collection[Any] = self._db.posts
-        self._pages: Collection[Any] = self._db.pages
-        self._localized_content: Collection[Any] = self._db.localized_content
-        self._plugins: Collection[Any] = self._db.plugins
-        self.blog = MongoBlogRepository(self._posts, self._pages)
-        self.plugin_config = MongoPluginConfigRepository(self._plugins)
-        self._mongo_site_config = MongoSiteConfigRepository(
-            self._site_content, self._localized_content
+        self._blog = MongoBlogRepository(self._db.posts, self._db.pages)
+        self._plugin_config = MongoPluginConfigRepository(self._db.plugins)
+        self._site_config = MongoSiteConfigRepository(
+            self._db.site_content, self._db.localized_content
         )
-        self._mongo_site_config.validate()
-        self.site_config = self._mongo_site_config
+        self._site_config.validate()
+
+    @property
+    @override
+    def blog(self) -> BlogRepository:
+        """The blog repository."""
+        return self._blog
+
+    @property
+    @override
+    def site_config(self) -> SiteConfigRepository:
+        """The site config repository."""
+        return self._site_config
+
+    @property
+    @override
+    def plugin_config(self) -> PluginConfigRepository:
+        """The plugin config repository."""
+        return self._plugin_config
 
     @property
     def database(self) -> Database[Any]:
@@ -88,4 +102,4 @@ class MongoDB(DB):
         Raises an exception if the database is not accessible or its site content is invalid.
         """
         self._client.admin.command("ping")
-        self._mongo_site_config.validate()
+        self._site_config.validate()

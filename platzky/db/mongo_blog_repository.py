@@ -133,17 +133,17 @@ class MongoBlogRepository(BlogRepository):
             posts: The database's ``posts`` collection.
             pages: The database's ``pages`` collection.
         """
-        self._posts = _MongoPostRepository(posts)
-        self._pages = _MongoPageRepository(pages)
+        self._post_repository = _MongoPostRepository(posts)
+        self._page_repository = _MongoPageRepository(pages)
 
     @property
     @override
     def posts(self) -> PostRepository:
         """Return the post repository."""
-        return self._posts
+        return self._post_repository
 
     @property
     @override
     def pages(self) -> PageRepository:
         """Return the page repository."""
-        return self._pages
+        return self._page_repository

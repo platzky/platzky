@@ -1,173 +1,113 @@
+from collections.abc import Sequence
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import NotFoundError
 from platzky.db.mongo_blog_repository import MongoBlogRepository
-from platzky.models import Post
+from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
+
+
+class TestMongoBlogRepositoryContract(BlogRepositoryContract):
+    """Collections are fakes that look documents up by slug and never filter."""
+
+    def make_repository(
+        self, posts: Sequence[dict[str, Any]] = (), pages: Sequence[dict[str, Any]] = ()
+    ) -> BlogRepository:
+        return MongoBlogRepository(_collection(posts), _collection(pages))
+
+
+def _collection(documents: Sequence[dict[str, Any]]) -> Mock:
+    def find_one(query: dict[str, Any]) -> dict[str, Any] | None:
+        return next((doc for doc in documents if doc["slug"] == query["slug"]), None)
+
+    def update_one(query: dict[str, Any], _update: dict[str, Any]) -> Mock:
+        return Mock(matched_count=sum(doc["slug"] == query["slug"] for doc in documents))
+
+    collection = Mock()
+    collection.find.return_value = list(documents)
+    collection.find_one.side_effect = find_one
+    collection.update_one.side_effect = update_one
+    return collection
 
 
 class TestMongoBlogRepository:
     @pytest.fixture
-    def mock_db(self) -> Mock:
+    def posts(self) -> Mock:
         return Mock()
 
     @pytest.fixture
-    def blog(self, mock_db: Mock) -> MongoBlogRepository:
-        return MongoBlogRepository(mock_db.posts, mock_db.pages)
+    def pages(self) -> Mock:
+        return Mock()
 
-    def test_get_all_posts(self, blog: MongoBlogRepository, mock_db: Mock):
-        # Mock posts data
-        mock_posts = [
-            {
-                "_id": "1",
-                "title": "Post 1",
-                "slug": "post-1",
-                "content": "Content 1",
-                "language": "en",
-                "tags": ["tag1"],
-                "comments": [],
-                "author": "Test Author",
-                "contentInMarkdown": "# Post 1",
-                "excerpt": "Post excerpt",
-                "coverImage": {"url": "/images/post1.jpg"},
-                "date": "2023-01-01T00:00:00",
-            }
-        ]
+    @pytest.fixture
+    def blog(self, posts: Mock, pages: Mock) -> MongoBlogRepository:
+        return MongoBlogRepository(posts, pages)
 
-        mock_find = mock_db.posts.find
-        mock_find.return_value = mock_posts
+    def test_get_all_posts_queries_by_language(self, blog: MongoBlogRepository, posts: Mock):
+        posts.find.return_value = []
 
-        posts = blog.posts.get_all("en")
+        blog.posts.get_all("en")
 
-        assert len(posts) == 1
-        assert isinstance(posts[0], Post)
-        assert posts[0].title == "Post 1"
-        mock_find.assert_called_once_with({"language": "en"})
+        posts.find.assert_called_once_with({"language": "en"})
 
-    def test_get_post(self, blog: MongoBlogRepository, mock_db: Mock):
-        # Mock post data
-        mock_post = {
-            "_id": "1",
-            "title": "Post 1",
-            "slug": "post-1",
-            "content": "Content 1",
-            "language": "en",
-            "tags": ["tag1"],
-            "comments": [],
-            "author": "Test Author",
-            "contentInMarkdown": "# Post 1",
-            "excerpt": "Post excerpt",
-            "coverImage": {"url": "/images/post1.jpg"},
-            "date": "2023-01-01T00:00:00",
-        }
+    def test_get_post_queries_by_slug(self, blog: MongoBlogRepository, posts: Mock):
+        posts.find_one.return_value = None
 
-        mock_find_one = mock_db.posts.find_one
-        mock_find_one.return_value = mock_post
+        with pytest.raises(NotFoundError, match="Post with slug missing not found"):
+            blog.posts.get("missing")
 
-        post = blog.posts.get("post-1")
+        posts.find_one.assert_called_once_with({"slug": "missing"})
 
-        assert isinstance(post, Post)
-        assert post.title == "Post 1"
-        mock_find_one.assert_called_once_with({"slug": "post-1"})
+    def test_get_posts_by_tag_queries_by_tag_and_language(
+        self, blog: MongoBlogRepository, posts: Mock
+    ):
+        posts.find.return_value = []
 
-    def test_get_post_not_found(self, blog: MongoBlogRepository, mock_db: Mock):
-        mock_db.posts.find_one.return_value = None
+        blog.posts.get_by_tag("tag1", "en")
 
-        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
-            blog.posts.get("non-existent")
+        posts.find.assert_called_once_with({"tags": "tag1", "language": "en"})
 
-    def test_get_all_pages(self, blog: MongoBlogRepository, mock_db: Mock):
-        mock_find = mock_db.pages.find
-        mock_find.return_value = [
-            {
-                "title": "About Tolkien",
-                "slug": "about-tolkien",
-                "author": "Test Author",
-                "contentInMarkdown": "# About",
-                "excerpt": "excerpt",
-                "language": "en",
-                "coverImage": {"url": "/images/tolkien.jpg"},
-            }
-        ]
+    def test_get_all_pages_queries_by_language(self, blog: MongoBlogRepository, pages: Mock):
+        pages.find.return_value = []
 
-        pages = blog.pages.get_all("en")
+        blog.pages.get_all("en")
 
-        assert [page.slug for page in pages] == ["about-tolkien"]
-        mock_find.assert_called_once_with({"language": "en"})
+        pages.find.assert_called_once_with({"language": "en"})
 
-    def test_get_page(self, blog: MongoBlogRepository, mock_db: Mock):
-        # Mock page data
-        mock_page = {
-            "_id": "1",
-            "title": "Page 1",
-            "slug": "page-1",
-            "content": "Page content",
-            "language": "en",
-            "tags": [],
-            "comments": [],
-            "author": "Page Author",
-            "contentInMarkdown": "# Page 1",
-            "excerpt": "Page excerpt",
-            "coverImage": {"url": "/images/page1.jpg"},
-            "date": "2023-01-01T00:00:00",
-        }
+    def test_get_page_queries_by_slug(self, blog: MongoBlogRepository, pages: Mock):
+        pages.find_one.return_value = None
 
-        mock_find_one = mock_db.pages.find_one
-        mock_find_one.return_value = mock_page
+        with pytest.raises(NotFoundError, match="Page with slug missing not found"):
+            blog.pages.get("missing")
 
-        page = blog.pages.get("page-1")
+        pages.find_one.assert_called_once_with({"slug": "missing"})
 
-        assert isinstance(page, Post)  # Page is actually Post type in platzky
-        assert page.title == "Page 1"
-        mock_find_one.assert_called_once_with({"slug": "page-1"})
-
-    def test_get_page_not_found(self, blog: MongoBlogRepository, mock_db: Mock):
-        mock_db.pages.find_one.return_value = None
-
-        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
-            blog.pages.get("non-existent")
-
-    def test_get_posts_by_tag(self, blog: MongoBlogRepository, mock_db: Mock):
-        mock_posts = [
-            {
-                "title": "Tagged Post",
-                "slug": "tagged-post",
-                "content": "Content",
-                "language": "en",
-                "tags": ["tag1"],
-                "comments": [],
-                "author": "Test Author",
-                "contentInMarkdown": "# Tagged Post",
-                "excerpt": "Excerpt",
-                "coverImage": {"url": "/images/post.jpg"},
-                "date": "2023-01-01T00:00:00",
-            }
-        ]
-        mock_find = mock_db.posts.find
-        mock_find.return_value = mock_posts
-
-        result = blog.posts.get_by_tag("tag1", "en")
-
-        assert len(result) == 1
-        assert isinstance(result[0], Post)
-        assert result[0].title == "Tagged Post"
-        mock_find.assert_called_once_with({"tags": "tag1", "language": "en"})
-
-    def test_add_comment(self, blog: MongoBlogRepository, mock_db: Mock):
+    def test_add_comment_pushes_a_utc_dated_comment(self, blog: MongoBlogRepository, posts: Mock):
         with patch("platzky.db.mongo_blog_repository.datetime.datetime") as mock_datetime:
-            test_date = Mock()
-            test_date.isoformat.return_value = "2023-01-01T12:00:00"
-            mock_datetime.now.return_value = test_date
+            mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T12:00:00"
 
             blog.posts.add_comment("Test User", "Great post!", "post-1")
 
-            expected_comment = {
-                "author": "Test User",
-                "comment": "Great post!",
-                "date": "2023-01-01T12:00:00",
-            }
+        posts.update_one.assert_called_once_with(
+            {"slug": "post-1"},
+            {
+                "$push": {
+                    "comments": {
+                        "author": "Test User",
+                        "comment": "Great post!",
+                        "date": "2023-01-01T12:00:00",
+                    }
+                }
+            },
+        )
 
-            mock_db.posts.update_one.assert_called_once_with(
-                {"slug": "post-1"}, {"$push": {"comments": expected_comment}}
-            )
+    def test_add_comment_to_a_missing_post_raises_not_found(
+        self, blog: MongoBlogRepository, posts: Mock
+    ):
+        posts.update_one.return_value.matched_count = 0
+
+        with pytest.raises(NotFoundError, match="Post with slug missing not found"):
+            blog.posts.add_comment("Test User", "Hi", "missing")

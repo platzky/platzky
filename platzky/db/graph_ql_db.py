@@ -5,12 +5,16 @@
 
 from gql import gql
 from pydantic import Field
+from typing_extensions import override
 
+from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
 from platzky.db.graphql_blog_repository import GraphQLBlogRepository
 from platzky.db.graphql_client import make_graphql_client_getter
 from platzky.db.graphql_plugin_config_repository import GraphQLPluginConfigRepository
 from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
+from platzky.db.plugin_config_repository import PluginConfigRepository
+from platzky.db.site_config_repository import SiteConfigRepository
 
 
 def db_config_type() -> type["GraphQlDbConfig"]:
@@ -54,10 +58,28 @@ class GraphQL(DB):
         # One lazy, per-thread client source shared by this facade and every
         # repository, so the endpoint is only ever connected to through it.
         self._client_getter = make_graphql_client_getter(endpoint, token)
-        self.blog = GraphQLBlogRepository(self._client_getter)
-        self.plugin_config = GraphQLPluginConfigRepository(self._client_getter)
-        self.site_config = GraphQLSiteConfigRepository(self._client_getter)
+        self._blog = GraphQLBlogRepository(self._client_getter)
+        self._plugin_config = GraphQLPluginConfigRepository(self._client_getter)
+        self._site_config = GraphQLSiteConfigRepository(self._client_getter)
         super().__init__()
+
+    @property
+    @override
+    def blog(self) -> BlogRepository:
+        """The blog repository."""
+        return self._blog
+
+    @property
+    @override
+    def site_config(self) -> SiteConfigRepository:
+        """The site config repository."""
+        return self._site_config
+
+    @property
+    @override
+    def plugin_config(self) -> PluginConfigRepository:
+        """The plugin config repository."""
+        return self._plugin_config
 
     def health_check(self) -> None:
         """Perform a health check on the GraphQL database.
