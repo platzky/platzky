@@ -45,7 +45,7 @@ _LOCALIZED_CONTENT_QUERY = (
 
 
 def _present(values: Mapping[str, Any]) -> dict[str, Any]:
-    """Drop the null and empty values, also in nested objects, so they fall through.
+    """Drop the null and empty-string values, also in nested objects, so they fall through.
 
     Hygraph answers null for every field an editor left unset, so here null means "not set";
     it is not a validation of the site content.
@@ -53,7 +53,7 @@ def _present(values: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: _present(value) if isinstance(value, Mapping) else value
         for key, value in values.items()
-        if value
+        if value is not None and value != ""
     }
 
 

@@ -74,8 +74,8 @@ class SiteContent(BaseModel):
     logo_url: str = ""
     favicon_url: str = ""
     font: Font = Font()
-    primary_color: str = DEFAULT_PRIMARY_COLOR
-    secondary_color: str = DEFAULT_SECONDARY_COLOR
+    primary_color: str = Field(default=DEFAULT_PRIMARY_COLOR, min_length=1)
+    secondary_color: str = Field(default=DEFAULT_SECONDARY_COLOR, min_length=1)
 
 
 class SiteContentSection(SiteContent):

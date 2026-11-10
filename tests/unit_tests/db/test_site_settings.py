@@ -110,3 +110,9 @@ def test_site_content_is_immutable():
         content.app_name = "Changed"
     with pytest.raises(TypeError):
         content.localized_content["pl"] = LocalizedContent()  # type: ignore[index]
+
+
+@pytest.mark.parametrize("key", ["primary_color", "secondary_color"])
+def test_empty_colour_is_rejected(key: str):
+    with pytest.raises(ValidationError, match=key):
+        SiteContent.model_validate({key: ""})

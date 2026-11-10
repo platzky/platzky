@@ -35,6 +35,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
             The site-wide content, with defaults where none is configured.
         """
         section = self._section()
+        # Copy only the site-wide fields: the section also carries localized_content, posts, pages.
         return SiteContent(**{name: getattr(section, name) for name in SiteContent.model_fields})
 
     @override
