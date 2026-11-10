@@ -1,8 +1,6 @@
 {
   "site_content": {
-    "app_description": {
-      "en": "A site built with Platzky"
-    },
+    "app_description": "A site built with Platzky",
     "posts": [
       {
         "title": "Hello, Platzky",
@@ -25,17 +23,19 @@
         "contentInMarkdown": "# About\n\nTell your readers about your app.\n"
       }
     ],
-    "menu_items": {
-      "en": [
-        {
-          "name": "Blog",
-          "url": "/blog/"
-        },
-        {
-          "name": "About",
-          "url": "/blog/page/about"
-        }
-      ]
+    "localized_content": {
+      "en": {
+        "menu_items": [
+          {
+            "name": "Blog",
+            "url": "/blog/"
+          },
+          {
+            "name": "About",
+            "url": "/blog/page/about"
+          }
+        ]
+      }
     }
   }
 }

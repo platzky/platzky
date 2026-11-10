@@ -69,7 +69,7 @@ class TestInit:
         content = json.loads((tmp_path / "data.json").read_text())["site_content"]
         assert [post["slug"] for post in content["posts"]] == ["hello-platzky"]
         assert [page["slug"] for page in content["pages"]] == ["about"]
-        assert content["menu_items"]["en"] == [
+        assert content["localized_content"]["en"]["menu_items"] == [
             {"name": "Blog", "url": "/blog/"},
             {"name": "About", "url": "/blog/page/about"},
         ]
@@ -121,3 +121,73 @@ class TestInit:
         assert result.exit_code != 0
         assert "Refusing to overwrite" in result.output
         assert "Edited By Hand" in config_file.read_text()
+
+
+def _check(tmp_path: Path, document: object) -> Result:
+    data_file = tmp_path / "data.json"
+    data_file.write_text(json.dumps(document), encoding="utf-8")
+    return CliRunner().invoke(cli, ["check", str(data_file)])
+
+
+class TestCheck:
+    def test_valid_site_content_is_ok(self, tmp_path: Path):
+        result = _check(
+            tmp_path,
+            {
+                "site_content": {
+                    "app_name": "Literature",
+                    "posts": [],
+                    "localized_content": {"pl": {"home_page_path": "/blog/page/o-nas"}},
+                }
+            },
+        )
+
+        assert (result.exit_code, result.output) == (0, "OK\n")
+
+    def test_sample_database_created_by_init_is_ok(self, tmp_path: Path):
+        _init(tmp_path)
+
+        result = CliRunner().invoke(cli, ["check", str(tmp_path / "data.json")])
+
+        assert (result.exit_code, result.output) == (0, "OK\n")
+
+    def test_every_problem_is_listed_with_its_path(self, tmp_path: Path):
+        result = _check(
+            tmp_path,
+            {
+                "site_content": {
+                    "home_page_path": "/blog/page/about",
+                    "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
+                }
+            },
+        )
+
+        assert result.exit_code == 1
+        assert result.output.splitlines() == [
+            "site_content.localized_content.pl.menu_items.0.url: Field required",
+            "site_content.localized_content.pl.x: Extra inputs are not permitted",
+            "site_content.home_page_path: Extra inputs are not permitted",
+        ]
+
+    def test_missing_site_content_is_an_error(self, tmp_path: Path):
+        result = _check(tmp_path, {"plugins": {}})
+
+        assert result.exit_code == 1
+        assert (
+            result.output
+            == "site_content: Input should be a valid dictionary or instance of SiteContent\n"
+        )
+
+    def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
+        data_file = tmp_path / "data.json"
+        data_file.write_text("{", encoding="utf-8")
+
+        result = CliRunner().invoke(cli, ["check", str(data_file)])
+
+        assert result.exit_code == 1
+        assert result.output.startswith(f"Error: {data_file} is not a JSON object")
+
+    def test_missing_file_is_an_error(self, tmp_path: Path):
+        result = CliRunner().invoke(cli, ["check", str(tmp_path / "absent.json")])
+
+        assert result.exit_code != 0
