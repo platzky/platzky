@@ -9,7 +9,8 @@ from string import Template
 import click
 
 from platzky.db.exceptions import InvalidDataError
-from platzky.db.json_db import validate_json_document
+from platzky.db.json_db import Json
+from platzky.db.json_stores import MemoryStore
 from platzky.platzky import create_app
 
 _TARGET_CONFIG_FILENAME = "config.yml"
@@ -99,7 +100,7 @@ def check(file: Path) -> None:
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")
     try:
-        validate_json_document(document)
+        Json(MemoryStore(document))
     except InvalidDataError as error:
         raise click.ClickException(str(error)) from error
     click.echo("OK")

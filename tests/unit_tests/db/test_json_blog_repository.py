@@ -14,14 +14,14 @@ from platzky.db.exceptions import (
     ReadOnlyStorageError,
 )
 from platzky.db.json_blog_repository import JsonBlogRepository
-from platzky.db.json_document import JsonDocument
+from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_stores import FileStore, JsonStore, MemoryStore, ReadOnlyStore
 from platzky.models import PageMeta
 from tests.unit_tests.db.blog_repository_contract import BlogRepositoryContract
 
 
 def _repository(store: JsonStore) -> JsonBlogRepository:
-    return JsonBlogRepository(JsonDocument(store))
+    return JsonBlogRepository(JsonSection(JsonDocument(store), "blog"))
 
 
 def sample_data() -> dict[str, Any]:
@@ -229,6 +229,32 @@ class TestMeta:
 
         with pytest.raises(InvalidDataError, match=r"blog\.meta"):
             repository.get_meta("en")
+
+
+class TestValidate:
+    def test_lists_every_problem_with_its_path(self):
+        repository = _repository(
+            MemoryStore({"blog": {"posts": None, "meta": {"pl": {"title": None}}, "x": 1}})
+        )
+
+        with pytest.raises(InvalidDataError) as error:
+            repository.validate()
+
+        assert str(error.value).splitlines() == [
+            "blog.posts: Input should be a valid tuple",
+            "blog.meta.pl.title: Input should be a valid string",
+            "blog.x: Extra inputs are not permitted",
+        ]
+
+    def test_accepts_a_missing_section(self):
+        _repository(MemoryStore({})).validate()
+
+    def test_reading_a_post_does_not_validate_the_rest_of_the_section(self):
+        data = sample_data()
+        data["blog"]["x"] = 1
+        repository = _repository(MemoryStore(data))
+
+        assert repository.posts.get("post-1").slug == "post-1"
 
 
 class TestBlogSection:

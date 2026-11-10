@@ -3,34 +3,24 @@
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from platzky.db.exceptions import InvalidDataError
-from platzky.db.json_document import JsonDocument
-from platzky.db.json_site_config_repository import JsonSiteConfigRepository, parse_site_config
+from platzky.db.json_document import JsonDocument, JsonSection
+from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import MemoryStore
-from platzky.db.site_config_repository import LocalizedContent, SiteConfigRepository
+from platzky.db.site_config_repository import SiteConfig, SiteConfigRepository
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
 class TestJsonSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
-        return JsonSiteConfigRepository(JsonDocument(MemoryStore({"site_config": site_config})))
+        return _repository(site_config)
 
 
-def _invalid_repository() -> SiteConfigRepository:
-    site_config = {"primary_color": "", "localized_content": {"en": {"footer": None}}}
-    return JsonSiteConfigRepository(JsonDocument(MemoryStore({"site_config": site_config})))
-
-
-def test_invalid_site_config_read_is_an_invalid_site_config_error():
-    with pytest.raises(InvalidDataError, match=r"site_config\.primary_color"):
-        _invalid_repository().get_site_config()
-
-
-def test_invalid_localized_content_read_is_an_invalid_site_config_error():
-    with pytest.raises(InvalidDataError, match=r"site_config\.localized_content\.en"):
-        _invalid_repository().get_localized_content("en")
+def _repository(site_config: object) -> JsonSiteConfigRepository:
+    return JsonSiteConfigRepository(
+        JsonSection(JsonDocument(MemoryStore({"site_config": site_config})), "site_config")
+    )
 
 
 @pytest.mark.parametrize(
@@ -49,7 +39,7 @@ def test_invalid_localized_content_read_is_an_invalid_site_config_error():
 )
 def test_unknown_keys_are_rejected(site_config: dict[str, Any]):
     with pytest.raises(InvalidDataError):
-        parse_site_config(site_config)
+        _repository(site_config).validate()
 
 
 @pytest.mark.parametrize(
@@ -67,13 +57,30 @@ def test_unknown_keys_are_rejected(site_config: dict[str, Any]):
 )
 def test_null_is_rejected(site_config: dict[str, Any] | None):
     with pytest.raises(InvalidDataError):
-        parse_site_config(site_config)
+        _repository(site_config).validate()
 
 
-def test_parsed_site_config_is_immutable():
-    section = parse_site_config({"localized_content": {"en": {}}})
+def test_validate_lists_every_problem_with_its_path():
+    repository = _repository(
+        {
+            "primary_color": "",
+            "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
+        }
+    )
 
-    with pytest.raises(ValidationError):
-        section.app_name = "Changed"
-    with pytest.raises(TypeError):
-        section.localized_content["pl"] = LocalizedContent()  # type: ignore[index]
+    with pytest.raises(InvalidDataError) as error:
+        repository.validate()
+
+    assert str(error.value).splitlines() == [
+        "site_config.primary_color: String should have at least 1 character",
+        "site_config.localized_content.pl.menu_items.0.url: Field required",
+        "site_config.localized_content.pl.x: Extra inputs are not permitted",
+    ]
+
+
+def test_missing_section_is_the_defaults():
+    repository = JsonSiteConfigRepository(JsonSection(JsonDocument(MemoryStore({})), "site_config"))
+
+    repository.validate()
+
+    assert repository.get_site_config() == SiteConfig()

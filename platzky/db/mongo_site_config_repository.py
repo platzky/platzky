@@ -1,13 +1,14 @@
 """SiteConfigRepository implementation backed by MongoDB collections."""
 
 from collections.abc import Mapping
+from functools import partial
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 from pymongo.collection import Collection
 from typing_extensions import override
 
-from platzky.db.exceptions import InvalidDataError
+from platzky.db.exceptions import InvalidDataError, format_problems, validate_all
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
 
 _Model = TypeVar("_Model", bound=BaseModel)
@@ -27,7 +28,7 @@ def _parse(model: type[_Model], document: Mapping[str, Any] | None, *path: str) 
     try:
         return model.model_validate(_without_id(document))
     except ValidationError as error:
-        raise InvalidDataError.from_validation_error(error, *path) from error
+        raise InvalidDataError(format_problems(error, *path)) from error
 
 
 class MongoSiteConfigRepository(SiteConfigRepository):
@@ -59,20 +60,23 @@ class MongoSiteConfigRepository(SiteConfigRepository):
             InvalidDataError: If the config document or a language document is invalid;
                 unknown keys are reported too.
         """
-        errors: list[str] = []
-        for model, document, path in (
-            (SiteConfig, self._site_config.find_one({"_id": "config"}), ("site_config",)),
-            *(
-                (LocalizedContent, document, ("localized_content", str(document["_id"])))
-                for document in self._localized_content.find()
-            ),
-        ):
-            try:
-                _parse(model, document, *path)
-            except InvalidDataError as error:
-                errors.append(str(error))
-        if errors:
-            raise InvalidDataError("\n".join(errors))
+        validate_all(
+            (
+                partial(
+                    _parse, SiteConfig, self._site_config.find_one({"_id": "config"}), "site_config"
+                ),
+                *(
+                    partial(
+                        _parse,
+                        LocalizedContent,
+                        document,
+                        "localized_content",
+                        str(document["_id"]),
+                    )
+                    for document in self._localized_content.find()
+                ),
+            )
+        )
 
     @override
     def get_site_config(self) -> SiteConfig:

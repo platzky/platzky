@@ -1,6 +1,5 @@
 """Mongo backend: the SiteConfigRepository contract plus the storage specifics it cannot see."""
 
-from collections.abc import Mapping
 from typing import Any
 from unittest.mock import Mock
 
@@ -12,15 +11,13 @@ from platzky.db.site_config_repository import SiteConfigRepository
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
-def _collection(documents: Mapping[str, Mapping[str, Any]]) -> Mock:
-    def find_one(query: Mapping[str, str], **_: object) -> dict[str, Any] | None:
-        document = documents.get(query["_id"])
-        return None if document is None else {"_id": query["_id"], **document}
+def _collection(documents: list[dict[str, Any]]) -> Mock:
+    """A collection holding these documents; each has an ``_id``."""
 
-    def find() -> list[dict[str, Any]]:
-        return [{"_id": key, **document} for key, document in documents.items()]
+    def find_one(query: dict[str, str]) -> dict[str, Any] | None:
+        return next((d for d in documents if d["_id"] == query["_id"]), None)
 
-    return Mock(find_one=find_one, find=find)
+    return Mock(find_one=find_one, find=lambda: documents)
 
 
 class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
@@ -28,32 +25,23 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
         # Mongo keeps the site-wide keys in one document, and each language's content in a
         # document of its own.
         config = {k: v for k, v in site_config.items() if k != "localized_content"}
+        languages = [
+            {"_id": lang, **content}
+            for lang, content in site_config.get("localized_content", {}).items()
+        ]
         return MongoSiteConfigRepository(
-            _collection({"config": config}),
-            _collection(site_config.get("localized_content", {})),
+            _collection([{"_id": "config", **config}]), _collection(languages)
         )
 
 
-def _invalid_repository() -> MongoSiteConfigRepository:
-    return MongoSiteConfigRepository(
-        _collection({"config": {"primary_color": ""}}),
-        _collection({"en": {"footer": None}, "pl": {"unknown": 1}}),
+def test_validate_lists_the_problems_of_the_config_and_of_every_language():
+    repository = MongoSiteConfigRepository(
+        _collection([{"_id": "config", "primary_color": ""}]),
+        _collection([{"_id": "en", "footer": None}, {"_id": "pl", "unknown": 1}]),
     )
 
-
-def test_invalid_site_config_read_is_an_invalid_data_error():
-    with pytest.raises(InvalidDataError, match=r"site_config\.primary_color"):
-        _invalid_repository().get_site_config()
-
-
-def test_invalid_localized_content_read_is_an_invalid_data_error():
-    with pytest.raises(InvalidDataError, match=r"localized_content\.en\.footer"):
-        _invalid_repository().get_localized_content("en")
-
-
-def test_validate_lists_the_problems_of_the_config_and_of_every_language():
     with pytest.raises(InvalidDataError) as error:
-        _invalid_repository().validate()
+        repository.validate()
 
     assert str(error.value).splitlines() == [
         "site_config.primary_color: String should have at least 1 character",
@@ -63,4 +51,4 @@ def test_validate_lists_the_problems_of_the_config_and_of_every_language():
 
 
 def test_validate_accepts_an_empty_database():
-    MongoSiteConfigRepository(_collection({}), _collection({})).validate()
+    MongoSiteConfigRepository(_collection([]), _collection([])).validate()

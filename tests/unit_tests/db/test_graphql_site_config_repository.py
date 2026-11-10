@@ -45,6 +45,20 @@ class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
         client.execute.side_effect = execute
         return GraphQLSiteConfigRepository(lambda: client)
 
+    _SCHEMA_REASON = "Hygraph's schema cannot store this: the server never returns such data"
+
+    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
+        pass
+
+    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    def test_null_text_in_a_language_is_an_invalid_data_error_on_read(self):
+        pass
+
+    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    def test_unknown_key_in_a_language_is_an_invalid_data_error_on_read(self):
+        pass
+
 
 @pytest.fixture
 def mock_client() -> Mock:

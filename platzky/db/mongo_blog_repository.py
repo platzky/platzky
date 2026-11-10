@@ -2,6 +2,7 @@
 
 import datetime
 from collections.abc import Mapping
+from functools import partial
 from typing import Any
 
 from pydantic import ValidationError
@@ -9,13 +10,22 @@ from pymongo.collection import Collection
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidDataError, NotFoundError
+from platzky.db.exceptions import InvalidDataError, NotFoundError, format_problems, validate_all
 from platzky.models import Page, PageMeta, Post
 
 
-def _meta_of(document: Mapping[str, Any]) -> PageMeta:
-    """Return the meta a ``blog_meta`` document holds, without its ``_id``."""
-    return PageMeta.model_validate({key: value for key, value in document.items() if key != "_id"})
+def _meta_of(document: Mapping[str, Any], lang: str) -> PageMeta:
+    """Return the meta a language's ``blog_meta`` document holds, without its ``_id``.
+
+    Raises:
+        InvalidDataError: If the document is invalid; the message lists every problem with its path.
+    """
+    try:
+        return PageMeta.model_validate(
+            {key: value for key, value in document.items() if key != "_id"}
+        )
+    except ValidationError as error:
+        raise InvalidDataError(format_problems(error, "blog_meta", lang)) from error
 
 
 class _MongoPostRepository(PostRepository):
@@ -170,20 +180,9 @@ class MongoBlogRepository(BlogRepository):
             InvalidDataError: If a document is invalid; the message names its ``_id``
                 and lists every problem, one per line.
         """
-        problems: list[str] = []
-        for document in self._blog_meta.find():
-            try:
-                _meta_of(document)
-            except ValidationError as error:
-                problems.append(
-                    str(
-                        InvalidDataError.from_validation_error(
-                            error, "blog_meta", str(document["_id"])
-                        )
-                    )
-                )
-        if problems:
-            raise InvalidDataError("\n".join(problems))
+        validate_all(
+            partial(_meta_of, document, str(document["_id"])) for document in self._blog_meta.find()
+        )
 
     @override
     def get_meta(self, lang: str) -> PageMeta:
@@ -195,4 +194,4 @@ class MongoBlogRepository(BlogRepository):
         Returns:
             The blog index meta, empty if none is configured for the language.
         """
-        return _meta_of(self._blog_meta.find_one({"_id": lang}) or {})
+        return _meta_of(self._blog_meta.find_one({"_id": lang}) or {}, lang)

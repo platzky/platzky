@@ -2,8 +2,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from platzky.db.exceptions import DBError
-from platzky.db.json_document import JsonDocument, get_section
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_stores import JsonStore, MemoryStore
 
 
@@ -106,14 +106,62 @@ class TestJsonDocument:
         assert data == {"a": {"b": 1}}
 
 
-class TestGetSection:
-    def test_returns_site_config(self):
-        assert get_section({"site_config": {"a": 1}}, "site_config") == {"a": 1}
+class TestJsonSection:
+    def test_data_is_the_section_only(self):
+        section = JsonSection(JsonDocument(MemoryStore({"a": {"x": 1}, "b": {"y": 2}})), "a")
+
+        assert dict(section.data) == {"x": 1}
+
+    def test_data_is_read_only(self):
+        section = JsonSection(JsonDocument(MemoryStore({"a": {"x": 1}})), "a")
+
+        with pytest.raises(TypeError):
+            section.data["x"] = 2  # type: ignore[index]
 
     def test_missing_section_is_empty(self):
-        assert get_section({}, "site_config") == {}
+        assert dict(JsonSection(JsonDocument(MemoryStore({})), "a").data) == {}
 
-    @pytest.mark.parametrize("data", [{"site_config": None}, {"site_config": []}])
-    def test_raises_when_not_a_dict(self, data: dict[str, object]):
-        with pytest.raises(DBError):
-            get_section(data, "site_config")
+    @pytest.mark.parametrize("value", [None, [], "text", 5])
+    def test_section_that_is_not_an_object_is_an_error(self, value: object):
+        section = JsonSection(JsonDocument(MemoryStore({"a": value})), "a")
+
+        with pytest.raises(InvalidDataError, match=r"^a: "):
+            section.data
+
+    def test_edit_yields_the_section_and_saves_the_document(self):
+        store = Mock(spec=JsonStore)
+        store.load.return_value = {"a": {"x": 1}, "b": 2}
+        section = JsonSection(JsonDocument(store), "a")
+
+        with section.edit() as edited:
+            edited["x"] = 5
+
+        store.save.assert_called_once_with({"a": {"x": 5}, "b": 2})
+
+    def test_edit_creates_a_missing_section(self):
+        store = Mock(spec=JsonStore)
+        store.load.return_value = {}
+
+        with JsonSection(JsonDocument(store), "a").edit() as edited:
+            edited["x"] = 5
+
+        store.save.assert_called_once_with({"a": {"x": 5}})
+
+    def test_edit_restores_the_document_when_the_block_raises(self):
+        document = JsonDocument(MemoryStore({"a": {"x": 1}}))
+        section = JsonSection(document, "a")
+
+        with pytest.raises(RuntimeError), section.edit() as edited:
+            edited["x"] = 5
+            raise RuntimeError
+
+        assert document.data == {"a": {"x": 1}}
+
+    def test_edit_of_a_section_that_is_not_an_object_is_an_error_and_releases_the_lock(self):
+        document = JsonDocument(MemoryStore({"a": None}))
+        section = JsonSection(document, "a")
+
+        with pytest.raises(InvalidDataError), section.edit():
+            pass
+        with pytest.raises(InvalidDataError), section.edit():
+            pass

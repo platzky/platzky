@@ -21,6 +21,9 @@ collects the tests through the subclasses.
 from abc import ABC, abstractmethod
 from typing import Any
 
+import pytest
+
+from platzky.db.exceptions import InvalidDataError
 from platzky.db.site_config_repository import (
     LocalizedContent,
     SiteConfig,
@@ -96,3 +99,21 @@ class SiteConfigRepositoryContract(ABC):
 
     def test_get_localized_content_is_empty_for_unknown_language(self):
         assert self.make_repository(SITE_CONTENT).get_localized_content("de") == LocalizedContent()
+
+    def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
+        repository = self.make_repository({"primary_color": ""})
+
+        with pytest.raises(InvalidDataError, match=r"site_config\.primary_color"):
+            repository.get_site_config()
+
+    def test_null_text_in_a_language_is_an_invalid_data_error_on_read(self):
+        repository = self.make_repository({"localized_content": {"en": {"app_name": None}}})
+
+        with pytest.raises(InvalidDataError, match=r"localized_content\.en\.app_name"):
+            repository.get_localized_content("en")
+
+    def test_unknown_key_in_a_language_is_an_invalid_data_error_on_read(self):
+        repository = self.make_repository({"localized_content": {"en": {"unknown": 1}}})
+
+        with pytest.raises(InvalidDataError, match=r"localized_content\.en\.unknown"):
+            repository.get_localized_content("en")

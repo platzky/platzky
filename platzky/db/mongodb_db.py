@@ -9,6 +9,7 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
+from platzky.db.exceptions import validate_all
 from platzky.db.mongo_blog_repository import MongoBlogRepository
 from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
@@ -69,8 +70,7 @@ class MongoDB(DB):
 
     def _validate(self) -> None:
         """Raise `InvalidDataError` if the site config or the blog meta is invalid."""
-        self._site_config.validate()
-        self._blog.validate()
+        validate_all((self._site_config.validate, self._blog.validate))
 
     @property
     @override

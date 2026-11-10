@@ -1,6 +1,5 @@
 """In-memory JSON database implementation."""
 
-from collections.abc import Mapping
 from typing import Any
 
 from pydantic import Field
@@ -8,13 +7,11 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.db import DB, DBConfig
-from platzky.db.exceptions import InvalidDataError
-from platzky.db.json_blog_repository import SECTION as BLOG_SECTION
-from platzky.db.json_blog_repository import JsonBlogRepository, parse_blog
-from platzky.db.json_document import JsonDocument
+from platzky.db.exceptions import validate_all
+from platzky.db.json_blog_repository import JsonBlogRepository
+from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
-from platzky.db.json_site_config_repository import SECTION as SITE_CONFIG_SECTION
-from platzky.db.json_site_config_repository import JsonSiteConfigRepository, parse_site_config
+from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.db.plugin_config_repository import PluginConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
@@ -50,29 +47,6 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 # TODO: Make all language-specific methods available without language parameter.
 # This will allow a default language and if there is one language,
 # there will be no need to pass it to the method or in db.
-def validate_json_document(document: Mapping[str, Any]) -> None:
-    """Validate the ``site_config`` and ``blog`` sections of a JSON document.
-
-    An absent section is empty. Plugin settings are not checked.
-
-    Args:
-        document: The loaded document.
-
-    Raises:
-        InvalidDataError: If a section is invalid; the message lists every problem with its
-            path, one per line.
-    """
-    errors: list[str] = []
-    try:
-        parse_site_config(document.get(SITE_CONFIG_SECTION, {}))
-    except InvalidDataError as error:
-        errors.append(str(error))
-    try:
-        parse_blog(document.get(BLOG_SECTION, {}))
-    except InvalidDataError as error:
-        errors.append(str(error))
-    if errors:
-        raise InvalidDataError("\n".join(errors))
 
 
 class Json(DB):
@@ -90,10 +64,14 @@ class Json(DB):
         super().__init__()
         document = JsonDocument(store)
         self._document = document
-        self._blog = JsonBlogRepository(document)
-        self._plugin_config = JsonPluginConfigRepository(document)
-        self._site_config = JsonSiteConfigRepository(document)
-        validate_json_document(document.data)
+        self._blog = JsonBlogRepository(JsonSection(document, "blog"))
+        self._plugin_config = JsonPluginConfigRepository(JsonSection(document, "plugins"))
+        self._site_config = JsonSiteConfigRepository(JsonSection(document, "site_config"))
+        self._validate()
+
+    def _validate(self) -> None:
+        """Raise `InvalidDataError` listing every problem of the site config and the blog."""
+        validate_all((self._site_config.validate, self._blog.validate))
 
     @property
     @override
@@ -130,4 +108,4 @@ class Json(DB):
 
         Raises an exception if the database is not accessible or a section is invalid.
         """
-        validate_json_document(self._document.data)
+        self._validate()

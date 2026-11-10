@@ -12,17 +12,17 @@ mutated in place, never reassigned.
 Writes go through `JsonDocument.edit()`, which holds the write lock and persists
 the document on success; the lock and store are not exposed.
 
-Each repository owns one top-level section of the document and reads only that one;
-`get_section` is the shared "read a section, raise if missing" helper.
+Each repository owns one top-level section of the document and gets only a `JsonSection`
+view of it, so it can neither read nor write the rest.
 """
 
 import copy
 import threading
 from collections.abc import Mapping
-from types import TracebackType
+from types import MappingProxyType, TracebackType
 from typing import Any
 
-from platzky.db.exceptions import DBError
+from platzky.db.exceptions import InvalidDataError
 from platzky.db.json_stores import JsonStore
 
 
@@ -109,20 +109,64 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
-def get_section(data: Mapping[str, Any], name: str) -> Mapping[str, Any]:
-    """Return one top-level section of a loaded document.
+class _SectionEdit:
+    """Context manager for one `JsonSection.edit()` call: a `_Edit` that yields one section."""
 
-    Args:
-        data: The loaded document.
-        name: The section's key.
+    def __init__(self, edit: _Edit, name: str) -> None:
+        self._edit = edit
+        self._name = name
 
-    Returns:
-        The section; empty if the document has none.
+    def __enter__(self) -> dict[str, Any]:
+        data = self._edit.__enter__()
+        section = data.setdefault(self._name, {})
+        if not isinstance(section, dict):
+            self._edit.__exit__(InvalidDataError, None, None)
+            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
+        return section
 
-    Raises:
-        DBError: If the section is present but not an object (null included).
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self._edit.__exit__(exc_type, exc, tb)
+
+
+class JsonSection:
+    """One top-level section of a `JsonDocument`: all a repository gets to see of it.
+
+    A repository that owns the ``blog`` section holds a `JsonSection` named ``blog``, and can
+    neither read nor write anything else in the document.
     """
-    section = data.get(name, {})
-    if not isinstance(section, dict):
-        raise DBError(f"{name} section is not an object")
-    return section
+
+    def __init__(self, document: JsonDocument, name: str) -> None:
+        """Create the view of one section.
+
+        Args:
+            document: The loaded document.
+            name: The section's key in the document.
+        """
+        self._document = document
+        self.name = name
+
+    @property
+    def data(self) -> Mapping[str, Any]:
+        """The section, read-only; empty if the document has none.
+
+        Raises:
+            InvalidDataError: If the section is present but not an object (null included).
+        """
+        section = self._document.data.get(self.name, {})
+        if not isinstance(section, dict):
+            raise InvalidDataError(f"{self.name}: Input should be a valid dictionary")
+        return MappingProxyType(section)
+
+    def edit(self) -> _SectionEdit:
+        """Like `JsonDocument.edit()`, but yield only this section, created if missing.
+
+        Returns:
+            A context manager whose `__enter__` returns the section dict, to be mutated in
+            place; the document is persisted on a clean exit and restored otherwise.
+        """
+        return _SectionEdit(self._document.edit(), self.name)

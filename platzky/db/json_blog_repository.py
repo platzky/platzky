@@ -1,28 +1,35 @@
 """BlogRepository implementation backed by a shared JSON document.
 
 `JsonBlogRepository` is the JSON-family (`JsonStore`) implementation of the
-`BlogRepository` protocol. It operates on a `JsonDocument` shared with the other
-JSON repositories (see `json_document` for why the dict is shared) and writes
-through `JsonDocument.edit()`. It owns the ``blog`` section (``posts``, ``pages``, ``meta``)
-and reads no other.
+`BlogRepository` protocol. It gets only a `JsonSection` of the shared document (see
+`json_document`), the ``blog`` section (``posts``, ``pages``, ``meta``), and writes through
+`JsonSection.edit()`. It sees no other part of the document.
 """
 
 import datetime
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import InvalidDataError, NotFoundError
-from platzky.db.json_document import JsonDocument, get_section
+from platzky.db.exceptions import InvalidDataError, NotFoundError, format_problems
+from platzky.db.json_document import JsonSection
 from platzky.models import Page, PageMeta, Post
 
 logger = logging.getLogger(__name__)
 
-SECTION = "blog"
+_META = TypeAdapter(Mapping[str, PageMeta])
 
 
 class BlogSection(BaseModel):
@@ -41,44 +48,32 @@ class BlogSection(BaseModel):
 
     posts: tuple[dict[str, Any], ...] = ()
     pages: tuple[dict[str, Any], ...] = ()
-    meta: dict[str, PageMeta] = Field(default_factory=dict)
+    meta: Mapping[str, PageMeta] = Field(default_factory=lambda: MappingProxyType({}))
+
+    @field_validator("meta", mode="after")
+    @classmethod
+    def _read_only(cls, value: Mapping[str, PageMeta]) -> Mapping[str, PageMeta]:
+        return MappingProxyType(dict(value))
 
 
-def parse_blog(blog: object) -> BlogSection:
-    """Validate the ``blog`` section of a JSON document, e.g. when the application starts.
-
-    Args:
-        blog: The ``blog`` section of the document.
-
-    Returns:
-        The validated section.
-
-    Raises:
-        InvalidDataError: If it is invalid; the message lists every problem with its
-            path, one per line.
-    """
-    try:
-        return BlogSection.model_validate(blog)
-    except ValidationError as error:
-        raise InvalidDataError.from_validation_error(error, SECTION) from error
-
-
-def _section(data: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return the ``blog`` section of a loaded document, validated; empty if there is none.
+def _items(section: JsonSection, key: str) -> Sequence[dict[str, Any]] | None:
+    """Return the posts or pages the section holds, None if it has none.
 
     Raises:
-        InvalidDataError: If the section is invalid, null included.
+        InvalidDataError: If the key is present but not a list (null included).
     """
-    raw = get_section(data, SECTION)
-    parse_blog(raw)
-    return raw
+    data = section.data
+    items = data.get(key)
+    if key in data and not isinstance(items, list):
+        raise InvalidDataError(f"{section.name}.{key}: Input should be a valid list")
+    return items
 
 
 class _JsonPostRepository(PostRepository):
     """Post repository backed by a shared, in-memory document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        self._document = document
+    def __init__(self, section: JsonSection) -> None:
+        self._section = section
 
     @override
     def get(self, slug: str) -> Post:
@@ -93,7 +88,7 @@ class _JsonPostRepository(PostRepository):
         Raises:
             NotFoundError: If posts data is missing, or no post has this slug.
         """
-        all_posts = _section(self._document.data).get("posts")
+        all_posts = _items(self._section, "posts")
         if all_posts is None:
             raise NotFoundError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
@@ -113,7 +108,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _section(self._document.data).get("posts", ())
+            for post in _items(self._section, "posts") or ()
             if post.get("language", "en") == lang
         ]
 
@@ -130,7 +125,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _section(self._document.data).get("posts", ())
+            for post in _items(self._section, "posts") or ()
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -160,10 +155,12 @@ class _JsonPostRepository(PostRepository):
         }
 
         try:
-            with self._document.edit() as data:
-                posts = _section(data).get("posts")
-                if posts is None:
+            with self._section.edit() as blog:
+                if "posts" not in blog:
                     raise NotFoundError("Posts data is missing")
+                posts = blog["posts"]
+                if not isinstance(posts, list):
+                    raise InvalidDataError("blog.posts: Input should be a valid list")
                 post = next((p for p in posts if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
@@ -178,8 +175,8 @@ class _JsonPostRepository(PostRepository):
 class _JsonPageRepository(PageRepository):
     """Page repository backed by a shared, in-memory document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        self._document = document
+    def __init__(self, section: JsonSection) -> None:
+        self._section = section
 
     @override
     def get(self, slug: str) -> Page:
@@ -194,7 +191,7 @@ class _JsonPageRepository(PageRepository):
         Raises:
             NotFoundError: If pages data is missing, or no page has this slug.
         """
-        pages = _section(self._document.data).get("pages")
+        pages = _items(self._section, "pages")
         if pages is None:
             raise NotFoundError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
@@ -214,7 +211,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in _section(self._document.data).get("pages", ())
+            for page in _items(self._section, "pages") or ()
             if page.get("language", "en") == lang
         ]
 
@@ -222,16 +219,16 @@ class _JsonPageRepository(PageRepository):
 class JsonBlogRepository(BlogRepository):
     """BlogRepository implementation backed by a shared JSON document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        """Build the post/page repositories over the shared document.
+    def __init__(self, section: JsonSection) -> None:
+        """Build the post/page repositories over the blog section.
 
         Args:
-            document: The loaded document, shared with the other JSON
-                repositories.
+            section: The ``blog`` section of the shared document, the only part of it this
+                repository sees.
         """
-        self._document = document
-        self._posts = _JsonPostRepository(document)
-        self._pages = _JsonPageRepository(document)
+        self._section = section
+        self._posts = _JsonPostRepository(section)
+        self._pages = _JsonPageRepository(section)
 
     @property
     @override
@@ -258,4 +255,20 @@ class JsonBlogRepository(BlogRepository):
         Raises:
             InvalidDataError: If the stored blog meta is invalid.
         """
-        return parse_blog(get_section(self._document.data, SECTION)).meta.get(lang, PageMeta())
+        try:
+            meta = _META.validate_python(self._section.data.get("meta", {}))
+        except ValidationError as error:
+            raise InvalidDataError(format_problems(error, self._section.name, "meta")) from error
+        return meta.get(lang, PageMeta())
+
+    def validate(self) -> None:
+        """Check the whole section against the blog format, e.g. when the application starts.
+
+        Raises:
+            InvalidDataError: If it is invalid; the message lists every problem with its
+                path, one per line.
+        """
+        try:
+            BlogSection.model_validate(self._section.data)
+        except ValidationError as error:
+            raise InvalidDataError(format_problems(error, self._section.name)) from error

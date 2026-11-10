@@ -10,7 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from platzky.db.json_document import JsonDocument
+from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_stores import MemoryStore
 from platzky.db.mongo_plugin_config_repository import MongoPluginConfigRepository
@@ -18,7 +18,9 @@ from platzky.db.plugin_config_repository import PluginConfigRepository
 
 
 def _json_repository(plugins: dict[str, Any]) -> PluginConfigRepository:
-    return JsonPluginConfigRepository(JsonDocument(MemoryStore({"plugins": plugins})))
+    return JsonPluginConfigRepository(
+        JsonSection(JsonDocument(MemoryStore({"plugins": plugins})), "plugins")
+    )
 
 
 def _mongo_repository(plugins: dict[str, Any]) -> PluginConfigRepository:

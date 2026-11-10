@@ -54,12 +54,12 @@ and `get_localized_content(lang)`; the contract suite in
 `tests/unit_tests/db/site_config_repository_contract.py` checks exactly that. The blog blueprint
 (`create_blog_blueprint`) receives `db.blog` only, not the `DB`.
 
-Each repository owns its storage and reads nothing else. In the JSON document,
+Each repository owns its storage and sees nothing else. In the JSON document, each JSON repository is given a `JsonSection` (a read-only view of its section with an `edit()` that yields only that section), not the document. The sections are:
 `site_config` (the site-wide keys and `localized_content`) belongs to
 `JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
-`plugins` to `JsonPluginConfigRepository`; each validates only its own section
-(`SiteConfigSection` and `BlogSection`, unknown keys and nulls are errors), and
-`Json.health_check()` and `platzky check` validate both through `validate_json_document`. In
+`plugins` to `JsonPluginConfigRepository`; each has a `validate()` for its own section
+(unknown keys and nulls are errors), as the Mongo repositories do, and `Json` calls both at startup and in
+`health_check()`, reporting all problems together; `platzky check` builds the `Json` facade from the file. In
 Mongo, the `site_config` collection (document `_id: "config"`) and `localized_content` belong to
 the site config repository, and `posts`, `pages` and `blog_meta` to the blog repository. Invalid
 stored data raises `InvalidDataError` in both.
