@@ -173,9 +173,13 @@ class _Counts(StrictModel):
     counts: ReadOnlyMapping[str, int]
 
 
-@pytest.mark.parametrize("data", [{}, {"counts": {"a": 1}}], ids=["default", "given"])
-def test_read_only_mapping_cannot_be_changed(data: dict[str, Any]):
+@pytest.mark.parametrize(
+    ("data", "key"),
+    [({}, "a"), ({"counts": {"a": 1}}, "b"), ({"counts": {"a": 1}}, "a")],
+    ids=["new key in default", "new key in given", "existing key in given"],
+)
+def test_read_only_mapping_cannot_be_changed(data: dict[str, Any], key: str):
     counts = _Counts.model_validate(data).counts
 
     with pytest.raises(TypeError):
-        counts["b"] = 2  # type: ignore[index]
+        counts[key] = 2  # type: ignore[index]
