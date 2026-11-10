@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import (
@@ -188,20 +189,16 @@ class TestMeta:
         ],
     )
     def test_invalid_blog_meta_is_rejected(self, meta: object):
-        repository = _repository(MemoryStore({"blog": {"meta": meta}}))
-
         with pytest.raises(InvalidDataError, match=r"blog\.meta"):
-            repository.get_meta("en")
+            _repository(MemoryStore({"blog": {"meta": meta}}))
 
 
-class TestValidate:
+class TestCreation:
     def test_lists_every_problem_with_its_path(self):
-        repository = _repository(
-            MemoryStore({"blog": {"posts": None, "meta": {"pl": {"title": None}}, "x": 1}})
-        )
-
         with pytest.raises(InvalidDataError) as error:
-            repository.validate()
+            _repository(
+                MemoryStore({"blog": {"posts": None, "meta": {"pl": {"title": None}}, "x": 1}})
+            )
 
         assert str(error.value).splitlines() == [
             "blog.posts: Input should be a valid tuple",
@@ -209,15 +206,14 @@ class TestValidate:
             "blog.x: Extra inputs are not permitted",
         ]
 
-    def test_accepts_a_missing_section(self):
-        _repository(MemoryStore({})).validate()
-
-    def test_reading_a_post_does_not_validate_the_rest_of_the_section(self):
+    def test_an_invalid_post_fails_only_when_it_is_read(self):
         data = sample_data()
-        data["blog"]["x"] = 1
+        del data["blog"]["posts"][0]["title"]
         repository = _repository(MemoryStore(data))
 
-        assert repository.posts.get("post-1").slug == "post-1"
+        assert repository.posts.get("post-2").slug == "post-2"
+        with pytest.raises(ValidationError):
+            repository.posts.get("post-1")
 
 
 class TestBlogSection:

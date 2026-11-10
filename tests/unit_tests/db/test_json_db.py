@@ -218,17 +218,13 @@ class TestJsonDbEmptyDb:
 
 
 class TestJsonDbValidation:
-    def test_creation_reports_a_site_config_problem_and_a_blog_problem_together(self):
-        with pytest.raises(InvalidDataError) as error:
-            Json(MemoryStore({"site_config": {"menu_items": {}}, "blog": {"posts": None}}))
-
-        assert "site_config.menu_items" in str(error.value)
-        assert "blog.posts" in str(error.value)
-
-    def test_health_check_reports_a_problem_introduced_after_startup(self):
-        db = Json(MemoryStore({"site_config": {}}))
-        with db.document.edit() as data:
-            data["site_config"]["menu_items"] = {}
-
-        with pytest.raises(InvalidDataError, match=r"site_config\.menu_items"):
-            db.health_check()
+    @pytest.mark.parametrize(
+        ("document", "problem"),
+        [
+            ({"site_config": {"menu_items": {}}}, r"site_config\.menu_items"),
+            ({"blog": {"posts": None}}, r"blog\.posts"),
+        ],
+    )
+    def test_creation_rejects_an_invalid_section(self, document: dict[str, Any], problem: str):
+        with pytest.raises(InvalidDataError, match=problem):
+            Json(MemoryStore(document))

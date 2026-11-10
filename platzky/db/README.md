@@ -58,9 +58,11 @@ and `get_localized_content(lang)`; the contract suite in
 Each repository owns its storage and sees nothing else. In the JSON document, each JSON repository is given a `JsonSection` (a read-only view of its section with an `edit()` that yields only that section), not the document. The sections are:
 `site_config` (the site-wide keys and `localized_content`) belongs to
 `JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
-`plugins` to `JsonPluginConfigRepository`; the site config and blog repositories have a `validate()` for
-their own section (unknown keys and nulls are errors), as the Mongo ones do, and `Json` calls both at startup and in
-`health_check()`, reporting all problems together; `platzky check` builds the `Json` facade from the file. In
+`plugins` to `JsonPluginConfigRepository`; the site config and blog repositories validate their own
+section when they are built (unknown keys and nulls are errors). The document is loaded once and
+only changes through the repositories, so it is not validated again; `platzky check` builds the
+`Json` facade from the file. The Mongo repositories have a `validate()` instead, which `MongoDB`
+calls at startup and in `health_check()`, as their data can change underneath. In
 Mongo, the `site_config` collection (document `_id: "config"`) and `localized_content` belong to
 the site config repository, and `posts`, `pages` and `blog_meta` to the blog repository. Invalid
 stored data raises `InvalidDataError` in both.

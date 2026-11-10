@@ -29,26 +29,22 @@ class JsonSiteConfigRepository(SiteConfigRepository):
     """Site config repository backed by a section of a shared, in-memory document."""
 
     def __init__(self, section: JsonSection) -> None:
-        """Store the section.
+        """Validate the section once: nothing changes it after the document is loaded.
 
         Args:
             section: The ``site_config`` section of the shared document, the only part of it
                 this repository sees.
-        """
-        self._section = section
-
-    def _parsed(self) -> SiteConfigSection:
-        """Validate and return the stored section."""
-        return parse(SiteConfigSection, self._section, self._section.name)
-
-    def validate(self) -> None:
-        """Check the section against the site config format, e.g. when the application starts.
 
         Raises:
             InvalidDataError: If it is invalid; the message lists every problem with its
                 path, one per line.
         """
-        self._parsed()
+        config = parse(SiteConfigSection, section, section.name)
+        # Keep only the site-wide fields: the section also carries localized_content.
+        self._site_config = SiteConfig(
+            **{name: getattr(config, name) for name in SiteConfig.model_fields}
+        )
+        self._localized_content = config.localized_content
 
     @override
     def get_site_config(self) -> SiteConfig:
@@ -57,9 +53,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The site-wide content, with defaults where none is configured.
         """
-        section = self._parsed()
-        # Copy only the site-wide fields: the section also carries localized_content.
-        return SiteConfig(**{name: getattr(section, name) for name in SiteConfig.model_fields})
+        return self._site_config
 
     @override
     def get_localized_content(self, lang: str) -> LocalizedContent:
@@ -71,4 +65,4 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         Returns:
             The language's content, empty if none is configured for it.
         """
-        return self._parsed().localized_content.get(lang, LocalizedContent())
+        return self._localized_content.get(lang, LocalizedContent())

@@ -14,7 +14,6 @@ from platzky.db.json_site_config_repository import JsonSiteConfigRepository
 from platzky.db.json_stores import JsonStore, MemoryStore
 from platzky.db.plugin_config_repository import PluginConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
-from platzky.db.validation import validate_all
 
 
 def db_config_type() -> type["JsonDbConfig"]:
@@ -60,23 +59,18 @@ class Json(DB):
                 writes to. The plain in-memory backend uses a `MemoryStore`;
                 subclasses that back onto an external resource (a file, a
                 bucket, ...) pass their own.
+
+        Raises:
+            InvalidDataError: If the site config or the blog section is invalid. The document
+                is loaded once and only changes through the repositories, so it is checked only
+                here.
         """
         super().__init__()
         document = JsonDocument(store)
         self._document = document
+        self._site_config = JsonSiteConfigRepository(JsonSection(document, "site_config"))
         self._blog = JsonBlogRepository(JsonSection(document, "blog"))
         self._plugin_config = JsonPluginConfigRepository(JsonSection(document, "plugins"))
-        self._site_config = JsonSiteConfigRepository(JsonSection(document, "site_config"))
-        self._validate()
-
-    def _validate(self) -> None:
-        """Check the site config and the blog sections against their formats.
-
-        Raises:
-            InvalidDataError: If either is invalid; the message lists every problem with its
-                path, one per line.
-        """
-        validate_all((self._site_config.validate, self._blog.validate))
 
     @property
     @override
@@ -108,9 +102,6 @@ class Json(DB):
         """
         return self._document
 
+    @override
     def health_check(self) -> None:
-        """Perform a health check on the JSON database.
-
-        Raises an exception if the database is not accessible or a section is invalid.
-        """
-        self._validate()
+        """Do nothing: the document is in memory and was validated when it was loaded."""

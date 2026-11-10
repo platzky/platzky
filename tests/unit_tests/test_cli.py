@@ -151,19 +151,16 @@ class TestCheck:
 
         assert (result.exit_code, result.output) == (0, "OK\n")
 
-    def test_site_config_and_blog_problems_are_listed_with_their_paths(self, tmp_path: Path):
+    def test_problems_are_listed_with_their_paths(self, tmp_path: Path):
         result = _check(
             tmp_path,
-            {
-                "site_config": {"localized_content": {"pl": {"menu_items": [{"name": "Start"}]}}},
-                "blog": {"posts": None},
-            },
+            {"blog": {"posts": None, "meta": {"pl": {"title": None}}}},
         )
 
         assert result.exit_code == 1
         assert result.output.splitlines() == [
-            "Error: site_config.localized_content.pl.menu_items.0.url: Field required",
-            "blog.posts: Input should be a valid tuple",
+            "Error: blog.posts: Input should be a valid tuple",
+            "blog.meta.pl.title: Input should be a valid string",
         ]
 
     def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):

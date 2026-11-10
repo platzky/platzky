@@ -100,20 +100,19 @@ class SiteConfigRepositoryContract(ABC):
     def test_get_localized_content_is_empty_for_unknown_language(self):
         assert self.make_repository(SITE_CONFIG).get_localized_content("de") == LocalizedContent()
 
-    def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
-        repository = self.make_repository({"primary_color": ""})
-
+    # A backend may reject invalid data when it is built or when it is read.
+    def test_invalid_site_wide_value_is_an_invalid_data_error(self):
         with pytest.raises(InvalidDataError, match=r"site_config\.primary_color"):
-            repository.get_site_config()
+            self.make_repository({"primary_color": ""}).get_site_config()
 
-    def test_null_text_in_a_language_is_an_invalid_data_error_on_read(self):
-        repository = self.make_repository({"localized_content": {"en": {"app_name": None}}})
-
+    def test_null_text_in_a_language_is_an_invalid_data_error(self):
         with pytest.raises(InvalidDataError, match=r"localized_content\.en\.app_name"):
-            repository.get_localized_content("en")
+            self.make_repository(
+                {"localized_content": {"en": {"app_name": None}}}
+            ).get_localized_content("en")
 
-    def test_unknown_key_in_a_language_is_an_invalid_data_error_on_read(self):
-        repository = self.make_repository({"localized_content": {"en": {"unknown": 1}}})
-
+    def test_unknown_key_in_a_language_is_an_invalid_data_error(self):
         with pytest.raises(InvalidDataError, match=r"localized_content\.en\.unknown"):
-            repository.get_localized_content("en")
+            self.make_repository(
+                {"localized_content": {"en": {"unknown": 1}}}
+            ).get_localized_content("en")

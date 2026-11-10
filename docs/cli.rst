@@ -58,14 +58,14 @@ fails it stops the application from starting:
     $ platzky check data.json
     OK
 
-A problem is listed with its path, and the command exits with status 1:
+Every problem of a section is listed with its path, and the command exits with status 1. The
+``site_config`` section is checked first; problems in ``blog`` show up once it is valid:
 
 .. code-block:: bash
 
     $ platzky check data.json
     site_config.localized_content.pl.menu_items.0.url: Field required
     site_config.home_page_path: Extra inputs are not permitted
-    blog.meta.pl.title: Input should be a valid string
 
 See :ref:`site-content` for the format.
 

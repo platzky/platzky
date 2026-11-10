@@ -25,7 +25,7 @@ def _repository(site_config: object) -> JsonSiteConfigRepository:
 
 def test_unknown_key_is_rejected():
     with pytest.raises(InvalidDataError):
-        _repository({"unknown": 1}).validate()
+        _repository({"unknown": 1})
 
 
 @pytest.mark.parametrize(
@@ -37,19 +37,17 @@ def test_unknown_key_is_rejected():
 )
 def test_null_is_rejected(site_config: dict[str, Any] | None):
     with pytest.raises(InvalidDataError):
-        _repository(site_config).validate()
+        _repository(site_config)
 
 
-def test_validate_lists_every_problem_with_its_path():
-    repository = _repository(
-        {
-            "primary_color": "",
-            "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
-        }
-    )
-
+def test_creation_lists_every_problem_with_its_path():
     with pytest.raises(InvalidDataError) as error:
-        repository.validate()
+        _repository(
+            {
+                "primary_color": "",
+                "localized_content": {"pl": {"menu_items": [{"name": "Start"}], "x": 1}},
+            }
+        )
 
     assert str(error.value).splitlines() == [
         "site_config.primary_color: String should have at least 1 character",
@@ -60,7 +58,5 @@ def test_validate_lists_every_problem_with_its_path():
 
 def test_missing_section_is_the_defaults():
     repository = JsonSiteConfigRepository(JsonSection(JsonDocument(MemoryStore({})), "site_config"))
-
-    repository.validate()
 
     assert repository.get_site_config() == SiteConfig()

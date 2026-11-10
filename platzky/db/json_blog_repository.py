@@ -183,13 +183,20 @@ class JsonBlogRepository(BlogRepository):
     """BlogRepository implementation backed by a shared JSON document."""
 
     def __init__(self, section: JsonSection) -> None:
-        """Build the post/page repositories over the blog section.
+        """Validate the section and build the post/page repositories over it.
+
+        Posts and pages are read from the section live, as comments change them; each is
+        validated when it is read. The meta does not change after loading, so it is kept parsed.
 
         Args:
             section: The ``blog`` section of the shared document, the only part of it this
                 repository sees.
+
+        Raises:
+            InvalidDataError: If the section is invalid; the message lists every problem with
+                its path, one per line.
         """
-        self._section = section
+        self._meta = parse(BlogSection, section, section.name).meta
         self._posts = _JsonPostRepository(section)
         self._pages = _JsonPageRepository(section)
 
@@ -214,18 +221,5 @@ class JsonBlogRepository(BlogRepository):
 
         Returns:
             The blog index meta, empty if none is configured for the language.
-
-        Raises:
-            InvalidDataError: If the meta stored for this language is invalid.
         """
-        meta = self._section.get("meta", {}).get(lang, {})
-        return parse(PageMeta, meta, self._section.name, "meta", lang)
-
-    def validate(self) -> None:
-        """Check the whole section against the blog format, e.g. when the application starts.
-
-        Raises:
-            InvalidDataError: If it is invalid; the message lists every problem with its
-                path, one per line.
-        """
-        parse(BlogSection, self._section, self._section.name)
+        return self._meta.get(lang, PageMeta())

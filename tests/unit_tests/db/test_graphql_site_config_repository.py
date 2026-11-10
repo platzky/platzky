@@ -39,15 +39,15 @@ class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
         return GraphQLSiteConfigRepository(lambda: client)
 
     @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
+    def test_invalid_site_wide_value_is_an_invalid_data_error(self):
         pass
 
     @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_null_text_in_a_language_is_an_invalid_data_error_on_read(self):
+    def test_null_text_in_a_language_is_an_invalid_data_error(self):
         pass
 
     @pytest.mark.skip(reason=SCHEMA_REASON)
-    def test_unknown_key_in_a_language_is_an_invalid_data_error_on_read(self):
+    def test_unknown_key_in_a_language_is_an_invalid_data_error(self):
         pass
 
 
