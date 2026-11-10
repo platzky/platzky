@@ -202,4 +202,4 @@ class TestCheck:
     def test_missing_file_is_an_error(self, tmp_path: Path):
         result = CliRunner().invoke(cli, ["check", str(tmp_path / "absent.json")])
 
-        assert result.exit_code != 0
+        assert result.exit_code == 2
