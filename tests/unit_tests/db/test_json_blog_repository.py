@@ -139,12 +139,16 @@ class TestPosts:
         reloaded = _repository(store).posts.get("post-1")
         assert [(c.author, c.comment) for c in reloaded.comments] == [("Alice", "Nice post!")]
 
-    def test_null_posts_is_treated_as_missing(self):
+    def test_null_posts_is_an_error(self):
         repository = _repository(MemoryStore({"blog": {"posts": None}}))
-        assert repository.posts.get_all("en") == []
-        assert repository.posts.get_by_tag("python", "en") == []
-        with pytest.raises(NotFoundError):
+        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
+            repository.posts.get_all("en")
+        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
+            repository.posts.get_by_tag("python", "en")
+        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
             repository.posts.get("post-1")
+        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
+            repository.posts.add_comment("Alice", "Hi", "post-1")
 
     def test_null_tags_is_treated_as_missing(self):
         data = sample_data()
@@ -191,10 +195,14 @@ class TestPages:
         repository = _repository(MemoryStore(data))
         assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
 
-    @pytest.mark.parametrize("blog", [{}, {"pages": None}])
-    def test_get_all_treats_missing_or_null_pages_as_empty(self, blog: dict[str, Any]):
-        repository = _repository(MemoryStore({"blog": blog}))
+    def test_get_all_treats_missing_pages_as_empty(self):
+        repository = _repository(MemoryStore({"blog": {}}))
         assert repository.pages.get_all("en") == []
+
+    def test_null_pages_is_an_error(self):
+        repository = _repository(MemoryStore({"blog": {"pages": None}}))
+        with pytest.raises(InvalidDataError, match=r"blog\.pages"):
+            repository.pages.get_all("en")
 
     def test_get_raises_not_found_when_pages_key_missing(self):
         repository = _repository(MemoryStore({"blog": {}}))

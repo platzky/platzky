@@ -7,13 +7,13 @@ import pytest
 from pydantic import ValidationError
 
 from platzky.db.exceptions import (
-    DBError,
     InvalidDataError,
     NotFoundError,
     ReadOnlyStorageError,
 )
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.models import Page
 
 
@@ -272,18 +272,25 @@ class TestJsonDbHealthCheck:
         db = Json(MemoryStore({"site_config": {}, "blog": {"posts": []}}))
         db.health_check()
 
-    def test_health_check_failure_no_site_config(self):
-        db = Json(MemoryStore({"other_data": "value"}))
-        with pytest.raises(DBError, match="site_config section is missing"):
-            db.health_check()
+    def test_health_check_succeeds_without_sections(self):
+        Json(MemoryStore({"other_data": "value"})).health_check()
 
 
 class TestJsonDbEmptyDb:
-    def test_empty_db_raises_exception_on_operations(self):
+    def test_missing_site_config_section_is_the_defaults(self):
         db = Json(MemoryStore({}))
 
-        with pytest.raises(DBError, match="site_config section is missing"):
-            db.site_config.get_site_config()
+        assert db.site_config.get_site_config() == SiteConfig()
+        assert db.site_config.get_localized_content("en") == LocalizedContent()
+
+    @pytest.mark.parametrize("section", ["site_config", "blog"])
+    def test_null_section_stops_the_database_from_being_created(self, section: str):
+        with pytest.raises(InvalidDataError, match=section):
+            Json(MemoryStore({section: None}))
+
+    def test_invalid_blog_stops_the_database_from_being_created_without_site_config(self):
+        with pytest.raises(InvalidDataError, match=r"blog\.posts"):
+            Json(MemoryStore({"blog": {"posts": None}}))
 
     def test_missing_blog_section_is_an_empty_blog(self):
         db = Json(MemoryStore({}))

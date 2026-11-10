@@ -11,7 +11,7 @@ from platzky.db.db import DB, DBConfig
 from platzky.db.exceptions import InvalidDataError
 from platzky.db.json_blog_repository import SECTION as BLOG_SECTION
 from platzky.db.json_blog_repository import JsonBlogRepository, parse_blog
-from platzky.db.json_document import JsonDocument, get_section
+from platzky.db.json_document import JsonDocument
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_site_config_repository import SECTION as SITE_CONFIG_SECTION
 from platzky.db.json_site_config_repository import JsonSiteConfigRepository, parse_site_config
@@ -53,8 +53,7 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 def validate_json_document(document: Mapping[str, Any]) -> None:
     """Validate the ``site_config`` and ``blog`` sections of a JSON document.
 
-    The ``site_config`` section is required; an absent ``blog`` section is an empty blog. Plugin
-    settings are not checked.
+    An absent section is empty. Plugin settings are not checked.
 
     Args:
         document: The loaded document.
@@ -65,7 +64,7 @@ def validate_json_document(document: Mapping[str, Any]) -> None:
     """
     errors: list[str] = []
     try:
-        parse_site_config(document.get(SITE_CONFIG_SECTION))
+        parse_site_config(document.get(SITE_CONFIG_SECTION, {}))
     except InvalidDataError as error:
         errors.append(str(error))
     try:
@@ -94,8 +93,7 @@ class Json(DB):
         self._blog = JsonBlogRepository(document)
         self._plugin_config = JsonPluginConfigRepository(document)
         self._site_config = JsonSiteConfigRepository(document)
-        if SITE_CONFIG_SECTION in document.data:
-            validate_json_document(document.data)
+        validate_json_document(document.data)
 
     @property
     @override
@@ -130,8 +128,6 @@ class Json(DB):
     def health_check(self) -> None:
         """Perform a health check on the JSON database.
 
-        Raises an exception if the database is not accessible, has no ``site_config`` section,
-        or a section is invalid.
+        Raises an exception if the database is not accessible or a section is invalid.
         """
-        get_section(self._document.data, SITE_CONFIG_SECTION)
         validate_json_document(self._document.data)

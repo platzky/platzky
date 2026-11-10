@@ -12,19 +12,17 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import DBError, InvalidDataError, NotFoundError
-from platzky.db.json_document import JsonDocument
+from platzky.db.exceptions import InvalidDataError, NotFoundError
+from platzky.db.json_document import JsonDocument, get_section
 from platzky.models import Page, PageMeta, Post
 
 logger = logging.getLogger(__name__)
 
 SECTION = "blog"
-
-_BLOG_META = TypeAdapter(dict[str, PageMeta])
 
 
 class BlogSection(BaseModel):
@@ -65,24 +63,15 @@ def parse_blog(blog: object) -> BlogSection:
         raise InvalidDataError.from_validation_error(error, SECTION) from error
 
 
-def _parse_meta(meta: object) -> Mapping[str, PageMeta]:
-    """Validate the ``meta`` key of the ``blog`` section; null is an error."""
-    try:
-        return _BLOG_META.validate_python(meta)
-    except ValidationError as error:
-        raise InvalidDataError.from_validation_error(error, SECTION, "meta") from error
-
-
-def _blog(data: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return the ``blog`` section of a loaded document, empty if there is none.
+def _section(data: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the ``blog`` section of a loaded document, validated; empty if there is none.
 
     Raises:
-        DBError: If the section is not an object.
+        InvalidDataError: If the section is invalid, null included.
     """
-    blog = data.get(SECTION, {})
-    if not isinstance(blog, dict):
-        raise DBError("blog section is not an object")
-    return blog
+    raw = get_section(data, SECTION)
+    parse_blog(raw)
+    return raw
 
 
 class _JsonPostRepository(PostRepository):
@@ -104,7 +93,7 @@ class _JsonPostRepository(PostRepository):
         Raises:
             NotFoundError: If posts data is missing, or no post has this slug.
         """
-        all_posts = _blog(self._document.data).get("posts")
+        all_posts = _section(self._document.data).get("posts")
         if all_posts is None:
             raise NotFoundError("Posts data is missing")
         wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
@@ -124,7 +113,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _blog(self._document.data).get("posts") or ()
+            for post in _section(self._document.data).get("posts", ())
             if post.get("language", "en") == lang
         ]
 
@@ -141,7 +130,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in _blog(self._document.data).get("posts") or ()
+            for post in _section(self._document.data).get("posts", ())
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -172,7 +161,7 @@ class _JsonPostRepository(PostRepository):
 
         try:
             with self._document.edit() as data:
-                posts = _blog(data).get("posts")
+                posts = _section(data).get("posts")
                 if posts is None:
                     raise NotFoundError("Posts data is missing")
                 post = next((p for p in posts if p["slug"] == post_slug), None)
@@ -205,7 +194,7 @@ class _JsonPageRepository(PageRepository):
         Raises:
             NotFoundError: If pages data is missing, or no page has this slug.
         """
-        pages = _blog(self._document.data).get("pages")
+        pages = _section(self._document.data).get("pages")
         if pages is None:
             raise NotFoundError("Pages data is missing")
         wanted_page = next((page for page in pages if page["slug"] == slug), None)
@@ -225,7 +214,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in _blog(self._document.data).get("pages") or ()
+            for page in _section(self._document.data).get("pages", ())
             if page.get("language", "en") == lang
         ]
 
@@ -269,5 +258,4 @@ class JsonBlogRepository(BlogRepository):
         Raises:
             InvalidDataError: If the stored blog meta is invalid.
         """
-        meta = _parse_meta(_blog(self._document.data).get("meta", {}))
-        return meta.get(lang, PageMeta())
+        return parse_blog(get_section(self._document.data, SECTION)).meta.get(lang, PageMeta())

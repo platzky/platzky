@@ -117,12 +117,12 @@ def get_section(data: Mapping[str, Any], name: str) -> Mapping[str, Any]:
         name: The section's key.
 
     Returns:
-        The section.
+        The section; empty if the document has none.
 
     Raises:
-        DBError: If the section is missing or not an object.
+        DBError: If the section is present but not an object (null included).
     """
-    section = data.get(name)
+    section = data.get(name, {})
     if not isinstance(section, dict):
-        raise DBError(f"{name} section is missing from database")
+        raise DBError(f"{name} section is not an object")
     return section

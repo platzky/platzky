@@ -185,8 +185,13 @@ class TestCheck:
             "blog.blog_meta: Extra inputs are not permitted",
         ]
 
-    def test_missing_site_config_is_an_error(self, tmp_path: Path):
+    def test_missing_sections_are_empty(self, tmp_path: Path):
         result = _check(tmp_path, {"plugins": {}})
+
+        assert (result.exit_code, result.output) == (0, "OK\n")
+
+    def test_null_section_is_an_error(self, tmp_path: Path):
+        result = _check(tmp_path, {"site_config": None})
 
         assert result.exit_code == 1
         assert result.output.startswith("Error: site_config: ")

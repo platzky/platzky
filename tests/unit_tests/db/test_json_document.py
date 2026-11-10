@@ -110,7 +110,10 @@ class TestGetSection:
     def test_returns_site_config(self):
         assert get_section({"site_config": {"a": 1}}, "site_config") == {"a": 1}
 
-    @pytest.mark.parametrize("data", [{}, {"site_config": None}, {"site_config": []}])
-    def test_raises_when_missing_or_not_a_dict(self, data: dict[str, object]):
+    def test_missing_section_is_empty(self):
+        assert get_section({}, "site_config") == {}
+
+    @pytest.mark.parametrize("data", [{"site_config": None}, {"site_config": []}])
+    def test_raises_when_not_a_dict(self, data: dict[str, object]):
         with pytest.raises(DBError):
             get_section(data, "site_config")
