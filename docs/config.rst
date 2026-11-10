@@ -439,7 +439,7 @@ with invalid site content. To check a JSON data file before deploying it, see
   ``menuItems`` (``name``, ``url``). The blog index meta is a third model,
   ``BlogMeta``, with ``language`` (the ``Lang`` enum) required and unique, and
   ``title`` and ``description``
-  (``blogMeta(where: {language: $lang})``).
+  (``blogMeta(where: {language: $lang})``); unset fields (null) are empty.
 
 Feature Flags
 ~~~~~~~~~~~~~

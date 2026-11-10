@@ -389,7 +389,7 @@ class GraphQLBlogRepository(BlogRepository):
 
         Returns:
             The blog index meta, empty if none is configured for the language. Fields an
-            editor left unset (null in Hygraph) are empty.
+            editor left unset (null in Hygraph) are not set, so they are empty.
         """
         meta_query = gql("""
             query BlogMeta($lang: Lang!) {
@@ -402,6 +402,6 @@ class GraphQLBlogRepository(BlogRepository):
         raw_meta = (
             self._get_client().execute(meta_query, variable_values={"lang": lang})["blogMeta"] or {}
         )
-        return PageMeta(
-            title=raw_meta.get("title") or "", description=raw_meta.get("description") or ""
+        return PageMeta.model_validate(
+            {key: value for key, value in raw_meta.items() if value not in (None, "")}
         )

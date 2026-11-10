@@ -9,8 +9,7 @@ from string import Template
 import click
 
 from platzky.db.exceptions import InvalidSiteContentError
-from platzky.db.json_blog_repository import parse_blog_meta
-from platzky.db.site_config_repository import parse_site_content
+from platzky.db.json_db import validate_json_site_content
 from platzky.platzky import create_app
 
 _TARGET_CONFIG_FILENAME = "config.yml"
@@ -99,7 +98,7 @@ def check(file: Path) -> None:
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")
     try:
-        parse_blog_meta(parse_site_content(document.get("site_content")).blog_meta)
+        validate_json_site_content(document.get("site_content"))
     except InvalidSiteContentError as error:
         raise click.ClickException(str(error)) from error
     click.echo("OK")

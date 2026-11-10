@@ -295,3 +295,15 @@ class TestJsonDbSiteContentValidation:
 
         with pytest.raises(InvalidSiteContentError):
             db.health_check()
+
+    def test_health_check_reports_invalid_blog_meta(self):
+        db = Json(MemoryStore({"site_content": {}}))
+        with db.document.edit() as data:
+            data["site_content"]["blog_meta"] = {"en": {"title": None}}
+
+        with pytest.raises(InvalidSiteContentError):
+            db.health_check()
+
+    def test_invalid_blog_meta_stops_the_database_from_being_created(self):
+        with pytest.raises(InvalidSiteContentError):
+            Json(MemoryStore({"site_content": {"blog_meta": None}}))

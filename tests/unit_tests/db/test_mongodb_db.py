@@ -49,6 +49,7 @@ class TestMongoDB:
             mock_db.plugins = Mock()
             mock_db.site_content.find_one.return_value = None
             mock_db.localized_content.find.return_value = []
+            mock_db.blog_meta.find.return_value = []
 
             yield mock_client, mock_db
 
@@ -105,6 +106,12 @@ class TestMongoDB:
         with pytest.raises(InvalidSiteContentError):
             MongoDB("mongodb://localhost:27017", "test_db")
 
+    def test_invalid_blog_meta_stops_the_facade_from_being_created(self, mock_db: Mock):
+        mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
+
+        with pytest.raises(InvalidSiteContentError):
+            MongoDB("mongodb://localhost:27017", "test_db")
+
     def test_database_is_not_closed_when_the_facade_is_collected(
         self, mock_client: tuple[Mock, Mock]
     ):
@@ -132,6 +139,14 @@ class TestMongoDB:
         self, db: MongoDB, mock_db: Mock
     ):
         mock_db.localized_content.find.return_value = [{"_id": "pl", "unknown": "x"}]
+
+        with pytest.raises(InvalidSiteContentError):
+            db.health_check()
+
+    def test_health_check_fails_on_blog_meta_made_invalid_after_start(
+        self, db: MongoDB, mock_db: Mock
+    ):
+        mock_db.blog_meta.find.return_value = [{"_id": "pl", "title": None}]
 
         with pytest.raises(InvalidSiteContentError):
             db.health_check()

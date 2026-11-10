@@ -203,12 +203,8 @@ class TestPages:
 
 
 class TestMeta:
-    def test_missing_or_null_blog_meta_is_empty(self):
+    def test_missing_blog_meta_is_empty(self):
         assert _repository(MemoryStore({"site_content": {}})).get_meta("en") == PageMeta()
-        assert (
-            _repository(MemoryStore({"site_content": {"blog_meta": None}})).get_meta("en")
-            == PageMeta()
-        )
 
     @pytest.mark.parametrize(
         "blog_meta",
@@ -216,6 +212,7 @@ class TestMeta:
             {"en": {"unknown": "x"}},
             {"en": {"title": None}},
             {"en": None},
+            None,
             ["en"],
         ],
     )

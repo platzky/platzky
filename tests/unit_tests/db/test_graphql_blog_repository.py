@@ -49,12 +49,14 @@ def query_posts(request: pytest.FixtureRequest) -> Callable[[PostRepository], li
 
 
 class TestMeta:
-    def test_null_fields_are_empty(self, repository: GraphQLBlogRepository, mock_client: Mock):
-        mock_client.execute.return_value = {"blogMeta": {"title": "Notes", "description": None}}
+    def test_null_and_empty_fields_are_not_set(
+        self, repository: GraphQLBlogRepository, mock_client: Mock
+    ):
+        mock_client.execute.return_value = {"blogMeta": {"title": "", "description": None}}
 
         meta = repository.get_meta("en")
 
-        assert meta == PageMeta(title="Notes")
+        assert meta == PageMeta()
 
     def test_queries_by_language(self, repository: GraphQLBlogRepository, mock_client: Mock):
         mock_client.execute.return_value = {"blogMeta": None}

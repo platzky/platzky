@@ -1,14 +1,21 @@
 """Blog repository implementation backed by MongoDB collections."""
 
 import datetime
+from collections.abc import Mapping
 from typing import Any
 
+from pydantic import ValidationError
 from pymongo.collection import Collection
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
-from platzky.db.exceptions import NotFoundError
+from platzky.db.exceptions import InvalidSiteContentError, NotFoundError
 from platzky.models import Page, PageMeta, Post
+
+
+def _meta_of(document: Mapping[str, Any]) -> PageMeta:
+    """Return the meta a ``blog_meta`` document holds, without its ``_id``."""
+    return PageMeta.model_validate({key: value for key, value in document.items() if key != "_id"})
 
 
 class _MongoPostRepository(PostRepository):
@@ -156,6 +163,26 @@ class MongoBlogRepository(BlogRepository):
         """Return the page repository."""
         return self._page_repository
 
+    def validate(self) -> None:
+        """Read the whole ``blog_meta`` collection once and validate every document.
+
+        Raises:
+            InvalidSiteContentError: If a document is invalid; the message names its ``_id``
+                and lists every problem, one per line.
+        """
+        problems: list[str] = []
+        for document in self._blog_meta.find():
+            try:
+                _meta_of(document)
+            except ValidationError as error:
+                problems.extend(
+                    ".".join(["blog_meta", str(document["_id"]), *(str(p) for p in e["loc"])])
+                    + f": {e['msg']}"
+                    for e in error.errors()
+                )
+        if problems:
+            raise InvalidSiteContentError("\n".join(problems))
+
     @override
     def get_meta(self, lang: str) -> PageMeta:
         """Retrieve the title and description of the blog index.
@@ -166,7 +193,4 @@ class MongoBlogRepository(BlogRepository):
         Returns:
             The blog index meta, empty if none is configured for the language.
         """
-        document = self._blog_meta.find_one({"_id": lang}) or {}
-        return PageMeta.model_validate(
-            {key: value for key, value in document.items() if key != "_id"}
-        )
+        return _meta_of(self._blog_meta.find_one({"_id": lang}) or {})

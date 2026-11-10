@@ -1,10 +1,11 @@
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 
 from platzky.db.blog_repository import BlogRepository
+from platzky.db.exceptions import InvalidSiteContentError
 from platzky.db.mongo_blog_repository import MongoBlogRepository
 from tests.unit_tests.db.blog_repository_contract import PAGE, POST, BlogRepositoryContract
 
@@ -18,17 +19,17 @@ class TestMongoBlogRepositoryContract(BlogRepositoryContract):
         pages: Sequence[dict[str, Any]] = (),
         blog_meta: Mapping[str, Mapping[str, str]] | None = None,
     ) -> BlogRepository:
-        meta = Mock()
-        meta.find_one.side_effect = _meta_lookup(blog_meta or {})
-        return MongoBlogRepository(_collection(posts), _collection(pages), meta)
+        return MongoBlogRepository(
+            _collection(posts), _collection(pages), _meta_collection(blog_meta or {})
+        )
 
 
-def _meta_lookup(blog_meta: Mapping[str, Mapping[str, str]]) -> Callable[[dict[str, str]], Any]:
-    def find_one(query: dict[str, str]) -> dict[str, str] | None:
-        lang = query["_id"]
-        return {"_id": lang, **blog_meta[lang]} if lang in blog_meta else None
+def _meta_collection(blog_meta: Mapping[str, Mapping[str, str]]) -> Mock:
+    def find_one(query: Mapping[str, str]) -> dict[str, Any] | None:
+        meta = blog_meta.get(query["_id"])
+        return None if meta is None else {"_id": query["_id"], **meta}
 
-    return find_one
+    return Mock(find_one=find_one)
 
 
 def _collection(documents: Sequence[dict[str, Any]]) -> Mock:
@@ -55,6 +56,19 @@ class TestMongoBlogRepository:
     @pytest.fixture
     def blog(self, posts: Mock, pages: Mock, blog_meta: Mock) -> MongoBlogRepository:
         return MongoBlogRepository(posts, pages, blog_meta)
+
+    def test_validate_reports_an_invalid_document_by_id(
+        self, blog: MongoBlogRepository, blog_meta: Mock
+    ):
+        blog_meta.find.return_value = [{"_id": "pl", "title": None}, {"_id": "en", "unknown": "x"}]
+
+        with pytest.raises(InvalidSiteContentError) as error:
+            blog.validate()
+
+        assert str(error.value) == (
+            "blog_meta.pl.title: Input should be a valid string\n"
+            "blog_meta.en.unknown: Extra inputs are not permitted"
+        )
 
     def test_get_meta_queries_by_language_id(self, blog: MongoBlogRepository, blog_meta: Mock):
         blog_meta.find_one.return_value = None

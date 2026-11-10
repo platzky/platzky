@@ -92,7 +92,7 @@ class SiteContentSection(SiteContent):
 
     posts: Any = None
     pages: Any = None
-    blog_meta: Any = None
+    blog_meta: Any = Field(default_factory=dict)
     localized_content: Mapping[str, LocalizedContent] = Field(
         default_factory=lambda: MappingProxyType({})
     )

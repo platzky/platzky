@@ -27,7 +27,7 @@ def parse_blog_meta(blog_meta: object) -> Mapping[str, PageMeta]:
     """Validate the ``blog_meta`` key of the site content, e.g. when the application starts.
 
     Args:
-        blog_meta: The stored value: the blog index meta by language code, or None if absent.
+        blog_meta: The stored value: the blog index meta by language code. Null is an error.
 
     Returns:
         The blog index meta by language code.
@@ -37,7 +37,7 @@ def parse_blog_meta(blog_meta: object) -> Mapping[str, PageMeta]:
             path, one per line.
     """
     try:
-        return _BLOG_META.validate_python({} if blog_meta is None else blog_meta)
+        return _BLOG_META.validate_python(blog_meta)
     except ValidationError as error:
         raise InvalidSiteContentError(
             "\n".join(
@@ -232,5 +232,5 @@ class JsonBlogRepository(BlogRepository):
         Raises:
             InvalidSiteContentError: If the stored blog meta is invalid.
         """
-        meta = parse_blog_meta(get_site_content(self._document.data).get("blog_meta"))
+        meta = parse_blog_meta(get_site_content(self._document.data).get("blog_meta", {}))
         return meta.get(lang, PageMeta())

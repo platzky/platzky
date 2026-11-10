@@ -65,7 +65,12 @@ class MongoDB(DB):
         self._site_config = MongoSiteConfigRepository(
             self._db.site_content, self._db.localized_content
         )
+        self._validate()
+
+    def _validate(self) -> None:
+        """Raise `InvalidSiteContentError` if the site content or the blog meta is invalid."""
         self._site_config.validate()
+        self._blog.validate()
 
     @property
     @override
@@ -102,4 +107,4 @@ class MongoDB(DB):
         Raises an exception if the database is not accessible or its site content is invalid.
         """
         self._client.admin.command("ping")
-        self._site_config.validate()
+        self._validate()

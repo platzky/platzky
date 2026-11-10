@@ -46,6 +46,19 @@ def db_from_config(config: JsonDbConfig) -> "Json":
 # TODO: Make all language-specific methods available without language parameter.
 # This will allow a default language and if there is one language,
 # there will be no need to pass it to the method or in db.
+def validate_json_site_content(site_content: object) -> None:
+    """Validate the ``site_content`` section of a JSON document, blog meta included.
+
+    Args:
+        site_content: The ``site_content`` section of the document.
+
+    Raises:
+        InvalidSiteContentError: If it is invalid; the message lists every problem with its
+            path, one per line.
+    """
+    parse_blog_meta(parse_site_content(site_content).blog_meta)
+
+
 class Json(DB):
     """In-memory JSON database implementation."""
 
@@ -69,7 +82,7 @@ class Json(DB):
 
     def _validate_site_content(self) -> None:
         """Raise `InvalidSiteContentError` if the site content does not match its format."""
-        parse_blog_meta(parse_site_content(get_site_content(self._document.data)).blog_meta)
+        validate_json_site_content(get_site_content(self._document.data))
 
     @property
     @override
