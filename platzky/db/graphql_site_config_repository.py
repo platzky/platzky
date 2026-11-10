@@ -47,11 +47,6 @@ def _present(values: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in values.items() if value}
 
 
-def _logo_url(logo: Mapping[str, Any] | None) -> str | None:
-    """Return the image URL of a CMS logo node, or None if it has no image."""
-    return ((logo or {}).get("image") or {}).get("url")
-
-
 def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
     """Map the fields of a `LocalizedContent` CMS entry that it has to the shared model.
 
@@ -68,7 +63,7 @@ def _localized_content(entry: Mapping[str, Any]) -> LocalizedContent:
                     "app_name": entry.get("appName"),
                     "app_title": entry.get("appTitle"),
                     "app_description": entry.get("appDescription"),
-                    "logo_url": _logo_url(entry.get("logo")),
+                    "logo_url": ((entry.get("logo") or {}).get("image") or {}).get("url"),
                     "home_page_path": entry.get("homePagePath"),
                 }
             ),
@@ -96,7 +91,6 @@ _LOCALIZED_CONTENTS = """
 _LOCALIZED_CONTENTS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + "}"
 
 _SITE_SETTINGS_QUERY = "query MyQuery {" + _LOCALIZED_CONTENTS + """
-      logos(stage: PUBLISHED) { logo { image { url } } }
       favicons(stage: PUBLISHED) { favicon { url } }
       themes(stage: PUBLISHED) {
         primaryColor
@@ -152,8 +146,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
                 "app_description": defaults.app_description,
                 **_present(
                     {
-                        "logo_url": defaults.logo_url
-                        or _logo_url(_first(result.get("logos")).get("logo")),
+                        "logo_url": defaults.logo_url,
                         "favicon_url": (_first(result.get("favicons")).get("favicon") or {}).get(
                             "url"
                         ),

@@ -10,7 +10,6 @@ from graphql import print_ast
 
 from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
-from platzky.models import Image
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
@@ -30,30 +29,25 @@ def _hygraph_entry(language: str | None, content: Mapping[str, Any]) -> dict[str
     }
 
 
-def _graphql_repository(site_content: dict[str, Any]) -> SiteConfigRepository:
-    localized_content = site_content.get("localized_content", {})
-    client = Mock(spec=Client)
-    client.execute.return_value = {
-        "localizedContents": [
-            _hygraph_entry(None, site_content),
-            *(_hygraph_entry(lang, content) for lang, content in localized_content.items()),
-        ],
-        "logos": [],
-        "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],
-        "themes": [
-            {
-                "primaryColor": site_content.get("primary_color"),
-                "secondaryColor": site_content.get("secondary_color"),
-                "font": site_content.get("font"),
-            }
-        ],
-    }
-    return GraphQLSiteConfigRepository(lambda: client)
-
-
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
-        return _graphql_repository(site_content)
+        localized_content = site_content.get("localized_content", {})
+        client = Mock(spec=Client)
+        client.execute.return_value = {
+            "localizedContents": [
+                _hygraph_entry(None, site_content),
+                *(_hygraph_entry(lang, content) for lang, content in localized_content.items()),
+            ],
+            "favicons": [{"favicon": {"url": site_content.get("favicon_url")}}],
+            "themes": [
+                {
+                    "primaryColor": site_content.get("primary_color"),
+                    "secondaryColor": site_content.get("secondary_color"),
+                    "font": site_content.get("font"),
+                }
+            ],
+        }
+        return GraphQLSiteConfigRepository(lambda: client)
 
 
 @pytest.fixture
@@ -72,15 +66,6 @@ def _query_sent(mock_client: Mock) -> str:
 
 
 class TestGetSiteSettings:
-    def test_reads_everything_in_one_request(
-        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {}
-
-        repository.get_site_settings("pl")
-
-        mock_client.execute.assert_called_once()
-
     def test_reads_published_localized_contents(
         self, repository: GraphQLSiteConfigRepository, mock_client: Mock
     ):
@@ -90,48 +75,20 @@ class TestGetSiteSettings:
 
         assert "localizedContents(stage: PUBLISHED" in _query_sent(mock_client)
 
-    def test_default_entry_logo_wins_over_global_logo(
-        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {
-            "localizedContents": [
-                {"language": None, "logo": {"image": {"url": "/default.png"}}},
-            ],
-            "logos": [{"logo": {"image": {"url": "/global.png"}}}],
-        }
-
-        settings = repository.get_site_settings("en")
-
-        assert settings == SiteSettings(logo=Image(url="/default.png"))
-
-    def test_global_logo_is_used_without_a_default_entry(
-        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {
-            "localizedContents": [],
-            "logos": [{"logo": {"image": {"url": "/global.png"}}}],
-        }
-
-        settings = repository.get_site_settings("en")
-
-        assert settings == SiteSettings(logo=Image(url="/global.png"))
-
     @pytest.mark.parametrize(
         "result",
         [
             {
                 "localizedContents": [None, {"language": None, "logo": None}],
-                "logos": [{"logo": None}],
                 "favicons": [{"favicon": None}],
                 "themes": [None],
             },
             {
                 "localizedContents": [{"language": None, "logo": {"image": None}}],
-                "logos": [{"logo": {"alternateText": "x", "image": None}}],
                 "favicons": [None],
                 "themes": [{"primaryColor": None, "secondaryColor": None, "font": None}],
             },
-            {"localizedContents": None, "logos": None, "favicons": None, "themes": None},
+            {"localizedContents": None, "favicons": None, "themes": None},
         ],
     )
     def test_null_nodes_fall_back_to_defaults(

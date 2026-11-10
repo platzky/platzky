@@ -284,7 +284,6 @@ def test_facade_and_repositories_share_one_client(mock_client: Mock):
     mock_client.execute.return_value = {
         "posts": [],
         "pluginConfigs": [],
-        "logos": [],
         "favicons": [],
         "themes": [],
         "localizedContents": [],
