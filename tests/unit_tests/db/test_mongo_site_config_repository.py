@@ -1,13 +1,35 @@
-"""Mongo storage specifics the contract suite cannot see: which documents are read, and how."""
+"""Mongo backend: the SiteConfigRepository contract plus the storage specifics it cannot see."""
 
+from collections.abc import Mapping
+from typing import Any
 from unittest.mock import Mock
 
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
-from platzky.db.site_config_repository import SiteSettings
+from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
 from platzky.models import Footer
+from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
-class TestMongoSiteConfigRepository:
+def _collection(documents: Mapping[str, Mapping[str, Any]]) -> Mock:
+    def find_one(query: Mapping[str, str], **_: object) -> Mapping[str, Any] | None:
+        return documents.get(query["_id"])
+
+    return Mock(find_one=find_one)
+
+
+class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
+    def make_repository(self, site_content: dict[str, Any]) -> SiteConfigRepository:
+        # Mongo keeps the config in one document, and menus and overrides in one
+        # document per language.
+        config = {k: v for k, v in site_content.items() if k != "localized_content"}
+        menu_items = site_content.get("menu_items") or {}
+        localized_content = site_content.get("localized_content") or {}
+        return MongoSiteConfigRepository(
+            _collection({"config": config} if site_content else {}),
+            _collection({lang: {"items": items} for lang, items in menu_items.items()}),
+            _collection(dict(localized_content)),
+        )
+
     def test_site_settings_read_only_stored_keys_of_the_config_document(self):
         # The projection keeps the amount of data read from the database small.
         site_content = Mock()
