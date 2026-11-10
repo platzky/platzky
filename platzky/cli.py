@@ -90,8 +90,8 @@ def check(file: Path) -> None:
 
     Checks the ``site_config`` section (texts, theme, per-language content) and the ``blog``
     section (the index meta by language; posts and pages must be lists of objects, their fields
-    are not checked). Prints OK and exits 0 when it
-    is valid; otherwise lists every problem with its path and exits 1.
+    are not checked). Prints OK and exits 0 when it is valid; otherwise lists every problem of
+    the first invalid section (``site_config`` before ``blog``) with its path and exits 1.
     """
     try:
         document = json.loads(file.read_text(encoding="utf-8"))
