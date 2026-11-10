@@ -31,6 +31,7 @@ _SITE_CONTENT = {
     "favicon_url": "/favicon.ico",
     "primary_color": "blue",
     "secondary_color": "green",
+    "font": "Arial",
     "app_name": "Default name",
     "app_title": "Default title",
     "app_description": "Default description",
@@ -158,6 +159,7 @@ class TestSiteConfigRepositoryContract:
         assert settings.logo is not None
         assert settings.logo.url == "/logo.png"
         assert settings.favicon_url == "/favicon.ico"
+        assert settings.font == "Arial"
         assert settings.primary_color == "blue"
         assert settings.secondary_color == "green"
 
@@ -169,6 +171,7 @@ class TestSiteConfigRepositoryContract:
         assert settings == SiteSettings(
             logo=Image(url="/logo-pl.png"),
             favicon_url="/favicon.ico",
+            font="Arial",
             primary_color="blue",
             secondary_color="green",
             app_name="Nazwa PL",
@@ -199,6 +202,22 @@ class TestSiteConfigRepositoryContract:
 
         assert settings.app_name == "Default name"
         assert settings.app_description == "Default description"
+
+    def test_null_top_level_values_fall_back_to_defaults(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository(
+            {
+                "logo_url": None,
+                "favicon_url": None,
+                "primary_color": None,
+                "secondary_color": None,
+                "font": None,
+                "app_description": None,
+            }
+        )
+
+        assert repository.get_site_settings("en") == SiteSettings()
 
     def test_get_site_settings_returns_defaults_when_empty(
         self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
@@ -321,3 +340,10 @@ class TestSiteConfigRepositoryContract:
         repository = make_repository({"blog_meta": _BLOG_META})
 
         assert repository.get_blog_meta("de") == PageMeta()
+
+    def test_get_footer_is_empty_for_unconfigured_language(
+        self, make_repository: Callable[[dict[str, Any]], SiteConfigRepository]
+    ):
+        repository = make_repository({"footer": {"content": {"en": "English footer"}}})
+
+        assert repository.get_footer("de") == Footer()

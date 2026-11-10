@@ -58,20 +58,17 @@ class TestGetSiteSettings:
 
         assert settings == SiteSettings(logo=Image(url="/default.png"))
 
-    def test_global_logo_and_font_are_used_without_a_default_entry(
+    def test_global_logo_is_used_without_a_default_entry(
         self, repository: GraphQLSiteConfigRepository, mock_client: Mock
     ):
         mock_client.execute.return_value = {
             "localizedContents": [],
             "logos": [{"logo": {"image": {"url": "/global.png"}}}],
-            "themes": [{"primaryColor": "red", "secondaryColor": "blue", "font": "Lato"}],
         }
 
         settings = repository.get_site_settings("en")
 
-        assert settings == SiteSettings(
-            logo=Image(url="/global.png"), primary_color="red", secondary_color="blue", font="Lato"
-        )
+        assert settings == SiteSettings(logo=Image(url="/global.png"))
 
     @pytest.mark.parametrize(
         "result",
