@@ -100,6 +100,5 @@ def check(file: Path) -> None:
     try:
         parse_site_content(document.get("site_content"))
     except InvalidSiteContentError as error:
-        click.echo(str(error), err=True)
-        raise click.exceptions.Exit(1) from error
+        raise click.ClickException(str(error)) from error
     click.echo("OK")

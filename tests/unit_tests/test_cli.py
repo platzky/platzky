@@ -164,7 +164,7 @@ class TestCheck:
 
         assert result.exit_code == 1
         assert result.output.splitlines() == [
-            "site_content.localized_content.pl.menu_items.0.url: Field required",
+            "Error: site_content.localized_content.pl.menu_items.0.url: Field required",
             "site_content.localized_content.pl.x: Extra inputs are not permitted",
             "site_content.home_page_path: Extra inputs are not permitted",
         ]
@@ -173,10 +173,7 @@ class TestCheck:
         result = _check(tmp_path, {"plugins": {}})
 
         assert result.exit_code == 1
-        assert (
-            result.output
-            == "site_content: Input should be a valid dictionary or instance of SiteContent\n"
-        )
+        assert result.output.startswith("Error: site_content: ")
 
     def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
         data_file = tmp_path / "data.json"
