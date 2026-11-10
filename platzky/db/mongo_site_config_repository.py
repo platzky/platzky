@@ -10,10 +10,8 @@ from platzky.db.site_config_repository import (
     LocalizedContent,
     SiteConfigRepository,
     SiteContent,
-    SiteSettings,
     parse_site_content,
 )
-from platzky.models import Footer, MenuItem, PageMeta
 
 
 def _without_id(document: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -43,11 +41,6 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         self._site_content = site_content
         self._localized_content = localized_content
 
-    def _localized(self, lang: str) -> LocalizedContent:
-        """Read the document of a language."""
-        document = self._localized_content.find_one({"_id": lang})
-        return LocalizedContent.model_validate(_without_id(document))
-
     def validate(self) -> None:
         """Read the whole site content once and check it against the site content format.
 
@@ -66,66 +59,26 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         )
 
     @override
-    def get_site_settings(self, lang: str) -> SiteSettings:
-        """Retrieve branding and site text for the app in a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
+    def get_site_content(self) -> SiteContent:
+        """Retrieve the site-wide content.
 
         Returns:
-            The app's site settings, with text empty where none is configured.
+            The site-wide content, with defaults where none is configured.
         """
-        config = self._site_content.find_one({"_id": "config"})
-        return SiteSettings.from_layers(
-            SiteContent.model_validate(_without_id(config)),
-            self._localized(lang),
+        return SiteContent.model_validate(
+            _without_id(self._site_content.find_one({"_id": "config"}))
         )
 
     @override
-    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
-        """Retrieve menu items for a specific language.
+    def get_localized_content(self, lang: str) -> LocalizedContent:
+        """Retrieve the content of one language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            Menu items in that language.
+            The language's content, empty if none is configured for it.
         """
-        return list(self._localized(lang).menu_items)
-
-    @override
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured for
-            this locale.
-        """
-        return self._localized(locale).home_page_path or None
-
-    @override
-    def get_blog_meta(self, lang: str) -> PageMeta:
-        """Retrieve the blog index's title and description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The blog meta, empty if none is configured for the language.
-        """
-        return self._localized(lang).blog_meta
-
-    @override
-    def get_footer(self, lang: str) -> Footer:
-        """Retrieve the site-wide footer for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The footer, empty and not collapsible if none is configured.
-        """
-        return self._localized(lang).footer
+        return LocalizedContent.model_validate(
+            _without_id(self._localized_content.find_one({"_id": lang}))
+        )

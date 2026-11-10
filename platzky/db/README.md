@@ -40,7 +40,7 @@ in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 | Attribute | Protocol | File | Covers |
 |---|---|---|---|
 | `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
-| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta; the stored format is the `SiteContent` and `LocalizedContent` models in the same file |
+| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_content()` returns the site-wide `SiteContent` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, blog meta, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them, and `SiteContentSection` is the whole JSON `site_content` section (also the Mongo `validate()` and `platzky check` format) |
 | `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
@@ -48,7 +48,10 @@ Implementations live in `<backend>_<repo>.py` (for example
 (`json`, `graphql`, `mongo`) implements all three. A `DB` subclass builds its
 three repositories in its constructor, keeps them in private attributes and returns
 them from the `blog`, `site_config` and `plugin_config` properties; that, plus
-`health_check()`, is all a custom backend has to implement. The blog blueprint
+`health_check()`, is all a custom backend has to implement. A custom
+`SiteConfigRepository` maps its storage to the two models: `get_site_content()`
+and `get_localized_content(lang)`; the contract suite in
+`tests/unit_tests/db/site_config_repository_contract.py` checks exactly that. The blog blueprint
 (`create_blog_blueprint`) receives `db.blog` and `db.site_config`, not the `DB`.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
@@ -123,7 +126,7 @@ db = get_db(db_config)
 
 # Use the repositories
 posts = db.blog.posts.get_all("en")
-menu_items = db.site_config.get_menu_items_in_lang("en")
+menu_items = db.site_config.get_localized_content("en").menu_items
 ```
 
 ## Extending: host-app repositories

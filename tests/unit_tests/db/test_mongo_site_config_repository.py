@@ -4,12 +4,8 @@ from collections.abc import Mapping
 from typing import Any
 from unittest.mock import Mock
 
-import pytest
-
-from platzky.db.exceptions import InvalidSiteContentError
 from platzky.db.mongo_site_config_repository import MongoSiteConfigRepository
 from platzky.db.site_config_repository import SiteConfigRepository
-from platzky.models import Footer
 from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
 
 
@@ -30,37 +26,3 @@ class TestMongoSiteConfigRepository(SiteConfigRepositoryContract):
             _collection({"config": config}),
             _collection(site_content.get("localized_content", {})),
         )
-
-    def test_get_footer_is_read_in_a_single_query_of_the_language_document(self):
-        # Content and collapsible come from one query, not one round-trip each.
-        site_content = Mock()
-        localized_content = Mock()
-        localized_content.find_one.return_value = {
-            "_id": "en",
-            "footer": {"content": "Footer", "collapsible": True},
-        }
-        repository = MongoSiteConfigRepository(site_content, localized_content)
-
-        assert repository.get_footer("en") == Footer(content="Footer", collapsible=True)
-        localized_content.find_one.assert_called_once_with({"_id": "en"})
-        site_content.find_one.assert_not_called()
-
-    def test_validate_reads_every_document_and_reports_unknown_keys(self):
-        site_content = Mock()
-        site_content.find_one.return_value = {"_id": "config", "menu_items": {}}
-        localized_content = Mock()
-        localized_content.find.return_value = [{"_id": "pl", "x": 1}, {"_id": "en"}]
-        repository = MongoSiteConfigRepository(site_content, localized_content)
-
-        with pytest.raises(InvalidSiteContentError):
-            repository.validate()
-
-        site_content.find_one.assert_called_once_with({"_id": "config"})
-
-    def test_validate_accepts_valid_documents(self):
-        site_content = Mock()
-        site_content.find_one.return_value = {"_id": "config", "app_name": "Literature"}
-        localized_content = Mock()
-        localized_content.find.return_value = [{"_id": "pl", "app_name": "Literatura"}]
-
-        MongoSiteConfigRepository(site_content, localized_content).validate()

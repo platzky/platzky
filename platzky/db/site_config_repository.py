@@ -1,4 +1,4 @@
-"""Protocol for site-wide configuration: branding, menu, home page, footer, and blog meta.
+"""Protocol for site configuration: site-wide branding and per-language content.
 
 Every app needs branding (logo, colors, font, description), a nav menu, and a
 home page regardless of whether it has a blog, so this is kept separate from
@@ -12,7 +12,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from platzky.db.exceptions import InvalidSiteContentError
-from platzky.models import Font, Footer, Image, MenuItem, PageMeta
+from platzky.models import Font, Footer, MenuItem, PageMeta
 
 
 class LocalizedContent(BaseModel):
@@ -45,13 +45,15 @@ class LocalizedContent(BaseModel):
     home_page_path: str = ""
 
 
+DEFAULT_PRIMARY_COLOR = "white"
+DEFAULT_SECONDARY_COLOR = "navy"
+
+
 class SiteContent(BaseModel):
-    """The site-configuration part of the ``site_content`` section, shared by every backend.
+    """The site-wide content, shared by every backend.
 
     The texts and the logo are defaults that each language may override; the favicon, font and
-    colors are global. Everything else is per language, in ``localized_content``. Unknown keys
-    are an error, except ``posts`` and ``pages``: the blog repository owns and validates those
-    in the same section.
+    colors are global. Everything else is per language, in `LocalizedContent`.
 
     Attributes:
         app_name: Default site name
@@ -62,9 +64,6 @@ class SiteContent(BaseModel):
         font: Font family name and stylesheet
         primary_color: Primary theme color
         secondary_color: Secondary theme color
-        posts: Blog posts, owned by the blog repository
-        pages: Pages, owned by the blog repository
-        localized_content: The per-language content, by language code
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -75,8 +74,23 @@ class SiteContent(BaseModel):
     logo_url: str = ""
     favicon_url: str = ""
     font: Font = Font()
-    primary_color: str = ""
-    secondary_color: str = ""
+    primary_color: str = DEFAULT_PRIMARY_COLOR
+    secondary_color: str = DEFAULT_SECONDARY_COLOR
+
+
+class SiteContentSection(SiteContent):
+    """The whole ``site_content`` section of a JSON document, as stored.
+
+    It is the site-wide `SiteContent` plus everything else the section holds: the content of
+    each language, and the blog's posts and pages, which the blog repository owns and
+    validates. Unknown keys are an error.
+
+    Attributes:
+        posts: Blog posts, owned by the blog repository
+        pages: Pages, owned by the blog repository
+        localized_content: The per-language content, by language code
+    """
+
     posts: Any = None
     pages: Any = None
     localized_content: Mapping[str, LocalizedContent] = Field(
@@ -100,7 +114,7 @@ class SiteContent(BaseModel):
         return self.localized_content.get(lang, LocalizedContent())
 
 
-def parse_site_content(site_content: object) -> SiteContent:
+def parse_site_content(site_content: object) -> SiteContentSection:
     """Validate the site content as stored, e.g. when the application starts.
 
     Args:
@@ -114,7 +128,7 @@ def parse_site_content(site_content: object) -> SiteContent:
             path, one per line.
     """
     try:
-        return SiteContent.model_validate(site_content)
+        return SiteContentSection.model_validate(site_content)
     except ValidationError as error:
         problems = (
             ".".join(["site_content", *(str(part) for part in problem["loc"])])
@@ -133,10 +147,10 @@ class SiteSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    logo: Image | None = None
+    logo_url: str = ""
     favicon_url: str = ""
-    primary_color: str = "white"
-    secondary_color: str = "navy"
+    primary_color: str = DEFAULT_PRIMARY_COLOR
+    secondary_color: str = DEFAULT_SECONDARY_COLOR
     font: Font = Font()
     app_name: str = ""
     app_title: str = ""
@@ -158,12 +172,11 @@ class SiteSettings(BaseModel):
         Returns:
             The site settings for that language.
         """
-        logo_url = localized.logo_url or defaults.logo_url
         return cls(
-            logo=Image(url=logo_url) if logo_url else None,
+            logo_url=localized.logo_url or defaults.logo_url,
             favicon_url=defaults.favicon_url,
-            primary_color=defaults.primary_color or "white",
-            secondary_color=defaults.secondary_color or "navy",
+            primary_color=defaults.primary_color,
+            secondary_color=defaults.secondary_color,
             font=defaults.font,
             app_name=localized.app_name or defaults.app_name,
             app_title=localized.app_title or defaults.app_title,
@@ -172,59 +185,23 @@ class SiteSettings(BaseModel):
 
 
 class SiteConfigRepository(Protocol):
-    """Repository for site-wide branding, navigation, and home page config."""
+    """Repository for the site-wide and per-language site content."""
 
-    def get_site_settings(self, lang: str) -> SiteSettings:
-        """Retrieve branding and site text for the app in a specific language.
+    def get_site_content(self) -> SiteContent:
+        """Retrieve the site-wide content: texts and logo defaults, favicon, colors and font.
+
+        Returns:
+            The site-wide content, with defaults where none is configured.
+        """
+        ...
+
+    def get_localized_content(self, lang: str) -> LocalizedContent:
+        """Retrieve the content of one language: menu, footer, blog meta, home page, texts.
 
         Args:
             lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            The app's site settings, with text empty where none is configured.
-        """
-        ...
-
-    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
-        """Retrieve menu items for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            Menu items in that language.
-        """
-        ...
-
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured.
-        """
-        ...
-
-    def get_blog_meta(self, lang: str) -> PageMeta:
-        """Retrieve the blog index's title and description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The blog meta, empty if none is configured for the language.
-        """
-        ...
-
-    def get_footer(self, lang: str) -> Footer:
-        """Retrieve the site-wide footer for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The footer, empty and not collapsible if none is configured.
+            The language's content, empty if none is configured for it.
         """
         ...

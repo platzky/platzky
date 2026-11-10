@@ -77,7 +77,7 @@ class TestMongoDB:
         }
 
         assert list(db.plugin_config.get_all()) == ["plugin1"]
-        assert db.site_config.get_home_page_path("en") == "/blog/page/about"
+        assert db.site_config.get_localized_content("en").home_page_path == "/blog/page/about"
         with pytest.raises(NotFoundError):
             db.blog.posts.get("missing")
 
@@ -93,7 +93,7 @@ class TestMongoDB:
         mock_db.site_content.find_one.return_value = None
         mock_db.localized_content.find_one.return_value = None
 
-        db.site_config.get_site_settings("en")
+        db.site_config.get_site_content()
 
         assert db.database is mock_db
         mock_db.site_content.find_one.assert_called()

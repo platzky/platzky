@@ -105,7 +105,9 @@ def create_blog_blueprint(
             abort(404)
         posts_sorted = sorted(posts, reverse=True)
         return render_template(
-            "blog.html", posts=posts_sorted, blog_meta=site_config.get_blog_meta(lang)
+            "blog.html",
+            posts=posts_sorted,
+            blog_meta=site_config.get_localized_content(lang).blog_meta,
         )
 
     @blog.route("/feed", methods=["GET"], multilang=True)
@@ -230,7 +232,7 @@ def create_blog_blueprint(
             "blog.html",
             posts=posts,
             subtitle=f" - tag: {tag}",
-            blog_meta=site_config.get_blog_meta(lang),
+            blog_meta=site_config.get_localized_content(lang).blog_meta,
         )
 
     return blog

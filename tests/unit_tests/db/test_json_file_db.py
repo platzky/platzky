@@ -45,16 +45,10 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.site_config.get_site_settings("en").app_description == "English description"
+            assert (
+                db.site_config.get_localized_content("en").app_description == "English description"
+            )
             assert [post.slug for post in db.blog.posts.get_all("en")] == ["post-1"]
-
-    def test_get_site_settings(self, sample_data: dict[str, object], mock_file_path: str):
-        json_str = json.dumps(sample_data)
-        with patch("builtins.open", mock_open(read_data=json_str)):
-            db = JsonFile(mock_file_path)
-            assert db.site_config.get_site_settings("en").app_description == "English description"
-            assert db.site_config.get_site_settings("de").app_description == "Deutsche Beschreibung"
-            assert db.site_config.get_site_settings("fr").app_description == "Default description"
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
         data_file = tmp_path / "data.json"

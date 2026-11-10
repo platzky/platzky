@@ -3,8 +3,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.site_config_repository import LocalizedContent, SiteContent, SiteSettings
-from platzky.models import Font, Image
+from platzky.db.site_config_repository import (
+    LocalizedContent,
+    SiteContent,
+    SiteContentSection,
+    SiteSettings,
+)
+from platzky.models import Font
 
 _NON_DEFAULTS = {
     "app_name": "Name",
@@ -41,7 +46,7 @@ def test_empty_override_falls_through_to_the_default():
         LocalizedContent(app_name="", logo_url=""),
     )
 
-    assert settings == SiteSettings(app_name="Default", logo=Image(url="/logo.png"))
+    assert settings == SiteSettings(app_name="Default", logo_url="/logo.png")
 
 
 def test_global_values_are_not_overridden_by_a_language():
@@ -59,17 +64,9 @@ def test_global_values_are_not_overridden_by_a_language():
     )
 
 
-def test_localized_content_is_not_inherited_from_another_language():
-    content = SiteContent.model_validate(
-        {"localized_content": {"en": {"home_page_path": "/blog/page/about"}}}
-    )
-
-    assert content.localized("pl") == LocalizedContent()
-
-
 @pytest.mark.parametrize("posts_key", ["posts", "pages"])
 def test_sections_owned_by_the_blog_repository_are_accepted(posts_key: str):
-    SiteContent.model_validate({posts_key: [{"title": "Anything"}]})
+    SiteContentSection.model_validate({posts_key: [{"title": "Anything"}]})
 
 
 @pytest.mark.parametrize(
@@ -85,7 +82,7 @@ def test_sections_owned_by_the_blog_repository_are_accepted(posts_key: str):
 )
 def test_unknown_keys_are_rejected(site_content: dict[str, Any]):
     with pytest.raises(ValidationError):
-        SiteContent.model_validate(site_content)
+        SiteContentSection.model_validate(site_content)
 
 
 @pytest.mark.parametrize(
@@ -103,11 +100,11 @@ def test_unknown_keys_are_rejected(site_content: dict[str, Any]):
 )
 def test_null_is_rejected(site_content: dict[str, Any]):
     with pytest.raises(ValidationError):
-        SiteContent.model_validate(site_content)
+        SiteContentSection.model_validate(site_content)
 
 
 def test_site_content_is_immutable():
-    content = SiteContent.model_validate({"localized_content": {"en": {}}})
+    content = SiteContentSection.model_validate({"localized_content": {"en": {}}})
 
     with pytest.raises(ValidationError):
         content.app_name = "Changed"

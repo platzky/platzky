@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 from platzky.config import Config
 from platzky.db import db_loader
-from platzky.db.site_config_repository import SiteSettings
+from platzky.db.site_config_repository import SiteContent
 
 
 def test_loading_json_db_dynamically():
@@ -37,9 +37,7 @@ def test_loading_json_file_db_dynamically():
         ):
             db = db_loader.get_db(config.db)
             assert db.__class__.__name__ == "JsonFile"
-            assert db.site_config.get_site_settings("en") == SiteSettings(
-                app_description="From file"
-            )
+            assert db.site_config.get_site_content() == SiteContent(app_description="From file")
 
 
 def test_loading_google_json_db_dynamically():
@@ -53,7 +51,7 @@ def test_loading_google_json_db_dynamically():
         },
     }
 
-    expected_settings = SiteSettings(app_description="From bucket")
+    expected_content = SiteContent(app_description="From bucket")
 
     with patch("platzky.db.google_json_db.Client") as mock_client:
         client_mock = MagicMock()
@@ -72,7 +70,7 @@ def test_loading_google_json_db_dynamically():
         db = db_loader.get_db(config.db)
 
         assert db.__class__.__name__ == "GoogleJsonDb"
-        assert db.site_config.get_site_settings("en") == expected_settings
+        assert db.site_config.get_site_content() == expected_content
 
         mock_client.assert_called_once()
         mock_bucket.blob.assert_called_once_with("data.json")

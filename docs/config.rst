@@ -322,7 +322,7 @@ format that is the same in every database type: the site-wide keys, plus one
 entry per language.
 
 Site-wide keys (``favicon_url``, ``font``, ``primary_color``, ``secondary_color``)
-apply to every language. The site name, title, description and logo can be set
+apply to every language; the colours default to ``white`` and ``navy``. The site name, title, description and logo can be set
 once for the whole site and overridden per language. For a key and a language,
 Platzky uses the first of these that is set:
 

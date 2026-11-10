@@ -117,15 +117,14 @@ def test_facade_and_repositories_share_one_client(mock_client: Mock):
     mock_client.execute.return_value = {
         "posts": [],
         "pluginConfigs": [],
-        "site": [],
-        "localized": None,
+        "sites": [],
     }
     with patch("platzky.db.graphql_client.Client", return_value=mock_client) as client_cls:
         db = GraphQL("https://test.endpoint", "test_token")
 
         db.blog.posts.get_all("en")
         db.plugin_config.get_all()
-        db.site_config.get_site_settings("en")
+        db.site_config.get_site_content()
         db.health_check()
 
     client_cls.assert_called_once()

@@ -14,7 +14,7 @@ from platzky.db.exceptions import (
 )
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
 from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
-from platzky.models import Font, Page
+from platzky.models import Page
 
 
 class TestJsonDbConfig:
@@ -34,7 +34,7 @@ class TestFactoryFunctions:
         )
         db = db_from_config(config)
         assert isinstance(db, Json)
-        assert db.site_config.get_site_settings("en").app_description == "Configured"
+        assert db.site_config.get_site_content().app_description == "Configured"
 
 
 class TestJsonDb:
@@ -42,7 +42,6 @@ class TestJsonDb:
     def sample_data(self) -> dict[str, Any]:
         return {
             "site_content": {
-                "app_description": "Default description",
                 "posts": [
                     {
                         "title": "Post 1",
@@ -86,21 +85,6 @@ class TestJsonDb:
                         "date": "2023-01-03T00:00:00",
                     }
                 ],
-                "localized_content": {
-                    "en": {
-                        "app_description": "English description",
-                        "menu_items": [{"name": "Home", "url": "/", "weight": 1}],
-                    },
-                    "de": {
-                        "app_description": "Deutsche Beschreibung",
-                        "menu_items": [{"name": "Startseite", "url": "/", "weight": 1}],
-                    },
-                },
-                "logo_url": "/logo.png",
-                "favicon_url": "/favicon.ico",
-                "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
-                "primary_color": "blue",
-                "secondary_color": "green",
             },
             "plugins": {"plugin1": {"config": {}}},
         }
@@ -108,11 +92,6 @@ class TestJsonDb:
     @pytest.fixture
     def db(self, sample_data: dict[str, Any]) -> Json:
         return Json(MemoryStore(sample_data))
-
-    def test_get_app_description(self, db: Json):
-        assert db.site_config.get_site_settings("en").app_description == "English description"
-        assert db.site_config.get_site_settings("de").app_description == "Deutsche Beschreibung"
-        assert db.site_config.get_site_settings("fr").app_description == "Default description"
 
     def test_get_post_missing_data(self):
         db_without_posts = Json(MemoryStore({"site_content": {}}))
@@ -170,67 +149,6 @@ class TestJsonDb:
         db = Json(MemoryStore(sample_data))
         posts = list(db.blog.posts.get_by_tag("tag1", "en"))
         assert len(posts) == 0
-
-
-class TestJsonDbSiteSettings:
-    @pytest.fixture
-    def db_with_settings(self) -> Json:
-        return Json(
-            MemoryStore(
-                {
-                    "site_content": {
-                        "logo_url": "/logo.png",
-                        "favicon_url": "/favicon.ico",
-                        "font": {
-                            "name": "Lora",
-                            "url": "https://fonts.googleapis.com/css2?family=Lora",
-                        },
-                        "primary_color": "blue",
-                        "secondary_color": "green",
-                    }
-                }
-            )
-        )
-
-    @pytest.fixture
-    def db_minimal(self) -> Json:
-        return Json(MemoryStore({"site_content": {}}))
-
-    def test_get_site_settings(self, db_with_settings: Json):
-        settings = db_with_settings.site_config.get_site_settings("en")
-        assert settings.logo is not None
-        assert settings.logo.url == "/logo.png"
-        assert settings.favicon_url == "/favicon.ico"
-        assert settings.font == Font(
-            name="Lora", url="https://fonts.googleapis.com/css2?family=Lora"
-        )
-        assert settings.primary_color == "blue"
-        assert settings.secondary_color == "green"
-
-    def test_get_site_settings_defaults(self, db_minimal: Json):
-        settings = db_minimal.site_config.get_site_settings("en")
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.font == Font()
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-        assert settings.app_description == ""
-
-    def test_get_home_page_path_default(self, db_minimal: Json):
-        assert db_minimal.site_config.get_home_page_path("en") is None
-
-    def test_get_home_page_path(self):
-        db = Json(
-            MemoryStore(
-                {
-                    "site_content": {
-                        "localized_content": {"pl": {"home_page_path": "/blog/page/o-nas"}}
-                    }
-                }
-            )
-        )
-        assert db.site_config.get_home_page_path("pl") == "/blog/page/o-nas"
-        assert db.site_config.get_home_page_path("en") is None
 
 
 class TestJsonDbComments:
@@ -363,20 +281,13 @@ class TestJsonDbEmptyDb:
             db.blog.posts.get_all("en")
 
         with pytest.raises(DBError, match="site_content section is missing"):
-            db.site_config.get_site_settings("en")
+            db.site_config.get_site_content()
 
         with pytest.raises(DBError, match="site_content section is missing"):
             db.blog.posts.get("any-slug")
 
 
-_INVALID = {"site_content": {"menu_items": {}, "localized_content": {"pl": {"footer": None}}}}
-
-
 class TestJsonDbSiteContentValidation:
-    def test_invalid_site_content_stops_the_database_from_being_created(self):
-        with pytest.raises(InvalidSiteContentError):
-            Json(MemoryStore(_INVALID))
-
     def test_health_check_reports_invalid_site_content(self):
         db = Json(MemoryStore({"site_content": {}}))
         with db.document.edit() as data:
