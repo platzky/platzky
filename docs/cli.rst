@@ -42,6 +42,8 @@ switch, and an application served by a production server is never in development
     This is Flask's development server. For production, serve the application with a WSGI
     server such as gunicorn.
 
+.. _cli-check:
+
 ``platzky check``
 -----------------
 

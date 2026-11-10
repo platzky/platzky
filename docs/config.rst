@@ -354,8 +354,8 @@ site-wide keys or from another language:
   the blog index.
 
 Unknown keys and ``null`` values are errors, and the application does not start
-with invalid site content. ``platzky check`` validates a JSON data file (its
-site-configuration part, not ``posts`` and ``pages``).
+with invalid site content. To check a JSON data file before deploying it, see
+:ref:`platzky check <cli-check>`.
 
 * **JSON file / Google Cloud Storage**: set the keys in the ``site_content``
   object of your data file, next to ``posts`` and ``pages``.
@@ -393,9 +393,6 @@ site-configuration part, not ``posts`` and ``pages``).
         }
       }
 
-  Check the file with ``platzky check data.json``. It prints ``OK``, or lists
-  every problem with its path and exits with status 1.
-
 * **MongoDB**: store the site-wide keys as the document ``{"_id": "config"}``
   in the ``site_content`` collection, and each language's entry as one document
   in the ``localized_content`` collection, with the language code as ``_id``.
@@ -424,8 +421,8 @@ site-configuration part, not ``posts`` and ``pages``).
   logo. The fields are ``appName``, ``appTitle``, ``appDescription``, ``logo``,
   ``blogMeta`` (``title``, ``description``), ``footer`` (``content``,
   ``collapsible``), ``homePagePath`` and ``menuItems`` (``name``, ``url``). The
-  fallback ``logos``, the ``favicons`` and the ``themes`` (``primaryColor``,
-  ``secondaryColor``, ``font`` with ``name`` and ``url``) hold the site-wide keys.
+  ``favicons`` and the ``themes`` (``primaryColor``, ``secondaryColor``, ``font``
+  with ``name`` and ``url``) hold the site-wide keys.
 
 Feature Flags
 ~~~~~~~~~~~~~
