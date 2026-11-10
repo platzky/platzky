@@ -93,7 +93,7 @@ def check(file: Path) -> None:
     """
     try:
         document = json.loads(file.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise click.ClickException(f"{file} cannot be read as JSON: {error}") from error
     if not isinstance(document, dict):
         raise click.ClickException(f"{file} is not a JSON object")

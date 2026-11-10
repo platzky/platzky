@@ -20,9 +20,6 @@ _CONFIG_NAME = "configName"
 _NAMES = {"en": "DropLoop", "pl": "DropLoop PL"}
 _TITLES = {"en": "DropLoop - play", "pl": "DropLoop - graj"}
 _DESCRIPTIONS = {"en": "About us", "pl": "O nas"}
-_DEFAULT_NAME = "Default name"
-_DEFAULT_TITLE = "Default title"
-_DEFAULT_DESCRIPTION = "Default description"
 _PLAIN_PAGE = "/plain"
 
 
@@ -100,16 +97,12 @@ def _description(soup: BeautifulSoup) -> str:
 
 _PER_LANGUAGE: dict[str, Any] = {
     "localized_content": {
-        "en": {
-            "app_name": "DropLoop",
-            "app_title": "DropLoop - play",
-            "app_description": "About us",
-        },
-        "pl": {
-            "app_name": "DropLoop PL",
-            "app_title": "DropLoop - graj",
-            "app_description": "O nas",
-        },
+        lang: {
+            "app_name": _NAMES[lang],
+            "app_title": _TITLES[lang],
+            "app_description": _DESCRIPTIONS[lang],
+        }
+        for lang in _LANGUAGES
     }
 }
 _BY_PATH = [("", "en"), ("/pl", "pl")]
@@ -174,19 +167,12 @@ def test_localized_logo_url_is_rendered_per_language(prefix: str, lang: str):
     assert image.get("src") == {"en": "/default.png", "pl": "/pl.png"}[lang]
 
 
-def test_app_title_missing_falls_back_to_localized_app_name():
+def test_title_and_description_missing_fall_back_to_localized_app_name():
     app = _build_app({"localized_content": {"pl": {"app_name": _NAMES["pl"]}}})
 
     soup = _soup(app, "/pl" + _PLAIN_PAGE)
 
     assert _title(soup) == _NAMES["pl"]
-
-
-def test_app_description_missing_falls_back_to_localized_app_name():
-    app = _build_app({"localized_content": {"pl": {"app_name": _NAMES["pl"]}}})
-
-    soup = _soup(app, "/pl" + _PLAIN_PAGE)
-
     assert _description(soup) == _NAMES["pl"]
 
 

@@ -17,8 +17,6 @@ class DB(ABC):
     provide all of them cannot be instantiated.
     """
 
-    config_type: type
-
     @property
     @abstractmethod
     def blog(self) -> BlogRepository:

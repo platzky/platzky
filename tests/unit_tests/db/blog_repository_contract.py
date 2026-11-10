@@ -110,7 +110,4 @@ class BlogRepositoryContract(ABC):
 
         pages = repository.pages.get_all("pl")
 
-        assert [p.model_dump() for p in pages] == [
-            Page.model_validate(PAGE).model_dump(),
-            Page.model_validate(_OTHERPAGE).model_dump(),
-        ]
+        assert list(pages) == [Page.model_validate(PAGE), Page.model_validate(_OTHERPAGE)]
