@@ -8,7 +8,7 @@
 
 import datetime
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any
 
@@ -56,17 +56,25 @@ class BlogSection(BaseModel):
         return MappingProxyType(dict(value))
 
 
-def _items(section: JsonSection, key: str) -> Sequence[dict[str, Any]] | None:
+def _as_tuple(section_name: str, key: str, value: object) -> tuple[dict[str, Any], ...]:
+    """Return the posts or pages a section holds, as a tuple.
+
+    Raises:
+        InvalidDataError: If the value is not a list (null included).
+    """
+    if not isinstance(value, list):
+        raise InvalidDataError(f"{section_name}.{key}: Input should be a valid list")
+    return tuple(value)
+
+
+def _items(section: JsonSection, key: str) -> tuple[dict[str, Any], ...] | None:
     """Return the posts or pages the section holds, None if it has none.
 
     Raises:
         InvalidDataError: If the key is present but not a list (null included).
     """
     data = section.data
-    items = data.get(key)
-    if key in data and not isinstance(items, list):
-        raise InvalidDataError(f"{section.name}.{key}: Input should be a valid list")
-    return items
+    return _as_tuple(section.name, key, data[key]) if key in data else None
 
 
 class _JsonPostRepository(PostRepository):
@@ -158,9 +166,7 @@ class _JsonPostRepository(PostRepository):
             with self._section.edit() as blog:
                 if "posts" not in blog:
                     raise NotFoundError("Posts data is missing")
-                posts = blog["posts"]
-                if not isinstance(posts, list):
-                    raise InvalidDataError("blog.posts: Input should be a valid list")
+                posts = _as_tuple(self._section.name, "posts", blog["posts"])
                 post = next((p for p in posts if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")

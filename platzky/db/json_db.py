@@ -67,10 +67,15 @@ class Json(DB):
         self._blog = JsonBlogRepository(JsonSection(document, "blog"))
         self._plugin_config = JsonPluginConfigRepository(JsonSection(document, "plugins"))
         self._site_config = JsonSiteConfigRepository(JsonSection(document, "site_config"))
-        self._validate()
+        self.validate()
 
-    def _validate(self) -> None:
-        """Raise `InvalidDataError` listing every problem of the site config and the blog."""
+    def validate(self) -> None:
+        """Check the site config and the blog sections against their formats.
+
+        Raises:
+            InvalidDataError: If either is invalid; the message lists every problem with its
+                path, one per line.
+        """
         validate_all((self._site_config.validate, self._blog.validate))
 
     @property
@@ -108,4 +113,4 @@ class Json(DB):
 
         Raises an exception if the database is not accessible or a section is invalid.
         """
-        self._validate()
+        self.validate()

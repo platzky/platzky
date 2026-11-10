@@ -18,7 +18,8 @@ view of it, so it can neither read nor write the rest.
 
 import copy
 import threading
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
 from types import MappingProxyType, TracebackType
 from typing import Any
 
@@ -109,30 +110,6 @@ class JsonDocument:
         return _Edit(self.data, self._store, self._write_lock)
 
 
-class _SectionEdit:
-    """Context manager for one `JsonSection.edit()` call: a `_Edit` that yields one section."""
-
-    def __init__(self, edit: _Edit, name: str) -> None:
-        self._edit = edit
-        self._name = name
-
-    def __enter__(self) -> dict[str, Any]:
-        data = self._edit.__enter__()
-        section = data.setdefault(self._name, {})
-        if not isinstance(section, dict):
-            self._edit.__exit__(InvalidDataError, None, None)
-            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
-        return section
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        self._edit.__exit__(exc_type, exc, tb)
-
-
 class JsonSection:
     """One top-level section of a `JsonDocument`: all a repository gets to see of it.
 
@@ -148,7 +125,12 @@ class JsonSection:
             name: The section's key in the document.
         """
         self._document = document
-        self.name = name
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        """The section's key in the document."""
+        return self._name
 
     @property
     def data(self) -> Mapping[str, Any]:
@@ -157,16 +139,24 @@ class JsonSection:
         Raises:
             InvalidDataError: If the section is present but not an object (null included).
         """
-        section = self._document.data.get(self.name, {})
+        section = self._document.data.get(self._name, {})
         if not isinstance(section, dict):
-            raise InvalidDataError(f"{self.name}: Input should be a valid dictionary")
+            raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
         return MappingProxyType(section)
 
-    def edit(self) -> _SectionEdit:
+    @contextmanager
+    def edit(self) -> Generator[dict[str, Any]]:
         """Like `JsonDocument.edit()`, but yield only this section, created if missing.
 
-        Returns:
-            A context manager whose `__enter__` returns the section dict, to be mutated in
-            place; the document is persisted on a clean exit and restored otherwise.
+        Yields:
+            The section dict, to be mutated in place; the document is persisted on a clean exit
+            and restored otherwise.
+
+        Raises:
+            InvalidDataError: If the section is present but not an object (null included).
         """
-        return _SectionEdit(self._document.edit(), self.name)
+        with self._document.edit() as data:
+            section = data.setdefault(self._name, {})
+            if not isinstance(section, dict):
+                raise InvalidDataError(f"{self._name}: Input should be a valid dictionary")
+            yield section

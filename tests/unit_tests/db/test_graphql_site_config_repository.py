@@ -26,6 +26,9 @@ def _hygraph_entry(content: Mapping[str, Any]) -> dict[str, Any]:
 _NO_LANGUAGE = {"lang": None}
 
 
+SCHEMA_REASON = "Hygraph's schema cannot store this: the server never returns such data"
+
+
 class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
     def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
         site_only = dict(site_config)
@@ -45,17 +48,15 @@ class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
         client.execute.side_effect = execute
         return GraphQLSiteConfigRepository(lambda: client)
 
-    _SCHEMA_REASON = "Hygraph's schema cannot store this: the server never returns such data"
-
-    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    @pytest.mark.skip(reason=SCHEMA_REASON)
     def test_invalid_site_wide_value_is_an_invalid_data_error_on_read(self):
         pass
 
-    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    @pytest.mark.skip(reason=SCHEMA_REASON)
     def test_null_text_in_a_language_is_an_invalid_data_error_on_read(self):
         pass
 
-    @pytest.mark.skip(reason=_SCHEMA_REASON)
+    @pytest.mark.skip(reason=SCHEMA_REASON)
     def test_unknown_key_in_a_language_is_an_invalid_data_error_on_read(self):
         pass
 
