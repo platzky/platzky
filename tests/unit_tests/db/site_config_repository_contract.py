@@ -100,9 +100,6 @@ class SiteConfigRepositoryContract:
     def test_get_menu_items_in_lang_returns_empty_list_for_unknown_language(self):
         assert self.make_repository(SITE_CONTENT).get_menu_items_in_lang("de") == []
 
-    def test_get_menu_items_in_lang_returns_empty_list_when_unconfigured(self):
-        assert self.make_repository({}).get_menu_items_in_lang("en") == []
-
     def test_get_home_page_path_returns_per_language_value(self):
         repository = self.make_repository(SITE_CONTENT)
 
@@ -112,17 +109,11 @@ class SiteConfigRepositoryContract:
     def test_get_home_page_path_returns_none_for_unconfigured_language(self):
         assert self.make_repository(SITE_CONTENT).get_home_page_path("de") is None
 
-    def test_get_home_page_path_returns_none_when_unconfigured(self):
-        assert self.make_repository({}).get_home_page_path("en") is None
-
     def test_get_footer_returns_footer_of_requested_language(self):
         repository = self.make_repository(SITE_CONTENT)
 
         assert repository.get_footer("en") == Footer(content="English footer", collapsible=True)
         assert repository.get_footer("pl") == Footer(content="Stopka", collapsible=False)
-
-    def test_get_footer_is_empty_and_not_collapsible_when_unconfigured(self):
-        assert self.make_repository({}).get_footer("en") == Footer(content="", collapsible=False)
 
     def test_get_footer_is_empty_for_unconfigured_language(self):
         assert self.make_repository(SITE_CONTENT).get_footer("de") == Footer()

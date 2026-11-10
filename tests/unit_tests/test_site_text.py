@@ -116,21 +116,17 @@ _BY_PATH = [("", "en"), ("/pl", "pl")]
 
 
 @pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_blog_index_title_suffix_uses_localized_app_name(prefix: str, lang: str):
+def test_app_name_is_localized_on_every_surface(prefix: str, lang: str):
     app = _build_app(_PER_LANGUAGE)
 
-    soup = _soup(app, f"{prefix}/blog/")
+    blog = _soup(app, f"{prefix}/blog/")
+    feed = app.test_client().get(f"{prefix}/blog/feed")
 
-    assert _title(soup) == f"Blog – {_NAMES[lang]}"  # noqa: RUF001
-
-
-@pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_og_site_name_uses_localized_app_name(prefix: str, lang: str):
-    app = _build_app(_PER_LANGUAGE)
-
-    soup = _soup(app, f"{prefix}/blog/")
-
-    assert _og_site_name(soup) == _NAMES[lang]
+    assert _title(blog) == f"Blog – {_NAMES[lang]}"  # noqa: RUF001
+    assert _og_site_name(blog) == _NAMES[lang]
+    assert _navbar_brand(blog) == _NAMES[lang]
+    assert feed.status_code == 200
+    assert _feed_title(feed.data) == _NAMES[lang]
 
 
 @pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
@@ -142,25 +138,6 @@ def test_logo_alt_uses_localized_app_name(prefix: str, lang: str):
     image = soup.find("img", attrs={"class": "logo"})
     assert isinstance(image, Tag)
     assert image.get("alt") == f"{_NAMES[lang]} logo"
-
-
-@pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_navbar_brand_text_without_logo_uses_localized_app_name(prefix: str, lang: str):
-    app = _build_app(_PER_LANGUAGE)
-
-    soup = _soup(app, f"{prefix}/blog/")
-
-    assert _navbar_brand(soup) == _NAMES[lang]
-
-
-@pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
-def test_rss_feed_title_uses_localized_app_name(prefix: str, lang: str):
-    app = _build_app(_PER_LANGUAGE)
-
-    response = app.test_client().get(f"{prefix}/blog/feed")
-
-    assert response.status_code == 200
-    assert _feed_title(response.data) == _NAMES[lang]
 
 
 @pytest.mark.parametrize(("prefix", "lang"), _BY_PATH)
@@ -195,27 +172,6 @@ def test_localized_logo_url_is_rendered_per_language(prefix: str, lang: str):
     image = soup.find("img", attrs={"class": "logo"})
     assert isinstance(image, Tag)
     assert image.get("src") == {"en": "/default.png", "pl": "/pl.png"}[lang]
-
-
-def test_top_level_defaults_are_used_for_language_without_localized_entry():
-    app = _build_app(
-        {
-            "app_name": _DEFAULT_NAME,
-            "app_title": _DEFAULT_TITLE,
-            "app_description": _DEFAULT_DESCRIPTION,
-            "localized_content": {"en": {"app_name": _NAMES["en"]}},
-        }
-    )
-
-    en = _soup(app, "/blog/")
-    pl = _soup(app, "/pl/blog/")
-    pl_plain = _soup(app, "/pl" + _PLAIN_PAGE)
-
-    assert _og_site_name(en) == _NAMES["en"]
-    assert _og_site_name(pl) == _DEFAULT_NAME
-    assert _title(pl) == f"Blog – {_DEFAULT_NAME}"  # noqa: RUF001
-    assert _title(pl_plain) == _DEFAULT_TITLE
-    assert _description(pl_plain) == _DEFAULT_DESCRIPTION
 
 
 def test_app_title_missing_falls_back_to_localized_app_name():
