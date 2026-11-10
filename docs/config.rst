@@ -298,24 +298,10 @@ The root path (``/``) renders a configurable homepage instead of a fixed templat
 Platzky resolves the configured path against the application's own routes, so it can
 point at a page, a post, or any other registered route.
 
-The homepage path isn't set in ``config.yml`` — it lives in your site content,
-alongside posts and pages, so it can be changed without redeploying:
-
-* **JSON file / Google Cloud Storage**: set ``home_page_path`` in the
-  ``site_content`` object of your data file.
-
-  .. code-block:: json
-
-      {
-        "site_content": {
-          "home_page_path": "/blog/page/about"
-        }
-      }
-
-* **MongoDB**: set ``home_page_path`` on the site config document.
-
-* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``LocalizedContent`` entry of
-  each language.
+The homepage path isn't set in ``config.yml``: it is ``home_page_path`` in the
+language's entry of the site content (see `Site content`_), so it can be changed
+without redeploying and differs per language. A language without one uses the blog
+index.
 
 Behavior:
 
@@ -326,14 +312,21 @@ Behavior:
 * If the configured path resolves back to ``/`` itself, Platzky falls back to the
   blog index instead of recursing.
 
-Site name, title and description
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _site-content:
 
-The site name, page title, description and logo can be set once for the
-whole site and overridden per language in the site database. For a key
-and a language, Platzky uses the first of these that is set:
+Site content
+~~~~~~~~~~~~
 
-1. ``localized_content[<language>][<key>]``
+The site's texts, menu, footer and home page live in the site database, in one
+format that is the same in every database type: the site-wide keys, plus one
+entry per language.
+
+Site-wide keys (``favicon_url``, ``font``, ``primary_color``, ``secondary_color``)
+apply to every language. The site name, title, description and logo can be set
+once for the whole site and overridden per language. For a key and a language,
+Platzky uses the first of these that is set:
+
+1. the language's entry in ``localized_content``
 2. the top-level ``<key>`` in the site content
 3. the built-in default
 
@@ -348,8 +341,23 @@ Missing, ``null`` or empty values fall through to the next step. The keys are:
 The site name is used for ``og:site_name``, the logo ``alt`` text, the navbar
 when there is no logo, and the RSS feed title.
 
+These keys exist in a language's entry only, and are not inherited from the
+site-wide keys or from another language:
+
+* ``blog_meta``: ``title`` and ``description`` of the blog index. Default:
+  empty, which shows the default title and the site description.
+* ``footer``: ``content`` (Markdown with shortcodes) and ``collapsible``
+  (whether readers may collapse it). Default: no footer.
+* ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
+  no menu.
+* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
+  the blog index.
+
+Unknown keys in a language's entry are an error. ``platzky check`` validates a
+JSON data file.
+
 * **JSON file / Google Cloud Storage**: set the keys in the ``site_content``
-  object of your data file.
+  object of your data file, next to ``posts`` and ``pages``.
 
   .. code-block:: json
 
@@ -357,49 +365,61 @@ when there is no logo, and the RSS feed title.
         "site_content": {
           "app_name": "Literature",
           "app_title": "Reading notes | Literature",
+          "app_description": "Notes on Tolkien's books",
           "logo_url": "https://example.com/logo.png",
+          "favicon_url": "https://example.com/favicon.ico",
+          "font": "Georgia",
+          "primary_color": "white",
+          "secondary_color": "navy",
           "localized_content": {
+            "en": {
+              "blog_meta": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
+              "footer": {"content": "Notes by a reader", "collapsible": true},
+              "menu_items": [{"name": "Notes", "url": "/blog/"}],
+              "home_page_path": "/blog/page/about"
+            },
             "pl": {
               "app_name": "Literatura",
               "app_title": "Notatki z lektury | Literatura",
-              "logo_url": "https://example.com/logo-pl.png"
+              "app_description": "Notatki o książkach Tolkiena",
+              "logo_url": "https://example.com/logo-pl.png",
+              "blog_meta": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"},
+              "footer": {"content": "Notatki czytelnika", "collapsible": true},
+              "menu_items": [{"name": "Notatki", "url": "/blog/"}],
+              "home_page_path": "/blog/page/o-nas"
             }
           }
         }
       }
 
-  The old format, where ``app_description`` is a ``{language: text}`` object,
-  still works.
+  Check the file with ``platzky check data.json``. It prints ``OK``, or lists
+  every problem with its path and exits with status 1.
 
-* **MongoDB**: set the language-independent keys on the site config document
-  (``{"_id": "config", ...}`` in ``site_content``). Store the per-language
-  overrides as one document per language in the ``localized_content``
-  collection, with the language code as ``_id`` (like ``menu_items``). A
-  ``localized_content`` field inside the config document is not read.
+* **MongoDB**: store the site-wide keys as the document ``{"_id": "config"}``
+  in the ``site_content`` collection, and each language's entry as one document
+  in the ``localized_content`` collection, with the language code as ``_id``.
 
   .. code-block:: javascript
 
       // site_content
       {"_id": "config", "app_name": "Literature", "app_title": "Reading notes | Literature"}
       // localized_content
-      {"_id": "pl", "app_name": "Literatura", "app_title": "Notatki z lektury | Literatura"}
+      {
+        "_id": "pl",
+        "app_name": "Literatura",
+        "menu_items": [{"name": "Notatki", "url": "/blog/"}],
+        "footer": {"content": "Notatki czytelnika", "collapsible": true},
+        "home_page_path": "/blog/page/o-nas"
+      }
 
-* **GraphQL (Hygraph)**: store the text in the ``LocalizedContent`` model
-  (``localizedContents``). The entry without a ``language`` holds the defaults
-  and an entry with a language overrides them. The fields are ``appName``,
-  ``appTitle``, ``appDescription``, ``logo``, ``blogMeta`` (``title``,
-  ``description``), ``footer`` (``content``, ``collapsible``), ``homePagePath``
-  and ``menuItems`` (``name``, ``url``). The menu, home page path, blog meta and
-  footer are read from the entry of the current language only. The fallback
-  ``logos``, the ``favicons`` and the ``themes`` (``primaryColor``,
-  ``secondaryColor``, ``font``) stay language-independent.
-
-  Migrating an existing Hygraph project (a breaking change): create the
-  ``LocalizedContent`` model and add ``font`` to ``themes``; move
-  ``applicationDescription`` and ``homePagePath`` from each ``ApplicationSetup``
-  entry, and every ``MenuItem`` of a language, to that language's
-  ``LocalizedContent`` entry. ``applicationSetups`` and ``menuItems`` are no
-  longer read.
+* **GraphQL (Hygraph)**: store a language's entry in the ``LocalizedContent``
+  model (``localizedContents``), with the language in ``language``. The entry
+  without a ``language`` holds the site-wide defaults of the texts and the
+  logo. The fields are ``appName``, ``appTitle``, ``appDescription``, ``logo``,
+  ``blogMeta`` (``title``, ``description``), ``footer`` (``content``,
+  ``collapsible``), ``homePagePath`` and ``menuItems`` (``name``, ``url``). The
+  fallback ``logos``, the ``favicons`` and the ``themes`` (``primaryColor``,
+  ``secondaryColor``, ``font``) hold the site-wide keys.
 
 Feature Flags
 ~~~~~~~~~~~~~

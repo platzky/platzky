@@ -40,7 +40,7 @@ Behind the `DB` interface, data access is split into repositories, each a
 | Protocol | File | Covers |
 |---|---|---|
 | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
-| `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta |
+| `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta; the stored format is the `SiteContent` and `LocalizedContent` models in the same file |
 | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
