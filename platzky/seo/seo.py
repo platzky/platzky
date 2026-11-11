@@ -49,6 +49,11 @@ def _endpoint_url(endpoint: str, prefixed_language: LanguageCode | None, **value
     return url_for(endpoint, _external=True, **url_values)
 
 
+def _is_excluded(loc: str, prefix: str, excluded_prefixes: tuple[str, ...]) -> bool:
+    """Return whether a URL's path, without its language prefix, is under an excluded path."""
+    return urllib.parse.urlparse(loc).path.removeprefix(prefix).startswith(excluded_prefixes)
+
+
 def _route_entries(
     prefixes: t.Mapping[LanguageCode, str],
     endpoint: str,
@@ -73,9 +78,7 @@ def _route_entries(
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
             for entry in provider(lang, partial(_endpoint_url, endpoint, lang if prefix else None))
-            if not urllib.parse.urlparse(entry.loc)
-            .path.removeprefix(prefix)
-            .startswith(excluded_prefixes)
+            if not _is_excluded(entry.loc, prefix, excluded_prefixes)
         ]
     except BuildError as error:
         logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
