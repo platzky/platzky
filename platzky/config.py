@@ -17,6 +17,7 @@ from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
 from platzky.feature_flags_wrapper import FeatureFlagSet
 from platzky.language_routing import RESERVED_PATH_SEGMENTS, SiteLanguages
+from platzky.models import LanguageCode
 from platzky.telemetry import TelemetryConfig
 
 
@@ -49,8 +50,8 @@ class LanguageConfig(BaseModel):
         return domain
 
 
-Languages = dict[str, LanguageConfig]
-LanguagesMapping = t.Mapping[str, t.Mapping[str, str]]
+Languages = dict[LanguageCode, LanguageConfig]
+LanguagesMapping = t.Mapping[LanguageCode, t.Mapping[str, str]]
 
 _PATH_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
 LogLevel = t.Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
@@ -168,7 +169,7 @@ class AttachmentConfig(BaseModel):
     )
 
 
-def _first_language(data: dict[str, t.Any]) -> str:
+def _first_language(data: dict[str, t.Any]) -> LanguageCode:
     """The default for DEFAULT_LANGUAGE when the config doesn't set it.
 
     That is the first configured language, in the order the config lists them, otherwise
@@ -212,7 +213,9 @@ class Config(BaseModel):
     seo_prefix: str = Field(default="/", alias="SEO_PREFIX")
     blog_prefix: str = Field(default="/blog", alias="BLOG_PREFIX")
     languages: Languages = Field(default_factory=dict, alias="LANGUAGES")
-    default_language: str = Field(default_factory=_first_language, alias="DEFAULT_LANGUAGE")
+    default_language: LanguageCode = Field(
+        default_factory=_first_language, alias="DEFAULT_LANGUAGE"
+    )
     translation_directories: list[str] = Field(
         default_factory=list,
         alias="TRANSLATION_DIRECTORIES",

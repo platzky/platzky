@@ -9,6 +9,7 @@ from typing_extensions import override
 
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
 from platzky.db.validation import parse, validate_all
+from platzky.models import LanguageCode
 
 
 def _without_id(document: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -75,7 +76,7 @@ class MongoSiteConfigRepository(SiteConfigRepository):
         )
 
     @override
-    def get_localized_content(self, lang: str) -> LocalizedContent:
+    def get_localized_content(self, lang: LanguageCode) -> LocalizedContent:
         """Retrieve the content of one language.
 
         Args:
