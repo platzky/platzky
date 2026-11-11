@@ -129,9 +129,10 @@ def test_sitemap_asks_a_route_without_a_language_version_only_once():
     assert asked == ["en"]
 
 
-def test_sitemap_leaves_out_urls_under_an_excluded_prefix():
+def test_sitemap_leaves_out_urls_under_an_excluded_prefix_in_every_language():
     app = _make_seo_app(
         {"books.book": _books_in, "books.about": single_url},
+        _ENGLISH_AND_UKRAINIAN,
         sitemap_excluded_prefixes=["/books/"],
     )
     sitemap = _sitemap(app)
