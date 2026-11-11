@@ -20,6 +20,7 @@ from werkzeug.routing import BuildError
 from platzky.language_routing import (
     LANG_CODE_ARG,
     SiteLanguages,
+    language_url,
     served_languages,
 )
 from platzky.models import LanguageCode
@@ -33,23 +34,22 @@ def _is_localized(endpoint: str) -> bool:
     return any(LANG_CODE_ARG in rule.arguments for rule in current_app.url_map.iter_rules(endpoint))
 
 
-def _endpoint_url(language_root: str, endpoint: str, **values: object) -> str:
-    """Return the absolute URL of an endpoint under a language's root URL.
+def _endpoint_url(endpoint: str, prefixed_language: LanguageCode | None, **values: object) -> str:
+    """Return the absolute URL of an endpoint on the requesting host.
 
     Args:
-        language_root: Scheme, host and language prefix, e.g. ``https://example.com/pl``.
-        endpoint: The endpoint; under a language prefix, one registered with ``multilang``.
+        endpoint: The endpoint; for a prefixed language, one registered with ``multilang``.
+        prefixed_language: The language whose prefix the URL has, or None for no prefix.
         **values: The endpoint's URL variables, as for ``url_for``.
 
     Returns:
-        The URL of the endpoint under the language's root.
+        The URL, as the routes build it.
     """
-    url_values: dict[str, t.Any] = {**values, LANG_CODE_ARG: None}
-    return f"{language_root}{url_for(endpoint, **url_values)}"
+    url_values: dict[str, t.Any] = {**values, LANG_CODE_ARG: prefixed_language}
+    return url_for(endpoint, _external=True, **url_values)
 
 
 def _route_entries(
-    root: str,
     prefixes: t.Mapping[LanguageCode, str],
     endpoint: str,
     provider: SitemapProvider,
@@ -58,7 +58,6 @@ def _route_entries(
     """Return a route's sitemap entries in every language served on the host.
 
     Args:
-        root: Scheme and host of the request, e.g. ``https://example.com``.
         prefixes: Languages served on the current host mapped to their URL prefix.
         endpoint: The route's endpoint.
         provider: Its ``sitemap_provider``.
@@ -74,7 +73,7 @@ def _route_entries(
             entry
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
-            for entry in provider(lang, partial(_endpoint_url, f"{root}{prefix}", endpoint))
+            for entry in provider(lang, partial(_endpoint_url, endpoint, lang if prefix else None))
             if not urllib.parse.urlparse(entry.loc)
             .path.removeprefix(prefix)
             .startswith(excluded_prefixes)
@@ -135,18 +134,23 @@ def create_seo_blueprint(
         Returns:
             XML response containing the sitemap
         """
-        root = f"{request.scheme}://{request.host}"
         prefixes = served_languages(languages, request.host)
         excluded_prefixes = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
 
         entries = [
             entry
             for endpoint, provider in sitemap_providers.items()
-            for entry in _route_entries(root, prefixes, endpoint, provider, excluded_prefixes)
+            for entry in _route_entries(prefixes, endpoint, provider, excluded_prefixes)
         ]
         home_urls = {
-            f"{root}{prefix}{home_page_paths.get(language, '/')}"
-            for language, prefix in prefixes.items()
+            language_url(
+                languages,
+                language,
+                request.scheme,
+                request.host,
+                home_page_paths.get(language, "/"),
+            )
+            for language in prefixes
         }
         urls = {entry.loc: entry.lastmod for entry in entries if entry.loc not in home_urls}
         xml_sitemap = render_template("sitemap.xml", urls=urls)

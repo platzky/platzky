@@ -497,11 +497,24 @@ class Engine(Flask):
         Returns:
             A 308 redirect to ``path`` in that language, keeping the method, body and query string.
         """
-        url = language_url(
-            self._platzky_config.site_languages, lang_code, request.scheme, request.host, path
-        )
+        url = self.language_url(lang_code, path)
         query = request.query_string.decode()
         return redirect(f"{url}?{query}" if query else url, code=308)
+
+    def language_url(self, lang_code: LanguageCode, path: str = "/") -> str:
+        """Return the absolute URL of a page in a language, as linked from the current request.
+
+        Args:
+            lang_code: Language to link to.
+            path: Path of the page without any language prefix; the home page by default.
+
+        Returns:
+            The URL on the requesting host if it serves the language, otherwise on the host that
+            does.
+        """
+        return language_url(
+            self._platzky_config.site_languages, lang_code, request.scheme, request.host, path
+        )
 
     def current_page_language_alternates(self) -> dict[LanguageCode, str]:
         """Return the absolute URL of the current page in each configured language.
@@ -517,10 +530,7 @@ class Engine(Flask):
         translated = request.endpoint in self._localized_endpoints and not request.view_args
         languages = config.languages if translated else {}
         path = self._path_without_language()
-        return {
-            lang: language_url(config.site_languages, lang, request.scheme, request.host, path)
-            for lang in languages
-        }
+        return {lang: self.language_url(lang, path) for lang in languages}
 
     def _path_without_language(self) -> str:
         """Return the request path without the prefix of its language, if it has one."""

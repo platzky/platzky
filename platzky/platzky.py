@@ -3,8 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Iterable, Mapping, Sequence
-from functools import partial
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request
@@ -38,7 +37,6 @@ from platzky.home_page import (
 )
 from platzky.language_routing import (
     any_converter,
-    language_url,
 )
 from platzky.login import login
 from platzky.models import LanguageCode
@@ -181,7 +179,10 @@ def _language_suggestion(config: Config, lang: LanguageCode, url: str) -> dict[s
 
 
 def _language_suggestions(
-    config: Config, locale: LanguageCode, alternates: Mapping[LanguageCode, str]
+    config: Config,
+    locale: LanguageCode,
+    alternates: Mapping[LanguageCode, str],
+    home_url: Callable[[LanguageCode], str],
 ) -> dict[LanguageCode, dict[str, str]]:
     """Return a popup suggesting each configured language other than the current page's.
 
@@ -189,6 +190,7 @@ def _language_suggestions(
         config: Application configuration.
         locale: Language of the current page.
         alternates: URLs of the current page in each language, if it has equivalents.
+        home_url: URL of a language's home, for a page without an equivalent in it.
 
     Returns:
         Language codes mapped to their popups.
@@ -197,8 +199,7 @@ def _language_suggestions(
         lang: _language_suggestion(
             config,
             lang,
-            alternates.get(lang)
-            or language_url(config.site_languages, lang, request.scheme, request.host),
+            alternates.get(lang) or home_url(lang),
         )
         for lang in config.languages
         if lang != locale
@@ -219,21 +220,22 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
     return redirect_www_to_nonwww()
 
 
-def _change_language_response(config: Config, lang: LanguageCode) -> Response:
+def _change_language_response(
+    config: Config, lang: LanguageCode, home_url: Callable[[LanguageCode], str]
+) -> Response:
     """Redirect to the home page of a language.
 
     Args:
         config: Application configuration object
         lang: Language code to switch to
+        home_url: URL of a language's home
 
     Returns:
         Redirect to the language's home URL, or 404 if the language is not configured
     """
     if lang not in config.languages:
         return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
-    return redirect(
-        language_url(config.site_languages, lang, request.scheme, request.host), code=302
-    )
+    return redirect(home_url(lang), code=302)
 
 
 def create_engine(
@@ -297,7 +299,7 @@ def create_engine(
         Returns:
             Redirect to the language's home URL, or 404 if the language is not configured
         """
-        return _change_language_response(config, lang)
+        return _change_language_response(config, lang, app.language_url)
 
     def domainful_language_prefix(lang: LanguageCode, path: str) -> Response:
         """Redirect a URL prefixed with a language that is served without a prefix.
@@ -337,10 +339,7 @@ def create_engine(
         target_path = app.home_page_paths.get(app.get_locale())
         if target_path is None:
             response: ResponseReturnValue = redirect(
-                language_url(
-                    config.site_languages, config.default_language, request.scheme, request.host
-                ),
-                code=302,
+                app.language_url(config.default_language), code=302
             )
         else:
             response = home_page_target_response(
@@ -366,14 +365,8 @@ def create_engine(
         site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
         app_name = site_settings.app_name or config.app_name
         on_home_route = request.endpoint == "home_page"
-        home_url = language_url(config.site_languages, locale, request.scheme, request.host)
-        home_page_url = language_url(
-            config.site_languages,
-            locale,
-            request.scheme,
-            request.host,
-            app.home_page_paths.get(locale, "/"),
-        )
+        home_url = app.language_url(locale)
+        home_page_url = app.language_url(locale, app.home_page_paths.get(locale, "/"))
         shows_home = on_home_route or request.base_url == home_page_url
         return {
             "app_name": app_name,
@@ -384,14 +377,14 @@ def create_engine(
             "current_lang_country": country,
             "current_language": locale,
             "default_language": config.default_language,
-            "language_url": partial(
-                language_url, config.site_languages, scheme=request.scheme, host=request.host
-            ),
+            "language_url": app.language_url,
             "language_alternates": hreflang_alternates(
                 alternates, app.home_page_paths, on_home_route
             ),
             "canonical_url": home_url if shows_home else request.base_url,
-            "language_suggestions": _language_suggestions(config, locale, alternates),
+            "language_suggestions": _language_suggestions(
+                config, locale, alternates, app.language_url
+            ),
             "url_link": _url_encode,
             "menu_items": localized.menu_items,
             "logo_url": site_settings.logo_url,
