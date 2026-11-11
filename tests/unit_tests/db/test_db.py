@@ -7,24 +7,24 @@ from platzky.db.json_db import Json
 from platzky.db.json_file_db import JsonFile
 from platzky.db.json_stores import MemoryStore
 
-DATA = {"site_content": {"pages": []}}
+DATA = {"site_config": {}, "blog": {"pages": []}}
 
 
 def test_document_exposes_the_data_the_database_reads():
-    db = Json(MemoryStore({"site_content": {"pages": [], "marker": 1}}))
+    db = Json(MemoryStore({"site_config": {"app_name": "Marker"}, "blog": {"pages": []}}))
 
-    assert db.document.data["site_content"]["marker"] == 1
+    assert db.document.data["site_config"]["app_name"] == "Marker"
 
 
 def test_document_edit_is_visible_to_the_database():
-    db = Json(MemoryStore({"site_content": {"pages": []}}))
+    db = Json(MemoryStore({"site_config": {}, "blog": {"pages": []}}))
 
     with db.document.edit() as data:
-        data["site_content"]["pages"].append(
+        data["blog"]["pages"].append(
             {"title": "t", "slug": "added", "contentInMarkdown": "c", "author": "a", "excerpt": "e"}
         )
 
-    assert [page.slug for page in db.get_all_pages("en")] == ["added"]
+    assert [page.slug for page in db.blog.pages.get_all("en")] == ["added"]
 
 
 def test_document_edit_is_persisted_by_file_store(tmp_path: Path):

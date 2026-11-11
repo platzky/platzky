@@ -1,8 +1,10 @@
 <style>
 
+{% if font.name %}
 body {
   font-family: {{ font.name }};
 }
+{% endif %}
 
 .left-panel {
   background-color: {{ secondary_color }};

@@ -1,5 +1,6 @@
 """Command line interface for running a Platzky application."""
 
+import json
 from importlib.resources import files
 from pathlib import Path
 from secrets import token_hex
@@ -7,6 +8,9 @@ from string import Template
 
 import click
 
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.json_db import Json
+from platzky.db.json_stores import MemoryStore
 from platzky.platzky import create_app
 
 _TARGET_CONFIG_FILENAME = "config.yml"
@@ -77,3 +81,26 @@ def init(directory: Path) -> None:
     # From that directory, because the database path in the config is relative to it.
     click.echo(f"Run it from {directory.resolve()}: platzky run --config {_TARGET_CONFIG_FILENAME}")
     click.echo("It starts with one sample post and an About page; edit them in the database file.")
+
+
+@cli.command()
+@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def check(file: Path) -> None:
+    """Validate the site configuration in a JSON database FILE.
+
+    Checks the ``site_config`` section (texts, theme, per-language content) and the ``blog``
+    section (the index meta by language; posts and pages must be lists of objects, their fields
+    are not checked). Prints OK and exits 0 when it is valid; otherwise lists every problem of
+    the first invalid section (``site_config`` before ``blog``) with its path and exits 1.
+    """
+    try:
+        document = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise click.ClickException(f"{file} cannot be read as JSON: {error}") from error
+    if not isinstance(document, dict):
+        raise click.ClickException(f"{file} is not a JSON object")
+    try:
+        Json(MemoryStore(document))  # the constructor validates every section
+    except InvalidDataError as error:
+        raise click.ClickException(str(error)) from error
+    click.echo("OK")

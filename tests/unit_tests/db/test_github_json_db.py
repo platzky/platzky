@@ -16,7 +16,7 @@ from platzky.db.github_json_db import (
     db_from_config,
 )
 
-SITE_DESCRIPTION = {"en": "Hello"}
+SITE_DESCRIPTION = "Hello"
 POST = {
     "author": "Ann",
     "slug": "post-1",
@@ -25,7 +25,10 @@ POST = {
     "excerpt": "Short",
     "comments": [],
 }
-SITE_DATA = {"site_content": {"app_description": SITE_DESCRIPTION, "posts": [POST]}}
+SITE_DATA = {
+    "site_config": {"app_description": SITE_DESCRIPTION},
+    "blog": {"posts": [POST]},
+}
 DOWNLOAD_URL = "https://example.com/file.json"
 
 
@@ -70,7 +73,7 @@ def test_creates_github_json_db_from_config(repo: Mock):
     assert isinstance(db, GithubJsonDb)
     assert db.branch_name == "main"
     assert db.file_path == "path/to/file.json"
-    assert db.get_site_settings().app_description == SITE_DESCRIPTION
+    assert db.site_config.get_site_config().app_description == SITE_DESCRIPTION
 
 
 def test_retrieves_data_from_github_file(repo: Mock):
@@ -78,8 +81,8 @@ def test_retrieves_data_from_github_file(repo: Mock):
 
     db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
-    assert db.get_site_settings().app_description == SITE_DESCRIPTION
-    assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
+    assert db.site_config.get_site_config().app_description == SITE_DESCRIPTION
+    assert [post.slug for post in db.blog.posts.get_all("en")] == ["post-1"]
     repo.get_contents.assert_called_once_with("path/to/file.json", ref="main")
 
 
@@ -100,7 +103,7 @@ def test_retrieves_data_via_download_url_when_content_is_empty(repo: Mock):
         db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
     mock_requests.assert_called_once_with(DOWNLOAD_URL, timeout=40)
-    assert db.get_site_settings().app_description == SITE_DESCRIPTION
+    assert db.site_config.get_site_config().app_description == SITE_DESCRIPTION
 
 
 def test_raises_error_for_invalid_json_content(repo: Mock):
@@ -119,4 +122,4 @@ def test_add_comment_raises_read_only_storage_error(repo: Mock):
     db = GithubJsonDb("fake_token", "fake_repo", "main", "path/to/file.json")
 
     with pytest.raises(ReadOnlyStorageError):
-        db.add_comment("Test User", "New comment", "post-1")
+        db.blog.posts.add_comment("Test User", "New comment", "post-1")

@@ -4,7 +4,18 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from platzky.models import Color, Image, Page, Post
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig
+from platzky.models import (
+    Color,
+    Font,
+    Footer,
+    Image,
+    Page,
+    PageMeta,
+    Post,
+    ReadOnlyMapping,
+    StrictModel,
+)
 
 
 def make_post(**overrides) -> Post:
@@ -150,3 +161,25 @@ class TestCssField:
     def test_style_breakout_is_rejected_case_and_whitespace_insensitive(self):
         with pytest.raises(ValidationError):
             make_post(css="</STYLE  ><script>alert(1)</script>")
+
+
+@pytest.mark.parametrize("model", [Footer, Font, PageMeta, SiteConfig, LocalizedContent])
+def test_stored_data_model_rejects_an_unknown_key(model: type[StrictModel]):
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        model.model_validate({"unknown": "x"})
+
+
+class _Counts(StrictModel):
+    counts: ReadOnlyMapping[str, int]
+
+
+@pytest.mark.parametrize(
+    ("data", "key"),
+    [({}, "a"), ({"counts": {"a": 1}}, "b"), ({"counts": {"a": 1}}, "a")],
+    ids=["new key in default", "new key in given", "existing key in given"],
+)
+def test_read_only_mapping_cannot_be_changed(data: dict[str, Any], key: str):
+    counts = _Counts.model_validate(data).counts
+
+    with pytest.raises(TypeError):
+        counts[key] = 2  # type: ignore[index]

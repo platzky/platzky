@@ -1,29 +1,49 @@
 """BlogRepository implementation backed by a shared JSON document.
 
 `JsonBlogRepository` is the JSON-family (`JsonStore`) implementation of the
-`BlogRepository` protocol. It operates on a `JsonDocument` shared with the other
-JSON repositories (see `json_document` for why the dict is shared) and writes
-through `JsonDocument.edit()`.
+`BlogRepository` protocol. It gets only a `JsonSection` of the shared document (see
+`json_document`), the ``blog`` section (``posts``, ``pages``, ``meta``), and writes through
+`JsonSection.edit()`. It sees no other part of the document.
 """
 
 import datetime
 import logging
+from collections.abc import Mapping
+from typing import Any
 
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
-from platzky.db.json_document import JsonDocument, get_site_content
-from platzky.models import Page, Post
+from platzky.db.json_document import JsonSection
+from platzky.db.validation import parse
+from platzky.models import Page, PageMeta, Post, ReadOnlyMapping, StrictModel
 
 logger = logging.getLogger(__name__)
+
+
+class BlogSection(StrictModel):
+    """The ``blog`` section of a JSON document, as stored.
+
+    Unknown keys and null values are errors. Posts and pages are checked one at a time when they
+    are read, so only their being lists of objects is checked here.
+
+    Attributes:
+        posts: Raw blog posts; each is validated as a `Post` when it is read
+        pages: Raw pages; each is validated as a `Page` when it is read
+        meta: The blog index meta by language code
+    """
+
+    posts: tuple[Mapping[str, Any], ...] = ()
+    pages: tuple[Mapping[str, Any], ...] = ()
+    meta: ReadOnlyMapping[str, PageMeta]
 
 
 class _JsonPostRepository(PostRepository):
     """Post repository backed by a shared, in-memory document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        self._document = document
+    def __init__(self, section: JsonSection) -> None:
+        self._section = section
 
     @override
     def get(self, slug: str) -> Post:
@@ -36,12 +56,11 @@ class _JsonPostRepository(PostRepository):
             The matching post.
 
         Raises:
-            NotFoundError: If posts data is missing, or no post has this slug.
+            NotFoundError: If no post has this slug.
         """
-        all_posts = get_site_content(self._document.data).get("posts")
-        if all_posts is None:
-            raise NotFoundError("Posts data is missing")
-        wanted_post = next((post for post in all_posts if post["slug"] == slug), None)
+        wanted_post = next(
+            (post for post in self._section.get("posts", []) if post["slug"] == slug), None
+        )
         if wanted_post is None:
             raise NotFoundError(f"Post with slug {slug} not found")
         return Post.model_validate(wanted_post)
@@ -58,7 +77,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts") or ()
+            for post in self._section.get("posts", [])
             if post.get("language", "en") == lang
         ]
 
@@ -75,7 +94,7 @@ class _JsonPostRepository(PostRepository):
         """
         return [
             Post.model_validate(post)
-            for post in get_site_content(self._document.data).get("posts") or ()
+            for post in self._section.get("posts", [])
             if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
         ]
 
@@ -105,11 +124,8 @@ class _JsonPostRepository(PostRepository):
         }
 
         try:
-            with self._document.edit() as data:
-                posts = get_site_content(data).get("posts")
-                if posts is None:
-                    raise NotFoundError("Posts data is missing")
-                post = next((p for p in posts if p["slug"] == post_slug), None)
+            with self._section.edit() as blog:
+                post = next((p for p in blog.get("posts", []) if p["slug"] == post_slug), None)
                 if post is None:
                     raise NotFoundError(f"Post with slug {post_slug} not found")
                 post.setdefault("comments", []).append(comment_data)
@@ -123,8 +139,8 @@ class _JsonPostRepository(PostRepository):
 class _JsonPageRepository(PageRepository):
     """Page repository backed by a shared, in-memory document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        self._document = document
+    def __init__(self, section: JsonSection) -> None:
+        self._section = section
 
     @override
     def get(self, slug: str) -> Page:
@@ -137,12 +153,11 @@ class _JsonPageRepository(PageRepository):
             The matching page.
 
         Raises:
-            NotFoundError: If pages data is missing, or no page has this slug.
+            NotFoundError: If no page has this slug.
         """
-        pages = get_site_content(self._document.data).get("pages")
-        if pages is None:
-            raise NotFoundError("Pages data is missing")
-        wanted_page = next((page for page in pages if page["slug"] == slug), None)
+        wanted_page = next(
+            (page for page in self._section.get("pages", []) if page["slug"] == slug), None
+        )
         if wanted_page is None:
             raise NotFoundError(f"Page with slug {slug} not found")
         return Page.model_validate(wanted_page)
@@ -159,7 +174,7 @@ class _JsonPageRepository(PageRepository):
         """
         return [
             Page.model_validate(page)
-            for page in get_site_content(self._document.data).get("pages") or ()
+            for page in self._section.get("pages", [])
             if page.get("language", "en") == lang
         ]
 
@@ -167,15 +182,23 @@ class _JsonPageRepository(PageRepository):
 class JsonBlogRepository(BlogRepository):
     """BlogRepository implementation backed by a shared JSON document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        """Build the post/page repositories over the shared document.
+    def __init__(self, section: JsonSection) -> None:
+        """Validate the section and build the post/page repositories over it.
+
+        Posts and pages are read from the section live, as comments change them; each is
+        validated when it is read. The meta does not change after loading, so it is kept parsed.
 
         Args:
-            document: The loaded document, shared with the other JSON
-                repositories.
+            section: The ``blog`` section of the shared document, the only part of it this
+                repository sees.
+
+        Raises:
+            InvalidDataError: If the section is invalid; the message lists every problem with
+                its path, one per line.
         """
-        self._posts = _JsonPostRepository(document)
-        self._pages = _JsonPageRepository(document)
+        self._meta = parse(BlogSection, section, section.name).meta
+        self._posts = _JsonPostRepository(section)
+        self._pages = _JsonPageRepository(section)
 
     @property
     @override
@@ -188,3 +211,15 @@ class JsonBlogRepository(BlogRepository):
     def pages(self) -> PageRepository:
         """Return the page repository."""
         return self._pages
+
+    @override
+    def get_meta(self, lang: str) -> PageMeta:
+        """Retrieve the title and description of the blog index.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The blog index meta, empty if none is configured for the language.
+        """
+        return self._meta.get(lang, PageMeta())

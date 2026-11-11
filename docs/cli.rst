@@ -42,6 +42,33 @@ switch, and an application served by a production server is never in development
     This is Flask's development server. For production, serve the application with a WSGI
     server such as gunicorn.
 
+.. _cli-check:
+
+``platzky check``
+-----------------
+
+Validate the site configuration of a JSON data file, for example before deploying it. It checks
+the ``site_config`` section (texts, theme and per-language content) and the ``blog`` section
+(the index meta per language; posts and pages must be lists of objects, their fields are not
+checked). The same check runs when the application starts, so a data file that
+fails it stops the application from starting:
+
+.. code-block:: bash
+
+    $ platzky check data.json
+    OK
+
+Every problem of a section is listed with its path, and the command exits with status 1. The
+``site_config`` section is checked first; problems in ``blog`` show up once it is valid:
+
+.. code-block:: bash
+
+    $ platzky check data.json
+    site_config.localized_content.pl.menu_items.0.url: Field required
+    site_config.home_page_path: Extra inputs are not permitted
+
+See :ref:`site-content` for the format.
+
 Running in Production
 ---------------------
 

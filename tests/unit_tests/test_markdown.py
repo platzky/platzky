@@ -26,7 +26,8 @@ def _html(url: str, markdown: str, flags: dict[str, bool] | None = None) -> str:
             "DB": {
                 "TYPE": "json",
                 "DATA": {
-                    "site_content": {"posts": [content], "pages": [content]},
+                    "site_config": {},
+                    "blog": {"posts": [content], "pages": [content]},
                     "plugins": {},
                 },
             },

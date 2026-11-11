@@ -294,36 +294,147 @@ the homepage route (see `Homepage`_ below).
 Homepage
 ~~~~~~~~
 
-The root path (``/``) renders a configurable homepage instead of a fixed template.
-Platzky resolves the configured path against the application's own routes, so it can
-point at a page, a post, or any other registered route.
+The root path (``/``) of each language renders the path set as that language's
+``home_page_path`` (see `Site content`_). Platzky resolves it against the application's
+own routes, so it can point at a page, a post, or any other registered route.
 
-The homepage path isn't set in ``config.yml`` — it lives in your site content,
-alongside posts and pages, so it can be changed without redeploying:
+* Without a ``home_page_path``, or with one that resolves back to ``/``, ``/`` renders
+  the blog index at ``BLOG_PREFIX``.
+* With a path that doesn't resolve to a registered route, ``/`` renders the 404 page.
 
-* **JSON file / Google Cloud Storage**: set ``home_page_path`` in the
-  ``site_content`` object of your data file.
+.. _site-content:
+
+Site content
+~~~~~~~~~~~~
+
+The site's texts, menu, footer and home page live in the site database, in one
+format that is the same in every database type: the site-wide keys, plus one
+entry per language.
+
+Site-wide keys (``favicon_url``, ``font``, ``primary_color``, ``secondary_color``)
+apply to every language; the colours default to ``white`` and ``navy``. The site name, title, description and logo can be set
+once for the whole site and overridden per language. For a key and a language,
+Platzky uses the first of these that is set:
+
+1. the language's entry in ``localized_content``
+2. the top-level ``<key>`` in the site content
+3. the built-in default
+
+Missing or empty values fall through to the next step. The keys are:
+
+* ``app_name``: site name. Default: ``APP_NAME``.
+* ``app_title``: default ``<title>`` of pages that do not set their own. Default:
+  the site name.
+* ``app_description``: meta description. Default: the site name.
+* ``logo_url``: logo image. Default: no logo.
+
+The site name is used for ``og:site_name``, the logo ``alt`` text, the navbar
+when there is no logo, and the RSS feed title.
+
+These keys exist in a language's entry only, and are not inherited from the
+site-wide keys or from another language:
+
+* ``footer``: ``content`` (Markdown with shortcodes) and ``collapsible``
+  (whether readers may collapse it). Default: no footer.
+* ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
+  no menu.
+* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
+  the blog index.
+
+The blog is configured with its own data, next to its posts and pages (in the
+``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per
+language. Default: empty, which shows the default title and the site
+description.
+
+Unknown keys and ``null`` values are errors in all of this, and the application
+does not start with invalid site content. To check a JSON data file before deploying it, see
+:ref:`platzky check <cli-check>`.
+
+* **JSON file / Google Cloud Storage**: set the keys in the ``site_config``
+  object of your data file. The blog has its own ``blog`` object, with
+  ``posts``, ``pages`` and ``meta``.
 
   .. code-block:: json
 
       {
-        "site_content": {
-          "home_page_path": "/blog/page/about"
+        "site_config": {
+          "app_name": "Literature",
+          "app_title": "Reading notes | Literature",
+          "app_description": "Notes on Tolkien's books",
+          "logo_url": "https://example.com/logo.png",
+          "favicon_url": "https://example.com/favicon.ico",
+          "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"},
+          "primary_color": "white",
+          "secondary_color": "navy",
+          "localized_content": {
+            "en": {
+              "footer": {"content": "Notes by a reader", "collapsible": true},
+              "menu_items": [{"name": "Notes", "url": "/blog/"}],
+              "home_page_path": "/blog/page/about"
+            },
+            "pl": {
+              "app_name": "Literatura",
+              "app_title": "Notatki z lektury | Literatura",
+              "app_description": "Notatki o książkach Tolkiena",
+              "logo_url": "https://example.com/logo-pl.png",
+              "footer": {"content": "Notatki czytelnika", "collapsible": true},
+              "menu_items": [{"name": "Notatki", "url": "/blog/"}],
+              "home_page_path": "/blog/page/o-nas"
+            }
+          }
+        },
+        "blog": {
+          "posts": [],
+          "pages": [],
+          "meta": {
+            "en": {"title": "Reading notes", "description": "Notes on Tolkien's books"},
+            "pl": {"title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
+          }
         }
       }
 
-* **MongoDB**: set ``home_page_path`` on the site config document.
+* **MongoDB**: store the site-wide keys as the document ``{"_id": "config"}``
+  in the ``site_config`` collection, and each language's entry as one document
+  in the ``localized_content`` collection, with the language code as ``_id``.
 
-* **GraphQL (Hygraph)**: set ``homePagePath`` on the ``ApplicationSetup`` model.
+  .. code-block:: javascript
 
-Behavior:
+      // site_config
+      {
+        "_id": "config",
+        "app_name": "Literature",
+        "app_title": "Reading notes | Literature",
+        "font": {"name": "Lora", "url": "https://fonts.googleapis.com/css2?family=Lora"}
+      }
+      // localized_content
+      {
+        "_id": "pl",
+        "app_name": "Literatura",
+        "menu_items": [{"name": "Notatki", "url": "/blog/"}],
+        "footer": {"content": "Notatki czytelnika", "collapsible": true},
+        "home_page_path": "/blog/page/o-nas"
+      }
 
-* If no homepage path is configured, ``/`` falls back to the blog index at
-  ``BLOG_PREFIX``.
-* If the configured path doesn't resolve to a registered route, ``/`` renders the
-  404 page.
-* If the configured path resolves back to ``/`` itself, Platzky falls back to the
-  blog index instead of recursing.
+  The blog index meta is the ``blog_meta`` collection, one document per
+  language with the language code as ``_id``:
+
+  .. code-block:: javascript
+
+      // blog_meta
+      {"_id": "pl", "title": "Notatki z lektury", "description": "Notatki o książkach Tolkiena"}
+
+* **GraphQL (Hygraph)**: two models. ``Site`` holds one entry (queried as
+  ``sites``) with the site-wide content: ``appName``, ``appTitle``,
+  ``appDescription``, ``logoUrl`` and ``faviconUrl`` (strings), ``primaryColor``,
+  ``secondaryColor`` and ``font`` (a component with ``name`` and ``url``).
+  ``LocalizedContent`` holds one entry per language, with ``language`` (the
+  ``Lang`` enum) required and unique, so the server picks the entry
+  (``localizedContent(where: {language: $lang})``). Its fields are ``appName``,
+  ``appTitle``, ``appDescription``, ``logoUrl``, ``homePagePath``, ``footer`` (``content``, ``collapsible``) and
+  ``menuItems`` (``name``, ``url``). The blog index meta is a third model,
+  ``BlogMeta``, with ``language`` (the ``Lang`` enum) required and unique, and
+  ``title`` and ``description``
+  (``blogMeta(where: {language: $lang})``); unset fields (null) are empty.
 
 Feature Flags
 ~~~~~~~~~~~~~

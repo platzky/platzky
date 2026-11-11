@@ -1,43 +1,47 @@
 import datetime
 from datetime import timezone
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
-from platzky.db.exceptions import DBError, NotFoundError, ReadOnlyStorageError
+from platzky.db.exceptions import (
+    InvalidDataError,
+    NotFoundError,
+)
 from platzky.db.json_db import Json, JsonDbConfig, db_from_config
-from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
-from platzky.models import Footer, MenuItem, Page, PageMeta, Post
+from platzky.db.json_stores import MemoryStore
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig
+from platzky.models import Page
 
 
 class TestJsonDbConfig:
     def test_model_validation(self):
         config_data = {
             "TYPE": "json_db",
-            "DATA": {"site_content": {"app_description": {"en": "Test"}}},
+            "DATA": {"site_config": {"app_description": "Test"}},
         }
         config = JsonDbConfig.model_validate(config_data)
-        assert config.data == {"site_content": {"app_description": {"en": "Test"}}}
+        assert config.data == {"site_config": {"app_description": "Test"}}
 
 
 class TestFactoryFunctions:
     def test_db_from_config(self):
         config = JsonDbConfig(
-            TYPE="json_db", DATA={"site_content": {"app_description": {"en": "Configured"}}}
+            TYPE="json_db", DATA={"site_config": {"app_description": "Configured"}}
         )
         db = db_from_config(config)
         assert isinstance(db, Json)
-        assert db.get_site_settings().app_description == {"en": "Configured"}
+        assert db.site_config.get_site_config().app_description == "Configured"
 
 
 class TestJsonDb:
     @pytest.fixture
     def sample_data(self) -> dict[str, Any]:
         return {
-            "site_content": {
-                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
+            "site_config": {},
+            "blog": {
                 "posts": [
                     {
                         "title": "Post 1",
@@ -81,15 +85,6 @@ class TestJsonDb:
                         "date": "2023-01-03T00:00:00",
                     }
                 ],
-                "menu_items": {
-                    "en": [{"name": "Home", "url": "/", "weight": 1}],
-                    "de": [{"name": "Startseite", "url": "/", "weight": 1}],
-                },
-                "logo_url": "/logo.png",
-                "favicon_url": "/favicon.ico",
-                "font": "Arial",
-                "primary_color": "blue",
-                "secondary_color": "green",
             },
             "plugins": {"plugin1": {"config": {}}},
         }
@@ -98,51 +93,14 @@ class TestJsonDb:
     def db(self, sample_data: dict[str, Any]) -> Json:
         return Json(MemoryStore(sample_data))
 
-    def test_get_app_description(self, db: Json):
-        app_description = db.get_site_settings().app_description
-        assert app_description.get("en") == "English description"
-        assert app_description.get("de") == "Deutsche Beschreibung"
-        assert app_description.get("fr", "") == ""
-
-    def test_get_blog_meta_forwards_to_site_config(self):
-        blog_meta = {"en": {"title": "Reading notes", "description": "Notes."}}
-        db = Json(MemoryStore({"site_content": {"blog_meta": blog_meta}}))
-        assert db.get_blog_meta("en") == PageMeta(**blog_meta["en"])
-
-    def test_get_footer_forwards_to_site_config(self):
-        footer = {"content": {"en": "Footer"}, "collapsible": True}
-        db = Json(MemoryStore({"site_content": {"footer": footer}}))
-        assert db.get_footer("en") == Footer(content="Footer", collapsible=True)
-
-    def test_get_all_posts(self, db: Json):
-        posts = db.get_all_posts("en")
-        assert len(posts) == 1
-        assert isinstance(posts[0], Post)
-        assert posts[0].title == "Post 1"
-        assert posts[0].slug == "post-1"
-
-        de_posts = db.get_all_posts("de")
-        assert len(de_posts) == 1
-        assert de_posts[0].title == "Post 2"
-
-    def test_get_post(self, db: Json):
-        post = db.get_post("post-1")
-        assert isinstance(post, Post)
-        assert post.title == "Post 1"
-        assert post.slug == "post-1"
-
-    def test_get_post_not_found(self, db: Json):
-        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
-            db.get_post("non-existent")
-
     def test_get_post_missing_data(self):
-        db_without_posts = Json(MemoryStore({"site_content": {}}))
-        with pytest.raises(NotFoundError, match="Posts data is missing"):
-            db_without_posts.get_post("any-slug")
+        db_without_posts = Json(MemoryStore({"site_config": {}}))
+        with pytest.raises(NotFoundError, match="Post with slug any-slug not found"):
+            db_without_posts.blog.posts.get("any-slug")
 
     def test_get_post_with_missing_required_field(self, sample_data: dict[str, Any]):
         """ValidationError raised when required field is missing."""
-        sample_data["site_content"]["posts"].append(
+        sample_data["blog"]["posts"].append(
             {
                 "slug": "test-post",
                 "author": "Test Author",
@@ -153,22 +111,7 @@ class TestJsonDb:
         db = Json(MemoryStore(sample_data))
 
         with pytest.raises(ValidationError):
-            db.get_post("test-post")
-
-    def test_get_all_pages(self, db: Json):
-        pages = db.get_all_pages("en")
-        assert [page.slug for page in pages] == ["page-1"]
-        assert db.get_all_pages("de") == []
-
-    def test_get_page(self, db: Json):
-        page = db.get_page("page-1")
-        assert isinstance(page, Post)
-        assert page.title == "Page 1"
-        assert page.slug == "page-1"
-
-    def test_get_page_not_found(self, db: Json):
-        with pytest.raises(NotFoundError, match="Page with slug non-existent not found"):
-            db.get_page("non-existent")
+            db.blog.posts.get("test-post")
 
     def test_get_page_with_minimal_fields(self):
         """Pages can be loaded with only required fields.
@@ -177,7 +120,8 @@ class TestJsonDb:
         (comments, tags, language, date) even though they should be optional.
         """
         minimal_page_data = {
-            "site_content": {
+            "site_config": {},
+            "blog": {
                 "pages": [
                     {
                         "title": "About Us",
@@ -188,10 +132,10 @@ class TestJsonDb:
                         "coverImage": {"url": "/images/about.jpg"},
                     }
                 ]
-            }
+            },
         }
         db = Json(MemoryStore(minimal_page_data))
-        page = db.get_page("about")
+        page = db.blog.pages.get("about")
 
         assert isinstance(page, Page)
         assert page.title == "About Us"
@@ -201,103 +145,11 @@ class TestJsonDb:
         assert page.tags == []
         assert page.date is None
 
-    def test_get_menu_items_in_lang(self, db: Json):
-        menu_items = db.get_menu_items_in_lang("en")
-        assert len(menu_items) == 1
-        assert isinstance(menu_items[0], MenuItem)
-        assert menu_items[0].name == "Home"
-
-        de_menu_items = db.get_menu_items_in_lang("de")
-        assert len(de_menu_items) == 1
-        assert de_menu_items[0].name == "Startseite"
-
-        fr_menu_items = db.get_menu_items_in_lang("fr")
-        assert len(fr_menu_items) == 0
-
-    def test_get_posts_by_tag(self, db: Json):
-        assert db.get_posts_by_tag("tag1", "en")[0].slug == "post-1"
-        assert db.get_posts_by_tag("tag2", "en")[0].slug == "post-1"
-        assert db.get_posts_by_tag("tag2", "de")[0].slug == "post-2"
-        assert len(db.get_posts_by_tag("tag3", "en")) == 0
-        assert len(db.get_posts_by_tag("non-existent", "en")) == 0
-        assert len(db.get_posts_by_tag("tag1", "fr")) == 0
-
     def test_get_posts_by_tag_with_empty_posts(self, sample_data: dict[str, Any]):
-        sample_data["site_content"]["posts"] = []
+        sample_data["blog"]["posts"] = []
         db = Json(MemoryStore(sample_data))
-        posts = list(db.get_posts_by_tag("tag1", "en"))
+        posts = list(db.blog.posts.get_by_tag("tag1", "en"))
         assert len(posts) == 0
-
-
-class TestJsonDbSiteSettings:
-    @pytest.fixture
-    def db_with_settings(self) -> Json:
-        return Json(
-            MemoryStore(
-                {
-                    "site_content": {
-                        "logo_url": "/logo.png",
-                        "favicon_url": "/favicon.ico",
-                        "font": "Arial",
-                        "primary_color": "blue",
-                        "secondary_color": "green",
-                    }
-                }
-            )
-        )
-
-    @pytest.fixture
-    def db_minimal(self) -> Json:
-        return Json(MemoryStore({"site_content": {}}))
-
-    def test_get_site_settings(self, db_with_settings: Json):
-        settings = db_with_settings.get_site_settings()
-        assert settings.logo is not None
-        assert settings.logo.url == "/logo.png"
-        assert settings.favicon_url == "/favicon.ico"
-        assert settings.font == "Arial"
-        assert settings.primary_color == "blue"
-        assert settings.secondary_color == "green"
-
-    def test_get_site_settings_defaults(self, db_minimal: Json):
-        settings = db_minimal.get_site_settings()
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.font == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
-
-    def test_get_home_page_path_default(self, db_minimal: Json):
-        assert db_minimal.get_home_page_path("en") is None
-
-    def test_get_home_page_path(self):
-        db = Json(MemoryStore({"site_content": {"home_page_path": "/blog/page/about"}}))
-        assert db.get_home_page_path("en") == "/blog/page/about"
-
-    def test_get_home_page_path_per_locale(self):
-        db = Json(
-            MemoryStore(
-                {
-                    "site_content": {
-                        "home_page_path": {"default": "/blog/", "pl": "/blog/page/o-nas"}
-                    }
-                }
-            )
-        )
-        assert db.get_home_page_path("pl") == "/blog/page/o-nas"
-        assert db.get_home_page_path("en") == "/blog/"
-
-    def test_get_home_page_path_per_locale_no_default(self):
-        db = Json(MemoryStore({"site_content": {"home_page_path": {"pl": "/blog/page/o-nas"}}}))
-        assert db.get_home_page_path("en") is None
-
-    def test_get_home_page_path_present_but_empty_string_is_not_swapped_for_default(self):
-        """Only an absent key falls back to "default" — a present key returns its value as-is."""
-        db = Json(
-            MemoryStore({"site_content": {"home_page_path": {"default": "/blog/", "pl": ""}}})
-        )
-        assert db.get_home_page_path("pl") == ""
 
 
 class TestJsonDbComments:
@@ -306,7 +158,8 @@ class TestJsonDbComments:
         return Json(
             MemoryStore(
                 {
-                    "site_content": {
+                    "site_config": {},
+                    "blog": {
                         "posts": [
                             {
                                 "title": "Post 1",
@@ -320,7 +173,7 @@ class TestJsonDbComments:
                                 "date": "2023-01-01T00:00:00",
                             }
                         ]
-                    }
+                    },
                 }
             )
         )
@@ -330,119 +183,48 @@ class TestJsonDbComments:
 
         with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
-            db.add_comment("Test User", "Great post!", "post-1")
+            db.blog.posts.add_comment("Test User", "Great post!", "post-1")
 
-        comments = db.get_post("post-1").comments
+        comments = db.blog.posts.get("post-1").comments
         assert len(comments) == 1
         assert comments[0].author == "Test User"
         assert comments[0].comment == "Great post!"
         assert comments[0].date == test_date.replace(tzinfo=timezone.utc)
 
-    def test_add_comment_persists_to_store(self):
-        document: dict[str, Any] = {
-            "site_content": {
-                "posts": [
-                    {
-                        "title": "Post 1",
-                        "slug": "post-1",
-                        "language": "en",
-                        "tags": [],
-                        "comments": [],
-                        "author": "Test Author",
-                        "contentInMarkdown": "# Post 1",
-                        "excerpt": "Post 1 excerpt",
-                        "date": "2023-01-01T00:00:00",
-                    }
-                ]
-            }
-        }
-        store = Mock(spec=JsonStore)
-        store.load.return_value = document
-        db = Json(store)
-        test_date = datetime.datetime(2023, 1, 1, 12, 0)
-
-        with patch("datetime.datetime") as mock_datetime:
-            mock_datetime.now.return_value = test_date
-            db.add_comment("Test User", "Great post!", "post-1")
-
-        store.save.assert_called_once()
-        saved = store.save.call_args.args[0]
-        assert saved["site_content"]["posts"][0]["comments"] == [
-            {"author": "Test User", "comment": "Great post!", "date": "2023-01-01T12:00:00"}
-        ]
-
-    def test_add_comment_to_nonexistent_post(self, db: Json):
-        with pytest.raises(NotFoundError, match="Post with slug non-existent not found"):
-            db.add_comment("Test User", "Comment", "non-existent")
-
-    def test_add_comment_rolls_back_and_logs_on_save_failure(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        db = Json(
-            ReadOnlyStore(
-                {
-                    "site_content": {
-                        "posts": [
-                            {
-                                "title": "Post 1",
-                                "slug": "post-1",
-                                "language": "en",
-                                "tags": [],
-                                "comments": [],
-                                "author": "Test Author",
-                                "contentInMarkdown": "# Post 1",
-                                "excerpt": "Post 1 excerpt",
-                                "date": "2023-01-01T00:00:00",
-                            }
-                        ]
-                    }
-                }
-            )
-        )
-
-        with (
-            caplog.at_level("ERROR"),
-            pytest.raises(ReadOnlyStorageError),
-        ):
-            db.add_comment("Test User", "Comment", "post-1")
-
-        # The in-memory mutation is rolled back, not left dangling.
-        assert db.get_post("post-1").comments == []
-        assert "Failed to persist comment for post 'post-1'" in caplog.text
-
-
-class TestJsonDbPlugins:
-    def test_get_plugins_data(self):
-        db = Json(MemoryStore({"plugins": {"plugin1": {"config": {}}}}))
-        plugins = db.get_plugins_data()
-        assert len(plugins) == 1
-        assert "plugin1" in plugins
-
-    def test_get_plugins_data_empty(self):
-        db = Json(MemoryStore({}))
-        assert db.get_plugins_data() == {}
-
 
 class TestJsonDbHealthCheck:
     def test_health_check_success(self):
-        db = Json(MemoryStore({"site_content": {"posts": []}}))
+        db = Json(MemoryStore({"site_config": {}, "blog": {"posts": []}}))
         db.health_check()
 
-    def test_health_check_failure_no_site_content(self):
-        db = Json(MemoryStore({"other_data": "value"}))
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.health_check()
+    def test_health_check_succeeds_without_sections(self):
+        Json(MemoryStore({"other_data": "value"})).health_check()
 
 
 class TestJsonDbEmptyDb:
-    def test_empty_db_raises_exception_on_operations(self):
+    def test_missing_site_config_section_is_the_defaults(self):
         db = Json(MemoryStore({}))
 
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.get_all_posts("en")
+        assert db.site_config.get_site_config() == SiteConfig()
+        assert db.site_config.get_localized_content("en") == LocalizedContent()
 
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.get_site_settings()
+    def test_missing_blog_section_is_an_empty_blog(self):
+        db = Json(MemoryStore({}))
 
-        with pytest.raises(DBError, match="site_content section is missing"):
-            db.get_post("any-slug")
+        assert db.blog.posts.get_all("en") == []
+        assert db.blog.pages.get_all("en") == []
+        with pytest.raises(NotFoundError, match="Post with slug any-slug not found"):
+            db.blog.posts.get("any-slug")
+
+
+class TestJsonDbValidation:
+    @pytest.mark.parametrize(
+        ("document", "problem"),
+        [
+            ({"site_config": {"menu_items": {}}}, r"site_config\.menu_items"),
+            ({"blog": {"posts": None}}, r"blog\.posts"),
+        ],
+    )
+    def test_creation_rejects_an_invalid_section(self, document: dict[str, Any], problem: str):
+        with pytest.raises(InvalidDataError, match=problem):
+            Json(MemoryStore(document))

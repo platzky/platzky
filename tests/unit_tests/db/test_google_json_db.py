@@ -38,9 +38,8 @@ class TestGoogleJsonDb:
         mock_blob = MagicMock()
         mock_blob.download_as_text.return_value = json.dumps(
             {
-                "site_content": {
-                    "posts": [{"slug": "post-1", "comments": []}],
-                }
+                "site_config": {},
+                "blog": {"posts": [{"slug": "post-1", "comments": []}]},
             }
         )
         mock_bucket.blob.return_value = mock_blob
@@ -48,4 +47,4 @@ class TestGoogleJsonDb:
         db = GoogleJsonDb("test-bucket", "test-blob.json")
 
         with pytest.raises(ReadOnlyStorageError):
-            db.add_comment("Test User", "New comment", "post-1")
+            db.blog.posts.add_comment("Test User", "New comment", "post-1")

@@ -1,12 +1,15 @@
 from typing import Any
 
-from platzky.db.json_document import JsonDocument
+import pytest
+
+from platzky.db.exceptions import InvalidDataError
+from platzky.db.json_document import JsonDocument, JsonSection
 from platzky.db.json_plugin_config_repository import JsonPluginConfigRepository
 from platzky.db.json_stores import MemoryStore
 
 
 def _repository(data: dict[str, Any]) -> JsonPluginConfigRepository:
-    return JsonPluginConfigRepository(JsonDocument(MemoryStore(data)))
+    return JsonPluginConfigRepository(JsonSection(JsonDocument(MemoryStore(data)), "plugins"))
 
 
 class TestJsonPluginConfigRepository:
@@ -23,6 +26,6 @@ class TestJsonPluginConfigRepository:
         repository = _repository({})
         assert repository.get_all() == {}
 
-    def test_get_all_returns_empty_dict_when_plugins_is_none(self):
-        repository = _repository({"plugins": None})
-        assert repository.get_all() == {}
+    def test_get_all_raises_when_plugins_is_none(self):
+        with pytest.raises(InvalidDataError, match="plugins"):
+            _repository({"plugins": None})

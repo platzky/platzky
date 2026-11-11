@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Page, Post
+from platzky.models import Page, PageMeta, Post
 
 
 def _standardize_comment(
@@ -81,6 +81,16 @@ def _standardize_page(page: dict[str, Any]) -> dict[str, Any]:
         "date": None,
         "css": page.get("css") or "",
     }
+
+
+_BLOG_META_QUERY = gql("""
+    query BlogMeta($lang: Lang!) {
+      blogMeta(where: {language: $lang}, stage: PUBLISHED) {
+        title
+        description
+      }
+    }
+    """)
 
 
 class _GraphQLPostRepository(PostRepository):
@@ -364,6 +374,7 @@ class GraphQLBlogRepository(BlogRepository):
             get_client: Zero-argument callable returning the GraphQL client to
                 use for the current thread.
         """
+        self._get_client = get_client
         self._posts = _GraphQLPostRepository(get_client)
         self._pages = _GraphQLPageRepository(get_client)
 
@@ -378,3 +389,22 @@ class GraphQLBlogRepository(BlogRepository):
     def pages(self) -> PageRepository:
         """Return the page repository."""
         return self._pages
+
+    @override
+    def get_meta(self, lang: str) -> PageMeta:
+        """Retrieve the title and description of the blog index.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The blog index meta, empty if none is configured for the language. Fields an
+            editor left unset (null in Hygraph) are not set, so they are empty.
+        """
+        raw_meta = (
+            self._get_client().execute(_BLOG_META_QUERY, variable_values={"lang": lang})["blogMeta"]
+            or {}
+        )
+        return PageMeta.model_validate(
+            {key: value for key, value in raw_meta.items() if value is not None}
+        )

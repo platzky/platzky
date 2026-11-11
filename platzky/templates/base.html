@@ -7,7 +7,7 @@
   {{ dynamic_head | safe }}
 
   <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
-  <title>{% block head_title %}{% block title %}{{ app_name }}{% endblock %}{% endblock %}</title>
+  <title>{% block head_title %}{% block title %}{{ app_title }}{% endblock %}{% endblock %}</title>
   <meta name="description" content="{% block description %}{{ app_description }}{% endblock %}">
 
   <!-- Open Graph -->
