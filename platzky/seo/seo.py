@@ -49,6 +49,19 @@ def _endpoint_url(endpoint: str, prefixed_language: LanguageCode | None, **value
     return url_for(endpoint, _external=True, **url_values)
 
 
+def _languages_of(
+    endpoint: str, prefixes: t.Mapping[LanguageCode, str]
+) -> t.Mapping[LanguageCode, str]:
+    """Return the served languages an endpoint has URLs in, with their prefixes.
+
+    A route registered with ``multilang`` is served in every language; any other only at the
+    root of the host, without a prefix.
+    """
+    if _is_localized(endpoint):
+        return prefixes
+    return {lang: prefix for lang, prefix in prefixes.items() if not prefix}
+
+
 def _is_excluded(loc: str, prefix: str, excluded_prefixes: tuple[str, ...]) -> bool:
     """Return whether a URL's path, without its language prefix, is under an excluded path."""
     return urllib.parse.urlparse(loc).path.removeprefix(prefix).startswith(excluded_prefixes)
@@ -75,8 +88,7 @@ def _route_entries(
     try:
         return [
             entry
-            for lang, prefix in prefixes.items()
-            if not prefix or _is_localized(endpoint)
+            for lang, prefix in _languages_of(endpoint, prefixes).items()
             for entry in provider(lang, partial(_endpoint_url, endpoint, lang if prefix else None))
             if not _is_excluded(entry.loc, prefix, excluded_prefixes)
         ]
