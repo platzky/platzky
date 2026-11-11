@@ -1,10 +1,10 @@
 import logging
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
-from flask import request
+from flask import render_template_string, request
 from pydantic import ValidationError
 
 from platzky import create_app_from_config
@@ -93,29 +93,10 @@ class TestPlatzky:
             with client.session_transaction() as sess:
                 assert "language" not in sess
 
-    def test_url_link(self, mock_db: MagicMock):
-        """Test the url_link function."""
-
-        def url_link_func(x: object) -> str:
-            return str(x)
-
-        def context_proc() -> dict[str, Callable[[object], str]]:
-            return {"url_link": url_link_func}
-
-        mock_config = MagicMock()
-        mock_config.context_processor_functions = [context_proc]
-
-        app = create_engine(mock_config, mock_db)
-        mock_processor = MagicMock()
-
-        def url_link_func2(x: object) -> str:
-            return str(x)
-
-        mock_processor.return_value = {"url_link": url_link_func2}
-
+    def test_templates_url_encode_with_url_link(self):
+        app = _engine_with_languages({"en": _EN})
         with app.test_request_context():
-            url_link = mock_processor.return_value["url_link"]
-            assert url_link("test") == "test"
+            assert render_template_string("{{ url_link('a b/c') }}") == "a%20b%2Fc"
 
     def test_create_app(self):
         """Test the create_app function."""

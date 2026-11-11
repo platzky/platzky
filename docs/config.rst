@@ -211,9 +211,9 @@ non-standard port, as in local or staging setups, needs it in the domain
 (``domain: example.de:5000``).
 
 The language switcher links to each language's home page, and ``/lang/<code>`` redirects
-there. Pages that exist in every language (the homepage, the blog index and other localized
-routes without arguments) list each language's version in ``hreflang`` tags. Posts, pages and
-tags differ per language, so they carry none.
+there. Templates link a language with ``url_for_language('home_page', lang)``. Pages that exist in every language (the homepage,
+the blog index and other localized routes without arguments) list each language's version in
+``hreflang`` tags. Posts, pages and tags differ per language, so they carry none.
 
 Visitors are never redirected by their browser's language. Instead, a visitor whose browser
 prefers another configured language sees a popup, written in that language, linking to its

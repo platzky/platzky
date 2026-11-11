@@ -1,43 +1,67 @@
 import logging
-import secrets
 from collections.abc import Mapping
 from datetime import date
 
 import pytest
-from flask import Blueprint, Flask
+from flask import Blueprint
 from flask_wtf.csrf import CSRFProtect
+from markupsafe import escape
 
-from platzky.language_routing import SiteLanguages
+from platzky.config import Config
+from platzky.db.db_loader import get_db
+from platzky.engine import Engine
 from platzky.seo import seo
 from platzky.sitemap import SitemapEntry, SitemapProvider, UrlFor, single_url
 
-_ENGLISH_ONLY = SiteLanguages(domains={"en": None}, default="en")
-_ENGLISH_AND_UKRAINIAN = SiteLanguages(domains={"en": None, "uk": None}, default="en")
+_ENGLISH_ONLY: Mapping[str, str | None] = {"en": None}
+_ENGLISH_AND_UKRAINIAN: Mapping[str, str | None] = {"en": None, "uk": None}
 
 
 def _make_seo_app(
     sitemap_providers: Mapping[str, SitemapProvider] | None = None,
-    languages: SiteLanguages = _ENGLISH_ONLY,
+    domains: Mapping[str, str | None] = _ENGLISH_ONLY,
     sitemap_excluded_prefixes: list[str] | None = None,
-) -> Flask:
-    """Build a minimal Flask app with the books routes and the SEO blueprint."""
-    config = {"SEO_PREFIX": "/prefix", "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes}
-    app = Flask(__name__)
-    app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
+) -> Engine:
+    """Build an Engine with the books routes and the SEO blueprint.
+
+    Args:
+        sitemap_providers: Sitemap providers of the books routes, by endpoint.
+        domains: The site's languages mapped to their own domain, if any; the first is the default.
+        sitemap_excluded_prefixes: URL prefixes the sitemap leaves out.
+    """
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "SEO_PREFIX": "/prefix",
+            "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes or [],
+            "DEFAULT_LANGUAGE": next(iter(domains)),
+            "LANGUAGES": {
+                code: {"name": code, "flag": code, "country": code.upper(), "domain": domain}
+                for code, domain in domains.items()
+            },
+            "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        }
+    )
+    app = Engine(config, get_db(config.db), __name__)
+    app.config["TESTING"] = True
     CSRFProtect(app)
     app.register_blueprint(_books_blueprint())
-    app.register_blueprint(seo.create_seo_blueprint(config, languages, sitemap_providers or {}))
+    app.register_blueprint(
+        seo.create_seo_blueprint(
+            app.config, config.site_languages, sitemap_providers or {}, app.url_for_language
+        )
+    )
     return app
 
 
 def _books_blueprint() -> Blueprint:
-    """A page per book, also under /uk/, and an about page in one language only."""
+    """A page per book in every language, and an about page in one language only."""
     books = Blueprint("books", __name__)
 
-    @books.route("/books/<isbn>")
-    @books.route("/<any('uk'):lang_code>/books/<isbn>")
-    def book(isbn: str, lang_code: str | None = None) -> str:
-        return f"{isbn} {lang_code or ''}"
+    @books.route("/books/<isbn>", multilang=True)
+    def book(isbn: str) -> str:
+        return escape(isbn)
 
     @books.route("/about")
     def about() -> str:
@@ -51,7 +75,7 @@ def _books_in(lang: str, url: UrlFor) -> list[SitemapEntry]:
     return [SitemapEntry(url(isbn=isbn), date(1937, 9, 21))]
 
 
-def _sitemap(app: Flask) -> str:
+def _sitemap(app: Engine) -> str:
     return app.test_client().get("/prefix/sitemap.xml").text
 
 
@@ -87,9 +111,7 @@ def test_sitemap_asks_a_localized_route_for_every_language_served_on_the_host():
 
 def test_sitemap_on_a_language_domain_asks_only_for_that_language():
     # The test client's host is localhost, so here it is German's own domain.
-    german_domain = SiteLanguages(
-        domains={"en": "example.com", "uk": None, "de": "localhost"}, default="en"
-    )
+    german_domain = {"en": "example.com", "uk": None, "de": "localhost"}
     sitemap = _sitemap(_make_seo_app({"books.book": _books_in}, german_domain))
     assert "http://localhost/books/978-3608939842" in sitemap
     assert "978-0261102217" not in sitemap

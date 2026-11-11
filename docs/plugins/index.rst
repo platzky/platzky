@@ -89,10 +89,12 @@ plugin registers its own routes and needs the Engine from inside a view function
 Serving Routes in Every Language
 --------------------------------
 
-A language without its own ``domain`` is served under its code (``/pl/…``), but only on
-routes registered with ``multilang=True``, as the built-in homepage and blog routes are.
-Other routes stay at their plain path, served only in the default language. Pass it to
-``route`` for a view that renders per language (it reads ``get_locale()``):
+Every route is served at its plain path on every host, in the host's language: the default
+language on the main host, a language with its own ``domain`` on that domain. A language
+without a ``domain`` is served under its code (``/pl/…``) on the main host, but only on routes
+registered with ``multilang=True``, as the built-in homepage and blog routes are; other routes
+have no ``/pl/…`` version. Pass it to ``route`` for a view that renders per language (it
+reads ``get_locale()``):
 
 .. code-block:: python
 
@@ -107,6 +109,12 @@ Other routes stay at their plain path, served only in the default language. Pass
 The view is then also served as ``/<code>/…``. While a request is in a domainless language,
 ``url_for`` builds its URL with that prefix and ``get_locale()`` returns the language. Views
 without view arguments also get ``hreflang`` links to their version in every language.
+
+``current_engine().url_for_language(endpoint, "pl", **values)``, in templates rendered with
+``render_template`` just ``url_for_language``, builds the route's URL in another language, on
+the host that serves it: relative on the current host, absolute when another host serves the
+language or with ``_external=True``. A route without ``multilang=True`` asked for a language
+served under a prefix raises ``ValueError``, as does a language that is not configured.
 
 .. _plugin-query-locale-routes:
 

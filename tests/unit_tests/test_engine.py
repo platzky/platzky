@@ -421,7 +421,7 @@ def test_locale_does_not_match_domain_on_a_different_port():
 
 
 def test_domain_without_a_port_does_not_match_a_host_with_one():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/blog/", headers={"Host": "example.de:5000"})
     assert _language_indicator(response) == "en"
 
@@ -794,6 +794,99 @@ def test_url_for_follows_the_language_of_the_request(test_app: Engine):
         assert url_for("blog.get_post", post_slug="x") == "/blog/x"
 
 
+@pytest.mark.parametrize(
+    ("host", "path", "language", "url"),
+    [
+        ("example.com", "/blog/", "pl", "/pl/blog/"),
+        ("example.com", "/pl/blog/", "en", "/blog/"),
+        ("example.com", "/pl/blog/", "pl", "/pl/blog/"),
+        ("example.com", "/blog/", "de", "http://example.de/blog/"),
+        ("example.com", "/pl/blog/", "de", "http://example.de/blog/"),
+        ("example.de", "/blog/", "pl", "http://example.com/pl/blog/"),
+        ("example.de", "/blog/", "en", "http://example.com/blog/"),
+        ("example.de", "/blog/", "de", "/blog/"),
+    ],
+)
+def test_url_for_language_points_at_where_that_language_is_served(
+    host: str, path: str, language: str, url: str
+):
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    with app.test_request_context(path, headers={"Host": host}):
+        assert app.url_for_language("blog.all_posts", language) == url
+
+
+@pytest.mark.parametrize(
+    ("language", "options", "url"),
+    [
+        ("pl", {}, "/pl/blog/"),
+        ("pl", {"_external": True}, "http://example.com/pl/blog/"),
+        ("pl", {"_scheme": "https"}, "https://example.com/pl/blog/"),
+        ("de", {"_scheme": "https"}, "https://example.de/blog/"),
+    ],
+)
+def test_url_for_language_is_absolute_when_asked_to(
+    language: str, options: dict[str, Any], url: str
+):
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    with app.test_request_context("/blog/", headers={"Host": "example.com"}):
+        assert app.url_for_language("blog.all_posts", language, **options) == url
+
+
+def test_url_for_language_resolves_an_endpoint_relative_to_the_blueprint():
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    with app.test_request_context("/blog/", headers={"Host": "example.com"}):
+        assert app.url_for_language(".all_posts", "pl") == "/pl/blog/"
+
+
+@pytest.mark.parametrize(
+    ("language", "values", "url"),
+    [
+        ("pl", {"post_slug": "x", "_anchor": "top"}, "/pl/blog/x#top"),
+        ("de", {"post_slug": "x", "page": 2}, "http://example.de/blog/x?page=2"),
+        ("pl", {"post_slug": "x", "language": "fr"}, "/pl/blog/x?language=fr"),
+    ],
+)
+def test_url_for_language_passes_values_through(language: str, values: dict[str, object], url: str):
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    with app.test_request_context("/blog/", headers={"Host": "example.com"}):
+        assert app.url_for_language("blog.get_post", language, **values) == url
+
+
+def test_url_for_language_needs_a_multilang_endpoint_for_a_domainless_language():
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    _register_books(app)
+    with app.test_request_context("/blog/", headers={"Host": "example.com"}):
+        assert app.url_for_language("books.isbn_lookup", "en") == "/books/isbn-lookup"
+        assert app.url_for_language("books.isbn_lookup", "de") == (
+            "http://example.de/books/isbn-lookup"
+        )
+        with pytest.raises(ValueError, match="is not registered with multilang=True"):
+            app.url_for_language("books.isbn_lookup", "pl")
+
+
+def test_url_for_language_rejects_an_unconfigured_language():
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    with app.test_request_context("/blog/", headers={"Host": "example.com"}):
+        assert app.url_for_language("blog.all_posts", "en") == "/blog/"
+        with pytest.raises(ValueError, match="'fr' is not a configured language"):
+            app.url_for_language("blog.all_posts", "fr")
+
+
+@pytest.mark.parametrize(
+    ("host", "path", "hrefs"),
+    [
+        ("example.com", "/blog/", ["/", "/pl/", "http://example.de/"]),
+        ("example.com", "/pl/blog/", ["/", "/pl/", "http://example.de/"]),
+        ("example.de", "/blog/", ["http://example.com/", "http://example.com/pl/", "/"]),
+    ],
+)
+def test_language_switcher_links_each_language_home(host: str, path: str, hrefs: list[str]):
+    app = _build_app_with_domainless_pl_and_en_de_domains()
+    response = app.test_client().get(path, headers={"Host": host})
+    soup = BeautifulSoup(response.data, "html.parser")
+    assert [str(a.get("href")) for a in soup.select(".dropdown-item")] == hrefs
+
+
 def _post(slug: str, title: str, language: str) -> dict[str, Any]:
     return {
         "title": title,
@@ -901,7 +994,7 @@ def test_domainless_language_feed_links_to_prefixed_posts():
     assert b"http://localhost/pl/blog/polski-wpis" in response.data
 
 
-def _build_three_language_test_app() -> Engine:
+def _build_app_with_domainless_pl_and_en_de_domains() -> Engine:
     config = Config.model_validate(
         {
             "APP_NAME": "testingApp",
@@ -921,7 +1014,7 @@ def _build_three_language_test_app() -> Engine:
 
 
 def test_domainless_language_is_served_on_the_main_host():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/pl/blog/page/about", headers={"Host": "example.com"})
     assert response.status_code == 200
 
@@ -938,21 +1031,21 @@ def test_domainless_language_is_served_on_the_main_host():
 def test_language_prefix_redirects_to_where_the_language_is_served(
     host: str, path: str, location: str
 ):
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get(path, headers={"Host": host})
     assert response.status_code == 308
     assert response.location == location
 
 
 def test_language_prefix_redirect_keeps_the_request_method():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().post("/pl/blog/some-post", headers={"Host": "example.de"})
     assert response.status_code == 308
     assert response.location == "http://example.com/pl/blog/some-post"
 
 
 def test_sitemap_omits_the_default_language_prefix():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/sitemap.xml", headers={"Host": "example.com"})
     assert "http://example.com/en/" not in response.text
 
@@ -962,7 +1055,7 @@ def test_sitemap_omits_the_default_language_prefix():
     [("example.com", "/blog/"), ("example.com", "/pl/blog/"), ("example.de", "/blog/")],
 )
 def test_hreflang_links_point_at_the_same_page_in_each_language(host: str, path: str):
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get(path, headers={"Host": host})
     assert _hreflang_urls(response) == {
         "en": "http://example.com/blog/",
@@ -973,7 +1066,7 @@ def test_hreflang_links_point_at_the_same_page_in_each_language(host: str, path:
 
 
 def test_content_pages_have_no_hreflang_links():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/blog/page/about", headers={"Host": "example.com"})
     assert _hreflang_urls(response) == {}
 
@@ -1022,13 +1115,13 @@ def test_single_language_site_suggests_no_language():
 def test_language_suggestion_offers_the_same_page_in_other_languages(
     host: str, path: str, expected: dict[str, str]
 ):
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get(path, headers={"Host": host})
     assert _language_suggestion_urls(response) == expected
 
 
 def test_language_suggestion_offers_home_pages_for_content_pages():
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/blog/page/about", headers={"Host": "example.com"})
     assert _language_suggestion_urls(response) == {
         "pl": "http://example.com/pl/",
@@ -1069,7 +1162,7 @@ def test_www_domains_serve_and_link_their_languages():
 
 @pytest.mark.parametrize(("host", "lists_pl"), [("example.com", True), ("example.de", False)])
 def test_sitemap_lists_domainless_languages_on_the_main_host_only(host: str, lists_pl: bool):
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/sitemap.xml", headers={"Host": host})
     assert f"http://{host}/blog/" in response.text
     assert (f"http://{host}/pl/blog/" in response.text) is lists_pl
@@ -1080,7 +1173,7 @@ def _babel_locale() -> str:
 
 
 def _build_api_test_app() -> Engine:
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     app.config["WTF_CSRF_ENABLED"] = False
     api = Blueprint("api", __name__, url_prefix="/api")
     api.add_url_rule("/greeting", "greeting", _babel_locale, query_locale=True)
@@ -1169,7 +1262,7 @@ def test_query_locale_differing_from_a_rule_without_a_view_is_rejected(
 
 @pytest.mark.parametrize(("query", "url"), [("?lang=pl", "/pl/blog/"), ("", "/blog/")])
 def test_url_for_in_query_locale_route_follows_the_query_language(query: str, url: str):
-    app = _build_three_language_test_app()
+    app = _build_app_with_domainless_pl_and_en_de_domains()
     api = Blueprint("api", __name__, url_prefix="/api")
     api.add_url_rule(
         "/blog-link", "blog_link", lambda: url_for("blog.all_posts"), query_locale=True
