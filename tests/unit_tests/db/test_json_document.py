@@ -2,9 +2,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from platzky.db.exceptions import InvalidDataError
+from platzky.db.exceptions import InvalidDataError, ReadOnlyStorageError
 from platzky.db.json_document import JsonDocument, JsonSection
-from platzky.db.json_stores import JsonStore, MemoryStore
+from platzky.db.json_stores import JsonStore, MemoryStore, ReadOnlyStore
 
 
 class TestJsonDocument:
@@ -22,20 +22,20 @@ class TestJsonDocument:
         assert JsonDocument(MemoryStore(data)).data is data
 
     def test_edit_saves_a_copy_and_then_makes_it_the_document(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {"site_config": {}}
+        store = MemoryStore({"site_config": {}})
         document = JsonDocument(store)
 
         with document.edit() as edited:
             edited["x"] = 1
             assert document.data == {"site_config": {}}
 
-        store.save.assert_called_once_with({"site_config": {}, "x": 1})
-        assert document.data == {"site_config": {}, "x": 1}
+        assert (store.load(), document.data) == (
+            {"site_config": {}, "x": 1},
+            {"site_config": {}, "x": 1},
+        )
 
     def test_edit_saves_when_block_returns_early(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {"a": 1}
+        store = MemoryStore({"a": 1})
         document = JsonDocument(store)
 
         def edit_and_return() -> str:
@@ -44,10 +44,10 @@ class TestJsonDocument:
                 return "early"
 
         assert edit_and_return() == "early"
-        store.save.assert_called_once_with({"a": 2})
-        with document.edit():
-            pass
-        assert store.save.call_count == 2
+        assert store.load() == {"a": 2}
+        with document.edit() as edited:
+            edited["a"] = 3
+        assert store.load() == {"a": 3}
 
     def test_edit_releases_lock_and_keeps_the_document_when_save_raises_base_exception(self):
         store = Mock(spec=JsonStore)
@@ -68,8 +68,7 @@ class TestJsonDocument:
         assert document.data == {"a": 2}
 
     def test_edit_does_not_save_on_exception_and_releases_lock(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {"a": 1}
+        store = MemoryStore({"a": 1})
         document = JsonDocument(store)
 
         def edit_and_fail() -> None:
@@ -80,25 +79,21 @@ class TestJsonDocument:
         with pytest.raises(RuntimeError, match="boom"):
             edit_and_fail()
 
-        store.save.assert_not_called()
-        assert document.data == {"a": 1}
-        with document.edit():
-            pass
-        store.save.assert_called_once()
+        assert (store.load(), document.data) == ({"a": 1}, {"a": 1})
+        with document.edit() as edited:
+            edited["a"] = 3
+        assert store.load() == {"a": 3}
 
     def test_edit_keeps_the_document_when_save_fails(self):
-        store = Mock(spec=JsonStore)
         data = {"a": {"b": 1}}
-        store.load.return_value = data
-        store.save.side_effect = OSError("disk")
-        document = JsonDocument(store)
+        document = JsonDocument(ReadOnlyStore(data))
 
         def edit_and_save() -> None:
             with document.edit() as edited:
                 edited["a"]["b"] = 2
                 edited["added"] = True
 
-        with pytest.raises(OSError, match="disk"):
+        with pytest.raises(ReadOnlyStorageError):
             edit_and_save()
 
         assert document.data is data
@@ -131,24 +126,21 @@ class TestJsonSection:
             JsonSection(JsonDocument(MemoryStore({"a": value})), "a")
 
     def test_edit_saves_the_document_and_then_shows_the_change(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {"a": {"x": 1}, "b": 2}
+        store = MemoryStore({"a": {"x": 1}, "b": 2})
         section = JsonSection(JsonDocument(store), "a")
 
         with section.edit() as edited:
             edited["x"] = 5
 
-        store.save.assert_called_once_with({"a": {"x": 5}, "b": 2})
-        assert dict(section) == {"x": 5}
+        assert (store.load(), dict(section)) == ({"a": {"x": 5}, "b": 2}, {"x": 5})
 
     def test_edit_creates_a_missing_section(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {}
+        store = MemoryStore({})
 
         with JsonSection(JsonDocument(store), "a").edit() as edited:
             edited["x"] = 5
 
-        store.save.assert_called_once_with({"a": {"x": 5}})
+        assert store.load() == {"a": {"x": 5}}
 
     def test_edit_that_raises_changes_nothing(self):
         document = JsonDocument(MemoryStore({"a": {"x": 1}}))
@@ -161,12 +153,9 @@ class TestJsonSection:
         assert (document.data, dict(section)) == ({"a": {"x": 1}}, {"x": 1})
 
     def test_edit_whose_save_fails_changes_nothing(self):
-        store = Mock(spec=JsonStore)
-        store.load.return_value = {"a": {"x": 1}}
-        store.save.side_effect = OSError("disk")
-        section = JsonSection(JsonDocument(store), "a")
+        section = JsonSection(JsonDocument(ReadOnlyStore({"a": {"x": 1}})), "a")
 
-        with pytest.raises(OSError, match="disk"), section.edit() as edited:
+        with pytest.raises(ReadOnlyStorageError), section.edit() as edited:
             edited["x"] = 5
 
         assert dict(section) == {"x": 1}
