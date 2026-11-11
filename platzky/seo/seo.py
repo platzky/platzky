@@ -67,9 +67,8 @@ def _route_entries(
         The entries, except those under an excluded path; none, with a warning logged, if one
         of its URLs cannot be built, e.g. a URL variable is missing.
     """
-    entries: list[SitemapEntry] = []
     try:
-        entries = [
+        return [
             entry
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
@@ -80,7 +79,7 @@ def _route_entries(
         ]
     except BuildError as error:
         logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
-    return entries
+        return []
 
 
 def create_seo_blueprint(

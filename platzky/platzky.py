@@ -338,14 +338,10 @@ def create_engine(
         """
         target_path = app.home_page_paths.get(app.get_locale())
         if target_path is None:
-            response: ResponseReturnValue = redirect(
-                app.language_url(config.default_language), code=302
-            )
-        else:
-            response = home_page_target_response(
-                app.url_map.bind(request.host), app.view_functions, target_path
-            )
-        return response
+            return redirect(app.language_url(config.default_language), code=302)
+        return home_page_target_response(
+            app.url_map.bind(request.host), app.view_functions, target_path
+        )
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -365,9 +361,9 @@ def create_engine(
         site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
         app_name = site_settings.app_name or config.app_name
         on_home_route = request.endpoint == "home_page"
+        # The home and the page it shows are one page: both are canonically the home.
         home_url = app.language_url(locale)
-        home_page_url = app.language_url(locale, app.home_page_paths.get(locale, "/"))
-        shows_home = on_home_route or request.base_url == home_page_url
+        home_urls = {home_url, app.language_url(locale, app.home_page_paths.get(locale, "/"))}
         return {
             "app_name": app_name,
             "app_title": site_settings.app_title or app_name,
@@ -381,7 +377,7 @@ def create_engine(
             "language_alternates": hreflang_alternates(
                 alternates, app.home_page_paths, on_home_route
             ),
-            "canonical_url": home_url if shows_home else request.base_url,
+            "canonical_url": home_url if request.base_url in home_urls else request.base_url,
             "language_suggestions": _language_suggestions(
                 config, locale, alternates, app.language_url
             ),
