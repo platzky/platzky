@@ -12,9 +12,10 @@ from werkzeug.test import TestResponse
 from platzky.config import Config
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.home_page import HomePagePathError
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
-from platzky.platzky import HomePagePathError, create_app_from_config
+from platzky.platzky import create_app_from_config
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from tests.unit_tests.fake_app import build_test_app, test_app
 
