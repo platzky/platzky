@@ -294,23 +294,13 @@ the homepage route (see `Homepage`_ below).
 Homepage
 ~~~~~~~~
 
-The root path (``/``) renders a configurable homepage instead of a fixed template.
-Platzky resolves the configured path against the application's own routes, so it can
-point at a page, a post, or any other registered route.
+The root path (``/``) of each language renders the path set as that language's
+``home_page_path`` (see `Site content`_). Platzky resolves it against the application's
+own routes, so it can point at a page, a post, or any other registered route.
 
-The homepage path isn't set in ``config.yml``: it is ``home_page_path`` in the
-language's entry of the site content (see `Site content`_), so it can be changed
-without redeploying and differs per language. A language without one uses the blog
-index.
-
-Behavior:
-
-* If no homepage path is configured, ``/`` falls back to the blog index at
-  ``BLOG_PREFIX``.
-* If the configured path doesn't resolve to a registered route, ``/`` renders the
-  404 page.
-* If the configured path resolves back to ``/`` itself, Platzky falls back to the
-  blog index instead of recursing.
+* Without a ``home_page_path``, or with one that resolves back to ``/``, ``/`` renders
+  the blog index at ``BLOG_PREFIX``.
+* With a path that doesn't resolve to a registered route, ``/`` renders the 404 page.
 
 .. _site-content:
 
