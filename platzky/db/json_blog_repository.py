@@ -17,7 +17,7 @@ from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepos
 from platzky.db.exceptions import NotFoundError
 from platzky.db.json_document import JsonSection
 from platzky.db.validation import parse
-from platzky.models import Page, PageMeta, Post, ReadOnlyMapping, StrictModel
+from platzky.models import LanguageCode, Page, PageMeta, Post, ReadOnlyMapping, StrictModel
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class BlogSection(StrictModel):
 
     posts: tuple[Mapping[str, Any], ...] = ()
     pages: tuple[Mapping[str, Any], ...] = ()
-    meta: ReadOnlyMapping[str, PageMeta]
+    meta: ReadOnlyMapping[LanguageCode, PageMeta]
 
 
 class _JsonPostRepository(PostRepository):
@@ -66,7 +66,7 @@ class _JsonPostRepository(PostRepository):
         return Post.model_validate(wanted_post)
 
     @override
-    def get_all(self, lang: str) -> list[Post]:
+    def get_all(self, lang: LanguageCode) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -82,7 +82,7 @@ class _JsonPostRepository(PostRepository):
         ]
 
     @override
-    def get_by_tag(self, tag: str, lang: str) -> list[Post]:
+    def get_by_tag(self, tag: str, lang: LanguageCode) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -163,7 +163,7 @@ class _JsonPageRepository(PageRepository):
         return Page.model_validate(wanted_page)
 
     @override
-    def get_all(self, lang: str) -> list[Page]:
+    def get_all(self, lang: LanguageCode) -> list[Page]:
         """Retrieve all pages for a specific language.
 
         Args:
@@ -213,7 +213,7 @@ class JsonBlogRepository(BlogRepository):
         return self._pages
 
     @override
-    def get_meta(self, lang: str) -> PageMeta:
+    def get_meta(self, lang: LanguageCode) -> PageMeta:
         """Retrieve the title and description of the blog index.
 
         Args:

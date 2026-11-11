@@ -11,10 +11,10 @@ from typing_extensions import override
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
 from platzky.db.validation import parse, validate_all
-from platzky.models import Page, PageMeta, Post
+from platzky.models import LanguageCode, Page, PageMeta, Post
 
 
-def _meta_of(document: Mapping[str, Any], lang: str) -> PageMeta:
+def _meta_of(document: Mapping[str, Any], lang: LanguageCode) -> PageMeta:
     """Return the meta a language's ``blog_meta`` document holds, without its ``_id``.
 
     Raises:
@@ -53,7 +53,7 @@ class _MongoPostRepository(PostRepository):
         return Post.model_validate(post_doc)
 
     @override
-    def get_all(self, lang: str) -> list[Post]:
+    def get_all(self, lang: LanguageCode) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -65,7 +65,7 @@ class _MongoPostRepository(PostRepository):
         return [Post.model_validate(post) for post in self._posts.find({"language": lang})]
 
     @override
-    def get_by_tag(self, tag: str, lang: str) -> list[Post]:
+    def get_by_tag(self, tag: str, lang: LanguageCode) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -128,7 +128,7 @@ class _MongoPageRepository(PageRepository):
         return Page.model_validate(page_doc)
 
     @override
-    def get_all(self, lang: str) -> list[Page]:
+    def get_all(self, lang: LanguageCode) -> list[Page]:
         """Retrieve all pages for a specific language.
 
         Args:
@@ -185,7 +185,7 @@ class MongoBlogRepository(BlogRepository):
         )
 
     @override
-    def get_meta(self, lang: str) -> PageMeta:
+    def get_meta(self, lang: LanguageCode) -> PageMeta:
         """Retrieve the title and description of the blog index.
 
         Args:

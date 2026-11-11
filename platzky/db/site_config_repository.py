@@ -9,7 +9,7 @@ from typing import Protocol
 
 from pydantic import Field
 
-from platzky.models import Font, Footer, MenuItem, StrictModel
+from platzky.models import Font, Footer, LanguageCode, MenuItem, StrictModel
 
 
 class LocalizedContent(StrictModel):
@@ -110,7 +110,7 @@ class SiteConfigRepository(Protocol):
         """
         ...
 
-    def get_localized_content(self, lang: str) -> LocalizedContent:
+    def get_localized_content(self, lang: LanguageCode) -> LocalizedContent:
         """Retrieve the content of one language: menu, footer, home page, texts.
 
         Args:

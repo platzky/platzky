@@ -18,6 +18,9 @@ def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
     return v
 
 
+LanguageCode = str
+"""A language code, as configured in LANGUAGES, e.g. ``pl`` or ``en``."""
+
 DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
 
 
@@ -167,7 +170,7 @@ class Post(BaseModel):
     contentInMarkdown: str
     excerpt: str
     coverImage: Image = Field(default_factory=Image)
-    language: str = "en"
+    language: LanguageCode = "en"
     comments: list[Comment] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     date: DateTimeField | None = None
