@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -44,7 +44,7 @@ from platzky.language_routing import (
     resolve_locale,
     served_languages,
 )
-from platzky.models import CmsModule
+from platzky.models import CmsModule, LanguageCode
 from platzky.notification_topics import NotificationTopic
 from platzky.plugin import PLUGIN_BASES
 from platzky.plugin.content_transformer import (
@@ -90,6 +90,9 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
 
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
+
+    home_page_paths: Mapping[LanguageCode, str]
+    """Language codes mapped to the path each language's home shows; set by ``create_engine``."""
 
     def __init__(
         self,
@@ -397,7 +400,7 @@ class Engine(Flask):
         """Append HTML to the dynamic head section rendered in templates."""
         self.dynamic_head += head
 
-    def get_locale(self) -> str:
+    def get_locale(self) -> LanguageCode:
         """Return the language of the current request.
 
         Returns:
@@ -484,7 +487,7 @@ class Engine(Flask):
                     **options,
                 )
 
-    def redirect_to_language(self, lang_code: str, path: str) -> BaseResponse:
+    def redirect_to_language(self, lang_code: LanguageCode, path: str) -> BaseResponse:
         """Permanently redirect to a page at the address where a language is served.
 
         Args:
@@ -500,7 +503,7 @@ class Engine(Flask):
         query = request.query_string.decode()
         return redirect(f"{url}?{query}" if query else url, code=308)
 
-    def current_page_language_alternates(self) -> dict[str, str]:
+    def current_page_language_alternates(self) -> dict[LanguageCode, str]:
         """Return the absolute URL of the current page in each configured language.
 
         Only localized routes without view arguments, such as the home page or the blog index,

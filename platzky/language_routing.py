@@ -15,6 +15,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
 
+from werkzeug.exceptions import MethodNotAllowed, NotFound
+from werkzeug.routing import Map
+
+from platzky.models import LanguageCode
+
 LANG_CODE_ARG = "lang_code"
 LOCALE_QUERY_ARG = "lang"
 """Query argument naming the language of a ``query_locale`` route, e.g. ``/api/x?lang=uk``."""
@@ -30,11 +35,11 @@ class SiteLanguages:
         default: Code of the language served at the root of the main host.
     """
 
-    domains: Mapping[str, str | None]
-    default: str
+    domains: Mapping[LanguageCode, str | None]
+    default: LanguageCode
 
     @cached_property
-    def domainless_languages(self) -> tuple[str, ...]:
+    def domainless_languages(self) -> tuple[LanguageCode, ...]:
         """Codes of the languages without their own domain, served under ``/<lang_code>/``.
 
         The default language is never one of them: it owns the root of the main host, even
@@ -47,7 +52,7 @@ class SiteLanguages:
         )
 
     @cached_property
-    def domainful_languages(self) -> tuple[str, ...]:
+    def domainful_languages(self) -> tuple[LanguageCode, ...]:
         """Codes of the languages served at the root of a host, never under ``/<lang_code>/``.
 
         These are every language with its own domain, and the default language, which owns
@@ -60,7 +65,7 @@ class SiteLanguages:
             if domain is not None or lang_code == self.default
         )
 
-    def url_prefix(self, lang_code: str) -> str:
+    def url_prefix(self, lang_code: LanguageCode) -> str:
         """Return the URL prefix of a language, the same on every host that serves it.
 
         Args:
@@ -73,12 +78,12 @@ class SiteLanguages:
         return f"/{lang_code}" if lang_code in self.domainless_languages else ""
 
 
-def any_converter(lang_codes: t.Iterable[str]) -> str:
+def any_converter(lang_codes: t.Iterable[LanguageCode]) -> str:
     """Return a URL converter matching exactly the given codes, e.g. ``any('pl', 'uk')``."""
     return "any(" + ", ".join(f"'{lang_code}'" for lang_code in lang_codes) + ")"
 
 
-def language_for_host(languages: SiteLanguages, host: str) -> str:
+def language_for_host(languages: SiteLanguages, host: str) -> LanguageCode:
     """Return the language whose ``domain`` is exactly ``host``, or the default language.
 
     Args:
@@ -95,7 +100,7 @@ def language_for_host(languages: SiteLanguages, host: str) -> str:
     )
 
 
-def served_languages(languages: SiteLanguages, host: str) -> dict[str, str]:
+def served_languages(languages: SiteLanguages, host: str) -> dict[LanguageCode, str]:
     """Map each language served on ``host`` to its URL prefix.
 
     Args:
@@ -112,7 +117,7 @@ def served_languages(languages: SiteLanguages, host: str) -> dict[str, str]:
     return {lang: languages.url_prefix(lang) for lang in served}
 
 
-def resolve_locale(languages: SiteLanguages, host: str, path: str) -> str:
+def resolve_locale(languages: SiteLanguages, host: str, path: str) -> LanguageCode:
     """Return the language a request is served in.
 
     Args:
@@ -135,7 +140,7 @@ def resolve_locale(languages: SiteLanguages, host: str, path: str) -> str:
 
 
 def language_url(
-    languages: SiteLanguages, lang: str, scheme: str, host: str, path: str = "/"
+    languages: SiteLanguages, lang: LanguageCode, scheme: str, host: str, path: str = "/"
 ) -> str:
     """Return the absolute URL of a page in a language, valid from any host.
 
@@ -157,3 +162,37 @@ def language_url(
         else languages.domains.get(lang) or languages.domains.get(languages.default) or host
     )
     return f"{scheme}://{serving_host}{languages.url_prefix(lang)}{path}"
+
+
+@dataclass(frozen=True)
+class RouteMatch:
+    """The route a path matches.
+
+    Attributes:
+        endpoint: Endpoint of the route
+        view_args: URL variables of the path, as the view receives them
+    """
+
+    endpoint: str
+    view_args: Mapping[str, t.Any]
+
+
+def route_for_path(url_map: Map, host: str, path: str) -> RouteMatch | None:
+    """Match a path against a URL map for GET.
+
+    Args:
+        url_map: URL map to match against
+        host: Host the request is served on
+        path: Path to match
+
+    Returns:
+        The matched route, or None if no route serves the path for GET.
+        A strict-slash mismatch raises RequestRedirect.
+    """
+    match: RouteMatch | None = None
+    try:
+        endpoint, view_args = url_map.bind(host).match(path, method="GET")
+        match = RouteMatch(endpoint, view_args)
+    except (NotFound, MethodNotAllowed):
+        match = None
+    return match

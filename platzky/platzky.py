@@ -5,6 +5,8 @@ import typing as t
 import urllib.parse
 from collections.abc import Awaitable, Iterable, Mapping, Sequence
 from functools import partial
+from types import MappingProxyType
+from urllib.parse import urlparse
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request
@@ -13,8 +15,9 @@ from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
-from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.routing import Map, RequestRedirect
 from werkzeug.wrappers import Response
 
 from platzky.admin import admin
@@ -33,8 +36,10 @@ from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
     language_url,
+    route_for_path,
 )
 from platzky.login import login
+from platzky.models import LanguageCode
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin import PluginBase
@@ -151,7 +156,7 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
     return rendered
 
 
-def _language_suggestion(config: Config, lang: str, url: str) -> dict[str, str]:
+def _language_suggestion(config: Config, lang: LanguageCode, url: str) -> dict[str, str]:
     """Return the texts and link of a popup suggesting a language, written in that language.
 
     Args:
@@ -174,8 +179,8 @@ def _language_suggestion(config: Config, lang: str, url: str) -> dict[str, str]:
 
 
 def _language_suggestions(
-    config: Config, locale: str, alternates: Mapping[str, str]
-) -> dict[str, dict[str, str]]:
+    config: Config, locale: LanguageCode, alternates: Mapping[LanguageCode, str]
+) -> dict[LanguageCode, dict[str, str]]:
     """Return a popup suggesting each configured language other than the current page's.
 
     Args:
@@ -198,6 +203,82 @@ def _language_suggestions(
     }
 
 
+class HomePagePathError(ValueError):
+    """A configured home page path is unusable."""
+
+
+def _stored_home_page_paths(
+    stored: Mapping[LanguageCode, str], default_language: LanguageCode, blog_prefix: str
+) -> Mapping[LanguageCode, str]:
+    """Return the home page path of each language that has one.
+
+    The default language's home is the blog index unless it has a page set.
+
+    Args:
+        stored: Home page path stored for each language, empty when it has none
+        default_language: The site's default language
+        blog_prefix: URL prefix of the blog
+
+    Returns:
+        Languages with a home page of their own, mapped to its path without a language prefix.
+    """
+    return MappingProxyType(
+        {
+            **{language: path for language, path in stored.items() if path},
+            default_language: stored[default_language] or f"{blog_prefix.rstrip('/')}/",
+        }
+    )
+
+
+def _served_home_page_paths(
+    url_map: Map, paths: Mapping[LanguageCode, str]
+) -> Mapping[LanguageCode, str]:
+    """Return the home page paths in the form their routes serve them in.
+
+    A path its route serves only in another form, such as ``/blog`` for the route ``/blog/``,
+    is replaced by that form, with a warning. Paths are matched on the host ``localhost``, so
+    routes bound to other hosts are not considered. Whether a path matches a route at all is
+    not checked: host applications register their own routes after the app is created.
+
+    Args:
+        url_map: The application's routes, all registered
+        paths: Home page path of each language that has one
+
+    Returns:
+        The paths as their routes serve them.
+
+    Raises:
+        HomePagePathError: If a path resolves to the home route itself, which would recurse,
+            or starts with a language prefix.
+    """
+    served_paths = {}
+    for language, path in paths.items():
+        try:
+            match = route_for_path(url_map, "localhost", path)
+            served = path
+        except RequestRedirect as redirect_to:
+            served = urlparse(redirect_to.new_url).path
+            logger.warning(
+                "The home page path %r of language %s is served as %r; write it in that form",
+                path,
+                language,
+                served,
+            )
+            match = route_for_path(url_map, "localhost", served)
+        if match is not None and LANG_CODE_ARG in match.view_args:
+            raise HomePagePathError(
+                f"The home page path {path!r} of language {language} has a language prefix; "
+                "write it without one, as the language of the home page is already known."
+            )
+        if match is not None and match.endpoint == "home_page":
+            raise HomePagePathError(
+                f"The home page path {path!r} of language {language} resolves to the "
+                "home page itself; configure the page to show instead."
+            )
+        served_paths[language] = served
+    return MappingProxyType(served_paths)
+
+
 def _www_redirection_response(config: Config) -> t.Optional[Response]:
     """Handle WWW subdomain redirection based on configuration.
 
@@ -212,7 +293,7 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
     return redirect_www_to_nonwww()
 
 
-def _change_language_response(config: Config, lang: str) -> Response:
+def _change_language_response(config: Config, lang: LanguageCode) -> Response:
     """Redirect to the home page of a language.
 
     Args:
@@ -227,41 +308,6 @@ def _change_language_response(config: Config, lang: str) -> Response:
     return redirect(
         language_url(config.site_languages, lang, request.scheme, request.host), code=302
     )
-
-
-def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
-    """Render the configured homepage, falling back to the blog index.
-
-    Resolves the home page path of the current request's locale through
-    the app's own URL map, so it can point at a page, a post, or any other
-    registered route. Falls back to the blog index if no homepage is
-    configured for that locale, or if the configured path resolves back to
-    this same route (which would otherwise recurse).
-
-    Args:
-        app: Platzky Engine instance
-        config: Application configuration object
-
-    Returns:
-        Rendered HTML of the resolved destination, or the 404 page.
-    """
-    configured_home = app.db.site_config.get_localized_content(app.get_locale()).home_page_path
-    target_path = (
-        configured_home
-        if configured_home not in {"", "/"}
-        else f"{config.blog_prefix.rstrip('/')}/"
-    )
-    try:
-        endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
-    except (NotFound, MethodNotAllowed):
-        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
-    if endpoint == request.endpoint:
-        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
-    view_args = {name: value for name, value in view_args.items() if name != LANG_CODE_ARG}
-    result = app.view_functions[endpoint](**view_args)
-    if isinstance(result, Awaitable):
-        raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
-    return result
 
 
 def create_engine(
@@ -294,6 +340,20 @@ def create_engine(
         extra_plugins_entrypoints,
         extra_content_types,
     )
+    app.home_page_paths = _stored_home_page_paths(
+        {
+            language: db.site_config.get_localized_content(language).home_page_path
+            for language in {config.default_language, *config.languages}
+        },
+        config.default_language,
+        config.blog_prefix,
+    )
+    for language in sorted(set(config.languages) - set(app.home_page_paths)):
+        logger.warning(
+            "Language %s has no home_page_path; its home page redirects (302) to the "
+            "default language's home page",
+            language,
+        )
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -307,7 +367,7 @@ def create_engine(
         return _www_redirection_response(config)
 
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang: str) -> Response:
+    def change_language(lang: LanguageCode) -> Response:
         """Redirect to the home page of a language.
 
         Args:
@@ -318,7 +378,7 @@ def create_engine(
         """
         return _change_language_response(config, lang)
 
-    def domainful_language_prefix(lang: str, path: str) -> Response:
+    def domainful_language_prefix(lang: LanguageCode, path: str) -> Response:
         """Redirect a URL prefixed with a language that is served without a prefix.
 
         Args:
@@ -345,12 +405,39 @@ def create_engine(
 
     @app.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
     def home_page() -> ResponseReturnValue:
-        """Render the configured homepage, falling back to the blog index.
+        """Render the configured homepage.
+
+        A language without a home page of its own redirects (302) to the home of the default
+        language, as a page may be added to it later.
 
         Returns:
-            Rendered HTML of the resolved destination, or the 404 page.
+            Rendered HTML of the resolved destination, the 404 page, or the redirect.
         """
-        return _home_page_response(app, config)
+        target_path = app.home_page_paths.get(app.get_locale())
+        if target_path is None:
+            response: ResponseReturnValue = redirect(
+                language_url(
+                    config.site_languages, config.default_language, request.scheme, request.host
+                ),
+                code=302,
+            )
+        else:
+            # Matched on the request host, unlike at startup; a route bound to that host may
+            # resolve back to this one.
+            match = route_for_path(app.url_map, request.host, target_path)
+            if match is None or match.endpoint == request.endpoint:
+                response = render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+            else:
+                view_args = {
+                    name: value for name, value in match.view_args.items() if name != LANG_CODE_ARG
+                }
+                result = app.view_functions[match.endpoint](**view_args)
+                if isinstance(result, Awaitable):
+                    raise TypeError(
+                        f"Async view functions are not supported (endpoint: {match.endpoint!r})"
+                    )
+                response = result
+        return response
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -369,6 +456,15 @@ def create_engine(
         localized = app.db.site_config.get_localized_content(locale)
         site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
         app_name = site_settings.app_name or config.app_name
+        on_home_route = request.endpoint == "home_page"
+        home_url = language_url(config.site_languages, locale, request.scheme, request.host)
+        home_page_url = language_url(
+            config.site_languages,
+            locale,
+            request.scheme,
+            request.host,
+            app.home_page_paths.get(locale, "/"),
+        )
         return {
             "app_name": app_name,
             "app_title": site_settings.app_title or app_name,
@@ -381,7 +477,15 @@ def create_engine(
             "language_url": partial(
                 language_url, config.site_languages, scheme=request.scheme, host=request.host
             ),
-            "language_alternates": alternates,
+            # On the home route, a language whose home redirects is not an alternate.
+            "language_alternates": {
+                lang: url
+                for lang, url in alternates.items()
+                if not on_home_route or lang in app.home_page_paths
+            },
+            "canonical_url": (
+                home_url if on_home_route or request.base_url == home_page_url else request.base_url
+            ),
             "language_suggestions": _language_suggestions(config, locale, alternates),
             "url_link": _url_encode,
             "menu_items": localized.menu_items,
@@ -569,14 +673,16 @@ def create_app_from_config(
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,
     )
+    engine.register_blueprint(login_blueprint)
+    engine.register_blueprint(admin_blueprint)
+    engine.register_blueprint(blog_blueprint)
+    engine.home_page_paths = _served_home_page_paths(engine.url_map, engine.home_page_paths)
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
         languages=config.site_languages,
         sitemap_providers=engine.sitemap_providers,
+        home_page_paths=engine.home_page_paths,
     )
-    engine.register_blueprint(login_blueprint)
-    engine.register_blueprint(admin_blueprint)
-    engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)
 
     Minify(app=engine, html=True, js=True, cssless=True)

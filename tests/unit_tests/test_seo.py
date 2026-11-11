@@ -2,6 +2,7 @@ import logging
 import secrets
 from collections.abc import Mapping
 from datetime import date
+from types import MappingProxyType
 
 import pytest
 from flask import Blueprint, Flask
@@ -19,14 +20,24 @@ def _make_seo_app(
     sitemap_providers: Mapping[str, SitemapProvider] | None = None,
     languages: SiteLanguages = _ENGLISH_ONLY,
     sitemap_excluded_prefixes: list[str] | None = None,
+    home_page_paths: Mapping[str, str] = MappingProxyType({"en": "/home"}),
 ) -> Flask:
-    """Build a minimal Flask app with the books routes and the SEO blueprint."""
+    """Build a minimal Flask app with the home and books routes and the SEO blueprint."""
     config = {"SEO_PREFIX": "/prefix", "SITEMAP_EXCLUDED_PREFIXES": sitemap_excluded_prefixes}
     app = Flask(__name__)
     app.config.update({"TESTING": True, "SECRET_KEY": secrets.token_hex()})
     CSRFProtect(app)
+    app.add_url_rule("/", "home_page")
+    app.add_url_rule("/<any('uk'):lang_code>/", "home_page")
     app.register_blueprint(_books_blueprint())
-    app.register_blueprint(seo.create_seo_blueprint(config, languages, sitemap_providers or {}))
+    app.register_blueprint(
+        seo.create_seo_blueprint(
+            config,
+            languages,
+            sitemap_providers or {},
+            home_page_paths,
+        )
+    )
     return app
 
 
@@ -107,14 +118,36 @@ def test_sitemap_asks_a_route_without_a_language_version_only_once():
     assert asked == ["en"]
 
 
-def test_sitemap_leaves_out_urls_under_an_excluded_prefix():
+def test_sitemap_leaves_out_urls_under_an_excluded_prefix_in_every_language():
     app = _make_seo_app(
         {"books.book": _books_in, "books.about": single_url},
+        _ENGLISH_AND_UKRAINIAN,
         sitemap_excluded_prefixes=["/books/"],
     )
     sitemap = _sitemap(app)
     assert "/books/" not in sitemap
     assert "http://localhost/about" in sitemap
+
+
+def test_sitemap_lists_the_home_instead_of_its_target_page():
+    app = _make_seo_app(
+        {"home_page": single_url, "books.about": single_url},
+        home_page_paths={"en": "/about"},
+    )
+    sitemap = _sitemap(app)
+    assert "<loc>http://localhost/</loc>" in sitemap
+    assert "<loc>http://localhost/about</loc>" not in sitemap
+
+
+def test_sitemap_leaves_out_the_home_of_a_language_without_a_home_page():
+    app = _make_seo_app(
+        {"home_page": single_url},
+        _ENGLISH_AND_UKRAINIAN,
+        home_page_paths={"en": "/about"},
+    )
+    sitemap = _sitemap(app)
+    assert "<loc>http://localhost/</loc>" in sitemap
+    assert "<loc>http://localhost/uk/</loc>" not in sitemap
 
 
 def _misspelled_books(_lang: str, url: UrlFor) -> list[SitemapEntry]:

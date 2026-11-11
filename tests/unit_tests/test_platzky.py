@@ -11,6 +11,7 @@ from platzky import create_app_from_config
 from platzky.config import Config
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.engine import Engine
+from platzky.language_routing import SiteLanguages
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -104,6 +105,9 @@ class TestPlatzky:
 
         mock_config = MagicMock()
         mock_config.context_processor_functions = [context_proc]
+        mock_config.default_language = "en"
+        mock_config.languages = {}
+        mock_config.site_languages = SiteLanguages(domains={}, default="en")
 
         app = create_engine(mock_config, mock_db)
         mock_processor = MagicMock()

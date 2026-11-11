@@ -20,9 +20,9 @@ from werkzeug.routing import BuildError
 from platzky.language_routing import (
     LANG_CODE_ARG,
     SiteLanguages,
-    language_url,
     served_languages,
 )
+from platzky.models import LanguageCode
 from platzky.sitemap import SitemapEntry, SitemapProvider
 
 logger = logging.getLogger(__name__)
@@ -33,42 +33,40 @@ def _is_localized(endpoint: str) -> bool:
     return any(LANG_CODE_ARG in rule.arguments for rule in current_app.url_map.iter_rules(endpoint))
 
 
-def _url_in_language(
-    languages: SiteLanguages, endpoint: str, lang_code: str, **values: object
-) -> str:
-    """Return the absolute URL of an endpoint in a language, on the host that serves it.
+def _endpoint_url(language_root: str, endpoint: str, **values: object) -> str:
+    """Return the absolute URL of an endpoint under a language's root URL.
 
     Args:
-        languages: The site's languages.
-        endpoint: The endpoint; for a domainless language, one registered with ``multilang``.
-        lang_code: The language to link to.
+        language_root: Scheme, host and language prefix, e.g. ``https://example.com/pl``.
+        endpoint: The endpoint; under a language prefix, one registered with ``multilang``.
         **values: The endpoint's URL variables, as for ``url_for``.
 
     Returns:
-        The URL under the language's prefix, on its own domain or the main host.
+        The URL of the endpoint under the language's root.
     """
     url_values: dict[str, t.Any] = {**values, LANG_CODE_ARG: None}
-    path = url_for(endpoint, **url_values)
-    return language_url(languages, lang_code, request.scheme, request.host, path)
+    return f"{language_root}{url_for(endpoint, **url_values)}"
 
 
 def _route_entries(
-    languages: SiteLanguages,
-    prefixes: t.Mapping[str, str],
+    root: str,
+    prefixes: t.Mapping[LanguageCode, str],
     endpoint: str,
     provider: SitemapProvider,
+    excluded_prefixes: tuple[str, ...],
 ) -> list[SitemapEntry]:
     """Return a route's sitemap entries in every language served on the host.
 
     Args:
-        languages: The site's languages.
+        root: Scheme and host of the request, e.g. ``https://example.com``.
         prefixes: Languages served on the current host mapped to their URL prefix.
         endpoint: The route's endpoint.
         provider: Its ``sitemap_provider``.
+        excluded_prefixes: Paths to leave out, matched without the language prefix.
 
     Returns:
-        The entries; none, with a warning logged, if one of its URLs cannot be built, e.g. a
-        URL variable is missing.
+        The entries, except those under an excluded path; none, with a warning logged, if one
+        of its URLs cannot be built, e.g. a URL variable is missing.
     """
     entries: list[SitemapEntry] = []
     try:
@@ -76,7 +74,10 @@ def _route_entries(
             entry
             for lang, prefix in prefixes.items()
             if not prefix or _is_localized(endpoint)
-            for entry in provider(lang, partial(_url_in_language, languages, endpoint, lang))
+            for entry in provider(lang, partial(_endpoint_url, f"{root}{prefix}", endpoint))
+            if not urllib.parse.urlparse(entry.loc)
+            .path.removeprefix(prefix)
+            .startswith(excluded_prefixes)
         ]
     except BuildError as error:
         logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
@@ -87,6 +88,7 @@ def create_seo_blueprint(
     config: dict[str, t.Any],
     languages: SiteLanguages,
     sitemap_providers: t.Mapping[str, SitemapProvider],
+    home_page_paths: t.Mapping[LanguageCode, str],
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
@@ -97,6 +99,9 @@ def create_seo_blueprint(
         sitemap_providers: Endpoints registered with the ``sitemap_provider`` option, mapped to
             their entries; read on every sitemap request, so routes registered after the
             blueprint is created are included
+        home_page_paths: The home page path of each language with a page of its own, without a
+            language prefix; a path is left out of the sitemap, as its canonical URL is the
+            home, and so is the home of a language without one, as it redirects
 
     Returns:
         Configured Flask Blueprint for SEO functionality
@@ -130,19 +135,20 @@ def create_seo_blueprint(
         Returns:
             XML response containing the sitemap
         """
+        root = f"{request.scheme}://{request.host}"
         prefixes = served_languages(languages, request.host)
         excluded_prefixes = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
 
         entries = [
             entry
             for endpoint, provider in sitemap_providers.items()
-            for entry in _route_entries(languages, prefixes, endpoint, provider)
+            for entry in _route_entries(root, prefixes, endpoint, provider, excluded_prefixes)
         ]
-        urls = {
-            entry.loc: entry.lastmod
-            for entry in entries
-            if not urllib.parse.urlparse(entry.loc).path.startswith(excluded_prefixes)
+        home_urls = {
+            f"{root}{prefix}{home_page_paths.get(language, '/')}"
+            for language, prefix in prefixes.items()
         }
+        urls = {entry.loc: entry.lastmod for entry in entries if entry.loc not in home_urls}
         xml_sitemap = render_template("sitemap.xml", urls=urls)
         response = make_response(xml_sitemap)
         response.headers["Content-Type"] = "application/xml"

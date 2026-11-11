@@ -1,3 +1,5 @@
+import re
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
@@ -12,11 +14,24 @@ from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
-from platzky.platzky import create_app_from_config
+from platzky.platzky import HomePagePathError, create_app_from_config
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from tests.unit_tests.fake_app import build_test_app, test_app
 
 test_app = test_app
+
+_BLOG_HOME = {"localized_content": {"en": {"home_page_path": "/blog/"}}}
+_BLOG_HOME_IN_EVERY_LANGUAGE = {
+    "localized_content": {lang: {"home_page_path": "/blog/"} for lang in ("en", "pl")}
+}
+
+
+def _home_page_paths(path_by_language: Mapping[str, str]) -> dict[str, Any]:
+    return {
+        "localized_content": {
+            language: {"home_page_path": path} for language, path in path_by_language.items()
+        }
+    }
 
 
 def test_babel_gets_proper_directories(test_app: Engine):
@@ -84,7 +99,7 @@ def test_www_redirects(use_www: bool):
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "site_config": {},
+                "site_config": _BLOG_HOME,
                 "blog": {
                     "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
                 },
@@ -121,7 +136,13 @@ def _build_home_page_test_app(
         "USE_WWW": False,
         "BLOG_PREFIX": "/blog",
         "LANGUAGES": languages or {},
-        "DB": {"TYPE": "json", "DATA": {"site_config": site_config, "blog": blog or {}}},
+        "DB": {
+            "TYPE": "json",
+            "DATA": {
+                "site_config": {**_BLOG_HOME, **site_config},
+                "blog": blog or {},
+            },
+        },
     }
     if default_language is not None:
         config_data["DEFAULT_LANGUAGE"] = default_language
@@ -177,30 +198,6 @@ def test_home_page_renders_configured_post():
     assert b"Welcome to the site" in response.data
 
 
-def test_home_page_falls_back_to_blog_index_when_not_configured():
-    app = _build_home_page_test_app(
-        {},
-        {
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        },
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
-
-
 _BILINGUAL_LANGUAGES = {
     "en": {"name": "English", "flag": "us", "country": "US"},
     "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
@@ -244,9 +241,8 @@ def test_home_page_ignores_accept_language():
     assert b"Hello there" in response.data
 
 
-@pytest.mark.parametrize("pl_home_path", ["/blog/page/o-nas", "/pl/blog/page/o-nas"])
-def test_home_page_resolves_domainless_language_home(pl_home_path: str):
-    app = _build_bilingual_home_page_test_app(pl_home_path)
+def test_home_page_resolves_domainless_language_home():
+    app = _build_bilingual_home_page_test_app()
     response = app.test_client().get("/pl/")
     assert response.status_code == 200
     assert b"Witaj" in response.data
@@ -260,30 +256,54 @@ def test_home_page_404s_when_configured_path_does_not_resolve():
     assert response.status_code == 404
 
 
-def test_home_page_falls_back_when_configured_path_is_root():
+def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_home():
     app = _build_home_page_test_app(
-        {
-            "localized_content": {"en": {"home_page_path": "/"}},
-        },
-        {
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        },
+        _home_page_paths({"pl": "/blog/page/o-nas"}),
+        _POSTS_AND_PAGES,
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
     )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
+    client = app.test_client()
+
+    home = client.get("/")
+    sitemap = client.get("/sitemap.xml").text
+
+    assert home.status_code == 200
+    assert b"Welcome" in home.data
+    assert "http://localhost/<" in sitemap
+    assert "http://localhost/blog/<" not in sitemap
+
+
+@pytest.mark.parametrize("language", ["en", "pl"])
+def test_startup_refuses_a_root_home_page_path_for_any_language(language: str):
+    site_config = _home_page_paths(
+        {"en": "/blog/page/about", "pl": "/blog/page/o-nas", language: "/"}
+    )
+    with pytest.raises(HomePagePathError, match=f"'/' of language {language}"):
+        _build_home_page_test_app(
+            site_config,
+            {"pages": _ABOUT_PAGES},
+            languages=_BILINGUAL_LANGUAGES,
+            default_language="en",
+        )
+
+
+def test_startup_refuses_a_home_page_path_with_a_language_prefix():
+    with pytest.raises(
+        HomePagePathError, match=r"'/pl/blog/page/o-nas' of language pl has a language prefix"
+    ):
+        _build_bilingual_home_page_test_app("/pl/blog/page/o-nas")
+
+
+def test_startup_refuses_a_home_page_path_resolving_to_the_home_route():
+    site_config = _home_page_paths({"en": "/pl/", "pl": "/blog/page/o-nas"})
+    with pytest.raises(HomePagePathError, match="'/pl/' of language en"):
+        _build_home_page_test_app(
+            site_config,
+            {"pages": _ABOUT_PAGES},
+            languages=_BILINGUAL_LANGUAGES,
+            default_language="en",
+        )
 
 
 def test_that_404_page_title_includes_app_name(test_app: Engine):
@@ -340,7 +360,7 @@ def _build_dedicated_domain_test_app() -> Engine:
             "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
             "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
         },
-        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME_IN_EVERY_LANGUAGE}},
     }
     config = Config.model_validate(config_data)
     return create_app_from_config(config)
@@ -380,7 +400,7 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
                 "domain": "pl.example.com:5000",
             },
         },
-        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME_IN_EVERY_LANGUAGE}},
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
@@ -409,7 +429,7 @@ def test_locale_does_not_match_domain_on_a_different_port():
                 "domain": "pl.example.com:5000",
             },
         },
-        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME}},
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
@@ -647,7 +667,7 @@ def test_is_enabled_with_flag_on():
         "DB": {
             "TYPE": "json",
             "DATA": {
-                "site_config": {},
+                "site_config": _BLOG_HOME,
                 "blog": {
                     "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
                 },
@@ -914,7 +934,10 @@ def _build_three_language_test_app() -> Engine:
                 "pl": {"name": "polski", "flag": "pl", "country": "PL"},
                 "de": {"name": "Deutsch", "flag": "de", "country": "DE", "domain": "example.de"},
             },
-            "DB": {"TYPE": "json", "DATA": {"site_config": {}, "blog": {"pages": _ABOUT_PAGES}}},
+            "DB": {
+                "TYPE": "json",
+                "DATA": {"site_config": _BLOG_HOME, "blog": {"pages": _ABOUT_PAGES}},
+            },
         }
     )
     return create_app_from_config(config)
@@ -1058,7 +1081,7 @@ def test_www_domains_serve_and_link_their_languages():
                     "domain": "www.example.de",
                 },
             },
-            "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+            "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME}},
         }
     )
     client = create_app_from_config(config).test_client()
@@ -1183,3 +1206,185 @@ def test_query_locale_does_not_change_pages():
     client = _build_api_test_app().test_client()
     response = client.get("/blog/?lang=pl", headers={"Host": "example.com"})
     assert _language_indicator(response) == "en"
+
+
+def _build_fallback_home_page_test_app() -> Engine:
+    return _build_home_page_test_app(
+        _home_page_paths({"en": "/blog/page/about"}),
+        {"pages": _ABOUT_PAGES},
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_language_without_a_home_page_path_redirects_to_the_default_home():
+    response = _build_fallback_home_page_test_app().test_client().get("/pl/")
+    assert response.status_code == 302
+    assert response.headers["Location"] == "http://localhost/"
+
+
+def test_language_without_a_home_page_path_is_not_in_the_sitemap():
+    sitemap = _build_fallback_home_page_test_app().test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/pl/</loc>" not in sitemap
+    assert "<loc>http://localhost/</loc>" in sitemap
+
+
+def test_startup_warns_about_each_language_without_a_home_page_path(
+    caplog: pytest.LogCaptureFixture,
+):
+    with caplog.at_level("WARNING", logger="platzky.engine"):
+        _build_fallback_home_page_test_app()
+    assert [record.getMessage() for record in caplog.records] == [
+        "Language pl has no home_page_path; its home page redirects (302) to the "
+        "default language's home page"
+    ]
+
+
+def test_startup_does_not_warn_when_every_language_has_a_home_page_path(
+    caplog: pytest.LogCaptureFixture,
+):
+    with caplog.at_level("WARNING", logger="platzky.engine"):
+        _build_bilingual_home_page_test_app()
+    assert caplog.records == []
+
+
+def test_home_without_a_page_is_not_an_hreflang_alternate_but_is_still_suggested():
+    response = _build_fallback_home_page_test_app().test_client().get("/")
+    assert _hreflang_urls(response) == {
+        "en": "http://localhost/",
+        "x-default": "http://localhost/",
+    }
+    assert _language_suggestion_urls(response) == {"pl": "http://localhost/pl/"}
+
+
+def test_home_with_its_own_path_keeps_its_hreflang_alternate():
+    app = _build_bilingual_home_page_test_app()
+    assert _hreflang_urls(app.test_client().get("/")) == {
+        "en": "http://localhost/",
+        "pl": "http://localhost/pl/",
+        "x-default": "http://localhost/",
+    }
+
+
+_POSTS_AND_PAGES = {
+    "pages": _ABOUT_PAGES,
+    "posts": [
+        {
+            "title": "Welcome",
+            "slug": "welcome-post",
+            "language": "en",
+            "excerpt": "excerpt",
+            "author": "author",
+            "tags": [],
+            "contentInMarkdown": "Welcome to the site",
+            "date": "2021-02-19",
+            "comments": [],
+        }
+    ],
+}
+
+
+def _canonical(app: Engine, path: str) -> str | None:
+    match = re.search(r'<link rel="canonical" href="([^"]*)"', app.test_client().get(path).text)
+    return match.group(1) if match else None
+
+
+def test_canonical_of_home_page_target_is_root_when_served_at_root():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/page/about"}), _POSTS_AND_PAGES)
+    assert _canonical(app, "/") == "http://localhost/"
+
+
+def test_canonical_of_home_page_target_is_root_at_its_direct_url():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/page/about"}), _POSTS_AND_PAGES)
+    assert _canonical(app, "/blog/page/about") == "http://localhost/"
+
+
+def test_canonical_of_home_post_target_is_root_at_its_direct_url():
+    app = _build_home_page_test_app(
+        _home_page_paths({"en": "/blog/welcome-post"}), _POSTS_AND_PAGES
+    )
+    assert _canonical(app, "/blog/welcome-post") == "http://localhost/"
+
+
+def test_canonical_of_other_page_is_its_own_url():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/page/about"}), _POSTS_AND_PAGES)
+    assert _canonical(app, "/blog/page/o-nas") == "http://localhost/blog/page/o-nas"
+
+
+def test_canonical_is_own_url_when_home_page_is_the_blog_index():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/"}), _POSTS_AND_PAGES)
+    assert _canonical(app, "/blog/page/about") == "http://localhost/blog/page/about"
+
+
+def test_canonical_of_localized_home_page_target_is_the_language_home():
+    app = _build_bilingual_home_page_test_app()
+    assert _canonical(app, "/pl/blog/page/o-nas") == "http://localhost/pl/"
+    assert _canonical(app, "/pl/blog/page/about") == "http://localhost/pl/blog/page/about"
+
+
+def test_sitemap_leaves_out_home_page_target_but_lists_other_pages():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/page/about"}), _POSTS_AND_PAGES)
+    sitemap = app.test_client().get("/sitemap.xml").text
+    assert "<loc>http://localhost/</loc>" in sitemap
+    assert "/blog/page/about<" not in sitemap
+    assert "http://localhost/blog/page/o-nas<" in sitemap
+    assert "http://localhost/blog/welcome-post<" in sitemap
+
+
+def test_sitemap_leaves_out_localized_home_page_target_per_language():
+    pages = [
+        {**_ABOUT_PAGES[0], "slug": "about", "language": "en"},
+        {**_ABOUT_PAGES[0], "slug": "o-nas", "language": "en"},
+        {**_ABOUT_PAGES[1], "slug": "about", "language": "pl"},
+        {**_ABOUT_PAGES[1], "slug": "o-nas", "language": "pl"},
+    ]
+    app = _build_home_page_test_app(
+        _home_page_paths({"en": "/blog/page/about", "pl": "/blog/page/o-nas"}),
+        {"pages": pages},
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+    sitemap = app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/blog/page/about<" not in sitemap
+    assert "http://localhost/pl/blog/page/o-nas<" not in sitemap
+    assert "http://localhost/blog/page/o-nas<" in sitemap
+    assert "http://localhost/pl/blog/page/about<" in sitemap
+
+
+def test_sitemap_lists_pages_when_home_page_is_the_blog_index():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog/"}), _POSTS_AND_PAGES)
+    sitemap = app.test_client().get("/sitemap.xml").text
+    assert "http://localhost/blog/page/about<" in sitemap
+
+
+def test_home_page_path_without_its_route_trailing_slash_is_served_in_the_route_form():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog"}), _POSTS_AND_PAGES)
+    client = app.test_client()
+
+    home = client.get("/")
+    sitemap = client.get("/sitemap.xml").text
+
+    assert home.status_code == 200
+    assert "http://localhost/<" in sitemap
+    assert "http://localhost/blog/<" not in sitemap
+
+
+def test_home_page_target_under_custom_blog_prefix():
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": False,
+            "BLOG_PREFIX": "/articles",
+            "DB": {
+                "TYPE": "json",
+                "DATA": {
+                    "site_config": _home_page_paths({"en": "/articles/page/about"}),
+                    "blog": _POSTS_AND_PAGES,
+                },
+            },
+        }
+    )
+    app = create_app_from_config(config)
+    assert _canonical(app, "/articles/page/about") == "http://localhost/"
+    assert "/articles/page/about<" not in app.test_client().get("/sitemap.xml").text
