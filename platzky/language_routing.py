@@ -15,9 +15,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
 
-from werkzeug.exceptions import MethodNotAllowed, NotFound
-from werkzeug.routing import Map
-
 from platzky.models import LanguageCode
 
 LANG_CODE_ARG = "lang_code"
@@ -162,37 +159,3 @@ def language_url(
         else languages.domains.get(lang) or languages.domains.get(languages.default) or host
     )
     return f"{scheme}://{serving_host}{languages.url_prefix(lang)}{path}"
-
-
-@dataclass(frozen=True)
-class RouteMatch:
-    """The route a path matches.
-
-    Attributes:
-        endpoint: Endpoint of the route
-        view_args: URL variables of the path, as the view receives them
-    """
-
-    endpoint: str
-    view_args: Mapping[str, t.Any]
-
-
-def route_for_path(url_map: Map, host: str, path: str) -> RouteMatch | None:
-    """Match a path against a URL map for GET.
-
-    Args:
-        url_map: URL map to match against
-        host: Host the request is served on
-        path: Path to match
-
-    Returns:
-        The matched route, or None if no route serves the path for GET.
-        A strict-slash mismatch raises RequestRedirect.
-    """
-    match: RouteMatch | None = None
-    try:
-        endpoint, view_args = url_map.bind(host).match(path, method="GET")
-        match = RouteMatch(endpoint, view_args)
-    except (NotFound, MethodNotAllowed):
-        match = None
-    return match
