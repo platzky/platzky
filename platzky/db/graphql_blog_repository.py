@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
 from platzky.db.exceptions import NotFoundError
-from platzky.models import Page, PageMeta, Post
+from platzky.models import LanguageCode, Page, PageMeta, Post
 
 
 def _standardize_comment(
@@ -149,7 +149,7 @@ class _GraphQLPostRepository(PostRepository):
         return Post.model_validate(_standardize_post(post_raw))
 
     @override
-    def get_all(self, lang: str) -> list[Post]:
+    def get_all(self, lang: LanguageCode) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -195,7 +195,7 @@ class _GraphQLPostRepository(PostRepository):
         return [Post.model_validate(_standardize_post(post)) for post in raw_ql_posts]
 
     @override
-    def get_by_tag(self, tag: str, lang: str) -> list[Post]:
+    def get_by_tag(self, tag: str, lang: LanguageCode) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -330,7 +330,7 @@ class _GraphQLPageRepository(PageRepository):
         return Page.model_validate(_standardize_page(page_raw))
 
     @override
-    def get_all(self, lang: str) -> list[Page]:
+    def get_all(self, lang: LanguageCode) -> list[Page]:
         """Retrieve all pages for a specific language.
 
         Args:
@@ -391,7 +391,7 @@ class GraphQLBlogRepository(BlogRepository):
         return self._pages
 
     @override
-    def get_meta(self, lang: str) -> PageMeta:
+    def get_meta(self, lang: LanguageCode) -> PageMeta:
         """Retrieve the title and description of the blog index.
 
         Args:

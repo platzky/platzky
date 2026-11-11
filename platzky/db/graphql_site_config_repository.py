@@ -12,6 +12,7 @@ from platzky.db.site_config_repository import (
     SiteConfig,
     SiteConfigRepository,
 )
+from platzky.models import LanguageCode
 
 _SITE_CONFIG_QUERY = gql("""
     query SiteConfig {
@@ -85,7 +86,7 @@ class GraphQLSiteConfigRepository(SiteConfigRepository):
         return SiteConfig.model_validate(_without_unset(next(iter(result["sites"]), {})))
 
     @override
-    def get_localized_content(self, lang: str) -> LocalizedContent:
+    def get_localized_content(self, lang: LanguageCode) -> LocalizedContent:
         """Retrieve the content of one language.
 
         Args:

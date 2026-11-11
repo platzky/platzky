@@ -9,7 +9,7 @@ from typing_extensions import override
 from platzky.db.json_document import JsonSection
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
 from platzky.db.validation import parse
-from platzky.models import ReadOnlyMapping
+from platzky.models import LanguageCode, ReadOnlyMapping
 
 
 class SiteConfigSection(SiteConfig):
@@ -22,7 +22,7 @@ class SiteConfigSection(SiteConfig):
         localized_content: The per-language content, by language code
     """
 
-    localized_content: ReadOnlyMapping[str, LocalizedContent]
+    localized_content: ReadOnlyMapping[LanguageCode, LocalizedContent]
 
 
 class JsonSiteConfigRepository(SiteConfigRepository):
@@ -56,7 +56,7 @@ class JsonSiteConfigRepository(SiteConfigRepository):
         return self._site_config
 
     @override
-    def get_localized_content(self, lang: str) -> LocalizedContent:
+    def get_localized_content(self, lang: LanguageCode) -> LocalizedContent:
         """Retrieve the content of one language.
 
         Args:

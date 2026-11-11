@@ -4,6 +4,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date
 
+from platzky.models import LanguageCode
+
 
 @dataclass(frozen=True)
 class SitemapEntry:
@@ -21,10 +23,10 @@ class SitemapEntry:
 UrlFor = Callable[..., str]
 """Takes a route's URL variables as keywords; returns its absolute URL in one language."""
 
-SitemapProvider = Callable[[str, UrlFor], Iterable[SitemapEntry]]
+SitemapProvider = Callable[[LanguageCode, UrlFor], Iterable[SitemapEntry]]
 """Takes a language code and ``url`` for the route in it; returns the route's entries."""
 
 
-def single_url(_lang: str, url: UrlFor) -> list[SitemapEntry]:
+def single_url(_lang: LanguageCode, url: UrlFor) -> list[SitemapEntry]:
     """List the one URL of a route without URL variables."""
     return [SitemapEntry(url())]

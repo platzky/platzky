@@ -14,7 +14,7 @@ from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
-from platzky.models import Page, Post
+from platzky.models import LanguageCode, Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from platzky.text_format import MARKDOWN
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def create_blog_blueprint(
     blog_repository: BlogRepository,
     blog_prefix: str,
-    locale_func: Callable[[], str],
+    locale_func: Callable[[], LanguageCode],
     content_transformer: Callable[[ContentSource | str, FilterContentType], str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
@@ -75,14 +75,14 @@ def create_blog_blueprint(
         logger.error("Content at %s cannot be rendered: %s", request.path, e)
         return render_template("content_error.html"), 500
 
-    def post_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
+    def post_entries(lang: LanguageCode, url: UrlFor) -> list[SitemapEntry]:
         """List every post in a language for the sitemap, dated when it has a date."""
         return [
             SitemapEntry(url(post_slug=post.slug), post.date)
             for post in blog_repository.posts.get_all(lang)
         ]
 
-    def page_entries(lang: str, url: UrlFor) -> list[SitemapEntry]:
+    def page_entries(lang: LanguageCode, url: UrlFor) -> list[SitemapEntry]:
         """List every page in a language for the sitemap, dated when it has a date."""
         return [
             SitemapEntry(url(page_slug=page.slug), page.date)

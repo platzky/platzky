@@ -8,7 +8,7 @@ site-wide and plugin storage.
 
 from typing import Protocol
 
-from platzky.models import Page, PageMeta, Post
+from platzky.models import LanguageCode, Page, PageMeta, Post
 
 
 class PostRepository(Protocol):
@@ -28,7 +28,7 @@ class PostRepository(Protocol):
         """
         ...
 
-    def get_all(self, lang: str) -> list[Post]:
+    def get_all(self, lang: LanguageCode) -> list[Post]:
         """Retrieve all posts for a specific language.
 
         Args:
@@ -39,7 +39,7 @@ class PostRepository(Protocol):
         """
         ...
 
-    def get_by_tag(self, tag: str, lang: str) -> list[Post]:
+    def get_by_tag(self, tag: str, lang: LanguageCode) -> list[Post]:
         """Retrieve posts filtered by tag and language.
 
         Args:
@@ -83,7 +83,7 @@ class PageRepository(Protocol):
         """
         ...
 
-    def get_all(self, lang: str) -> list[Page]:
+    def get_all(self, lang: LanguageCode) -> list[Page]:
         """Retrieve all pages for a specific language.
 
         Args:
@@ -108,7 +108,7 @@ class BlogRepository(Protocol):
         """Page repository."""
         ...
 
-    def get_meta(self, lang: str) -> PageMeta:
+    def get_meta(self, lang: LanguageCode) -> PageMeta:
         """Retrieve the title and description of the blog index.
 
         Args:
