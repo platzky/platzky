@@ -60,6 +60,32 @@ class SiteLanguages:
             if domain is not None or lang_code == self.default
         )
 
+    def trusted_hosts(self, extra: t.Iterable[str] = ()) -> tuple[str, ...] | None:
+        """Return the hosts the app answers to, for Flask's ``TRUSTED_HOSTS``.
+
+        Each language domain is trusted with and without ``www.``, since the www redirect
+        handler sends visitors to either form. ``localhost`` and ``127.0.0.1`` stay trusted
+        for local development. Werkzeug ignores the port when matching, and it cannot match
+        a bracketed IPv6 literal such as ``[::1]`` (it splits on the first colon), so none is
+        added.
+
+        Args:
+            extra: Further hosts to trust, appended as given; a leading dot such as
+                ``.example.com`` matches every subdomain.
+
+        Returns:
+            The trusted hosts, or None (unrestricted) when no language has a domain.
+        """
+        domains = [domain for domain in self.domains.values() if domain is not None]
+        if not domains:
+            return None
+        hosts = [
+            host
+            for domain in domains
+            for host in (domain, f"www.{domain.removeprefix('www.')}", domain.removeprefix("www."))
+        ]
+        return tuple(dict.fromkeys([*hosts, "localhost", "127.0.0.1", *extra]))
+
     def url_prefix(self, lang_code: str) -> str:
         """Return the URL prefix of a language, the same on every host that serves it.
 

@@ -210,6 +210,22 @@ exactly as the site is served, in lowercase: with ``USE_WWW`` on (the default) t
 non-standard port, as in local or staging setups, needs it in the domain
 (``domain: example.de:5000``).
 
+Once any language has a ``domain``, the app answers only to those domains (with and without
+``www.``), ``localhost`` and ``127.0.0.1``; any other ``Host`` header gets a 400. The port is
+ignored when matching. Without domains every host is accepted. To accept more hosts, such as
+a staging host, a ``*.run.app`` or ``appspot.com`` default URL, or the Host a reverse proxy
+sends upstream, list them in ``EXTRA_TRUSTED_HOSTS``. A leading dot matches every subdomain:
+
+.. code-block:: yaml
+
+    EXTRA_TRUSTED_HOSTS:
+      - staging.example.com
+      - .example-staging.run.app
+
+Kubernetes probes that call the pod IP send that IP as ``Host``: either set an
+``httpHeaders`` ``Host`` on the probe, or add the address here. IPv6 literals such as
+``[::1]`` cannot be matched by Werkzeug and are not supported.
+
 The language switcher links to each language's home page, and ``/lang/<code>`` redirects
 there. Pages that exist in every language (the homepage, the blog index and other localized
 routes without arguments) list each language's version in ``hreflang`` tags. Posts, pages and

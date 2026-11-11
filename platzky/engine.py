@@ -128,6 +128,8 @@ class Engine(Flask):
         )
         self.config.from_mapping(config.model_dump(by_alias=True))
         self.config["FEATURE_FLAGS"] = config.feature_flags
+        trusted_hosts = config.site_languages.trusted_hosts(config.extra_trusted_hosts)
+        self.config["TRUSTED_HOSTS"] = None if trusted_hosts is None else list(trusted_hosts)
         self._platzky_config = config
         self._localized_endpoints: set[str] = set()
         self._query_locale_endpoints: set[str] = set()
