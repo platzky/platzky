@@ -1,100 +1,68 @@
-"""SiteConfigRepository implementation backed by a shared JSON document."""
+"""SiteConfigRepository implementation backed by a shared JSON document.
+
+It gets only the ``site_config`` section of the document: the site-wide `SiteConfig` keys and
+the ``localized_content`` of each language.
+"""
 
 from typing_extensions import override
 
-from platzky.db.json_document import JsonDocument, get_site_content
-from platzky.db.site_config_repository import SiteConfigRepository, SiteSettings
-from platzky.models import Footer, Image, MenuItem, PageMeta
+from platzky.db.json_document import JsonSection
+from platzky.db.site_config_repository import LocalizedContent, SiteConfig, SiteConfigRepository
+from platzky.db.validation import parse
+from platzky.models import ReadOnlyMapping
+
+
+class SiteConfigSection(SiteConfig):
+    """The ``site_config`` section of a JSON document, as stored.
+
+    The site-wide `SiteConfig` plus the content of each language. Unknown keys and null values
+    are errors.
+
+    Attributes:
+        localized_content: The per-language content, by language code
+    """
+
+    localized_content: ReadOnlyMapping[str, LocalizedContent]
 
 
 class JsonSiteConfigRepository(SiteConfigRepository):
-    """Site config repository backed by a shared, in-memory document."""
+    """Site config repository backed by a section of a shared, in-memory document."""
 
-    def __init__(self, document: JsonDocument) -> None:
-        """Store a reference to the shared document.
+    def __init__(self, section: JsonSection) -> None:
+        """Validate the section once: nothing changes it after the document is loaded.
 
         Args:
-            document: The loaded document, shared with the other JSON
-                repositories. Writes go through `JsonDocument.edit()`.
-        """
-        self._document = document
+            section: The ``site_config`` section of the shared document, the only part of it
+                this repository sees.
 
-    @override
-    def get_site_settings(self) -> SiteSettings:
-        """Retrieve branding and description settings for the app.
-
-        Returns:
-            The app's site settings.
+        Raises:
+            InvalidDataError: If it is invalid; the message lists every problem with its
+                path, one per line.
         """
-        site_content = get_site_content(self._document.data)
-        logo_url = site_content.get("logo_url") or ""
-        return SiteSettings(
-            logo=Image(url=logo_url) if logo_url else None,
-            favicon_url=site_content.get("favicon_url") or "",
-            primary_color=site_content.get("primary_color") or "white",
-            secondary_color=site_content.get("secondary_color") or "navy",
-            font=site_content.get("font") or "",
-            app_description=site_content.get("app_description") or {},
+        config = parse(SiteConfigSection, section, section.name)
+        # Keep only the site-wide fields: the section also carries localized_content.
+        self._site_config = SiteConfig(
+            **{name: getattr(config, name) for name in SiteConfig.model_fields}
         )
+        self._localized_content = config.localized_content
 
     @override
-    def get_menu_items_in_lang(self, lang: str) -> list[MenuItem]:
-        """Retrieve menu items for a specific language.
+    def get_site_config(self) -> SiteConfig:
+        """Retrieve the site-wide content.
+
+        Returns:
+            The site-wide content, with defaults where none is configured.
+        """
+        return self._site_config
+
+    @override
+    def get_localized_content(self, lang: str) -> LocalizedContent:
+        """Retrieve the content of one language.
 
         Args:
             lang: Language code (e.g., 'en', 'pl').
 
         Returns:
-            Menu items in that language.
+            The language's content, empty if none is configured for it.
         """
-        menu_items_raw = get_site_content(self._document.data).get("menu_items") or {}
-        return [MenuItem.model_validate(x) for x in menu_items_raw.get(lang) or []]
-
-    @override
-    def get_home_page_path(self, locale: str) -> str | None:
-        """Retrieve the site-relative path configured as the site's homepage.
-
-        ``home_page_path`` may be a single string (applies to every locale) or a
-        dict mapping locale codes to paths, with an optional "default" key used
-        when the current locale has no entry of its own.
-
-        Args:
-            locale: Language code (e.g., 'en', 'pl') of the current request.
-
-        Returns:
-            Homepage path, or None if no homepage override is configured.
-        """
-        home_page_path = get_site_content(self._document.data).get("home_page_path")
-        if isinstance(home_page_path, dict):
-            return home_page_path.get(locale, home_page_path.get("default"))
-        return home_page_path
-
-    @override
-    def get_blog_meta(self, lang: str) -> PageMeta:
-        """Retrieve the blog index's title and description for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The blog meta, empty if none is configured for the language.
-        """
-        blog_meta = get_site_content(self._document.data).get("blog_meta") or {}
-        return PageMeta(**(blog_meta.get(lang) or {}))
-
-    @override
-    def get_footer(self, lang: str) -> Footer:
-        """Retrieve the site-wide footer for a specific language.
-
-        Args:
-            lang: Language code (e.g., 'en', 'pl').
-
-        Returns:
-            The footer, empty and not collapsible if none is configured.
-        """
-        # Explicit nulls count as missing: the footer is rendered on every page.
-        footer = get_site_content(self._document.data).get("footer") or {}
-        return Footer(
-            content=(footer.get("content") or {}).get(lang) or "",
-            collapsible=bool(footer.get("collapsible", False)),
-        )
+        return self._localized_content.get(lang, LocalizedContent())

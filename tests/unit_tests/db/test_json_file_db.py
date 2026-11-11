@@ -12,8 +12,15 @@ class TestJsonFileDb:
     @pytest.fixture
     def sample_data(self) -> dict[str, object]:
         return {
-            "site_content": {
-                "app_description": {"en": "English description", "de": "Deutsche Beschreibung"},
+            "site_config": {
+                "app_description": "Default description",
+                "logo_url": "/logo.png",
+                "localized_content": {
+                    "en": {"app_description": "English description"},
+                    "de": {"app_description": "Deutsche Beschreibung"},
+                },
+            },
+            "blog": {
                 "posts": [
                     {
                         "title": "Post 1",
@@ -29,8 +36,7 @@ class TestJsonFileDb:
                         "date": "2023-01-01T00:00:00",
                     }
                 ],
-                "logo_url": "/logo.png",
-            }
+            },
         }
 
     @pytest.fixture
@@ -41,20 +47,10 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            assert db.get_site_settings().app_description == {
-                "en": "English description",
-                "de": "Deutsche Beschreibung",
-            }
-            assert [post.slug for post in db.get_all_posts("en")] == ["post-1"]
-
-    def test_get_site_settings(self, sample_data: dict[str, object], mock_file_path: str):
-        json_str = json.dumps(sample_data)
-        with patch("builtins.open", mock_open(read_data=json_str)):
-            db = JsonFile(mock_file_path)
-            app_description = db.get_site_settings().app_description
-            assert app_description.get("en") == "English description"
-            assert app_description.get("de") == "Deutsche Beschreibung"
-            assert app_description.get("fr", "") == ""
+            assert (
+                db.site_config.get_localized_content("en").app_description == "English description"
+            )
+            assert [post.slug for post in db.blog.posts.get_all("en")] == ["post-1"]
 
     def test_add_comment_saves_file(self, sample_data: dict[str, object], tmp_path: Path):
         data_file = tmp_path / "data.json"
@@ -64,10 +60,10 @@ class TestJsonFileDb:
         with patch("datetime.datetime") as mock_datetime:
             mock_datetime.now.return_value = test_date
             db = JsonFile(str(data_file))
-            db.add_comment("Test User", "New comment", "post-1")
+            db.blog.posts.add_comment("Test User", "New comment", "post-1")
 
         # Verify the comment is visible through the db's public interface
-        comments = db.get_post("post-1").comments
+        comments = db.blog.posts.get("post-1").comments
         assert len(comments) == 1
         assert comments[0].author == "Test User"
         assert comments[0].comment == "New comment"
@@ -75,7 +71,7 @@ class TestJsonFileDb:
 
         # Verify it was actually persisted to disk (not just kept in memory)
         persisted = json.loads(data_file.read_text())
-        persisted_comments = persisted["site_content"]["posts"][0]["comments"]
+        persisted_comments = persisted["blog"]["posts"][0]["comments"]
         assert len(persisted_comments) == 1
         assert persisted_comments[0]["author"] == "Test User"
 
@@ -111,7 +107,7 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            posts = db.get_all_posts("en")
+            posts = db.blog.posts.get_all("en")
             assert len(posts) == 1
             assert posts[0].title == "Post 1"
             assert posts[0].slug == "post-1"
@@ -120,7 +116,7 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)):
             db = JsonFile(mock_file_path)
-            post = db.get_post("post-1")
+            post = db.blog.posts.get("post-1")
             assert post.title == "Post 1"
             assert post.slug == "post-1"
 
@@ -128,4 +124,4 @@ class TestJsonFileDb:
         json_str = json.dumps(sample_data)
         with patch("builtins.open", mock_open(read_data=json_str)), pytest.raises(ValueError):
             db = JsonFile(mock_file_path)
-            db.get_post("non-existent")
+            db.blog.posts.get("non-existent")

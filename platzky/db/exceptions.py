@@ -15,3 +15,7 @@ class NotFoundError(DBError, ValueError):
 
 class ReadOnlyStorageError(DBError):
     """The storage does not support writes."""
+
+
+class InvalidDataError(DBError):
+    """The data in the database does not match its format."""

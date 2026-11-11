@@ -66,10 +66,10 @@ class TestInit:
         assert config["APP_NAME"] == "My Platzky App"
         assert config["DB"] == {"TYPE": "json_file", "PATH": "data.json"}
         assert config["USE_WWW"] is False
-        content = json.loads((tmp_path / "data.json").read_text())["site_content"]
-        assert [post["slug"] for post in content["posts"]] == ["hello-platzky"]
-        assert [page["slug"] for page in content["pages"]] == ["about"]
-        assert content["menu_items"]["en"] == [
+        document = json.loads((tmp_path / "data.json").read_text())
+        assert [post["slug"] for post in document["blog"]["posts"]] == ["hello-platzky"]
+        assert [page["slug"] for page in document["blog"]["pages"]] == ["about"]
+        assert document["site_config"]["localized_content"]["en"]["menu_items"] == [
             {"name": "Blog", "url": "/blog/"},
             {"name": "About", "url": "/blog/page/about"},
         ]
@@ -121,3 +121,73 @@ class TestInit:
         assert result.exit_code != 0
         assert "Refusing to overwrite" in result.output
         assert "Edited By Hand" in config_file.read_text()
+
+
+def _check(tmp_path: Path, document: object) -> Result:
+    data_file = tmp_path / "data.json"
+    data_file.write_text(json.dumps(document), encoding="utf-8")
+    return CliRunner().invoke(cli, ["check", str(data_file)])
+
+
+class TestCheck:
+    def test_valid_site_config_is_ok(self, tmp_path: Path):
+        result = _check(
+            tmp_path,
+            {
+                "site_config": {
+                    "app_name": "Literature",
+                    "localized_content": {"pl": {"home_page_path": "/blog/page/o-nas"}},
+                },
+                "blog": {"posts": [], "meta": {"pl": {"title": "Notatki"}}},
+            },
+        )
+
+        assert (result.exit_code, result.output) == (0, "OK\n")
+
+    def test_sample_database_created_by_init_is_ok(self, tmp_path: Path):
+        _init(tmp_path)
+
+        result = CliRunner().invoke(cli, ["check", str(tmp_path / "data.json")])
+
+        assert (result.exit_code, result.output) == (0, "OK\n")
+
+    def test_problems_are_listed_with_their_paths(self, tmp_path: Path):
+        result = _check(
+            tmp_path,
+            {"blog": {"posts": None, "meta": {"pl": {"title": None}}}},
+        )
+
+        assert result.exit_code == 1
+        assert result.output.splitlines() == [
+            "Error: blog.posts: Input should be a valid tuple",
+            "blog.meta.pl.title: Input should be a valid string",
+        ]
+
+    def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
+        data_file = tmp_path / "data.json"
+        data_file.write_text("{", encoding="utf-8")
+
+        result = CliRunner().invoke(cli, ["check", str(data_file)])
+
+        assert result.exit_code == 1
+        assert result.output.startswith(f"Error: {data_file} cannot be read as JSON")
+
+    def test_file_that_is_not_utf8_is_an_error(self, tmp_path: Path):
+        data_file = tmp_path / "data.json"
+        data_file.write_bytes(b"\xff\xfe{}")
+
+        result = CliRunner().invoke(cli, ["check", str(data_file)])
+
+        assert result.exit_code == 1
+        assert result.output.startswith(f"Error: {data_file} cannot be read as JSON")
+
+    def test_json_that_is_not_an_object_is_an_error(self, tmp_path: Path):
+        result = _check(tmp_path, [])
+
+        assert result.exit_code == 1
+        assert result.output == f"Error: {tmp_path / 'data.json'} is not a JSON object\n"
+
+    def test_missing_file_is_an_error(self, tmp_path: Path):
+        result = CliRunner().invoke(cli, ["check", str(tmp_path / "absent.json")])
+
+        assert result.exit_code == 2

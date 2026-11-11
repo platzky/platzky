@@ -1,14 +1,14 @@
 """Repository-shaped protocols for blog content: posts and pages.
 
-Blog content only exists for apps that actually have a blog, unlike site
-settings (branding, nav menu) or plugin config, both of which every app needs
-regardless of whether it uses blog content — so this is kept separate from
+Blog content (posts, pages and the blog index's meta) only exists for apps that actually
+have a blog, unlike site settings (branding, nav menu) or plugin config, both of which every
+app needs regardless of whether it uses blog content — so this is kept separate from
 site-wide and plugin storage.
 """
 
 from typing import Protocol
 
-from platzky.models import Page, Post
+from platzky.models import Page, PageMeta, Post
 
 
 class PostRepository(Protocol):
@@ -106,4 +106,15 @@ class BlogRepository(Protocol):
     @property
     def pages(self) -> PageRepository:
         """Page repository."""
+        ...
+
+    def get_meta(self, lang: str) -> PageMeta:
+        """Retrieve the title and description of the blog index.
+
+        Args:
+            lang: Language code (e.g., 'en', 'pl').
+
+        Returns:
+            The blog index meta, empty if none is configured for the language.
+        """
         ...

@@ -26,7 +26,11 @@ def _app(content: str):
             "TRANSLATION_DIRECTORIES": [],
             "DB": {
                 "TYPE": "json",
-                "DATA": {"site_content": {"posts": [post], "pages": [post]}, "plugins": {}},
+                "DATA": {
+                    "site_config": {},
+                    "blog": {"posts": [post], "pages": [post]},
+                    "plugins": {},
+                },
             },
         }
     )

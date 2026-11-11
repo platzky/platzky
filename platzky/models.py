@@ -3,10 +3,12 @@
 import datetime
 import functools
 import re
-from typing import Annotated
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Annotated, TypeVar
 
 import humanize
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 
 def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
@@ -17,6 +19,35 @@ def _ensure_utc(v: datetime.datetime) -> datetime.datetime:
 
 
 DateTimeField = Annotated[datetime.datetime, AfterValidator(_ensure_utc)]
+
+
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+def _read_only(value: Mapping[_K, _V]) -> Mapping[_K, _V]:
+    """Return a read-only copy of a validated mapping."""
+    return MappingProxyType(dict(value))
+
+
+ReadOnlyMapping = Annotated[
+    Mapping[_K, _V],
+    AfterValidator(_read_only),
+    Field(default_factory=dict, validate_default=True),
+]
+"""A model field holding a mapping that cannot be changed after validation.
+
+``frozen=True`` only stops a field from being reassigned; pydantic still stores a plain,
+mutable ``dict`` in it. Use ``ReadOnlyMapping[str, X]`` for such fields; it defaults to an
+empty mapping.
+"""
+
+
+class StrictModel(BaseModel):
+    """A model of stored data: immutable, and an unknown key is an error."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
 
 _STYLE_CLOSE_RE = re.compile(r"</\s*style\b", re.IGNORECASE)
 
@@ -75,6 +106,8 @@ class MenuItem(BaseModel):
         name: Display name of the menu item
         url: Target URL for the menu item link
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     url: str
@@ -170,8 +203,8 @@ class Post(BaseModel):
 Page = Post  # Page is an alias for Post (static pages use the same structure)
 
 
-class Footer(BaseModel):
-    """The site-wide footer and how it is presented.
+class Footer(StrictModel):
+    """The footer of one language and how it is presented.
 
     Attributes:
         content: Footer content in Markdown with shortcodes, for one language. Empty shows no
@@ -183,7 +216,20 @@ class Footer(BaseModel):
     collapsible: bool = False
 
 
-class PageMeta(BaseModel):
+class Font(StrictModel):
+    """The site font: its CSS family name and the stylesheet that provides it.
+
+    Attributes:
+        name: CSS font-family value; empty keeps the default font
+        url: URL of the stylesheet that loads the font (e.g. a Google Fonts link); empty loads
+            none
+    """
+
+    name: str = ""
+    url: str = ""
+
+
+class PageMeta(StrictModel):
     """A page's title and description for search engines and link previews, in one language.
 
     Attributes:

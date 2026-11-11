@@ -1,12 +1,39 @@
+"""GraphQL backend: the SiteConfigRepository contract plus the requests it sends."""
+
+from collections.abc import Mapping
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from gql import Client
+from gql import Client, GraphQLRequest
 from graphql import print_ast
 
 from platzky.db.graphql_site_config_repository import GraphQLSiteConfigRepository
-from platzky.models import Footer, PageMeta
+from platzky.db.site_config_repository import (
+    LocalizedContent,
+    SiteConfig,
+    SiteConfigRepository,
+)
+from platzky.models import Footer
+from tests.unit_tests.db.site_config_repository_contract import SiteConfigRepositoryContract
+
+_NO_LANGUAGE = {"lang": None}
+
+
+class TestGraphQLSiteConfigRepository(SiteConfigRepositoryContract):
+    def make_repository(self, site_config: dict[str, Any]) -> SiteConfigRepository:
+        # With snake_case aliases, Hygraph answers in the neutral shape itself.
+        site_entry = {k: v for k, v in site_config.items() if k != "localized_content"}
+        entries = site_config.get("localized_content", {})
+        client = Mock(spec=Client)
+
+        def execute(
+            _request: GraphQLRequest, variable_values: Mapping[str, str | None] = _NO_LANGUAGE
+        ) -> dict[str, Any]:
+            return {"sites": [site_entry], "localizedContent": entries.get(variable_values["lang"])}
+
+        client.execute.side_effect = execute
+        return GraphQLSiteConfigRepository(lambda: client)
 
 
 @pytest.fixture
@@ -19,93 +46,49 @@ def repository(mock_client: Mock) -> GraphQLSiteConfigRepository:
     return GraphQLSiteConfigRepository(lambda: mock_client)
 
 
-class TestGetSiteSettings:
-    def test_returns_full_settings(
+class TestRequests:
+    def test_asks_the_server_for_the_language(
         self, repository: GraphQLSiteConfigRepository, mock_client: Mock
     ):
-        mock_client.execute.return_value = {
-            "logos": [
-                {
-                    "logo": {
-                        "alternateText": "Alt text",
-                        "image": {"url": "https://example.com/logo.jpg"},
-                    }
-                }
-            ],
-            "favicons": [{"favicon": {"url": "https://example.com/favicon.ico"}}],
-            "themes": [{"primaryColor": "#0085A1", "secondaryColor": "#006073"}],
-            "applicationSetups": [
-                {"language": "en", "applicationDescription": "Hello"},
-                {"language": "pl", "applicationDescription": "Cześć"},
-            ],
-        }
+        mock_client.execute.return_value = {"localizedContent": None}
 
-        settings = repository.get_site_settings()
+        repository.get_localized_content("pl")
 
-        assert settings.logo is not None
-        assert settings.logo.url == "https://example.com/logo.jpg"
-        assert settings.logo.alternateText == "Alt text"
-        assert settings.favicon_url == "https://example.com/favicon.ico"
-        assert settings.primary_color == "#0085A1"
-        assert settings.secondary_color == "#006073"
-        assert settings.app_description == {"en": "Hello", "pl": "Cześć"}
-        assert settings.font == ""
         mock_client.execute.assert_called_once()
+        assert "localizedContent(where: {language: $lang}" in print_ast(
+            mock_client.execute.call_args.args[0].document
+        )
+        assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
 
-    def test_returns_defaults_when_everything_empty(
-        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
-    ):
-        mock_client.execute.return_value = {
-            "logos": [],
-            "favicons": [],
-            "themes": [],
-            "applicationSetups": [],
-        }
-
-        settings = repository.get_site_settings()
-
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
-        assert settings.app_description == {}
-
-    def test_favicon_missing_does_not_raise(
-        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
-    ):
-        """Regression test: favicon used to crash with IndexError on an empty list."""
-        mock_client.execute.return_value = {
-            "logos": [],
-            "favicons": [],
-            "themes": [{"primaryColor": "blue"}],
-            "applicationSetups": [],
-        }
-
-        settings = repository.get_site_settings()
-
-        assert settings.favicon_url == ""
-
-
-class TestNullRelationNodes:
     @pytest.mark.parametrize(
         "result",
         [
+            {"sites": [], "localizedContent": None},
             {
-                "logos": [{"logo": None}],
-                "favicons": [{"favicon": None}],
-                "themes": [None],
-                "applicationSetups": [],
+                "sites": [{"logo_url": None, "font": None}],
+                "localizedContent": {"logo_url": None},
             },
             {
-                "logos": [{"logo": {"alternateText": "x", "image": None}}],
-                "favicons": [None],
-                "themes": [{"primaryColor": None, "secondaryColor": None}],
-                "applicationSetups": [],
+                "sites": [
+                    {
+                        "favicon_url": None,
+                        "primary_color": None,
+                        "secondary_color": None,
+                        "font": {"name": None, "url": None},
+                    }
+                ],
+                "localizedContent": {
+                    "footer": {"content": None, "collapsible": None},
+                    "menu_items": [],
+                },
             },
-            {"logos": None, "favicons": None, "themes": None, "applicationSetups": []},
+            {
+                "sites": [{"primary_color": "", "app_name": ""}],
+                "localizedContent": {"app_name": "", "footer": {"content": ""}},
+            },
         ],
     )
-    def test_null_nodes_fall_back_to_defaults(
+    def test_null_and_empty_values_fall_back_to_defaults(
         self,
         repository: GraphQLSiteConfigRepository,
         mock_client: Mock,
@@ -113,149 +96,16 @@ class TestNullRelationNodes:
     ):
         mock_client.execute.return_value = result
 
-        settings = repository.get_site_settings()
+        assert repository.get_site_config() == SiteConfig()
+        assert repository.get_localized_content("en") == LocalizedContent()
 
-        assert settings.logo is None
-        assert settings.favicon_url == ""
-        assert settings.primary_color == "white"
-        assert settings.secondary_color == "navy"
+    def test_false_and_zero_values_are_kept(
+        self, repository: GraphQLSiteConfigRepository, mock_client: Mock
+    ):
+        mock_client.execute.return_value = {
+            "localizedContent": {"footer": {"content": "Footer", "collapsible": False}}
+        }
 
-
-def test_null_application_description_falls_back_to_empty_string(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {
-        "logos": [],
-        "favicons": [],
-        "themes": [],
-        "applicationSetups": [{"language": "en", "applicationDescription": None}],
-    }
-
-    assert repository.get_site_settings().app_description == {"en": ""}
-
-
-def test_null_application_setups_is_treated_as_empty(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {
-        "logos": [],
-        "favicons": [],
-        "themes": [],
-        "applicationSetups": None,
-    }
-
-    assert repository.get_site_settings().app_description == {}
-
-
-def test_get_menu_items_in_lang(repository: GraphQLSiteConfigRepository, mock_client: Mock):
-    mock_client.execute.return_value = {
-        "menuItems": [{"name": "Home", "url": "/"}, {"name": "About", "url": "/about"}]
-    }
-
-    menu_items = repository.get_menu_items_in_lang("en")
-
-    assert len(menu_items) == 2
-    assert menu_items[0].name == "Home"
-    assert menu_items[1].url == "/about"
-    mock_client.execute.assert_called_once()
-
-
-def test_get_menu_items_in_lang_queries_requested_language(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {"menuItems": [{"name": "Start", "url": "/"}]}
-
-    assert [(m.name, m.url) for m in repository.get_menu_items_in_lang("pl")] == [("Start", "/")]
-    assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
-
-
-def test_get_menu_items_in_lang_empty_menu(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {"menuItems": []}
-
-    assert repository.get_menu_items_in_lang("en") == []
-
-
-def test_get_home_page_path(repository: GraphQLSiteConfigRepository, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{"homePagePath": "/blog/page/about"}]}
-
-    assert repository.get_home_page_path("pl") == "/blog/page/about"
-    mock_client.execute.assert_called_once()
-    assert mock_client.execute.call_args.kwargs["variable_values"] == {"lang": "pl"}
-
-
-def test_get_home_page_path_missing(repository: GraphQLSiteConfigRepository, mock_client: Mock):
-    mock_client.execute.return_value = {"applicationSetups": [{}]}
-
-    assert repository.get_home_page_path("en") is None
-
-
-def test_get_home_page_path_language_without_entry_is_none_and_has_no_default_fallback(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    """Unlike the Json backend, GraphQL has no "default" key: no entry means None."""
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    assert repository.get_home_page_path("en") is None
-
-
-@pytest.mark.parametrize(
-    "result",
-    [{"applicationSetups": None}, {"applicationSetups": [None]}, {}],
-    ids=["null-list", "null-entry", "missing"],
-)
-def test_get_home_page_path_null_nodes(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock, result: dict[str, Any]
-):
-    mock_client.execute.return_value = result
-
-    assert repository.get_home_page_path("en") is None
-
-
-def test_null_application_setup_entry_is_skipped(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {
-        "applicationSetups": [None, {"language": "en", "applicationDescription": "Hi"}]
-    }
-
-    assert repository.get_site_settings().app_description == {"en": "Hi"}
-
-
-def test_get_blog_meta_is_not_supported_and_queries_nothing(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    assert repository.get_blog_meta("en") == PageMeta()
-    mock_client.execute.assert_not_called()
-
-
-def test_get_footer_is_not_supported_and_queries_nothing(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    assert repository.get_footer("en") == Footer()
-    mock_client.execute.assert_not_called()
-
-
-def test_get_site_settings_requests_more_than_default_page_size(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    # Hygraph returns only 10 entries by default; descriptions for later
-    # languages would be dropped.
-    mock_client.execute.return_value = {"applicationSetups": []}
-
-    repository.get_site_settings()
-
-    query = print_ast(mock_client.execute.call_args.args[0].document)
-    assert "applicationSetups(stage: PUBLISHED, first: 100)" in query
-
-
-def test_get_menu_items_requests_more_than_default_page_size(
-    repository: GraphQLSiteConfigRepository, mock_client: Mock
-):
-    mock_client.execute.return_value = {"menuItems": []}
-
-    repository.get_menu_items_in_lang("en")
-
-    query = print_ast(mock_client.execute.call_args.args[0].document)
-    assert "menuItems(where: {language: $lang}, stage: PUBLISHED, first: 100)" in query
+        assert repository.get_localized_content("en") == LocalizedContent(
+            footer=Footer(content="Footer")
+        )

@@ -4,7 +4,7 @@ This directory contains the database abstraction layer for the Platzky applicati
 
 ## Architecture
 
-The database layer is built on an abstract base class (DB) that defines a common interface. Multiple implementations are provided for different storage backends:
+The database layer is built on an abstract base class (`DB`): a container of three repositories (`blog`, `site_config`, `plugin_config`), declared as abstract read-only properties, plus a `health_check()`. `DB` has no data-access methods of its own, and a backend that does not provide all three cannot be instantiated. Multiple implementations are provided for different storage backends:
 
 - **Json**: Base implementation for JSON data sources
 - **JsonFile**: Local JSON file storage
@@ -16,8 +16,9 @@ The database layer is built on an abstract base class (DB) that defines a common
 
 `Json`, `JsonFile`, `GoogleJsonDb`, and `GithubJsonDb` are one data model (a
 JSON document) with different persistence transports, not four independent
-implementations. `Json` holds all the document logic (posts, pages, menu
-items, comments, ...) and delegates *where the bytes live* to a
+implementations. The logic (posts, pages, site config, comments, ...) is in
+the JSON repositories, which `Json` builds over the one shared document; `Json`
+delegates *where the bytes live* to a
 `JsonStore` (see `platzky/db/json_stores.py`):
 
 - `MemoryStore` — in-memory only, used by the plain `Json` backend.
@@ -34,40 +35,55 @@ to be duplicated.
 
 ### Repositories
 
-Behind the `DB` interface, data access is split into repositories, each a
-`typing.Protocol`:
+A `DB` exposes its data access as three repositories, each a `typing.Protocol`,
+in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 
-| Protocol | File | Covers |
-|---|---|---|
-| `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments |
-| `SiteConfigRepository` | `site_config_repository.py` | branding, menu, home page, footer, blog meta |
-| `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
+| Attribute | Protocol | File | Covers |
+|---|---|---|---|
+| `db.blog` | `BlogRepository` (`.posts`: `PostRepository`, `.pages`: `PageRepository`) | `blog_repository.py` | posts, pages, comments, and `get_meta(lang)`, the blog index's title and description |
+| `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_config()` returns the site-wide `SiteConfig` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them |
+| `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 Implementations live in `<backend>_<repo>.py` (for example
 `json_blog_repository.py`, `mongo_plugin_config_repository.py`). Every backend
-(`json`, `graphql`, `mongo`) implements the site config and plugin config
-repositories. The blog repository exists for `json` and `graphql` only: `MongoDB`
-keeps its blog logic (posts, pages, comments) inline in the facade. Otherwise a
-`DB` subclass builds its repositories and forwards each method to them, in
-`self._blog`, `self._site_config` and `self._plugin_config`.
+(`json`, `graphql`, `mongo`) implements all three. A `DB` subclass builds its
+three repositories in its constructor, keeps them in private attributes and returns
+them from the `blog`, `site_config` and `plugin_config` properties; that, plus
+`health_check()`, is all a custom backend has to implement. A custom
+`SiteConfigRepository` maps its storage to the two models: `get_site_config()`
+and `get_localized_content(lang)`; the contract suite in
+`tests/unit_tests/db/site_config_repository_contract.py` checks exactly that. The blog blueprint
+(`create_blog_blueprint`) receives `db.blog` only, not the `DB`.
+
+Each repository owns its storage and sees nothing else. In the JSON document, each JSON repository is given a `JsonSection` (a read-only view of its section with an `edit()` that yields only that section), not the document. The sections are:
+`site_config` (the site-wide keys and `localized_content`) belongs to
+`JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
+`plugins` to `JsonPluginConfigRepository`; the site config and blog repositories validate their own
+section when they are built (unknown keys and nulls are errors). The document is loaded once and
+only changes through the repositories, so it is not validated again; `platzky check` builds the
+`Json` facade from the file. The Mongo repositories have a `validate()` instead, which `MongoDB`
+calls at startup and in `health_check()`, as their data can change underneath. In
+Mongo, the `site_config` collection (document `_id: "config"`) and `localized_content` belong to
+the site config repository, and `posts`, `pages` and `blog_meta` to the blog repository. Invalid
+stored data raises `InvalidDataError` in both.
 
 The JSON repositories share one `JsonDocument` (`json_document.py`): the loaded
 dict, plus a private store and write lock. A JSON repository that writes does so
-inside `with document.edit() as data:`, which holds the lock, yields the dict and
-saves it on success (nothing is saved if the block raises).
+inside `with section.edit() as data:` on its `JsonSection`, which holds the lock, yields
+only its section and saves the document on success (nothing is saved if the block raises).
 
 To add a new repository:
 
 1. Define its Protocol in a new `platzky/db/<name>.py`.
 2. Add one implementation per backend, named `<backend>_<name>.py`.
-3. Build each one in the matching `DB` subclass and forward the `DB` methods to it.
-4. Add one test file per implementation, and a contract test parametrized over every
-   backend that implements it. For a remote backend (GraphQL) the contract's mock returns
+3. Declare it as an abstract property on `DB` and build it in each `DB` subclass.
+4. Add one test file per implementation, and a contract base class (like
+   `blog_repository_contract.py`) that each backend's test module subclasses. For a remote backend (GraphQL) the contract's mock returns
    exactly what the server would answer in that test and never re-implements server logic
    such as filtering; what the server decides is tested in the backend's own file through
    the query variables it is sent. A backend that fails the contract has a bug: mark the
    test `xfail` with a link to the issue instead of special-casing the backend.
-5. Add facade delegation tests to each backend's `DB` test file.
+5. Test in each backend's `DB` test file that the constructor wires the repository.
 
 
 ## Configuration
@@ -121,9 +137,9 @@ from platzky.db.db_loader import get_db
 # db_config is loaded from your application config
 db = get_db(db_config)
 
-# Now you can use any of the standard DB methods
-posts = db.get_all_posts("en")
-menu_items = db.get_menu_items_in_lang("en")
+# Use the repositories
+posts = db.blog.posts.get_all("en")
+menu_items = db.site_config.get_localized_content("en").menu_items
 ```
 
 ## Extending: host-app repositories
@@ -135,9 +151,11 @@ the `DB` object. Two read-only properties are the supported way in:
 - `db.document` on every JSON backend (`Json`, `JsonFile`, `GoogleJsonDb`,
   `GithubJsonDb`) returns the `JsonDocument`. Read the dict through
   `document.data`; every write must go through `document.edit()`, which holds
-  the write lock and persists atomically (and restores the document if the
-  block raises). Hold on to nested values only briefly: a rolled-back edit
-  replaces them with copies, so look them up from `data` on each call. On
+  the write lock, yields a copy of the document and makes it the document once
+  it is saved (if the block raises or the save fails, the copy is dropped).
+  Look `data` up on each read rather than keep it: a saved edit replaces it.
+  Platzky reads the `site_config` section once, when the database is built, so
+  later writes to it take effect only after a restart. On
   `GoogleJsonDb` and `GithubJsonDb` the store is read-only, so `edit()` raises
   `ReadOnlyStorageError` when the block exits.
 - `db.database` on `MongoDB` returns the pymongo `Database`, for the host app's

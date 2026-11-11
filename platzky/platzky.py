@@ -26,6 +26,7 @@ from platzky.config import (
 from platzky.content_types import FOOTER, PAGE, POST, ContentSource, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
+from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.language_routing import (
@@ -231,7 +232,7 @@ def _change_language_response(config: Config, lang: str) -> Response:
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     """Render the configured homepage, falling back to the blog index.
 
-    Resolves db.get_home_page_path() for the current request's locale through
+    Resolves the home page path of the current request's locale through
     the app's own URL map, so it can point at a page, a post, or any other
     registered route. Falls back to the blog index if no homepage is
     configured for that locale, or if the configured path resolves back to
@@ -244,10 +245,10 @@ def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
     Returns:
         Rendered HTML of the resolved destination, or the 404 page.
     """
-    configured_home = app.db.get_home_page_path(app.get_locale())
+    configured_home = app.db.site_config.get_localized_content(app.get_locale()).home_page_path
     target_path = (
         configured_home
-        if isinstance(configured_home, str) and configured_home not in {"", "/"}
+        if configured_home not in {"", "/"}
         else f"{config.blog_prefix.rstrip('/')}/"
     )
     try:
@@ -357,17 +358,21 @@ def create_engine(
 
         Returns:
             Dictionary of template context variables including app metadata,
-            language settings, styling configuration, and helper functions
+            language settings, styling configuration, the menu, the rendered footer
+            (empty when none is configured), and helper functions
         """
         locale = app.get_locale()
         lang = config.languages.get(locale)
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
         alternates = app.current_page_language_alternates()
-        site_settings = app.db.get_site_settings()
+        localized = app.db.site_config.get_localized_content(locale)
+        site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
+        app_name = site_settings.app_name or config.app_name
         return {
-            "app_name": config.app_name,
-            "app_description": site_settings.app_description.get(locale, "") or config.app_name,
+            "app_name": app_name,
+            "app_title": site_settings.app_title or app_name,
+            "app_description": site_settings.app_description or app_name,
             "languages": languages_dict(config.languages),
             "current_flag": flag,
             "current_lang_country": country,
@@ -379,12 +384,14 @@ def create_engine(
             "language_alternates": alternates,
             "language_suggestions": _language_suggestions(config, locale, alternates),
             "url_link": _url_encode,
-            "menu_items": app.db.get_menu_items_in_lang(locale),
-            "logo_url": site_settings.logo.url if site_settings.logo else "",
+            "menu_items": localized.menu_items,
+            "logo_url": site_settings.logo_url,
             "favicon_url": site_settings.favicon_url,
             "font": site_settings.font,
             "primary_color": site_settings.primary_color,
             "secondary_color": site_settings.secondary_color,
+            "footer": _rendered_footer(app, localized.footer.content),
+            "footer_collapsible": localized.footer.collapsible,
         }
 
     @app.context_processor
@@ -404,20 +411,6 @@ def create_engine(
             Dictionary with dynamic_head content for injection into page head
         """
         return {"dynamic_head": app.dynamic_head}
-
-    @app.context_processor
-    def site_footer() -> dict[str, Markup | bool]:
-        """Provide the site-wide footer, rendered for the current locale, to all templates.
-
-        Returns:
-            Dictionary with the rendered ``footer`` (empty when none is configured) and
-            ``footer_collapsible``, whether readers may collapse it
-        """
-        footer = app.db.get_footer(app.get_locale())
-        return {
-            "footer": _rendered_footer(app, footer.content),
-            "footer_collapsible": footer.collapsible,
-        }
 
     @app.errorhandler(404)
     def page_not_found(_e: HTTPException) -> tuple[str, int]:
@@ -571,7 +564,7 @@ def create_app_from_config(
     )
 
     blog_blueprint = blog.create_blog_blueprint(
-        db=engine.db,
+        blog_repository=engine.db.blog,
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,

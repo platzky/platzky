@@ -150,7 +150,7 @@ class TestEngineAttachment:
             "SECRET_KEY": "secret",
             "BLOG_PREFIX": "/blog",
             "TRANSLATION_DIRECTORIES": [],
-            "DB": {"TYPE": "json", "DATA": {"site_content": {"pages": []}}},
+            "DB": {"TYPE": "json", "DATA": {"site_config": {}, "blog": {"pages": []}}},
             "ATTACHMENT": {
                 "allowed_mime_types": list(_DEFAULT_ALLOWED_MIME_TYPES | {"text/plain"}),
                 "validate_content": False,

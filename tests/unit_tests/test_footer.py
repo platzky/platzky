@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -8,85 +10,77 @@ from platzky.engine import Engine
 from platzky.platzky import create_app_from_config
 
 CONTENT_URLS = ["/blog/slug", "/blog/page/slug"]
+_CONTENT = {
+    "author": "author",
+    "slug": "slug",
+    "title": "title",
+    "contentInMarkdown": "content",
+    "excerpt": "excerpt",
+}
 
 
-def _content(**overrides: object) -> dict[str, Any]:
-    return {
-        "author": "author",
-        "slug": "slug",
-        "title": "title",
-        "language": "en",
-        "contentInMarkdown": "content",
-        "excerpt": "excerpt",
-        **overrides,
-    }
-
-
-def _app(
-    site_footer: dict[str, str] | None = None,
-    collapsible: bool | None = None,
-    secondary_color: str | None = None,
-    **content_overrides: object,
-) -> Engine:
-    site_content: dict[str, Any] = {
-        "posts": [_content(**content_overrides)],
-        "pages": [_content(**content_overrides)],
-    }
-    if secondary_color is not None:
-        site_content["secondary_color"] = secondary_color
-    footer: dict[str, Any] = {}
-    if site_footer is not None:
-        footer["content"] = site_footer
-    if collapsible is not None:
-        footer["collapsible"] = collapsible
-    if footer:
-        site_content["footer"] = footer
+def _app(site_config: Mapping[str, Any] = MappingProxyType({})) -> Engine:
     config = Config.model_validate(
         {
             "APP_NAME": "testApp",
             "SECRET_KEY": "secret",
             "USE_WWW": False,
             "BLOG_PREFIX": "/blog",
-            "TRANSLATION_DIRECTORIES": [],
-            "DB": {"TYPE": "json", "DATA": {"site_content": site_content, "plugins": {}}},
+            "DB": {
+                "TYPE": "json",
+                "DATA": {
+                    "site_config": dict(site_config),
+                    "blog": {"posts": [_CONTENT], "pages": [_CONTENT]},
+                },
+            },
         }
     )
     return create_app_from_config(config)
+
+
+def _footer(content: str, **presentation: bool) -> dict[str, Any]:
+    """The site config with an English footer."""
+    return {"localized_content": {"en": {"footer": {"content": content, **presentation}}}}
 
 
 def _html(app: Engine, url: str) -> str:
     return app.test_client().get(url).get_data(as_text=True)
 
 
-@pytest.mark.parametrize("url", CONTENT_URLS)
-def test_no_footer_configured_renders_no_footer_row(url: str):
-    assert 'id="footer-row"' not in _html(_app(), url)
+def test_no_footer_configured_renders_no_footer_row():
+    assert 'id="footer-row"' not in _html(_app(), "/blog/slug")
 
 
 @pytest.mark.parametrize("url", CONTENT_URLS)
-def test_site_footer_renders_markdown(url: str):
-    html = _html(_app(site_footer={"en": '**Bold** and [link url="/x"]a *link*[/link]'}), url)
-    assert "<p><strong>Bold</strong> and" in html
-    assert 'href="/x"' in html
-    assert "<em>link</em>" in html
-
-
-@pytest.mark.parametrize("url", CONTENT_URLS)
-def test_site_footer_renders_builtin_shortcodes(url: str):
-    html = _html(_app(site_footer={"en": '[link url="/x"]Site footer[/link]'}), url)
+def test_footer_is_rendered_on_posts_and_pages(url: str):
+    html = _html(_app(_footer('[link url="/x"]Site footer[/link]')), url)
     assert 'id="footer-row"' in html
     assert 'href="/x"' in html
     assert "Site footer" in html
     assert "[link" not in html
 
 
-def test_site_footer_is_looked_up_per_language():
-    assert 'id="footer-row"' not in _html(_app(site_footer={"pl": "Stopka"}), "/blog/slug")
+def test_footer_renders_markdown():
+    html = _html(_app(_footer('**Bold** and [link url="/x"]a *link*[/link]')), "/blog/slug")
+    assert "<p><strong>Bold</strong> and" in html
+    assert "<em>link</em>" in html
+
+
+def test_footer_of_the_page_language_is_rendered():
+    site_config = {
+        "localized_content": {
+            "en": {"footer": {"content": "Footer"}},
+            "pl": {"footer": {"content": "Stopka"}},
+        }
+    }
+    html = _html(_app(site_config), "/blog/slug")
+    assert "Footer" in html
+    assert "Stopka" not in html
 
 
 def test_template_footer_block_replaces_the_whole_footer():
     """The outer block owns the region: overriding it drops the <footer> and the toggle."""
-    app = _app(site_footer={"en": "Site footer"}, collapsible=True)
+    app = _app(_footer("Site footer", collapsible=True))
     template = '{% extends "base.html" %}{% block footer %}<p>Mine</p>{% endblock %}'
     with app.test_request_context():
         html = render_template_string(template)
@@ -96,32 +90,33 @@ def test_template_footer_block_replaces_the_whole_footer():
     assert "<details" not in html
 
 
-@pytest.mark.parametrize("collapsible", [None, False])
-def test_footer_is_not_collapsible_unless_configured(collapsible: bool | None):
-    html = _html(_app(site_footer={"en": "Site footer"}, collapsible=collapsible), "/blog/slug")
+@pytest.mark.parametrize("presentation", [{}, {"collapsible": False}])
+def test_footer_is_not_collapsible_unless_configured(presentation: dict[str, bool]):
+    html = _html(_app(_footer("Site footer", **presentation)), "/blog/slug")
     assert "Site footer" in html
     assert "<details" not in html
 
 
-@pytest.mark.parametrize("url", CONTENT_URLS)
-def test_collapsible_footer_starts_open_with_content_inside(url: str):
-    html = _html(_app(site_footer={"en": "Site footer"}, collapsible=True), url)
+def test_collapsible_footer_starts_open_with_content_inside():
+    html = _html(_app(_footer("Site footer", collapsible=True)), "/blog/slug")
     details = html[html.index("<details open>") : html.index("</details>")]
     assert '<summary class="footer-toggle">' in details
     assert "Site footer" in details
 
 
 def test_footer_background_is_the_theme_secondary_color():
-    html = _html(_app(site_footer={"en": "Site footer"}, secondary_color="goldenrod"), "/blog/slug")
+    html = _html(_app({**_footer("Site footer"), "secondary_color": "goldenrod"}), "/blog/slug")
     rule = html[html.index("#footer-row") :]
     assert "goldenrod" in rule[: rule.index("}")]
 
 
-@pytest.mark.parametrize("url", [*CONTENT_URLS, "/blog/no-such-page"])
-def test_malformed_site_footer_hides_footer_instead_of_breaking_the_page(url: str):
-    app = _app(site_footer={"en": '[link url="/x"]Never closed'})
-    response = app.test_client().get(url)
+@pytest.mark.parametrize(
+    ("url", "status"),
+    [("/blog/slug", 200), ("/blog/page/slug", 200), ("/blog/no-such-page", 404)],
+)
+def test_malformed_footer_hides_footer_instead_of_breaking_the_page(url: str, status: int):
+    response = _app(_footer('[link url="/x"]Never closed')).test_client().get(url)
     html = response.get_data(as_text=True)
-    assert response.status_code in (200, 404)
+    assert response.status_code == status
     assert 'id="footer-row"' not in html
     assert "Never closed" not in html
