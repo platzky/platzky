@@ -28,12 +28,18 @@ def _is_localized(endpoint: str) -> bool:
     return any(LANG_CODE_ARG in rule.arguments for rule in current_app.url_map.iter_rules(endpoint))
 
 
+def _is_excluded(loc: str, prefix: str, excluded_prefixes: tuple[str, ...]) -> bool:
+    """Return whether a URL's path, without its language prefix, is under an excluded path."""
+    return urllib.parse.urlparse(loc).path.removeprefix(prefix).startswith(excluded_prefixes)
+
+
 def _route_entries(
     routing: LanguageRouting,
     languages_served: t.Sequence[LanguageCode],
     endpoint: str,
     provider: SitemapProvider,
     url_for_language: t.Callable[..., str],
+    excluded_prefixes: tuple[str, ...],
 ) -> list[SitemapEntry]:
     """Return a route's sitemap entries in every language served on the host.
 
@@ -43,10 +49,11 @@ def _route_entries(
         endpoint: The route's endpoint.
         provider: Its ``sitemap_provider``.
         url_for_language: Builds an endpoint's URL in a language, as ``Engine.url_for_language``.
+        excluded_prefixes: Paths to leave out, matched without the language prefix.
 
     Returns:
-        The entries; none, with a warning logged, if one of its URLs cannot be built, e.g. a
-        URL variable is missing.
+        The entries, except those under an excluded path; none, with a warning logged, if one
+        of its URLs cannot be built, e.g. a URL variable is missing.
     """
     entries: list[SitemapEntry] = []
     try:
@@ -55,6 +62,7 @@ def _route_entries(
             for lang in languages_served
             if not routing.url_prefix(lang) or _is_localized(endpoint)
             for entry in provider(lang, partial(url_for_language, endpoint, lang, _external=True))
+            if not _is_excluded(entry.loc, routing.url_prefix(lang), excluded_prefixes)
         ]
     except BuildError as error:
         logger.warning("The sitemap leaves out %r, whose URL cannot be built: %s", endpoint, error)
@@ -117,14 +125,10 @@ def create_seo_blueprint(
             entry
             for endpoint, provider in sitemap_providers.items()
             for entry in _route_entries(
-                routing, languages_served, endpoint, provider, url_for_language
+                routing, languages_served, endpoint, provider, url_for_language, excluded_prefixes
             )
         ]
-        urls = {
-            entry.loc: entry.lastmod
-            for entry in entries
-            if not urllib.parse.urlparse(entry.loc).path.startswith(excluded_prefixes)
-        }
+        urls = {entry.loc: entry.lastmod for entry in entries}
         xml_sitemap = render_template("sitemap.xml", urls=urls)
         response = make_response(xml_sitemap)
         response.headers["Content-Type"] = "application/xml"
