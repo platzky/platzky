@@ -864,7 +864,10 @@ def test_url_for_language_needs_a_multilang_endpoint_for_a_domainless_language()
             app.url_for_language("books.isbn_lookup", "pl")
 
 
-def test_url_for_language_links_the_default_language_without_configured_languages():
+@pytest.mark.parametrize("configured", [{}, {"LANGUAGES": {}}])
+def test_sitemap_lists_the_default_language_without_configured_languages(
+    configured: dict[str, object],
+):
     config = Config.model_validate(
         {
             "APP_NAME": "testingApp",
@@ -872,11 +875,12 @@ def test_url_for_language_links_the_default_language_without_configured_language
             "USE_WWW": False,
             "BLOG_PREFIX": "/blog",
             "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+            **configured,
         }
     )
-    app = create_app_from_config(config)
-    with app.test_request_context("/", headers={"Host": "example.com"}):
-        assert app.url_for_language("blog.all_posts", "en") == "/blog/"
+    response = create_app_from_config(config).test_client().get("/sitemap.xml")
+    assert response.status_code == 200
+    assert "<loc>http://localhost/blog/</loc>" in response.text
 
 
 def test_url_for_language_rejects_an_unconfigured_language():
