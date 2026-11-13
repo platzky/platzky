@@ -864,6 +864,21 @@ def test_url_for_language_needs_a_multilang_endpoint_for_a_domainless_language()
             app.url_for_language("books.isbn_lookup", "pl")
 
 
+def test_url_for_language_links_the_default_language_without_configured_languages():
+    config = Config.model_validate(
+        {
+            "APP_NAME": "testingApp",
+            "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+            "USE_WWW": False,
+            "BLOG_PREFIX": "/blog",
+            "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        }
+    )
+    app = create_app_from_config(config)
+    with app.test_request_context("/", headers={"Host": "example.com"}):
+        assert app.url_for_language("blog.all_posts", "en") == "/blog/"
+
+
 def test_url_for_language_rejects_an_unconfigured_language():
     app = _build_app_with_domainless_pl_and_en_de_domains()
     with app.test_request_context("/blog/", headers={"Host": "example.com"}):

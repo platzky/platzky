@@ -337,7 +337,7 @@ def create_engine(
         """
         return app.localized_redirect(lang, f"/{path}")
 
-    domainful = config.site_languages.domainful_languages
+    domainful = config.language_routing.domainful_languages
     if domainful:
         prefix = f"/<{any_converter(domainful)}:lang>"
         app.add_url_rule(
@@ -576,7 +576,7 @@ def create_app_from_config(
     )
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
-        languages=config.site_languages,
+        routing=config.language_routing,
         sitemap_providers=engine.sitemap_providers,
         url_for_language=engine.url_for_language,
     )

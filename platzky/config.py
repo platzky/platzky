@@ -16,7 +16,7 @@ from platzky.attachment.constants import BLOCKED_EXTENSIONS, DEFAULT_MAX_ATTACHM
 from platzky.db.db import DBConfig
 from platzky.db.db_loader import get_db_module
 from platzky.feature_flags_wrapper import FeatureFlagSet
-from platzky.language_routing import RESERVED_PATH_SEGMENTS, SiteLanguages
+from platzky.language_routing import RESERVED_PATH_SEGMENTS, LanguageRouting
 from platzky.models import LanguageCode
 from platzky.telemetry import TelemetryConfig
 
@@ -292,11 +292,16 @@ class Config(BaseModel):
         return self
 
     @cached_property
-    def site_languages(self) -> SiteLanguages:
-        """The configured languages as URL routing sees them."""
-        return SiteLanguages(
-            domains={lang_code: language.domain for lang_code, language in self.languages.items()},
+    def language_routing(self) -> LanguageRouting:
+        """How the site's languages map to hosts and URL prefixes, the default one always in."""
+        return LanguageRouting(
+            languages=tuple(dict.fromkeys((self.default_language, *self.languages))),
             default=self.default_language,
+            language_to_domain={
+                lang_code: language.domain
+                for lang_code, language in self.languages.items()
+                if language.domain
+            },
         )
 
     @field_validator("feature_flags", mode="before")

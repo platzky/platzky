@@ -24,16 +24,18 @@ RESERVED_PATH_SEGMENTS = frozenset({"lang", "static", "admin", "login", "health"
 
 
 @dataclass(frozen=True)
-class SiteLanguages:
-    """The configured languages as URL routing sees them.
+class LanguageRouting:
+    """How the site's languages map to hosts, URL prefixes and requests.
 
     Attributes:
-        domains: Language codes mapped to their own domain, or None for a language without one.
+        languages: Every language of the site, the default one included.
         default: Code of the language served at the root of the main host.
+        language_to_domain: The languages with their own domain, mapped to that domain.
     """
 
-    domains: Mapping[LanguageCode, str | None]
+    languages: tuple[LanguageCode, ...]
     default: LanguageCode
+    language_to_domain: Mapping[LanguageCode, str]
 
     @cached_property
     def domainless_languages(self) -> tuple[LanguageCode, ...]:
@@ -44,8 +46,8 @@ class SiteLanguages:
         """
         return tuple(
             lang_code
-            for lang_code, domain in self.domains.items()
-            if domain is None and lang_code != self.default
+            for lang_code in self.languages
+            if lang_code != self.default and lang_code not in self.language_to_domain
         )
 
     @cached_property
@@ -58,8 +60,8 @@ class SiteLanguages:
         """
         return tuple(
             lang_code
-            for lang_code, domain in self.domains.items()
-            if domain is not None or lang_code == self.default
+            for lang_code in self.languages
+            if lang_code == self.default or lang_code in self.language_to_domain
         )
 
     def url_prefix(self, lang_code: LanguageCode) -> str:
@@ -85,7 +87,7 @@ class SiteLanguages:
             language when no language claims it.
         """
         return next(
-            (lang_code for lang_code, domain in self.domains.items() if domain == host),
+            (lang_code for lang_code, domain in self.language_to_domain.items() if domain == host),
             self.default,
         )
 
@@ -135,7 +137,11 @@ class SiteLanguages:
         """
         if lang in self.get_languages_on_host(current_host):
             return current_host
-        return self.domains.get(lang) or self.domains.get(self.default) or current_host
+        return (
+            self.language_to_domain.get(lang)
+            or self.language_to_domain.get(self.default)
+            or current_host
+        )
 
 
 def any_converter(lang_codes: t.Iterable[LanguageCode]) -> str:

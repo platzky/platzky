@@ -399,7 +399,7 @@ class Engine(Flask):
             ``LOCALE_QUERY_ARG`` query argument, if any; otherwise the language derived from
             the request's host and path.
         """
-        languages = self._platzky_config.site_languages
+        routing = self._platzky_config.language_routing
         requested = (
             request.args.get(LOCALE_QUERY_ARG, "")
             if request.endpoint in self._query_locale_endpoints
@@ -407,8 +407,8 @@ class Engine(Flask):
         )
         return (
             requested
-            if requested in languages.domains
-            else languages.get_request_language(request.host, request.path)
+            if requested in routing.languages
+            else routing.get_request_language(request.host, request.path)
         )
 
     @override
@@ -470,7 +470,7 @@ class Engine(Flask):
             self._query_locale_endpoints.add(name)
         if multilang and view_func is not None:
             self._localized_endpoints.add(name)
-            lang_codes = self._platzky_config.site_languages.domainless_languages
+            lang_codes = self._platzky_config.language_routing.domainless_languages
             if lang_codes:
                 super().add_url_rule(
                     f"/<{any_converter(lang_codes)}:{LANG_CODE_ARG}>{rule}",
@@ -499,19 +499,19 @@ class Engine(Flask):
             ValueError: If ``language`` is not configured, or the language is served under a
                 prefix and the endpoint is not registered with ``multilang=True``.
         """
-        languages = self._platzky_config.site_languages
-        if language not in languages.domains:
+        routing = self._platzky_config.language_routing
+        if language not in routing.languages:
             raise ValueError(f"{language!r} is not a configured language")
         if endpoint.startswith("."):
             endpoint = f"{request.blueprint}{endpoint}" if request.blueprint else endpoint[1:]
-        prefixed = language in languages.domainless_languages
+        prefixed = language in routing.domainless_languages
         if prefixed and endpoint not in self._localized_endpoints:
             raise ValueError(
                 f"{endpoint!r} is not registered with multilang=True, "
                 f"so it has no URL in {language!r}"
             )
         url_values: dict[str, Any] = {**values, LANG_CODE_ARG: language if prefixed else None}
-        host = languages.get_serving_host(language, request.host)
+        host = routing.get_serving_host(language, request.host)
         if host == request.host:
             return self.url_for(endpoint, **url_values)
         absolute_values: dict[str, Any] = {**url_values, "_external": True}
@@ -528,9 +528,9 @@ class Engine(Flask):
         Returns:
             A 308 redirect to ``path`` in that language, keeping the method, body and query string.
         """
-        languages = self._platzky_config.site_languages
-        host = languages.get_serving_host(lang_code, request.host)
-        url = f"{request.scheme}://{host}{languages.url_prefix(lang_code)}{path}"
+        routing = self._platzky_config.language_routing
+        host = routing.get_serving_host(lang_code, request.host)
+        url = f"{request.scheme}://{host}{routing.url_prefix(lang_code)}{path}"
         query = request.query_string.decode()
         return redirect(f"{url}?{query}" if query else url, code=308)
 
@@ -558,10 +558,10 @@ class Engine(Flask):
         @self.url_value_preprocessor
         def pop_lang_code(_endpoint: Optional[str], values: Optional[dict[str, Any]]) -> None:
             """Drop the language from view arguments; where it isn't served, redirect to it."""
-            languages = self._platzky_config.site_languages
+            routing = self._platzky_config.language_routing
             lang_code = values.pop(LANG_CODE_ARG, None) if values else None
-            if lang_code and lang_code not in languages.get_languages_on_host(request.host):
-                path = request.path.removeprefix(languages.url_prefix(lang_code))
+            if lang_code and lang_code not in routing.get_languages_on_host(request.host):
+                path = request.path.removeprefix(routing.url_prefix(lang_code))
                 abort(self.localized_redirect(lang_code, path))
 
         @self.url_defaults
@@ -569,7 +569,7 @@ class Engine(Flask):
             """Build localized endpoints under the prefix of the current domainless language."""
             if endpoint in self._localized_endpoints and has_request_context():
                 locale = self.get_locale()
-                if locale in self._platzky_config.site_languages.domainless_languages:
+                if locale in self._platzky_config.language_routing.domainless_languages:
                     values.setdefault(LANG_CODE_ARG, locale)
 
     def is_enabled(self, flag: FeatureFlag) -> bool:

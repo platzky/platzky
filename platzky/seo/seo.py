@@ -16,7 +16,7 @@ from flask import (
 )
 from werkzeug.routing import BuildError
 
-from platzky.language_routing import LANG_CODE_ARG, SiteLanguages
+from platzky.language_routing import LANG_CODE_ARG, LanguageRouting
 from platzky.models import LanguageCode
 from platzky.sitemap import SitemapEntry, SitemapProvider
 
@@ -29,7 +29,7 @@ def _is_localized(endpoint: str) -> bool:
 
 
 def _route_entries(
-    languages: SiteLanguages,
+    routing: LanguageRouting,
     languages_served: t.Sequence[LanguageCode],
     endpoint: str,
     provider: SitemapProvider,
@@ -38,7 +38,7 @@ def _route_entries(
     """Return a route's sitemap entries in every language served on the host.
 
     Args:
-        languages: The site's languages.
+        routing: How the site's languages map to hosts and URL prefixes.
         languages_served: Languages served on the current host.
         endpoint: The route's endpoint.
         provider: Its ``sitemap_provider``.
@@ -53,7 +53,7 @@ def _route_entries(
         entries = [
             entry
             for lang in languages_served
-            if not languages.url_prefix(lang) or _is_localized(endpoint)
+            if not routing.url_prefix(lang) or _is_localized(endpoint)
             for entry in provider(lang, partial(url_for_language, endpoint, lang, _external=True))
         ]
     except BuildError as error:
@@ -63,7 +63,7 @@ def _route_entries(
 
 def create_seo_blueprint(
     config: dict[str, t.Any],
-    languages: SiteLanguages,
+    routing: LanguageRouting,
     sitemap_providers: t.Mapping[str, SitemapProvider],
     url_for_language: t.Callable[..., str],
 ) -> Blueprint:
@@ -71,8 +71,8 @@ def create_seo_blueprint(
 
     Args:
         config: Configuration dictionary with SEO settings
-        languages: The site's languages; the sitemap lists those served on the requesting
-            host
+        routing: How the site's languages map to hosts; the sitemap lists those served on the
+            requesting host
         sitemap_providers: Endpoints registered with the ``sitemap_provider`` option, mapped to
             their entries; read on every sitemap request, so routes registered after the
             blueprint is created are included
@@ -110,14 +110,14 @@ def create_seo_blueprint(
         Returns:
             XML response containing the sitemap
         """
-        languages_served = languages.get_languages_on_host(request.host)
+        languages_served = routing.get_languages_on_host(request.host)
         excluded_prefixes = tuple(config.get("SITEMAP_EXCLUDED_PREFIXES") or [])
 
         entries = [
             entry
             for endpoint, provider in sitemap_providers.items()
             for entry in _route_entries(
-                languages, languages_served, endpoint, provider, url_for_language
+                routing, languages_served, endpoint, provider, url_for_language
             )
         ]
         urls = {
