@@ -3,8 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Awaitable, Iterable, Mapping, Sequence
-from functools import partial
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request
@@ -32,9 +31,9 @@ from platzky.feature_flags import FakeLogin
 from platzky.language_routing import (
     LANG_CODE_ARG,
     any_converter,
-    language_url,
 )
 from platzky.login import login
+from platzky.models import LanguageCode
 from platzky.plugin.content_transformer import ContentTransformerPluginBase
 from platzky.plugin.login import LoginPluginBase
 from platzky.plugin.plugin import PluginBase
@@ -151,7 +150,7 @@ def _rendered_footer(app: Engine, content: str) -> Markup:
     return rendered
 
 
-def _language_suggestion(config: Config, lang: str, url: str) -> dict[str, str]:
+def _language_suggestion(config: Config, lang: LanguageCode, url: str) -> dict[str, str]:
     """Return the texts and link of a popup suggesting a language, written in that language.
 
     Args:
@@ -174,14 +173,18 @@ def _language_suggestion(config: Config, lang: str, url: str) -> dict[str, str]:
 
 
 def _language_suggestions(
-    config: Config, locale: str, alternates: Mapping[str, str]
-) -> dict[str, dict[str, str]]:
+    config: Config,
+    locale: LanguageCode,
+    alternates: Mapping[LanguageCode, str],
+    home_url: Callable[[LanguageCode], str],
+) -> dict[LanguageCode, dict[str, str]]:
     """Return a popup suggesting each configured language other than the current page's.
 
     Args:
         config: Application configuration.
         locale: Language of the current page.
         alternates: URLs of the current page in each language, if it has equivalents.
+        home_url: URL of a language's home, for a page without an equivalent in it.
 
     Returns:
         Language codes mapped to their popups.
@@ -190,8 +193,7 @@ def _language_suggestions(
         lang: _language_suggestion(
             config,
             lang,
-            alternates.get(lang)
-            or language_url(config.site_languages, lang, request.scheme, request.host),
+            alternates.get(lang) or home_url(lang),
         )
         for lang in config.languages
         if lang != locale
@@ -212,21 +214,22 @@ def _www_redirection_response(config: Config) -> t.Optional[Response]:
     return redirect_www_to_nonwww()
 
 
-def _change_language_response(config: Config, lang: str) -> Response:
+def _change_language_response(
+    config: Config, lang: LanguageCode, home_url: Callable[[LanguageCode], str]
+) -> Response:
     """Redirect to the home page of a language.
 
     Args:
         config: Application configuration object
         lang: Language code to switch to
+        home_url: URL of a language's home
 
     Returns:
         Redirect to the language's home URL, or 404 if the language is not configured
     """
     if lang not in config.languages:
         return make_response(render_template(_NOT_FOUND_TEMPLATE, title="404"), 404)
-    return redirect(
-        language_url(config.site_languages, lang, request.scheme, request.host), code=302
-    )
+    return redirect(home_url(lang), code=302)
 
 
 def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
@@ -306,8 +309,12 @@ def create_engine(
         """
         return _www_redirection_response(config)
 
+    def home_url(lang: LanguageCode) -> str:
+        """Return the URL of the home page in a language."""
+        return app.url_for_language("home_page", lang, _external=True)
+
     @app.route("/lang/<string:lang>", methods=["GET"])
-    def change_language(lang: str) -> Response:
+    def change_language(lang: LanguageCode) -> Response:
         """Redirect to the home page of a language.
 
         Args:
@@ -316,9 +323,9 @@ def create_engine(
         Returns:
             Redirect to the language's home URL, or 404 if the language is not configured
         """
-        return _change_language_response(config, lang)
+        return _change_language_response(config, lang, home_url)
 
-    def domainful_language_prefix(lang: str, path: str) -> Response:
+    def domainful_language_prefix(lang: LanguageCode, path: str) -> Response:
         """Redirect a URL prefixed with a language that is served without a prefix.
 
         Args:
@@ -328,9 +335,9 @@ def create_engine(
         Returns:
             Permanent redirect to the page where that language is served
         """
-        return app.redirect_to_language(lang, f"/{path}")
+        return app.localized_redirect(lang, f"/{path}")
 
-    domainful = config.site_languages.domainful_languages
+    domainful = config.language_routing.domainful_languages
     if domainful:
         prefix = f"/<{any_converter(domainful)}:lang>"
         app.add_url_rule(
@@ -378,12 +385,10 @@ def create_engine(
             "current_lang_country": country,
             "current_language": locale,
             "default_language": config.default_language,
-            "language_url": partial(
-                language_url, config.site_languages, scheme=request.scheme, host=request.host
-            ),
             "language_alternates": alternates,
-            "language_suggestions": _language_suggestions(config, locale, alternates),
+            "language_suggestions": _language_suggestions(config, locale, alternates, home_url),
             "url_link": _url_encode,
+            "url_for_language": app.url_for_language,
             "menu_items": localized.menu_items,
             "logo_url": site_settings.logo_url,
             "favicon_url": site_settings.favicon_url,
@@ -571,8 +576,9 @@ def create_app_from_config(
     )
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
-        languages=config.site_languages,
+        routing=config.language_routing,
         sitemap_providers=engine.sitemap_providers,
+        url_for_language=engine.url_for_language,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
