@@ -84,6 +84,13 @@ class TestPlatzky:
         response = app.test_client().get("/lang/uk", headers={"Host": "example.de"})
         assert response.headers.get("Location") == "http://example.com/uk/"
 
+    def test_home_page_of_an_engine_without_resolved_home_page_paths_fails(self):
+        """Only create_app_from_config resolves the home page paths, so create_engine has none."""
+        app = _engine_with_languages({"en": _EN})
+        app.config["TESTING"] = True
+        with pytest.raises(AttributeError, match="home_page_paths"):
+            app.test_client().get("/")
+
     def test_change_language_invalid_locale(self):
         """Test that invalid language codes return 404 and store nothing in the session."""
         app = _engine_with_languages({"en": _EN, "de": _DE})

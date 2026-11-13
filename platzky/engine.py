@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 from urllib.parse import urlsplit
@@ -84,6 +84,11 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
 
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
+
+    home_page_paths: Mapping[LanguageCode, str]
+    """Language codes mapped to the path each language's home shows, resolved against the
+    routes by ``create_app_from_config``; an Engine from ``create_engine`` alone has none, so
+    its home page fails."""
 
     def __init__(
         self,
