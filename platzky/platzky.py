@@ -257,8 +257,8 @@ def create_engine(
         extra_content_types: App specific content types (see ``Engine``).
 
     Returns:
-        Configured Engine instance with plugins loaded. Its ``home_page_paths`` are not set, so
-        ``/`` fails until ``create_app_from_config`` resolves them.
+        Configured Engine instance with plugins loaded. Its ``home_page_paths`` are not yet
+        checked against the routes, which ``create_app_from_config`` does.
     """
     app = Engine(
         config,
@@ -267,6 +267,15 @@ def create_engine(
         extra_plugin_bases,
         extra_plugins_entrypoints,
         extra_content_types,
+    )
+
+    app.home_page_paths = home_page_paths_with_default(
+        {
+            language: db.site_config.get_localized_content(language).home_page_path
+            for language in config.language_routing.languages
+        },
+        config.default_language,
+        config.blog_prefix,
     )
 
     @app.before_request
@@ -559,16 +568,7 @@ def create_app_from_config(
     # Platzky's own routes are all registered here; the SEO blueprint is not a home page.
     languages = config.language_routing.languages
     engine.home_page_paths = resolve_home_page_paths(
-        engine.url_map,
-        home_page_paths_with_default(
-            {
-                language: db.site_config.get_localized_content(language).home_page_path
-                for language in languages
-            },
-            config.default_language,
-            config.blog_prefix,
-        ),
-        languages,
+        engine.url_map, engine.home_page_paths, languages
     )
     warn_about_languages_without_a_home_page(languages, engine.home_page_paths)
     seo_blueprint = seo.create_seo_blueprint(

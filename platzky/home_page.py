@@ -10,7 +10,6 @@ from collections.abc import Awaitable, Collection, Iterable, Mapping
 from types import MappingProxyType
 from urllib.parse import unquote, urlparse
 
-from flask import abort
 from flask.typing import ResponseReturnValue, RouteCallable
 from werkzeug.exceptions import MethodNotAllowed, NotFound
 from werkzeug.routing import Map, MapAdapter, RequestRedirect
@@ -147,10 +146,10 @@ def home_page_target_response(
     """
     try:
         endpoint, view_args = routes.match(target_path, method="GET")
-    except (MethodNotAllowed, RequestRedirect):
-        abort(404)
+    except (MethodNotAllowed, RequestRedirect) as error:
+        raise NotFound() from error
     if endpoint == "home_page":
-        abort(404)
+        raise NotFound()
     result = view_functions[endpoint](
         **{name: value for name, value in view_args.items() if name != LANG_CODE_ARG}
     )

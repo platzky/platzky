@@ -86,9 +86,9 @@ class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
 
     home_page_paths: Mapping[LanguageCode, str]
-    """Language codes mapped to the path each language's home shows, resolved against the
-    routes by ``create_app_from_config``; an Engine from ``create_engine`` alone has none, so
-    its home page fails."""
+    """Language codes mapped to the path each language's home shows; set by ``create_engine``
+    and, once Platzky's routes are registered, checked against them by
+    ``create_app_from_config``."""
 
     def __init__(
         self,
