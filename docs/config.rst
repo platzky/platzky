@@ -300,9 +300,23 @@ The root path (``/``) of each language renders the path set as that language's
 ``home_page_path`` (see `Site content`_). Platzky resolves it against the application's
 own routes, so it can point at a page, a post, or any other registered route.
 
-* Without a ``home_page_path``, or with one that resolves back to ``/``, ``/`` renders
-  the blog index at ``BLOG_PREFIX``.
-* With a path that doesn't resolve to a registered route, ``/`` renders the 404 page.
+* The default language without a ``home_page_path`` shows the blog index (at
+  ``BLOG_PREFIX``) at its ``/``.
+* Another language without a ``home_page_path`` redirects (302) from its ``/`` to the home of
+  the default language, for example ``/pl/`` to ``/`` on an English site, and a warning
+  naming the language is logged at startup. Give a language its own ``home_page_path`` to
+  give it its own home.
+* A path of ``/``, one that resolves back to ``/`` itself, one that redirects to a path
+  that redirects again, or one with a language prefix such as ``/pl/blog/page/about``
+  (write it without, as ``/blog/page/about``), is refused at startup.
+  A path that its route serves in another form, such as ``/blog`` for the route
+  ``/blog/``, is used in the route's form, and a warning naming that form is logged at
+  startup. Apart from the language prefix, these startup checks see Platzky's own routes
+  only: an application built on Platzky registers its routes after the app is created, so a
+  path to one of them is matched only when ``/`` is requested, and must be written in the
+  route's exact form. A path that matches no route, only a route for other methods than
+  ``GET``, or a route only in another form, makes ``/`` render the 404 page.
+* The home page paths are read at startup; changing them requires restarting the app.
 
 .. _site-content:
 
@@ -340,8 +354,9 @@ site-wide keys or from another language:
   (whether readers may collapse it). Default: no footer.
 * ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
   no menu.
-* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
-  the blog index.
+* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default: the blog
+  index for the default language; another language without one redirects to the home
+  of the default language.
 
 The blog is configured with its own data, next to its posts and pages (in the
 ``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per

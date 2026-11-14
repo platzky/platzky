@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 from urllib.parse import urlsplit
@@ -84,6 +84,11 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
 
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
+
+    home_page_paths: Mapping[LanguageCode, str]
+    """Language codes mapped to the path each language's home shows; set by ``create_engine``
+    and, once Platzky's routes are registered, checked against them by
+    ``create_app_from_config``."""
 
     def __init__(
         self,

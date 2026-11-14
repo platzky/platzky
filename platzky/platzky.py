@@ -3,7 +3,7 @@
 import logging
 import typing as t
 import urllib.parse
-from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
 import jinja2.ext
 from flask import make_response, redirect, render_template, request
@@ -12,7 +12,7 @@ from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
-from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.wrappers import Response
 
@@ -28,8 +28,13 @@ from platzky.db.db_loader import get_db
 from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
+from platzky.home_page import (
+    home_page_paths_with_default,
+    home_page_target_response,
+    resolve_home_page_paths,
+    warn_about_languages_without_a_home_page,
+)
 from platzky.language_routing import (
-    LANG_CODE_ARG,
     any_converter,
 )
 from platzky.login import login
@@ -232,41 +237,6 @@ def _change_language_response(
     return redirect(home_url(lang), code=302)
 
 
-def _home_page_response(app: Engine, config: Config) -> ResponseReturnValue:
-    """Render the configured homepage, falling back to the blog index.
-
-    Resolves the home page path of the current request's locale through
-    the app's own URL map, so it can point at a page, a post, or any other
-    registered route. Falls back to the blog index if no homepage is
-    configured for that locale, or if the configured path resolves back to
-    this same route (which would otherwise recurse).
-
-    Args:
-        app: Platzky Engine instance
-        config: Application configuration object
-
-    Returns:
-        Rendered HTML of the resolved destination, or the 404 page.
-    """
-    configured_home = app.db.site_config.get_localized_content(app.get_locale()).home_page_path
-    target_path = (
-        configured_home
-        if configured_home not in {"", "/"}
-        else f"{config.blog_prefix.rstrip('/')}/"
-    )
-    try:
-        endpoint, view_args = app.url_map.bind(request.host).match(target_path, method="GET")
-    except (NotFound, MethodNotAllowed):
-        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
-    if endpoint == request.endpoint:
-        return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
-    view_args = {name: value for name, value in view_args.items() if name != LANG_CODE_ARG}
-    result = app.view_functions[endpoint](**view_args)
-    if isinstance(result, Awaitable):
-        raise TypeError(f"Async view functions are not supported (endpoint: {endpoint!r})")
-    return result
-
-
 def create_engine(
     config: Config,
     db: DB,
@@ -287,7 +257,8 @@ def create_engine(
         extra_content_types: App specific content types (see ``Engine``).
 
     Returns:
-        Configured Engine instance with plugins loaded
+        Configured Engine instance with plugins loaded. Its ``home_page_paths`` are not yet
+        checked against the routes, which ``create_app_from_config`` does.
     """
     app = Engine(
         config,
@@ -296,6 +267,15 @@ def create_engine(
         extra_plugin_bases,
         extra_plugins_entrypoints,
         extra_content_types,
+    )
+
+    app.home_page_paths = home_page_paths_with_default(
+        {
+            language: db.site_config.get_localized_content(language).home_page_path
+            for language in config.language_routing.languages
+        },
+        config.default_language,
+        config.blog_prefix,
     )
 
     @app.before_request
@@ -352,12 +332,20 @@ def create_engine(
 
     @app.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
     def home_page() -> ResponseReturnValue:
-        """Render the configured homepage, falling back to the blog index.
+        """Render the configured homepage.
+
+        A language without a home page of its own redirects (302) to the home of the default
+        language, as a page may be added to it later.
 
         Returns:
-            Rendered HTML of the resolved destination, or the 404 page.
+            Rendered HTML of the resolved destination, the 404 page, or the redirect.
         """
-        return _home_page_response(app, config)
+        target_path = app.home_page_paths.get(app.get_locale())
+        if target_path is None:
+            return redirect(home_url(config.default_language), code=302)
+        return home_page_target_response(
+            app.url_map.bind(request.host), app.view_functions, target_path
+        )
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -574,15 +562,21 @@ def create_app_from_config(
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,
     )
+    engine.register_blueprint(login_blueprint)
+    engine.register_blueprint(admin_blueprint)
+    engine.register_blueprint(blog_blueprint)
+    # Platzky's own routes are all registered here; the SEO blueprint is not a home page.
+    languages = config.language_routing.languages
+    engine.home_page_paths = resolve_home_page_paths(
+        engine.url_map, engine.home_page_paths, languages
+    )
+    warn_about_languages_without_a_home_page(languages, engine.home_page_paths)
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
         routing=config.language_routing,
         sitemap_providers=engine.sitemap_providers,
         url_for_language=engine.url_for_language,
     )
-    engine.register_blueprint(login_blueprint)
-    engine.register_blueprint(admin_blueprint)
-    engine.register_blueprint(blog_blueprint)
     engine.register_blueprint(seo_blueprint)
 
     Minify(app=engine, html=True, js=True, cssless=True)
