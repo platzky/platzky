@@ -7,7 +7,7 @@ home page regardless of whether it has a blog, so this is kept separate from
 
 from typing import Protocol
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from platzky.models import Font, Footer, LanguageCode, MenuItem, StrictModel
 
@@ -26,7 +26,9 @@ class LocalizedContent(StrictModel):
         logo_url: Logo image URL; empty falls through to the site-wide default
         footer: The footer in this language
         menu_items: The navigation menu
-        home_page_path: Site-relative path shown as the home page; empty for the blog index
+        home_page_path: Site-relative path shown as the home page, read on each request; empty
+            for the blog index (the default language) or a redirect to the default home
+            (other languages). Not ``/``, which is the home page itself.
     """
 
     app_name: str = ""
@@ -36,6 +38,16 @@ class LocalizedContent(StrictModel):
     footer: Footer = Footer()
     menu_items: tuple[MenuItem, ...] = ()
     home_page_path: str = ""
+
+    @field_validator("home_page_path")
+    @classmethod
+    def validate_home_page_path_is_not_the_root(cls, path: str) -> str:
+        """Reject ``/``, which would make the home page show itself."""
+        if path and not path.strip("/"):
+            raise ValueError(
+                f"home_page_path {path!r} is the home page itself; set the page to show instead."
+            )
+        return path
 
 
 class SiteConfig(StrictModel):

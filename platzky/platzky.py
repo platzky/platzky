@@ -28,11 +28,7 @@ from platzky.db.db_loader import get_db
 from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.home_page import (
-    home_page_paths,
-    home_page_target_response,
-    warn_about_languages_without_a_home_page,
-)
+from platzky.home_page import home_page_target_response
 from platzky.language_routing import (
     any_converter,
 )
@@ -257,9 +253,6 @@ def create_engine(
 
     Returns:
         Configured Engine instance with plugins loaded.
-
-    Raises:
-        HomePagePathError: If a configured home page path has a language prefix.
     """
     app = Engine(
         config,
@@ -269,16 +262,6 @@ def create_engine(
         extra_plugins_entrypoints,
         extra_content_types,
     )
-
-    app.home_page_paths = home_page_paths(
-        {
-            language: db.site_config.get_localized_content(language).home_page_path
-            for language in config.language_routing.languages
-        },
-        config.default_language,
-        config.blog_prefix,
-    )
-    warn_about_languages_without_a_home_page(config.language_routing.languages, app.home_page_paths)
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -342,11 +325,14 @@ def create_engine(
         Returns:
             Rendered HTML of the resolved destination, the 404 page, or the redirect.
         """
-        target_path = app.home_page_paths.get(app.get_locale())
-        if target_path is None:
+        locale = app.get_locale()
+        path = app.db.site_config.get_localized_content(locale).home_page_path
+        if not path and locale != config.default_language:
             return redirect(home_url(config.default_language), code=302)
         return home_page_target_response(
-            app.url_map.bind(request.host), app.view_functions, target_path
+            app.url_map.bind(request.host),
+            app.view_functions,
+            path or f"{config.blog_prefix.rstrip('/')}/",
         )
 
     @app.context_processor

@@ -12,7 +12,6 @@ from werkzeug.test import TestResponse
 from platzky.config import Config
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.home_page import HomePagePathError
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
@@ -261,41 +260,6 @@ def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_h
 
     assert home.status_code == 200
     assert b"Welcome" in home.data
-
-
-@pytest.mark.parametrize("language", ["en", "pl"])
-def test_startup_refuses_a_root_home_page_path_for_any_language(language: str):
-    site_config = _home_page_paths(
-        {"en": "/blog/page/about", "pl": "/blog/page/o-nas", language: "/"}
-    )
-    with pytest.raises(
-        HomePagePathError, match=f"'/' of language {language} is the home page itself"
-    ):
-        _build_home_page_test_app(
-            site_config,
-            {"pages": _ABOUT_PAGES},
-            languages=_BILINGUAL_LANGUAGES,
-            default_language="en",
-        )
-
-
-@pytest.mark.parametrize(
-    ("language", "path"),
-    [("pl", "/pl/blog/page/o-nas"), ("en", "/en/blog/"), ("en", "/pl/")],
-)
-def test_startup_refuses_a_home_page_path_with_a_language_prefix(language: str, path: str):
-    site_config = _home_page_paths(
-        {"en": "/blog/page/about", "pl": "/blog/page/o-nas", language: path}
-    )
-    with pytest.raises(
-        HomePagePathError, match=f"'{path}' of language {language} has a language prefix"
-    ):
-        _build_home_page_test_app(
-            site_config,
-            {"pages": _ABOUT_PAGES},
-            languages=_BILINGUAL_LANGUAGES,
-            default_language="en",
-        )
 
 
 def test_home_page_path_to_a_route_for_other_methods_shows_the_404_page():
@@ -1327,25 +1291,6 @@ def test_language_without_a_home_page_path_redirects_to_the_default_home():
     response = _build_fallback_home_page_test_app().test_client().get("/pl/")
     assert response.status_code == 302
     assert response.headers["Location"] == "http://localhost/"
-
-
-def test_startup_warns_about_each_language_without_a_home_page_path(
-    caplog: pytest.LogCaptureFixture,
-):
-    with caplog.at_level("WARNING", logger="platzky.home_page"):
-        _build_fallback_home_page_test_app()
-    assert [r.getMessage() for r in caplog.records if r.name == "platzky.home_page"] == [
-        "Language pl has no home_page_path; its home page redirects (302) to the "
-        "default language's home page"
-    ]
-
-
-def test_startup_does_not_warn_when_every_language_has_a_home_page_path(
-    caplog: pytest.LogCaptureFixture,
-):
-    with caplog.at_level("WARNING", logger="platzky.home_page"):
-        _build_bilingual_home_page_test_app()
-    assert [r for r in caplog.records if r.name == "platzky.home_page"] == []
 
 
 _POSTS_AND_PAGES = {

@@ -11,7 +11,6 @@ from platzky import create_app_from_config
 from platzky.config import Config
 from platzky.db.site_config_repository import LocalizedContent, SiteConfig
 from platzky.engine import Engine
-from platzky.home_page import HomePagePathError
 from platzky.platzky import (
     create_app,
     create_engine,
@@ -110,27 +109,24 @@ class TestPlatzky:
         assert response.status_code == 200
         assert response.text == "Hello from the home"
 
-    def test_create_engine_refuses_a_home_page_path_with_a_language_prefix(self):
-        """The language prefix check does not depend on create_app_from_config."""
+    def test_home_page_path_changed_in_the_database_is_used_on_the_next_request(self):
+        config = _config_with_languages({"en": _EN})
         db = _mock_db()
         db.site_config.get_localized_content.return_value = LocalizedContent(
-            home_page_path="/de/hello"
+            home_page_path="/first"
         )
-        config = _config_with_languages({"en": _EN, "de": _DE})
-        with pytest.raises(
-            HomePagePathError, match="'/de/hello' of language en has a language prefix"
-        ):
-            create_engine(config, db)
+        app = create_engine(config, db)
+        app.add_url_rule("/first", "first", lambda: "First page")
+        app.add_url_rule("/second", "second", lambda: "Second page")
+        client = app.test_client()
 
-    def test_create_engine_warns_about_a_language_without_a_home_page_path(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        with caplog.at_level("WARNING", logger="platzky.home_page"):
-            _engine_with_languages({"en": _EN, "de": _DE})
-        assert [r.getMessage() for r in caplog.records if r.name == "platzky.home_page"] == [
-            "Language de has no home_page_path; its home page redirects (302) to the "
-            "default language's home page"
-        ]
+        before = client.get("/")
+        db.site_config.get_localized_content.return_value = LocalizedContent(
+            home_page_path="/second"
+        )
+        after = client.get("/")
+
+        assert (before.text, after.text) == ("First page", "Second page")
 
     def test_change_language_invalid_locale(self):
         """Test that invalid language codes return 404 and store nothing in the session."""

@@ -169,6 +169,17 @@ def test_stored_data_model_rejects_an_unknown_key(model: type[StrictModel]):
         model.model_validate({"unknown": "x"})
 
 
+@pytest.mark.parametrize("path", ["/", "//"])
+def test_localized_content_rejects_a_home_page_path_that_is_the_home_page_itself(path: str):
+    with pytest.raises(ValidationError, match="is the home page itself"):
+        LocalizedContent.model_validate({"home_page_path": path})
+
+
+@pytest.mark.parametrize("path", ["", "/blog/", "/blog/page/about"])
+def test_localized_content_accepts_an_empty_or_page_home_page_path(path: str):
+    assert LocalizedContent.model_validate({"home_page_path": path}).home_page_path == path
+
+
 class _Counts(StrictModel):
     counts: ReadOnlyMapping[str, int]
 

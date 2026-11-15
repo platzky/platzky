@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
 from typing import TYPE_CHECKING, Any, Optional, cast
 from urllib.parse import urlsplit
@@ -84,9 +84,6 @@ def _is_safe_locale_dir(locale_dir: str, plugin_instance: "PluginBase") -> bool:
 
 class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
-
-    home_page_paths: Mapping[LanguageCode, str]
-    """The page each language's home page shows, as a path such as ``/blog/page/about``."""
 
     def __init__(
         self,
