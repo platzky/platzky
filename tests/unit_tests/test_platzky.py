@@ -116,10 +116,11 @@ class TestPlatzky:
         db.site_config.get_localized_content.return_value = LocalizedContent(
             home_page_path="/de/hello"
         )
+        config = _config_with_languages({"en": _EN, "de": _DE})
         with pytest.raises(
             HomePagePathError, match="'/de/hello' of language en has a language prefix"
         ):
-            create_engine(_config_with_languages({"en": _EN, "de": _DE}), db)
+            create_engine(config, db)
 
     def test_create_engine_warns_about_a_language_without_a_home_page_path(
         self, caplog: pytest.LogCaptureFixture

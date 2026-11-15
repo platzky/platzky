@@ -1400,6 +1400,7 @@ def _home_page_test_app_with_redirects(path: str) -> Engine:
     app.add_url_rule("/new", "new", lambda: "New page")
     app.url_map.add(Rule("/old", redirect_to="/new"))
     app.url_map.add(Rule("/older", redirect_to="/old"))
+    app.url_map.add(Rule("/away", redirect_to="https://example.de/new"))
     return app
 
 
@@ -1409,5 +1410,6 @@ def test_home_page_path_redirecting_to_a_page_shows_the_page():
     assert response.text == "New page"
 
 
-def test_home_page_path_redirecting_to_a_redirect_shows_the_404_page():
-    assert _home_page_test_app_with_redirects("/older").test_client().get("/").status_code == 404
+@pytest.mark.parametrize("path", ["/older", "/away"])
+def test_home_page_path_redirecting_to_a_redirect_or_another_host_shows_the_404_page(path: str):
+    assert _home_page_test_app_with_redirects(path).test_client().get("/").status_code == 404

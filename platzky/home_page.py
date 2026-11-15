@@ -82,9 +82,9 @@ def home_page_target_response(
 ) -> ResponseReturnValue:
     """Render the route a home page path matches, as the home page.
 
-    A path its route serves only in another form, such as ``/blog`` for the route ``/blog/``,
-    is followed to that form once. The path is matched on the request host, so a route bound
-    to that host may resolve back to the home page.
+    A path that redirects within the site, such as ``/blog`` to the route ``/blog/``, is
+    followed once. The path is matched on the request host, so a route bound to that host may
+    resolve back to the home page.
 
     Args:
         routes: The application's routes bound to the request
@@ -96,16 +96,17 @@ def home_page_target_response(
 
     Raises:
         NotFound: If the path matches no route, only a route for other methods, a route that
-            redirects twice, or the home page itself.
+            redirects twice or to another host, or the home page itself.
         TypeError: If the matched view is async.
     """
     try:
         try:
             endpoint, view_args = routes.match(target_path, method="GET")
         except RequestRedirect as redirect:
-            endpoint, view_args = routes.match(
-                unquote(urlsplit(redirect.new_url).path), method="GET"
-            )
+            redirect_url = urlsplit(redirect.new_url)
+            if redirect_url.netloc != routes.server_name:
+                raise NotFound() from redirect
+            endpoint, view_args = routes.match(unquote(redirect_url.path), method="GET")
     except (MethodNotAllowed, NotFound, RequestRedirect) as error:
         raise NotFound() from error
     if endpoint == "home_page":
