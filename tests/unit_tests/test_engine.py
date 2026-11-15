@@ -268,8 +268,9 @@ def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_h
     assert _main_content(home) == _main_content(blog_index)
 
 
-def test_home_page_path_to_a_route_for_other_methods_shows_the_404_page():
-    app = _build_home_page_test_app(_home_page_paths({"en": "/login/verify/google"}), {})
+def test_home_page_path_to_a_post_only_route_shows_the_404_page():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/form"}), {})
+    app.add_url_rule("/form", "form", lambda: "Sent", methods=["POST"])
     assert app.test_client().get("/").status_code == 404
 
 
