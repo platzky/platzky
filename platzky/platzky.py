@@ -31,7 +31,6 @@ from platzky.feature_flags import FakeLogin
 from platzky.home_page import (
     home_page_paths_with_default,
     home_page_target_response,
-    resolve_home_page_paths,
     warn_about_languages_without_a_home_page,
 )
 from platzky.language_routing import (
@@ -257,8 +256,10 @@ def create_engine(
         extra_content_types: App specific content types (see ``Engine``).
 
     Returns:
-        Configured Engine instance with plugins loaded. Its ``home_page_paths`` are not yet
-        checked against the routes, which ``create_app_from_config`` does.
+        Configured Engine instance with plugins loaded.
+
+    Raises:
+        HomePagePathError: If a configured home page path has a language prefix.
     """
     app = Engine(
         config,
@@ -277,6 +278,7 @@ def create_engine(
         config.default_language,
         config.blog_prefix,
     )
+    warn_about_languages_without_a_home_page(config.language_routing.languages, app.home_page_paths)
 
     @app.before_request
     def handle_www_redirection() -> t.Optional[Response]:
@@ -565,12 +567,6 @@ def create_app_from_config(
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
-    # Platzky's own routes are all registered here; the SEO blueprint is not a home page.
-    languages = config.language_routing.languages
-    engine.home_page_paths = resolve_home_page_paths(
-        engine.url_map, engine.home_page_paths, languages
-    )
-    warn_about_languages_without_a_home_page(languages, engine.home_page_paths)
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
         routing=config.language_routing,

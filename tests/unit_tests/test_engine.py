@@ -6,13 +6,13 @@ import pytest
 from bs4 import BeautifulSoup, Tag
 from flask import Blueprint, url_for
 from flask_babel import get_locale
-from werkzeug.routing import Map, Rule
+from werkzeug.routing import Rule
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.home_page import HomePagePathError, resolve_home_page_paths
+from platzky.home_page import HomePagePathError
 from platzky.language_routing import LOCALE_QUERY_ARG
 from platzky.models import CmsModule
 from platzky.platzky import create_app_from_config
@@ -263,20 +263,18 @@ def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_h
     assert b"Welcome" in home.data
 
 
-@pytest.mark.parametrize("language", ["en", "pl"])
-def test_startup_refuses_a_root_home_page_path_for_any_language(language: str):
+@pytest.mark.parametrize(("language", "url"), [("en", "/"), ("pl", "/pl/")])
+def test_root_home_page_path_shows_the_404_page_for_any_language(language: str, url: str):
     site_config = _home_page_paths(
         {"en": "/blog/page/about", "pl": "/blog/page/o-nas", language: "/"}
     )
-    with pytest.raises(
-        HomePagePathError, match=f"'/' of language {language} resolves to the home page itself"
-    ):
-        _build_home_page_test_app(
-            site_config,
-            {"pages": _ABOUT_PAGES},
-            languages=_BILINGUAL_LANGUAGES,
-            default_language="en",
-        )
+    app = _build_home_page_test_app(
+        site_config,
+        {"pages": _ABOUT_PAGES},
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+    assert app.test_client().get(url).status_code == 404
 
 
 @pytest.mark.parametrize(
@@ -1366,23 +1364,16 @@ _POSTS_AND_PAGES = {
 }
 
 
-def test_home_page_path_without_its_route_trailing_slash_is_served_in_the_route_form(
-    caplog: pytest.LogCaptureFixture,
-):
-    with caplog.at_level("WARNING", logger="platzky.home_page"):
-        app = _build_home_page_test_app(_home_page_paths({"en": "/blog"}), _POSTS_AND_PAGES)
+def test_home_page_path_without_its_route_trailing_slash_shows_the_route_page():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog"}), _POSTS_AND_PAGES)
 
     home = app.test_client().get("/")
-
-    assert [r.getMessage() for r in caplog.records if r.name == "platzky.home_page"] == [
-        "The home page path '/blog' of language en is served as '/blog/'; write it in that form"
-    ]
 
     assert home.status_code == 200
     assert b"Welcome" in home.data
 
 
-def test_home_page_path_with_a_non_ascii_slug_is_served_in_the_route_form():
+def test_home_page_path_with_a_non_ascii_slug_shows_the_route_page():
     tortoise = {**_ABOUT_PAGES[0], "title": "Żółw", "slug": "żółw", "contentInMarkdown": "Powolny"}
     app = _build_home_page_test_app(
         _home_page_paths({"en": "/blog//page/żółw"}), {"pages": [tortoise]}
@@ -1394,33 +1385,27 @@ def test_home_page_path_with_a_non_ascii_slug_is_served_in_the_route_form():
     assert "Powolny" in home.text
 
 
-@pytest.mark.parametrize(("path", "status"), [("/later/", 200), ("/later", 404)])
-def test_home_page_path_to_a_route_registered_later_must_match_its_form(path: str, status: int):
+@pytest.mark.parametrize(("path", "status"), [("/later/", 200), ("/later", 200), ("/other", 404)])
+def test_home_page_path_to_a_route_registered_later_is_matched_on_request(path: str, status: int):
     app = _build_home_page_test_app(_home_page_paths({"en": path}), {})
     app.add_url_rule("/later/", "later", lambda: "Later")
 
     assert app.test_client().get("/").status_code == status
 
 
-def test_home_page_path_redirecting_to_a_redirect_is_refused():
-    routes = Map(
-        [
-            Rule("/", endpoint="home_page"),
-            Rule("/old", redirect_to="/moved"),
-            Rule("/moved", redirect_to="/gone"),
-        ]
-    )
-    with pytest.raises(
-        HomePagePathError, match="'/old' of language en redirects to '/moved', which redirects"
-    ):
-        resolve_home_page_paths(routes, {"en": "/old"}, ("en",))
+def _home_page_test_app_with_redirects(path: str) -> Engine:
+    app = _build_home_page_test_app(_home_page_paths({"en": path}), {})
+    app.add_url_rule("/new", "new", lambda: "New page")
+    app.url_map.add(Rule("/old", redirect_to="/new"))
+    app.url_map.add(Rule("/older", redirect_to="/old"))
+    return app
 
 
-@pytest.mark.parametrize(
-    ("target", "rules"), [("/new", [Rule("/new", endpoint="new")]), ("/later", [])]
-)
-def test_home_page_path_redirecting_to_a_page_or_a_later_route_is_served_as_its_target(
-    target: str, rules: list[Rule]
-):
-    routes = Map([Rule("/", endpoint="home_page"), Rule("/old", redirect_to=target), *rules])
-    assert resolve_home_page_paths(routes, {"en": "/old"}, ("en",)) == {"en": target}
+def test_home_page_path_redirecting_to_a_page_shows_the_page():
+    response = _home_page_test_app_with_redirects("/old").test_client().get("/")
+    assert response.status_code == 200
+    assert response.text == "New page"
+
+
+def test_home_page_path_redirecting_to_a_redirect_shows_the_404_page():
+    assert _home_page_test_app_with_redirects("/older").test_client().get("/").status_code == 404
