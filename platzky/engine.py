@@ -87,8 +87,7 @@ class Engine(Flask):
 
     home_page_paths: Mapping[LanguageCode, str]
     """Language codes mapped to the path each language's home shows; set by ``create_engine``
-    and, once Platzky's routes are registered, checked against them by
-    ``create_app_from_config``."""
+    and matched against the routes when ``/`` is requested."""
 
     def __init__(
         self,

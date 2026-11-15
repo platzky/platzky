@@ -29,7 +29,7 @@ from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
 from platzky.home_page import (
-    home_page_paths_with_default,
+    home_page_paths,
     home_page_target_response,
     warn_about_languages_without_a_home_page,
 )
@@ -270,7 +270,7 @@ def create_engine(
         extra_content_types,
     )
 
-    app.home_page_paths = home_page_paths_with_default(
+    app.home_page_paths = home_page_paths(
         {
             language: db.site_config.get_localized_content(language).home_page_path
             for language in config.language_routing.languages

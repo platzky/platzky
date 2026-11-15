@@ -24,7 +24,7 @@ class HomePagePathError(ValueError):
     """A configured home page path is unusable."""
 
 
-def home_page_paths_with_default(
+def home_page_paths(
     stored: Mapping[LanguageCode, str], default_language: LanguageCode, blog_prefix: str
 ) -> Mapping[LanguageCode, str]:
     """Return the home page path of each language that has one.
@@ -42,13 +42,19 @@ def home_page_paths_with_default(
         Languages with a home page of their own, mapped to its path without a language prefix.
 
     Raises:
-        HomePagePathError: If a path starts with a language code of the site.
+        HomePagePathError: If a path is ``/`` (the home page itself) or starts with a language
+            code of the site.
     """
     paths = {
         **{language: path for language, path in stored.items() if path},
         default_language: stored[default_language] or f"{blog_prefix.rstrip('/')}/",
     }
     for language, path in paths.items():
+        if not path.strip("/"):
+            raise HomePagePathError(
+                f"The home page path {path!r} of language {language} is the home page itself; "
+                "configure the page to show instead."
+            )
         if path.lstrip("/").split("/")[0] in stored:
             raise HomePagePathError(
                 f"The home page path {path!r} of language {language} has a language prefix; "

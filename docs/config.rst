@@ -306,13 +306,13 @@ own routes, so it can point at a page, a post, or any other registered route.
   the default language, for example ``/pl/`` to ``/`` on an English site, and a warning
   naming the language is logged at startup. Give a language its own ``home_page_path`` to
   give it its own home.
-* A path with a language prefix such as ``/pl/blog/page/about`` (write it without, as
-  ``/blog/page/about``) is refused at startup. The other paths are matched against the routes
-  when ``/`` is requested, so a path to a route an application built on Platzky registers
-  later works too. A path that its route serves in another form, such as ``/blog`` for the
-  route ``/blog/``, shows that route's page. A path of ``/``, one that resolves back to ``/``
-  itself, one that redirects to a path that redirects again, one that matches no route, or
-  one that matches only a route for other methods than ``GET`` makes ``/`` render the 404
+* A path of ``/``, or one with a language prefix such as ``/pl/blog/page/about`` (write it
+  without, as ``/blog/page/about``), is refused at startup. The other paths are matched
+  against the routes when ``/`` is requested, so a path to a route an application built on
+  Platzky registers later works too. A path that its route serves in another form, such as
+  ``/blog`` for the route ``/blog/``, shows that route's page. A path that resolves back to
+  ``/`` itself, one that redirects to a path that redirects again, one that matches no route,
+  or one that matches only a route for other methods than ``GET`` makes ``/`` render the 404
   page.
 * The home page paths are read at startup; changing them requires restarting the app.
 

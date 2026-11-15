@@ -263,18 +263,20 @@ def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_h
     assert b"Welcome" in home.data
 
 
-@pytest.mark.parametrize(("language", "url"), [("en", "/"), ("pl", "/pl/")])
-def test_root_home_page_path_shows_the_404_page_for_any_language(language: str, url: str):
+@pytest.mark.parametrize("language", ["en", "pl"])
+def test_startup_refuses_a_root_home_page_path_for_any_language(language: str):
     site_config = _home_page_paths(
         {"en": "/blog/page/about", "pl": "/blog/page/o-nas", language: "/"}
     )
-    app = _build_home_page_test_app(
-        site_config,
-        {"pages": _ABOUT_PAGES},
-        languages=_BILINGUAL_LANGUAGES,
-        default_language="en",
-    )
-    assert app.test_client().get(url).status_code == 404
+    with pytest.raises(
+        HomePagePathError, match=f"'/' of language {language} is the home page itself"
+    ):
+        _build_home_page_test_app(
+            site_config,
+            {"pages": _ABOUT_PAGES},
+            languages=_BILINGUAL_LANGUAGES,
+            default_language="en",
+        )
 
 
 @pytest.mark.parametrize(
