@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Mapping
 from urllib.parse import unquote, urlsplit
 
 from flask.typing import ResponseReturnValue, RouteCallable
-from werkzeug.exceptions import MethodNotAllowed, NotFound
+from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.routing import MapAdapter, RequestRedirect
 
 from platzky.language_routing import LANG_CODE_ARG
@@ -47,7 +47,7 @@ def home_page_target_response(
             if redirect_url.netloc != routes.server_name:
                 raise NotFound() from redirect
             endpoint, view_args = routes.match(unquote(redirect_url.path), method="GET")
-    except (MethodNotAllowed, NotFound, RequestRedirect) as error:
+    except HTTPException as error:  # no route, other methods only, or a second redirect
         raise NotFound() from error
     if endpoint == "home_page":
         raise NotFound()
