@@ -86,8 +86,8 @@ class Engine(Flask):
     """Flask subclass composing database, plugins, notifications, and health checks."""
 
     home_page_paths: Mapping[LanguageCode, str]
-    """Language codes mapped to the path each language's home shows; set by ``create_engine``
-    and matched against the routes when ``/`` is requested."""
+    """Path of the page each language's home shows, without a language prefix; only languages
+    with a home of their own, which the default language always has."""
 
     def __init__(
         self,
