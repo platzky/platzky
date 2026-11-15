@@ -249,6 +249,10 @@ def test_home_page_404s_when_configured_path_does_not_resolve():
     assert response.status_code == 404
 
 
+def _main_content(response: TestResponse) -> Tag | None:
+    return BeautifulSoup(response.data, "html.parser").find("main")
+
+
 def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_home():
     app = _build_home_page_test_app(
         _home_page_paths({"pl": "/blog/page/o-nas"}),
@@ -256,10 +260,12 @@ def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_h
         languages=_BILINGUAL_LANGUAGES,
         default_language="en",
     )
-    home = app.test_client().get("/")
+    client = app.test_client()
+    home, blog_index = client.get("/"), client.get("/blog/")
 
-    assert home.status_code == 200
-    assert b"Welcome" in home.data
+    assert (home.status_code, blog_index.status_code) == (200, 200)
+    assert b"Welcome" in blog_index.data
+    assert _main_content(home) == _main_content(blog_index)
 
 
 def test_home_page_path_to_a_route_for_other_methods_shows_the_404_page():
@@ -1313,11 +1319,12 @@ _POSTS_AND_PAGES = {
 
 def test_home_page_path_without_its_route_trailing_slash_shows_the_route_page():
     app = _build_home_page_test_app(_home_page_paths({"en": "/blog"}), _POSTS_AND_PAGES)
+    client = app.test_client()
+    home, blog_index = client.get("/"), client.get("/blog/")
 
-    home = app.test_client().get("/")
-
-    assert home.status_code == 200
-    assert b"Welcome" in home.data
+    assert (home.status_code, blog_index.status_code) == (200, 200)
+    assert b"Welcome" in blog_index.data
+    assert _main_content(home) == _main_content(blog_index)
 
 
 def test_home_page_path_with_a_non_ascii_slug_shows_the_route_page():
