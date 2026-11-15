@@ -1294,10 +1294,13 @@ def _build_fallback_home_page_test_app() -> Engine:
     )
 
 
-def test_language_without_a_home_page_path_redirects_to_the_default_home():
-    response = _build_fallback_home_page_test_app().test_client().get("/pl/")
-    assert response.status_code == 302
-    assert response.headers["Location"] == "http://localhost/"
+def test_language_without_a_home_page_path_shows_the_default_language_path_in_its_language():
+    client = _build_fallback_home_page_test_app().test_client()
+    home, page = client.get("/pl/"), client.get("/pl/blog/page/about")
+
+    assert (home.status_code, page.status_code) == (200, 200)
+    assert b"Hello there" in page.data
+    assert _main_content(home) == _main_content(page)
 
 
 _POSTS_AND_PAGES = {

@@ -1,8 +1,8 @@
 """The page each language's home (``/``) shows, read from the site config on each request.
 
-A language's home shows the route at its ``home_page_path``. The default language without
-one shows the blog index; another language without one redirects to the default language's
-home. The path is matched against the routes when ``/`` is requested.
+A language's home shows the route at its ``home_page_path``, or else at the default
+language's, in its own language; without either, the blog index. The path is matched
+against the routes when ``/`` is requested.
 """
 
 from collections.abc import Awaitable, Mapping

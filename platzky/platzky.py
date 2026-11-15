@@ -319,21 +319,19 @@ def create_engine(
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage.
 
-        A language without a home page of its own redirects (302) to the home of the default
-        language, as a page may be added to it later.
+        A language without a home page path of its own shows the default language's, in its
+        own language; without that either, the blog index.
 
         Returns:
-            Rendered HTML of the resolved destination, the 404 page, or the redirect.
+            Rendered HTML of the resolved destination, or the 404 page.
         """
-        locale = app.get_locale()
-        path = app.db.site_config.get_localized_content(locale).home_page_path
-        if not path and locale != config.default_language:
-            return redirect(home_url(config.default_language), code=302)
-        return home_page_target_response(
-            app.url_map.bind(request.host),
-            app.view_functions,
-            path or f"{config.blog_prefix.rstrip('/')}/",
+        site_config = app.db.site_config
+        path = (
+            site_config.get_localized_content(app.get_locale()).home_page_path
+            or site_config.get_localized_content(config.default_language).home_page_path
+            or f"{config.blog_prefix.rstrip('/')}/"
         )
+        return home_page_target_response(app.url_map.bind(request.host), app.view_functions, path)
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:

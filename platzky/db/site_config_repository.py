@@ -27,8 +27,8 @@ class LocalizedContent(StrictModel):
         footer: The footer in this language
         menu_items: The navigation menu
         home_page_path: Site-relative path shown as the home page, read on each request; empty
-            for the blog index (the default language) or a redirect to the default home
-            (other languages). Not ``/``, which is the home page itself.
+            for the default language's path, or the blog index if that is empty too. Not
+            ``/``, which is the home page itself.
     """
 
     app_name: str = ""

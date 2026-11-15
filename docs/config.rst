@@ -300,11 +300,11 @@ The root path (``/``) of each language renders the path set as that language's
 ``home_page_path`` (see `Site content`_). Platzky resolves it against the application's
 own routes, so it can point at a page, a post, or any other registered route.
 
-* The default language without a ``home_page_path`` shows the blog index (at
-  ``BLOG_PREFIX``) at its ``/``.
-* Another language without a ``home_page_path`` redirects (302) from its ``/`` to the home of
-  the default language, for example ``/pl/`` to ``/`` on an English site. Give a language its
-  own ``home_page_path`` to give it its own home.
+* A language without a ``home_page_path`` shows the default language's path, with its own
+  menu, footer and translations: with ``/blog/page/about`` set for English only, ``/pl/``
+  shows ``/pl/blog/page/about``.
+* Without a ``home_page_path`` in the default language either, ``/`` shows the blog index (at
+  ``BLOG_PREFIX``).
 * A path of ``/`` is invalid in the site content, as ``/`` is the home page itself. The other
   paths are matched against the routes when ``/`` is requested, so a path to a route an
   application built on Platzky registers later works too. A path that its route serves in
@@ -351,9 +351,8 @@ site-wide keys or from another language:
   (whether readers may collapse it). Default: no footer.
 * ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
   no menu.
-* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default: the blog
-  index for the default language; another language without one redirects to the home
-  of the default language.
+* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default: the default
+  language's ``home_page_path``, or the blog index if that is not set either.
 
 The blog is configured with its own data, next to its posts and pages (in the
 ``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per
