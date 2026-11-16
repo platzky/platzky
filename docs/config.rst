@@ -292,6 +292,22 @@ with the ``sitemap_provider`` option.
     SITEMAP_EXCLUDED_PREFIXES:
       - /books/drafts/
 
+``NOINDEX``
+^^^^^^^^^^^
+
+:Type: ``bool``
+:Default: ``false``
+
+Keeps the whole site out of search engines: every response, including error pages, static
+files and the sitemap, carries an ``X-Robots-Tag: noindex`` header, which also removes pages
+already indexed. ``robots.txt`` stays as it is, as crawlers must fetch a page to see the
+header. Meant for staging and preview deployments that would otherwise compete with
+production as duplicates.
+
+.. code-block:: yaml
+
+    NOINDEX: true
+
 ``BLOG_PREFIX``
 ^^^^^^^^^^^^^^^
 

@@ -457,6 +457,12 @@ def _add_hsts_header(response: Response) -> Response:
     return response
 
 
+def _add_noindex_header(response: Response) -> Response:
+    """Tell search engines not to index the response."""
+    response.headers["X-Robots-Tag"] = "noindex"
+    return response
+
+
 def _enforce_https(engine: Engine) -> None:
     """Trust the proxy's X-Forwarded-Proto, mark the session cookie secure and send HSTS."""
     # App Engine and Cloud Run terminate TLS in Google's front end, one hop in front of the app.
@@ -529,6 +535,9 @@ def create_app_from_config(
     # After telemetry, so ProxyFix wraps its middleware and it sees the forwarded scheme.
     if not development:
         _enforce_https(engine)
+
+    if config.noindex:
+        engine.after_request(_add_noindex_header)
 
     # Register built-in shortcodes (image, link) as the first ContentTransformerPluginBase,
     # so they run before any plugin filter and appear on the admin help page.

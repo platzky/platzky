@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from flask import render_template_string, request
 from pydantic import ValidationError
+from werkzeug.test import TestResponse
 
 from platzky import create_app_from_config
 from platzky.config import Config
@@ -311,6 +312,49 @@ class TestLogging:
         self._create_app()
 
         assert root_logger.handlers == [app_handler]
+
+
+class TestNoindex:
+    @staticmethod
+    def _get(noindex: bool, path: str) -> TestResponse:
+        config = Config.model_validate(
+            {
+                "APP_NAME": "testing App Name",
+                "SECRET_KEY": "secret",
+                "NOINDEX": noindex,
+                "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+            }
+        )
+        app = create_app_from_config(config, development=True)
+        return app.test_client().get(path, base_url="http://www.localhost")
+
+    def test_robots_txt_still_allows_crawling_when_on(self):
+        # Crawlers must fetch the pages to see their noindex header.
+        response = self._get(noindex=True, path="/robots.txt")
+
+        assert response.text == (
+            "User-agent: *\nAllow: /\nDisallow: /lang/\nDisallow: /admin/\n\n"
+            "Sitemap: https://www.localhost/sitemap.xml"
+        )
+
+    @pytest.mark.parametrize(
+        ("path", "status"),
+        [("/health/liveness", 200), ("/robots.txt", 200), ("/no-such-page", 404)],
+    )
+    def test_responses_carry_noindex_header_when_on(self, path: str, status: int):
+        response = self._get(noindex=True, path=path)
+
+        assert response.status_code == status
+        assert response.headers["X-Robots-Tag"] == "noindex"
+
+    @pytest.mark.parametrize(
+        ("path", "status"), [("/health/liveness", 200), ("/no-such-page", 404)]
+    )
+    def test_responses_have_no_robots_header_when_off(self, path: str, status: int):
+        response = self._get(noindex=False, path=path)
+
+        assert response.status_code == status
+        assert "X-Robots-Tag" not in response.headers
 
 
 class TestHttpsEnforcement:

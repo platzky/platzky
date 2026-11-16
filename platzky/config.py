@@ -202,6 +202,7 @@ class Config(BaseModel):
         feature_flags: Feature flag configuration
         telemetry: OpenTelemetry configuration
         attachment: Attachment handling configuration
+        noindex: Keep the whole site out of search engines
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -232,6 +233,7 @@ class Config(BaseModel):
         default_factory=list,
         alias="SITEMAP_EXCLUDED_PREFIXES",
     )
+    noindex: bool = Field(default=False, alias="NOINDEX")
 
     @field_validator("blog_prefix")
     @classmethod
