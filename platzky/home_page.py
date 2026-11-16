@@ -5,7 +5,7 @@ language's, in its own language; without either, the blog index. The path is mat
 against the routes when ``/`` is requested.
 """
 
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -108,6 +108,34 @@ def is_home_target(
     except NotFound:
         return False
     return (target.endpoint, target.view_args) == (endpoint, view_args)
+
+
+def home_page_target_urls(
+    routes: MapAdapter,
+    paths: Mapping[LanguageCode, str],
+    url_for_language: Callable[..., str],
+) -> frozenset[str]:
+    """Build the URLs of the pages that home page paths show, each in its language.
+
+    Args:
+        routes: The application's routes bound to the request
+        paths: Home page path of each language
+        url_for_language: Builds an endpoint's URL in a language, as ``Engine.url_for_language``
+
+    Returns:
+        The absolute URL of each page in its language; none for a path that matches no route,
+        or whose route has no URL in that language.
+    """
+    urls: set[str] = set()
+    for language, path in paths.items():
+        try:
+            target = match_home_target(routes, path)
+            urls.add(
+                url_for_language(target.endpoint, language, _external=True, **target.view_args)
+            )
+        except (NotFound, ValueError):
+            continue
+    return frozenset(urls)
 
 
 def home_page_target_response(

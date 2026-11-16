@@ -1034,7 +1034,16 @@ def _build_app_with_domainless_pl_and_en_de_domains() -> Engine:
                 "pl": {"name": "polski", "flag": "pl", "country": "PL"},
                 "de": {"name": "Deutsch", "flag": "de", "country": "DE", "domain": "example.de"},
             },
-            "DB": {"TYPE": "json", "DATA": {"site_config": {}, "blog": {"pages": _ABOUT_PAGES}}},
+            "DB": {
+                "TYPE": "json",
+                "DATA": {
+                    # A home of its own, so the blog index is a page like any other.
+                    "site_config": {
+                        "localized_content": {"en": {"home_page_path": "/blog/page/home"}}
+                    },
+                    "blog": {"pages": _ABOUT_PAGES},
+                },
+            },
         }
     )
     return create_app_from_config(config)
@@ -1178,7 +1187,15 @@ def test_www_domains_serve_and_link_their_languages():
                     "domain": "www.example.de",
                 },
             },
-            "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+            "DB": {
+                "TYPE": "json",
+                "DATA": {
+                    # A home of its own, so the blog index is a page like any other.
+                    "site_config": {
+                        "localized_content": {"en": {"home_page_path": "/blog/page/home"}}
+                    },
+                },
+            },
         }
     )
     client = create_app_from_config(config).test_client()
@@ -1534,4 +1551,33 @@ def test_home_page_has_hreflang_links_for_every_language_even_without_a_path_of_
         "en": "http://localhost/",
         "pl": "http://localhost/pl/",
         "x-default": "http://localhost/",
+    }
+
+
+def test_page_shown_as_the_home_has_the_homes_as_its_hreflang_links():
+    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+    homes = {
+        "en": "http://localhost/",
+        "pl": "http://localhost/pl/",
+        "x-default": "http://localhost/",
+    }
+
+    assert _hreflangs(client.get("/blog/page/about")) == homes
+    assert _hreflangs(client.get("/pl/blog/page/about")) == homes
+    assert _hreflangs(client.get("/blog/page/contact")) == {}
+
+
+def test_blog_index_shown_as_the_home_has_the_homes_as_its_hreflang_links():
+    shown = _build_home_target_test_app({}).test_client()
+    not_shown = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+
+    assert _hreflangs(shown.get("/blog/")) == {
+        "en": "http://localhost/",
+        "pl": "http://localhost/pl/",
+        "x-default": "http://localhost/",
+    }
+    assert _hreflangs(not_shown.get("/blog/")) == {
+        "en": "http://localhost/blog/",
+        "pl": "http://localhost/pl/blog/",
+        "x-default": "http://localhost/blog/",
     }

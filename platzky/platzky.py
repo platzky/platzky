@@ -12,7 +12,6 @@ from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
-from werkzeug.exceptions import NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.wrappers import Response
 
@@ -32,8 +31,8 @@ from platzky.feature_flags import FakeLogin
 from platzky.home_page import (
     home_page_path,
     home_page_target_response,
+    home_page_target_urls,
     is_home_target,
-    match_home_target,
 )
 from platzky.language_routing import (
     any_converter,
@@ -353,18 +352,26 @@ def create_engine(
         lang = config.languages.get(locale)
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
-        alternates = app.current_page_language_alternates()
         shows_home = request.endpoint == "home_page" or is_home_target(
             app.url_map.bind(request.host),
             _home_page_path(locale),
             request.endpoint,
             request.view_args or {},
         )
-        # The home and the page it shows are one page: both are canonically the home.
+        # The home and the page it shows are one page: both are canonically the home, and its
+        # equivalents in the other languages are their homes.
         canonical_url = (
             app.url_for_language("home_page", locale, _external=True)
             if shows_home
             else request.base_url
+        )
+        alternates = (
+            {
+                language: app.url_for_language("home_page", language, _external=True)
+                for language in config.languages
+            }
+            if shows_home
+            else app.current_page_language_alternates()
         )
         localized = app.db.site_config.get_localized_content(locale)
         site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
@@ -576,33 +583,23 @@ def create_app_from_config(
     engine.register_blueprint(blog_blueprint)
 
     def home_target_urls(languages: Iterable[LanguageCode]) -> frozenset[str]:
-        """Build the URLs of the pages the home pages of some languages show.
+        """Build the URLs of the pages the home pages of some languages show, on this host.
 
         Args:
             languages: Languages whose home pages to resolve
 
         Returns:
-            The absolute URL of each page in its language; none for a language whose home
-            page path matches no route, or whose route has no URL in it.
+            The absolute URL of each page in its language.
         """
-        routes = engine.url_map.bind(request.host)
-        urls: set[str] = set()
-        for language in languages:
-            try:
-                target = match_home_target(
-                    routes,
-                    home_page_path(
-                        engine.db.site_config, language, config.default_language, config.blog_prefix
-                    ),
-                )
-                urls.add(
-                    engine.url_for_language(
-                        target.endpoint, language, _external=True, **target.view_args
-                    )
-                )
-            except (NotFound, ValueError):
-                continue
-        return frozenset(urls)
+        paths = {
+            language: home_page_path(
+                engine.db.site_config, language, config.default_language, config.blog_prefix
+            )
+            for language in languages
+        }
+        return home_page_target_urls(
+            engine.url_map.bind(request.host), paths, engine.url_for_language
+        )
 
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
