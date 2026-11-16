@@ -165,12 +165,6 @@ class TestPages:
         assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
         assert repository.pages.get_all("de") == []
 
-    def test_get_all_defaults_missing_language_to_en(self):
-        data = sample_data()
-        del data["blog"]["pages"][0]["language"]
-        repository = _repository(MemoryStore(data))
-        assert [p.slug for p in repository.pages.get_all("en")] == ["page-1"]
-
     def test_get_all_treats_missing_pages_as_empty(self):
         repository = _repository(MemoryStore({"blog": {}}))
         assert repository.pages.get_all("en") == []
@@ -191,6 +185,18 @@ class TestMeta:
     def test_invalid_blog_meta_is_rejected(self, meta: object):
         with pytest.raises(InvalidDataError, match=r"blog\.meta"):
             _repository(MemoryStore({"blog": {"meta": meta}}))
+
+
+class TestLanguageIsRequired:
+    @pytest.mark.parametrize("section", ["posts", "pages"])
+    def test_content_without_language_is_rejected_with_its_path(self, section: str):
+        data = sample_data()
+        del data["blog"][section][0]["language"]
+
+        with pytest.raises(InvalidDataError) as error:
+            _repository(MemoryStore(data))
+
+        assert str(error.value) == f"blog.{section}.0.language: Field required"
 
 
 class TestCreation:

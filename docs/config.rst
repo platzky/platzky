@@ -153,6 +153,18 @@ when the root language shouldn't be the first one listed in ``LANGUAGES``.
 
     DEFAULT_LANGUAGE: en
 
+A post or page is in exactly one language, stored in its required ``language`` field, and is
+served only under that language's URLs; under another language's URL it is a 404, and a
+comment to it is rejected. Slugs must be unique across languages, as a slug identifies one
+post or page; the application does not check this.
+
+.. warning::
+
+   Breaking change: ``language`` is required in every stored post and page. A post or page
+   without one used to be taken as English; now it makes the data invalid. Add ``language``
+   to each of them in a JSON file, and in MongoDB and GraphQL content (which filter by it);
+   ``platzky check`` lists the posts and pages of a JSON file that lack it.
+
 ``LANGUAGES``
 ^^^^^^^^^^^^^
 
@@ -301,8 +313,10 @@ The root path (``/``) of each language renders the path set as that language's
 own routes, so it can point at a page, a post, or any other registered route.
 
 * A language without a ``home_page_path`` shows the default language's path, with its own
-  menu, footer and translations: with ``/blog/page/about`` set for English only, ``/pl/``
-  shows ``/pl/blog/page/about``.
+  menu, footer and translations: with ``/map`` set for English only, ``/pl/`` shows
+  ``/pl/map``. A post or page is served only in its own language, so where the default
+  language's path is a post or page, the other languages show the 404 page; give each of
+  them a ``home_page_path`` to its own post or page.
 * Without a ``home_page_path`` in the default language either, ``/`` shows the blog index (at
   ``BLOG_PREFIX``).
 * A path of ``/`` is invalid in the site content, as ``/`` is the home page itself. The other

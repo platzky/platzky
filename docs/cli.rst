@@ -49,8 +49,8 @@ switch, and an application served by a production server is never in development
 
 Validate the site configuration of a JSON data file, for example before deploying it. It checks
 the ``site_config`` section (texts, theme and per-language content) and the ``blog`` section
-(the index meta per language; posts and pages must be lists of objects, their fields are not
-checked). The same check runs when the application starts, so a data file that
+(the index meta per language; posts and pages must be lists of objects, each with a
+``language``; their other fields are not checked). The same check runs when the application starts, so a data file that
 fails it stops the application from starting:
 
 .. code-block:: bash

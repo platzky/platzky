@@ -155,7 +155,7 @@ class Post(BaseModel):
         contentInMarkdown: Post content in Markdown format
         excerpt: Short summary or preview of the post
         coverImage: Cover image for the post
-        language: Language code for the post content (defaults to 'en')
+        language: Language code of the post content; required
         comments: Optional list of comments on this post
         tags: Optional list of tags for categorization
         date: Optional datetime when the post was published (timezone-aware recommended)
@@ -170,7 +170,7 @@ class Post(BaseModel):
     contentInMarkdown: str
     excerpt: str
     coverImage: Image = Field(default_factory=Image)
-    language: LanguageCode = "en"
+    language: LanguageCode
     comments: list[Comment] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     date: DateTimeField | None = None

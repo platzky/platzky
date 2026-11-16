@@ -4,16 +4,14 @@ import logging
 import re
 from collections.abc import Callable
 from os.path import dirname
-from typing import TypeVar
 
 from flask import Blueprint, abort, make_response, render_template, request
-from werkzeug.exceptions import HTTPException
 from werkzeug.wrappers import Response
 
 from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.blog_repository import BlogRepository
-from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
+from platzky.db.exceptions import ReadOnlyStorageError
 from platzky.models import LanguageCode, Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
@@ -21,9 +19,21 @@ from platzky.text_format import MARKDOWN
 
 from . import comment_form
 
-_ContentT = TypeVar("_ContentT", Post, Page)
-
 logger = logging.getLogger(__name__)
+
+
+def _abort_unless_in_language(content: Post | Page, language: LanguageCode) -> None:
+    """Abort with 404 if content is in another language.
+
+    Args:
+        content: The post or page requested
+        language: The language of the request
+
+    Raises:
+        HTTPException: 404 if the content is in another language
+    """
+    if content.language != language:
+        abort(404)
 
 
 def create_blog_blueprint(
@@ -49,18 +59,6 @@ def create_blog_blueprint(
         url_prefix=blog_prefix,
         template_folder=f"{dirname(__file__)}/../templates",
     )
-
-    @blog.errorhandler(404)
-    def page_not_found(_e: HTTPException) -> tuple[str, int]:
-        """Handle 404 Not Found errors in blog routes.
-
-        Args:
-            _e: HTTPException object containing error details (unused)
-
-        Returns:
-            Tuple of rendered 404 template and HTTP 404 status code
-        """
-        return render_template("404.html", title="404"), 404
 
     @blog.errorhandler(ShortcodeError)
     def content_error(e: ShortcodeError) -> tuple[str, int]:
@@ -132,8 +130,10 @@ def create_blog_blueprint(
             Rendered HTML template of the blog post with new comment
 
         Raises:
-            HTTPException: 403 if the database backend does not accept writes
+            HTTPException: 404 if the post is not in the request's language;
+                403 if the database backend does not accept writes
         """
+        _abort_unless_in_language(blog_repository.posts.get(post_slug), locale_func())
         comment = request.form.to_dict()
         try:
             blog_repository.posts.add_comment(
@@ -147,28 +147,6 @@ def create_blog_blueprint(
             abort(403)
         return get_post(post_slug=post_slug)
 
-    def _get_content_or_404(
-        getter_func: Callable[[str], _ContentT],
-        slug: str,
-    ) -> _ContentT:
-        """Helper to fetch content from database or abort with 404.
-
-        Args:
-            getter_func: Database getter function (e.g., a repository's ``get``)
-            slug: Content slug to fetch
-
-        Returns:
-            The fetched content object
-
-        Raises:
-            HTTPException: 404 if content not found
-        """
-        try:
-            return getter_func(slug)
-        except NotFoundError as e:
-            logger.debug("Content not found for slug '%s': %s", slug, e)
-            abort(404)
-
     @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
@@ -179,7 +157,8 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the blog post
         """
-        post = _get_content_or_404(blog_repository.posts.get, post_slug)
+        post = blog_repository.posts.get(post_slug)
+        _abort_unless_in_language(post, locale_func())
         return render_template(
             "post.html",
             post=post,
@@ -202,7 +181,8 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the page
         """
-        page = _get_content_or_404(blog_repository.pages.get, page_slug)
+        page = blog_repository.pages.get(page_slug)
+        _abort_unless_in_language(page, locale_func())
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",

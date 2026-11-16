@@ -20,6 +20,7 @@ SITE_DESCRIPTION = "Hello"
 POST = {
     "author": "Ann",
     "slug": "post-1",
+    "language": "en",
     "title": "First post",
     "contentInMarkdown": "Body",
     "excerpt": "Short",

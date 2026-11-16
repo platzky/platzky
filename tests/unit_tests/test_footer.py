@@ -13,6 +13,7 @@ CONTENT_URLS = ["/blog/slug", "/blog/page/slug"]
 _CONTENT = {
     "author": "author",
     "slug": "slug",
+    "language": "en",
     "title": "title",
     "contentInMarkdown": "content",
     "excerpt": "excerpt",
