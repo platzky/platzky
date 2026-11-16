@@ -49,7 +49,11 @@ def _make_seo_app(
     app.register_blueprint(_books_blueprint())
     app.register_blueprint(
         seo.create_seo_blueprint(
-            app.config, config.language_routing, sitemap_providers or {}, app.url_for_language
+            app.config,
+            config.language_routing,
+            sitemap_providers or {},
+            app.url_for_language,
+            lambda _languages: frozenset(),
         )
     )
     return app

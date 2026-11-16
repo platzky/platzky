@@ -74,6 +74,7 @@ def create_seo_blueprint(
     routing: LanguageRouting,
     sitemap_providers: t.Mapping[str, SitemapProvider],
     url_for_language: t.Callable[..., str],
+    home_target_urls: t.Callable[[t.Iterable[LanguageCode]], frozenset[str]],
 ) -> Blueprint:
     """Create SEO blueprint with routes for robots.txt and sitemap.xml.
 
@@ -85,6 +86,8 @@ def create_seo_blueprint(
             their entries; read on every sitemap request, so routes registered after the
             blueprint is created are included
         url_for_language: Builds an endpoint's URL in a language, as ``Engine.url_for_language``
+        home_target_urls: Gives the URLs of the pages the home pages of languages show, which
+            the sitemap leaves out as their canonical URL is the home
 
     Returns:
         Configured Flask Blueprint for SEO functionality
@@ -128,7 +131,8 @@ def create_seo_blueprint(
                 routing, languages_served, endpoint, provider, url_for_language, excluded_prefixes
             )
         ]
-        urls = {entry.loc: entry.lastmod for entry in entries}
+        home_targets = home_target_urls(languages_served)
+        urls = {entry.loc: entry.lastmod for entry in entries if entry.loc not in home_targets}
         xml_sitemap = render_template("sitemap.xml", urls=urls)
         response = make_response(xml_sitemap)
         response.headers["Content-Type"] = "application/xml"

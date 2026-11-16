@@ -283,7 +283,7 @@ URL prefix for SEO-related routes like sitemaps and robots.txt.
 Paths to leave out of ``sitemap.xml``, even when the application or a plugin lists their
 routes there (see :ref:`plugin-sitemap-routes`). They are written without a language
 prefix and apply in every language: ``/books/drafts/`` also leaves out
-``/pl/books/drafts/``. The sitemap lists the homepage, the blog
+``/pl/books/drafts/``. The sitemap lists the homepage of each language (and not the page it shows), the blog
 index, every post and every CMS page, plus the routes an application or plugin registers
 with the ``sitemap_provider`` option.
 
@@ -326,8 +326,14 @@ own routes, so it can point at a page, a post, or any other registered route.
   that resolves back to ``/`` itself, one that redirects to a path that redirects again, one
   that matches no route, or one that matches only a route for other methods than ``GET``
   makes ``/`` render the 404 page.
-* The home page paths are read on each request, so a change in the site content applies
-  without restarting the app.
+* A page at the ``home_page_path`` of its language, matched by route and not by the spelling of
+  the path, has that language's home as its canonical URL, on its own domain or under its own
+  prefix, whether it is reached at ``/`` or at its own URL. The sitemap lists each language's
+  home and leaves out the page it shows. The home page's ``hreflang`` links cover every
+  configured language, as every language has a home page.
+* The home page paths are read on each request, so with MongoDB or GraphQL a change in the
+  site content applies without restarting the app. The JSON databases read the site content
+  once, at startup.
 
 .. _site-content:
 
