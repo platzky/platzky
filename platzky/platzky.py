@@ -12,6 +12,7 @@ from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
+from werkzeug.exceptions import NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.wrappers import Response
 
@@ -28,7 +29,12 @@ from platzky.db.exceptions import NotFoundError
 from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
-from platzky.home_page import home_page_target_response
+from platzky.home_page import (
+    home_page_path,
+    home_page_target_response,
+    is_home_target,
+    match_home_target,
+)
 from platzky.language_routing import (
     any_converter,
 )
@@ -315,6 +321,11 @@ def create_engine(
             f"{prefix}/<path:path>", view_func=domainful_language_prefix, methods=["GET"]
         )
 
+    def _home_page_path(language: LanguageCode) -> str:
+        return home_page_path(
+            app.db.site_config, language, config.default_language, config.blog_prefix
+        )
+
     @app.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
     def home_page() -> ResponseReturnValue:
         """Render the configured homepage.
@@ -325,13 +336,9 @@ def create_engine(
         Returns:
             Rendered HTML of the resolved destination, or the 404 page.
         """
-        site_config = app.db.site_config
-        path = (
-            site_config.get_localized_content(app.get_locale()).home_page_path
-            or site_config.get_localized_content(config.default_language).home_page_path
-            or f"{config.blog_prefix.rstrip('/')}/"
+        return home_page_target_response(
+            app.url_map.bind(request.host), app.view_functions, _home_page_path(app.get_locale())
         )
-        return home_page_target_response(app.url_map.bind(request.host), app.view_functions, path)
 
     @app.context_processor
     def utils() -> dict[str, t.Any]:
@@ -347,6 +354,18 @@ def create_engine(
         flag = lang.flag if lang else ""
         country = lang.country if lang else ""
         alternates = app.current_page_language_alternates()
+        shows_home = request.endpoint == "home_page" or is_home_target(
+            app.url_map.bind(request.host),
+            _home_page_path(locale),
+            request.endpoint,
+            request.view_args or {},
+        )
+        # The home and the page it shows are one page: both are canonically the home.
+        canonical_url = (
+            app.url_for_language("home_page", locale, _external=True)
+            if shows_home
+            else request.base_url
+        )
         localized = app.db.site_config.get_localized_content(locale)
         site_settings = SiteSettings.from_layers(app.db.site_config.get_site_config(), localized)
         app_name = site_settings.app_name or config.app_name
@@ -360,6 +379,7 @@ def create_engine(
             "current_language": locale,
             "default_language": config.default_language,
             "language_alternates": alternates,
+            "canonical_url": canonical_url,
             "language_suggestions": _language_suggestions(config, locale, alternates, home_url),
             "url_link": _url_encode,
             "url_for_language": app.url_for_language,
@@ -554,11 +574,42 @@ def create_app_from_config(
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)
     engine.register_blueprint(blog_blueprint)
+
+    def home_target_urls(languages: Iterable[LanguageCode]) -> frozenset[str]:
+        """Build the URLs of the pages the home pages of some languages show.
+
+        Args:
+            languages: Languages whose home pages to resolve
+
+        Returns:
+            The absolute URL of each page in its language; none for a language whose home
+            page path matches no route, or whose route has no URL in it.
+        """
+        routes = engine.url_map.bind(request.host)
+        urls: set[str] = set()
+        for language in languages:
+            try:
+                target = match_home_target(
+                    routes,
+                    home_page_path(
+                        engine.db.site_config, language, config.default_language, config.blog_prefix
+                    ),
+                )
+                urls.add(
+                    engine.url_for_language(
+                        target.endpoint, language, _external=True, **target.view_args
+                    )
+                )
+            except (NotFound, ValueError):
+                continue
+        return frozenset(urls)
+
     seo_blueprint = seo.create_seo_blueprint(
         config=engine.config,
         routing=config.language_routing,
         sitemap_providers=engine.sitemap_providers,
         url_for_language=engine.url_for_language,
+        home_target_urls=home_target_urls,
     )
     engine.register_blueprint(seo_blueprint)
 

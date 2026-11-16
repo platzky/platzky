@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping
 from datetime import date
 from typing import Any
@@ -5,6 +6,7 @@ from typing import Any
 import pytest
 from bs4 import BeautifulSoup, Tag
 from flask import Blueprint, url_for
+from flask.testing import FlaskClient
 from flask_babel import get_locale
 from werkzeug.routing import Rule
 from werkzeug.test import TestResponse
@@ -885,7 +887,8 @@ def test_sitemap_lists_the_default_language_without_configured_languages(
     )
     response = create_app_from_config(config).test_client().get("/sitemap.xml")
     assert response.status_code == 200
-    assert "<loc>http://localhost/blog/</loc>" in response.text
+    assert "<loc>http://localhost/</loc>" in response.text
+    assert "<loc>http://localhost/blog/</loc>" not in response.text
 
 
 def test_url_for_language_rejects_an_unconfigured_language():
@@ -1188,8 +1191,8 @@ def test_www_domains_serve_and_link_their_languages():
 def test_sitemap_lists_domainless_languages_on_the_main_host_only(host: str, lists_pl: bool):
     app = _build_app_with_domainless_pl_and_en_de_domains()
     response = app.test_client().get("/sitemap.xml", headers={"Host": host})
-    assert f"http://{host}/blog/" in response.text
-    assert (f"http://{host}/pl/blog/" in response.text) is lists_pl
+    assert f"<loc>http://{host}/</loc>" in response.text
+    assert (f"<loc>http://{host}/pl/</loc>" in response.text) is lists_pl
 
 
 def _babel_locale() -> str:
@@ -1388,3 +1391,147 @@ def test_home_page_path_redirecting_to_a_page_shows_the_page():
 @pytest.mark.parametrize("path", ["/older", "/away"])
 def test_home_page_path_redirecting_to_a_redirect_or_another_host_shows_the_404_page(path: str):
     assert _home_page_test_app_with_redirects(path).test_client().get("/").status_code == 404
+
+
+_TRILINGUAL_DOMAINS = {
+    "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
+    "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
+    "uk": {"name": "Українська", "flag": "ua", "country": "UA"},
+}
+_PAGES_IN_EACH_LANGUAGE = [
+    {**page, "slug": slug, "language": language}
+    for slug, language, page in (
+        ("about", "en", _ABOUT_PAGES[0]),
+        ("contact", "en", _ABOUT_PAGES[0]),
+        ("o-nas", "pl", _ABOUT_PAGES[1]),
+        ("pro-nas", "pl", _ABOUT_PAGES[1]),
+    )
+]
+
+
+def _canonical(response: TestResponse) -> str:
+    link = BeautifulSoup(response.data, "html.parser").find("link", rel="canonical")
+    assert isinstance(link, Tag)
+    return str(link.get("href"))
+
+
+def _hreflangs(response: TestResponse) -> dict[str, str]:
+    links = BeautifulSoup(response.data, "html.parser").find_all("link", rel="alternate")
+    return {str(link.get("hreflang")): str(link.get("href")) for link in links}
+
+
+def _sitemap_locs(client: FlaskClient, host: str = "localhost") -> set[str]:
+    response = client.get("/sitemap.xml", base_url=f"http://{host}")
+    return set(re.findall(r"<loc>(.*?)</loc>", response.text))
+
+
+def _build_home_target_test_app(
+    paths: Mapping[str, str], languages: Mapping[str, Any] = _BILINGUAL_LANGUAGES
+) -> Engine:
+    return _build_home_page_test_app(
+        _home_page_paths(paths),
+        {"pages": _PAGES_IN_EACH_LANGUAGE},
+        languages=dict(languages),
+        default_language="en",
+    )
+
+
+def test_page_at_the_home_page_path_has_the_home_as_its_canonical_url():
+    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+
+    assert _canonical(client.get("/")) == "http://localhost/"
+    assert _canonical(client.get("/blog/page/about")) == "http://localhost/"
+    assert _canonical(client.get("/blog/page/o-nas")) == "http://localhost/blog/page/o-nas"
+
+
+def test_language_showing_the_default_language_path_has_its_own_home_as_canonical_url():
+    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+
+    assert _canonical(client.get("/pl/")) == "http://localhost/pl/"
+    assert _canonical(client.get("/pl/blog/page/about")) == "http://localhost/pl/"
+    assert _canonical(client.get("/pl/blog/page/o-nas")) == "http://localhost/pl/blog/page/o-nas"
+
+
+def test_blog_index_shown_as_the_home_has_the_home_as_its_canonical_url():
+    client = _build_home_target_test_app({}).test_client()
+
+    assert _canonical(client.get("/")) == "http://localhost/"
+    assert _canonical(client.get("/blog/")) == "http://localhost/"
+    assert _canonical(client.get("/pl/blog/")) == "http://localhost/pl/"
+    assert _canonical(client.get("/blog/page/about")) == "http://localhost/blog/page/about"
+
+
+def test_home_page_path_in_another_form_has_the_home_as_canonical_url_of_the_page():
+    client = _build_home_target_test_app({"en": "/blog"}).test_client()
+
+    assert _canonical(client.get("/blog/")) == "http://localhost/"
+
+
+def test_languages_with_their_own_domain_and_prefix_have_their_home_as_canonical_url():
+    client = _build_home_target_test_app(
+        {"en": "/blog/page/about", "pl": "/blog/page/o-nas"}, _TRILINGUAL_DOMAINS
+    ).test_client()
+
+    def canonical(host: str, path: str) -> str:
+        return _canonical(client.get(path, base_url=f"http://{host}"))
+
+    assert canonical("en.example.com", "/blog/page/about") == "http://en.example.com/"
+    assert canonical("pl.example.com", "/blog/page/o-nas") == "http://pl.example.com/"
+    assert (
+        canonical("pl.example.com", "/blog/page/about") == "http://pl.example.com/blog/page/about"
+    )
+    assert canonical("en.example.com", "/uk/blog/page/about") == "http://en.example.com/uk/"
+    assert canonical("en.example.com", "/uk/blog/page/o-nas") == (
+        "http://en.example.com/uk/blog/page/o-nas"
+    )
+
+
+def test_sitemap_lists_each_home_and_not_the_page_it_shows():
+    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+
+    locs = _sitemap_locs(client)
+
+    assert {"http://localhost/", "http://localhost/pl/"} <= locs
+    assert "http://localhost/blog/page/about" not in locs
+    assert {"http://localhost/blog/page/contact", "http://localhost/pl/blog/page/o-nas"} <= locs
+
+
+def test_sitemap_leaves_out_each_languages_own_home_page_path():
+    client = _build_home_target_test_app(
+        {"en": "/blog/page/about", "pl": "/blog/page/o-nas"}
+    ).test_client()
+
+    locs = _sitemap_locs(client)
+
+    assert "http://localhost/blog/page/about" not in locs
+    assert "http://localhost/pl/blog/page/o-nas" not in locs
+    assert {"http://localhost/blog/page/contact", "http://localhost/pl/blog/page/pro-nas"} <= locs
+
+
+def test_sitemap_leaves_out_the_blog_index_shown_as_the_home():
+    locs = _sitemap_locs(_build_home_target_test_app({}).test_client())
+
+    assert {"http://localhost/", "http://localhost/pl/"} <= locs
+    assert {"http://localhost/blog/", "http://localhost/pl/blog/"}.isdisjoint(locs)
+
+
+def test_sitemap_of_a_language_domain_leaves_out_the_page_its_home_shows():
+    client = _build_home_target_test_app(
+        {"en": "/blog/page/about", "pl": "/blog/page/o-nas"}, _TRILINGUAL_DOMAINS
+    ).test_client()
+
+    locs = _sitemap_locs(client, "pl.example.com")
+
+    assert "http://pl.example.com/" in locs
+    assert "http://pl.example.com/blog/page/o-nas" not in locs
+    assert "http://pl.example.com/blog/page/pro-nas" in locs
+
+
+def test_home_page_has_hreflang_links_for_every_language_even_without_a_path_of_its_own():
+    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+
+    assert _hreflangs(client.get("/")) == {
+        "en": "http://localhost/",
+        "pl": "http://localhost/pl/",
+        "x-default": "http://localhost/",
+    }
