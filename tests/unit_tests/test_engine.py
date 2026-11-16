@@ -107,6 +107,8 @@ def test_www_redirects(use_www: bool):
                             "title": "test",
                             "slug": "test",
                             "contentInMarkdown": "test",
+                            "author": "author",
+                            "excerpt": "excerpt",
                             "language": "en",
                         }
                     ],
@@ -654,6 +656,8 @@ def test_is_enabled_with_flag_on():
                             "title": "test",
                             "slug": "test",
                             "contentInMarkdown": "test",
+                            "author": "author",
+                            "excerpt": "excerpt",
                             "language": "en",
                         }
                     ],

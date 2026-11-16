@@ -4,7 +4,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
 
 from platzky.db.exceptions import (
     InvalidDataError,
@@ -99,7 +98,7 @@ class TestJsonDb:
             db_without_posts.blog.posts.get("any-slug")
 
     def test_get_post_with_missing_required_field(self, sample_data: dict[str, Any]):
-        """ValidationError raised when required field is missing."""
+        """A post missing a required field makes the database fail to load."""
         sample_data["blog"]["posts"].append(
             {
                 "slug": "test-post",
@@ -109,10 +108,9 @@ class TestJsonDb:
                 "excerpt": "Test excerpt",
             }
         )
-        db = Json(MemoryStore(sample_data))
 
-        with pytest.raises(ValidationError):
-            db.blog.posts.get("test-post")
+        with pytest.raises(InvalidDataError, match=r"blog\.posts\.2\.title: Field required"):
+            Json(MemoryStore(sample_data))
 
     def test_get_page_with_minimal_fields(self):
         """Pages can be loaded with only required fields.

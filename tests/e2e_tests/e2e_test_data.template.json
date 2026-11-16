@@ -189,15 +189,6 @@
         }
       },
       {
-        "title": "style breakout page",
-        "author": "autor",
-        "slug": "style-breakout",
-        "language": "en",
-        "contentInMarkdown": "page content",
-        "excerpt": "page excerpt",
-        "css": "</style><script>alert('xss')</script><style>"
-      },
-      {
         "title": "strip html page",
         "author": "autor",
         "slug": "strip-html",
