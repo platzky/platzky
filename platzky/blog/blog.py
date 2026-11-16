@@ -4,24 +4,20 @@ import logging
 import re
 from collections.abc import Callable
 from os.path import dirname
-from typing import TypeVar
 
-from flask import Blueprint, abort, make_response, redirect, render_template, request
-from werkzeug.exceptions import HTTPException
+from flask import Blueprint, abort, make_response, render_template, request
 from werkzeug.wrappers import Response
 
 from platzky.content_types import PAGE, POST, ContentSource
 from platzky.content_types import ContentType as FilterContentType
 from platzky.db.blog_repository import BlogRepository
-from platzky.db.exceptions import NotFoundError, ReadOnlyStorageError
+from platzky.db.exceptions import ReadOnlyStorageError
 from platzky.models import LanguageCode, Page, Post
 from platzky.shortcodes import ShortcodeError
 from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from platzky.text_format import MARKDOWN
 
 from . import comment_form
-
-_ContentT = TypeVar("_ContentT", Post, Page)
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +27,6 @@ def create_blog_blueprint(
     blog_prefix: str,
     locale_func: Callable[[], LanguageCode],
     content_transformer: Callable[[ContentSource | str, FilterContentType], str],
-    url_for_language: Callable[..., str],
 ) -> Blueprint:
     """Create and configure the blog blueprint with all routes and handlers.
 
@@ -40,7 +35,6 @@ def create_blog_blueprint(
         blog_prefix: URL prefix for blog routes
         locale_func: Function that returns the current locale/language code
         content_transformer: Function applied to post/page content before rendering
-        url_for_language: Builds an endpoint's URL in a language, as ``Engine.url_for_language``
 
     Returns:
         Configured Flask Blueprint for blog functionality
@@ -51,18 +45,6 @@ def create_blog_blueprint(
         url_prefix=blog_prefix,
         template_folder=f"{dirname(__file__)}/../templates",
     )
-
-    @blog.errorhandler(404)
-    def page_not_found(_e: HTTPException) -> tuple[str, int]:
-        """Handle 404 Not Found errors in blog routes.
-
-        Args:
-            _e: HTTPException object containing error details (unused)
-
-        Returns:
-            Tuple of rendered 404 template and HTTP 404 status code
-        """
-        return render_template("404.html", title="404"), 404
 
     @blog.errorhandler(ShortcodeError)
     def content_error(e: ShortcodeError) -> tuple[str, int]:
@@ -137,7 +119,7 @@ def create_blog_blueprint(
             HTTPException: 404 if the post is not in the request's language;
                 403 if the database backend does not accept writes
         """
-        _get_content(blog_repository.posts.get, post_slug, "blog.get_post")
+        _abort_unless_in_request_language(blog_repository.posts.get(post_slug))
         comment = request.form.to_dict()
         try:
             blog_repository.posts.add_comment(
@@ -151,45 +133,17 @@ def create_blog_blueprint(
             abort(403)
         return get_post(post_slug=post_slug)
 
-    def _get_content(
-        getter_func: Callable[[str], _ContentT],
-        slug: str,
-        endpoint: str,
-    ) -> _ContentT:
-        """Fetch the content to show at the request's URL.
+    def _abort_unless_in_request_language(content: Post | Page) -> None:
+        """Abort with 404 if content is in another language than the request's.
 
         Args:
-            getter_func: Database getter function (e.g., a repository's ``get``)
-            slug: Content slug to fetch
-            endpoint: Endpoint of the content's own URL; requested through another one, such as
-                the home page or the comment form, content in another language is not found
-
-        Returns:
-            The fetched content object
+            content: The post or page requested
 
         Raises:
-            HTTPException: 301 to the content's URL in its language; 404 if content is not
-                found, its language is not served, or it is requested through another endpoint
+            HTTPException: 404 if the content is in another language
         """
-        try:
-            content = getter_func(slug)
-        except NotFoundError as e:
-            logger.debug("Content not found for slug '%s': %s", slug, e)
+        if content.language != locale_func():
             abort(404)
-        if content.language == locale_func():
-            return content
-        if request.endpoint != endpoint:
-            abort(404)
-        try:
-            url = url_for_language(
-                endpoint, content.language, _external=True, **(request.view_args or {})
-            )
-        except ValueError as e:
-            logger.debug(
-                "Content '%s' is in %s, which is not served: %s", slug, content.language, e
-            )
-            abort(404)
-        abort(redirect(url, 301))
 
     @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
@@ -201,7 +155,8 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the blog post
         """
-        post = _get_content(blog_repository.posts.get, post_slug, "blog.get_post")
+        post = blog_repository.posts.get(post_slug)
+        _abort_unless_in_request_language(post)
         return render_template(
             "post.html",
             post=post,
@@ -224,7 +179,8 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the page
         """
-        page = _get_content(blog_repository.pages.get, page_slug, "blog.get_page")
+        page = blog_repository.pages.get(page_slug)
+        _abort_unless_in_request_language(page)
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",

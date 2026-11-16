@@ -12,7 +12,6 @@ from flask_babel import force_locale, gettext
 from flask_minify import Minify
 from flask_wtf import CSRFProtect
 from markupsafe import Markup
-from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.wrappers import Response
 
@@ -25,6 +24,7 @@ from platzky.config import (
 from platzky.content_types import FOOTER, PAGE, POST, ContentSource, ContentType
 from platzky.db.db import DB
 from platzky.db.db_loader import get_db
+from platzky.db.exceptions import NotFoundError
 from platzky.db.site_config_repository import SiteSettings
 from platzky.engine import Engine
 from platzky.feature_flags import FakeLogin
@@ -392,16 +392,19 @@ def create_engine(
         return {"dynamic_head": app.dynamic_head}
 
     @app.errorhandler(404)
-    def page_not_found(_e: HTTPException) -> tuple[str, int]:
+    def page_not_found(_e: Exception) -> tuple[str, int]:
         """Handle 404 Not Found errors.
 
         Args:
-            _e: HTTPException object containing error details (unused)
+            _e: The 404 error, or the missing item's ``NotFoundError`` (unused)
 
         Returns:
             Tuple of rendered 404 template and HTTP 404 status code
         """
         return render_template(_NOT_FOUND_TEMPLATE, title="404"), 404
+
+    # A post, page or other stored item that does not exist is a page that does not exist.
+    app.register_error_handler(NotFoundError, page_not_found)
 
     return plugify(app)
 
@@ -547,7 +550,6 @@ def create_app_from_config(
         blog_prefix=config.blog_prefix,
         locale_func=engine.get_locale,
         content_transformer=engine.transform_content,
-        url_for_language=engine.url_for_language,
     )
     engine.register_blueprint(login_blueprint)
     engine.register_blueprint(admin_blueprint)

@@ -62,30 +62,17 @@ def test_content_is_served_under_its_own_language(kind: str, path: str):
 
 
 @_KINDS
-def test_content_under_another_language_moves_to_its_own(kind: str, path: str):
+def test_content_is_not_found_under_another_language(kind: str, path: str):
     client = _client(kind, [_content("x", "Polski tekst", "pl")])
 
-    response = client.get(path)
-
-    assert response.status_code == 301
-    assert response.location == f"http://localhost/pl{path}"
+    assert client.get(path).status_code == 404
 
 
 @_KINDS
-def test_content_of_the_default_language_moves_to_it_from_another_one(kind: str, path: str):
+def test_content_of_the_default_language_is_not_found_under_another_one(kind: str, path: str):
     client = _client(kind, [_content("x", "English text", "en")])
 
     assert client.get(path).status_code == 200
-    response = client.get(f"/pl{path}")
-    assert response.status_code == 301
-    assert response.location == f"http://localhost{path}"
-
-
-@_KINDS
-def test_content_in_a_language_the_site_does_not_serve_is_not_found(kind: str, path: str):
-    client = _client(kind, [_content("x", "Deutscher Text", "de")])
-
-    assert client.get(path).status_code == 404
     assert client.get(f"/pl{path}").status_code == 404
 
 

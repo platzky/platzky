@@ -81,7 +81,6 @@ def test_app(db_mock: MagicMock) -> FlaskClient:
         config.blog_prefix,
         app.get_locale,
         content_transformer=app.transform_content,
-        url_for_language=app.url_for_language,
     )
 
     app.register_blueprint(blog_blueprint)
