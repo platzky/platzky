@@ -1427,12 +1427,14 @@ _PAGES_IN_EACH_LANGUAGE = [
 
 
 def _canonical(response: TestResponse) -> str:
+    assert response.status_code == 200
     link = BeautifulSoup(response.data, "html.parser").find("link", rel="canonical")
     assert isinstance(link, Tag)
     return str(link.get("href"))
 
 
 def _hreflangs(response: TestResponse) -> dict[str, str]:
+    assert response.status_code == 200
     links = BeautifulSoup(response.data, "html.parser").find_all("link", rel="alternate")
     return {str(link.get("hreflang")): str(link.get("href")) for link in links}
 
@@ -1447,7 +1449,11 @@ def _build_home_target_test_app(
 ) -> Engine:
     return _build_home_page_test_app(
         _home_page_paths(paths),
-        {"pages": _PAGES_IN_EACH_LANGUAGE},
+        {
+            "pages": _PAGES_IN_EACH_LANGUAGE,
+            # A post in each language, as a blog index without one is not found.
+            "posts": [_post(f"post-{lang}", f"Post {lang}", lang) for lang in ("en", "pl", "uk")],
+        },
         languages=dict(languages),
         default_language="en",
     )
@@ -1458,14 +1464,14 @@ def test_page_at_the_home_page_path_has_the_home_as_its_canonical_url():
 
     assert _canonical(client.get("/")) == "http://localhost/"
     assert _canonical(client.get("/blog/page/about")) == "http://localhost/"
-    assert _canonical(client.get("/blog/page/o-nas")) == "http://localhost/blog/page/o-nas"
+    assert _canonical(client.get("/blog/page/contact")) == "http://localhost/blog/page/contact"
 
 
 def test_language_showing_the_default_language_path_has_its_own_home_as_canonical_url():
-    client = _build_home_target_test_app({"en": "/blog/page/about"}).test_client()
+    client = _build_home_target_test_app({"en": "/blog/"}).test_client()
 
     assert _canonical(client.get("/pl/")) == "http://localhost/pl/"
-    assert _canonical(client.get("/pl/blog/page/about")) == "http://localhost/pl/"
+    assert _canonical(client.get("/pl/blog/")) == "http://localhost/pl/"
     assert _canonical(client.get("/pl/blog/page/o-nas")) == "http://localhost/pl/blog/page/o-nas"
 
 
@@ -1486,7 +1492,7 @@ def test_home_page_path_in_another_form_has_the_home_as_canonical_url_of_the_pag
 
 def test_languages_with_their_own_domain_and_prefix_have_their_home_as_canonical_url():
     client = _build_home_target_test_app(
-        {"en": "/blog/page/about", "pl": "/blog/page/o-nas"}, _TRILINGUAL_DOMAINS
+        {"en": "/blog/page/about", "pl": "/blog/page/o-nas", "uk": "/blog/"}, _TRILINGUAL_DOMAINS
     ).test_client()
 
     def canonical(host: str, path: str) -> str:
@@ -1494,12 +1500,13 @@ def test_languages_with_their_own_domain_and_prefix_have_their_home_as_canonical
 
     assert canonical("en.example.com", "/blog/page/about") == "http://en.example.com/"
     assert canonical("pl.example.com", "/blog/page/o-nas") == "http://pl.example.com/"
-    assert (
-        canonical("pl.example.com", "/blog/page/about") == "http://pl.example.com/blog/page/about"
+    assert canonical("pl.example.com", "/blog/page/pro-nas") == (
+        "http://pl.example.com/blog/page/pro-nas"
     )
-    assert canonical("en.example.com", "/uk/blog/page/about") == "http://en.example.com/uk/"
-    assert canonical("en.example.com", "/uk/blog/page/o-nas") == (
-        "http://en.example.com/uk/blog/page/o-nas"
+    assert canonical("en.example.com", "/uk/blog/") == "http://en.example.com/uk/"
+    assert canonical("en.example.com", "/blog/") == "http://en.example.com/blog/"
+    assert (
+        canonical("en.example.com", "/uk/blog/post-uk") == "http://en.example.com/uk/blog/post-uk"
     )
 
 
@@ -1563,7 +1570,6 @@ def test_page_shown_as_the_home_has_the_homes_as_its_hreflang_links():
     }
 
     assert _hreflangs(client.get("/blog/page/about")) == homes
-    assert _hreflangs(client.get("/pl/blog/page/about")) == homes
     assert _hreflangs(client.get("/blog/page/contact")) == {}
 
 
