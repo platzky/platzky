@@ -300,9 +300,20 @@ The root path (``/``) of each language renders the path set as that language's
 ``home_page_path`` (see `Site content`_). Platzky resolves it against the application's
 own routes, so it can point at a page, a post, or any other registered route.
 
-* Without a ``home_page_path``, or with one that resolves back to ``/``, ``/`` renders
-  the blog index at ``BLOG_PREFIX``.
-* With a path that doesn't resolve to a registered route, ``/`` renders the 404 page.
+* A language without a ``home_page_path`` shows the default language's path, with its own
+  menu, footer and translations: with ``/blog/page/about`` set for English only, ``/pl/``
+  shows ``/pl/blog/page/about``.
+* Without a ``home_page_path`` in the default language either, ``/`` shows the blog index (at
+  ``BLOG_PREFIX``).
+* A path of ``/`` is invalid in the site content, as ``/`` is the home page itself. The other
+  paths are matched against the routes when ``/`` is requested, so a path to a route an
+  application built on Platzky registers later works too. A path that its route serves in
+  another form, such as ``/blog`` for the route ``/blog/``, shows that route's page. A path
+  that resolves back to ``/`` itself, one that redirects to a path that redirects again, one
+  that matches no route, or one that matches only a route for other methods than ``GET``
+  makes ``/`` render the 404 page.
+* The home page paths are read on each request, so a change in the site content applies
+  without restarting the app.
 
 .. _site-content:
 
@@ -340,8 +351,8 @@ site-wide keys or from another language:
   (whether readers may collapse it). Default: no footer.
 * ``menu_items``: the navigation menu, a list of ``name`` and ``url``. Default:
   no menu.
-* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default:
-  the blog index.
+* ``home_page_path``: the path rendered at ``/`` (see `Homepage`_). Default: the default
+  language's ``home_page_path``, or the blog index if that is not set either.
 
 The blog is configured with its own data, next to its posts and pages (in the
 ``blog`` section of a JSON file): ``meta`` holds the ``title`` and ``description`` of the blog index per

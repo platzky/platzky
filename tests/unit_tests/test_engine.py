@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
@@ -5,6 +6,7 @@ import pytest
 from bs4 import BeautifulSoup, Tag
 from flask import Blueprint, url_for
 from flask_babel import get_locale
+from werkzeug.routing import Rule
 from werkzeug.test import TestResponse
 
 from platzky.config import Config
@@ -17,6 +19,18 @@ from platzky.sitemap import SitemapEntry, UrlFor, single_url
 from tests.unit_tests.fake_app import build_test_app, test_app
 
 test_app = test_app
+
+_BLOG_HOME_IN_EVERY_LANGUAGE = {
+    "localized_content": {lang: {"home_page_path": "/blog/"} for lang in ("en", "pl")}
+}
+
+
+def _home_page_paths(path_by_language: Mapping[str, str]) -> dict[str, Any]:
+    return {
+        "localized_content": {
+            language: {"home_page_path": path} for language, path in path_by_language.items()
+        }
+    }
 
 
 def test_babel_gets_proper_directories(test_app: Engine):
@@ -177,30 +191,6 @@ def test_home_page_renders_configured_post():
     assert b"Welcome to the site" in response.data
 
 
-def test_home_page_falls_back_to_blog_index_when_not_configured():
-    app = _build_home_page_test_app(
-        {},
-        {
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        },
-    )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
-
-
 _BILINGUAL_LANGUAGES = {
     "en": {"name": "English", "flag": "us", "country": "US"},
     "pl": {"name": "Polski", "flag": "pl", "country": "PL"},
@@ -223,12 +213,12 @@ _ABOUT_PAGES = [
 ]
 
 
-def _build_bilingual_home_page_test_app(pl_home_path: str = "/blog/page/o-nas") -> Engine:
+def _build_bilingual_home_page_test_app() -> Engine:
     return _build_home_page_test_app(
         {
             "localized_content": {
                 "en": {"home_page_path": "/blog/page/about"},
-                "pl": {"home_page_path": pl_home_path},
+                "pl": {"home_page_path": "/blog/page/o-nas"},
             },
         },
         {"pages": _ABOUT_PAGES},
@@ -244,9 +234,8 @@ def test_home_page_ignores_accept_language():
     assert b"Hello there" in response.data
 
 
-@pytest.mark.parametrize("pl_home_path", ["/blog/page/o-nas", "/pl/blog/page/o-nas"])
-def test_home_page_resolves_domainless_language_home(pl_home_path: str):
-    app = _build_bilingual_home_page_test_app(pl_home_path)
+def test_home_page_resolves_domainless_language_home():
+    app = _build_bilingual_home_page_test_app()
     response = app.test_client().get("/pl/")
     assert response.status_code == 200
     assert b"Witaj" in response.data
@@ -260,30 +249,29 @@ def test_home_page_404s_when_configured_path_does_not_resolve():
     assert response.status_code == 404
 
 
-def test_home_page_falls_back_when_configured_path_is_root():
+def _main_content(response: TestResponse) -> Tag | None:
+    return BeautifulSoup(response.data, "html.parser").find("main")
+
+
+def test_default_language_without_a_home_page_path_shows_the_blog_index_at_its_home():
     app = _build_home_page_test_app(
-        {
-            "localized_content": {"en": {"home_page_path": "/"}},
-        },
-        {
-            "posts": [
-                {
-                    "title": "Latest post",
-                    "slug": "latest-post",
-                    "language": "en",
-                    "excerpt": "excerpt",
-                    "author": "author",
-                    "tags": [],
-                    "contentInMarkdown": "content",
-                    "date": "2021-02-19",
-                    "comments": [],
-                }
-            ],
-        },
+        _home_page_paths({"pl": "/blog/page/o-nas"}),
+        _POSTS_AND_PAGES,
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
     )
-    response = app.test_client().get("/")
-    assert response.status_code == 200
-    assert b"Latest post" in response.data
+    client = app.test_client()
+    home, blog_index = client.get("/"), client.get("/blog/")
+
+    assert (home.status_code, blog_index.status_code) == (200, 200)
+    assert b"Welcome" in blog_index.data
+    assert _main_content(home) == _main_content(blog_index)
+
+
+def test_home_page_path_to_a_post_only_route_shows_the_404_page():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/form"}), {})
+    app.add_url_rule("/form", "form", lambda: "Sent", methods=["POST"])
+    assert app.test_client().get("/").status_code == 404
 
 
 def test_that_404_page_title_includes_app_name(test_app: Engine):
@@ -340,7 +328,7 @@ def _build_dedicated_domain_test_app() -> Engine:
             "en": {"name": "English", "flag": "gb", "country": "GB", "domain": "en.example.com"},
             "pl": {"name": "polski", "flag": "pl", "country": "PL", "domain": "pl.example.com"},
         },
-        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME_IN_EVERY_LANGUAGE}},
     }
     config = Config.model_validate(config_data)
     return create_app_from_config(config)
@@ -380,7 +368,7 @@ def test_locale_defaults_to_the_language_whose_domain_includes_a_port():
                 "domain": "pl.example.com:5000",
             },
         },
-        "DB": {"TYPE": "json", "DATA": {"site_config": {}}},
+        "DB": {"TYPE": "json", "DATA": {"site_config": _BLOG_HOME_IN_EVERY_LANGUAGE}},
     }
     config = Config.model_validate(config_data)
     app = create_app_from_config(config)
@@ -1295,3 +1283,89 @@ def test_query_locale_does_not_change_pages():
     client = _build_api_test_app().test_client()
     response = client.get("/blog/?lang=pl", headers={"Host": "example.com"})
     assert _language_indicator(response) == "en"
+
+
+def _build_fallback_home_page_test_app() -> Engine:
+    return _build_home_page_test_app(
+        _home_page_paths({"en": "/blog/page/about"}),
+        {"pages": _ABOUT_PAGES},
+        languages=_BILINGUAL_LANGUAGES,
+        default_language="en",
+    )
+
+
+def test_language_without_a_home_page_path_shows_the_default_language_path_in_its_language():
+    client = _build_fallback_home_page_test_app().test_client()
+    home, page = client.get("/pl/"), client.get("/pl/blog/page/about")
+
+    assert (home.status_code, page.status_code) == (200, 200)
+    assert b"Hello there" in page.data
+    assert _main_content(home) == _main_content(page)
+
+
+_POSTS_AND_PAGES = {
+    "pages": _ABOUT_PAGES,
+    "posts": [
+        {
+            "title": "Welcome",
+            "slug": "welcome-post",
+            "language": "en",
+            "excerpt": "excerpt",
+            "author": "author",
+            "tags": [],
+            "contentInMarkdown": "Welcome to the site",
+            "date": "2021-02-19",
+            "comments": [],
+        }
+    ],
+}
+
+
+def test_home_page_path_without_its_route_trailing_slash_shows_the_route_page():
+    app = _build_home_page_test_app(_home_page_paths({"en": "/blog"}), _POSTS_AND_PAGES)
+    client = app.test_client()
+    home, blog_index = client.get("/"), client.get("/blog/")
+
+    assert (home.status_code, blog_index.status_code) == (200, 200)
+    assert b"Welcome" in blog_index.data
+    assert _main_content(home) == _main_content(blog_index)
+
+
+def test_home_page_path_with_a_non_ascii_slug_shows_the_route_page():
+    tortoise = {**_ABOUT_PAGES[0], "title": "Żółw", "slug": "żółw", "contentInMarkdown": "Powolny"}
+    app = _build_home_page_test_app(
+        _home_page_paths({"en": "/blog//page/żółw"}), {"pages": [tortoise]}
+    )
+
+    home = app.test_client().get("/")
+
+    assert home.status_code == 200
+    assert "Powolny" in home.text
+
+
+@pytest.mark.parametrize(("path", "status"), [("/later/", 200), ("/later", 200), ("/other", 404)])
+def test_home_page_path_to_a_route_registered_later_is_matched_on_request(path: str, status: int):
+    app = _build_home_page_test_app(_home_page_paths({"en": path}), {})
+    app.add_url_rule("/later/", "later", lambda: "Later")
+
+    assert app.test_client().get("/").status_code == status
+
+
+def _home_page_test_app_with_redirects(path: str) -> Engine:
+    app = _build_home_page_test_app(_home_page_paths({"en": path}), {})
+    app.add_url_rule("/new", "new", lambda: "New page")
+    app.url_map.add(Rule("/old", redirect_to="/new"))
+    app.url_map.add(Rule("/older", redirect_to="/old"))
+    app.url_map.add(Rule("/away", redirect_to="https://example.de/new"))
+    return app
+
+
+def test_home_page_path_redirecting_to_a_page_shows_the_page():
+    response = _home_page_test_app_with_redirects("/old").test_client().get("/")
+    assert response.status_code == 200
+    assert response.text == "New page"
+
+
+@pytest.mark.parametrize("path", ["/older", "/away"])
+def test_home_page_path_redirecting_to_a_redirect_or_another_host_shows_the_404_page(path: str):
+    assert _home_page_test_app_with_redirects(path).test_client().get("/").status_code == 404

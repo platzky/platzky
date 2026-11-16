@@ -21,8 +21,8 @@ _DE = {"name": "German", "flag": "de", "country": "DE"}
 _UK = {"name": "Ukrainian", "flag": "ua", "country": "UA"}
 
 
-def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
-    config = Config.model_validate(
+def _config_with_languages(languages: dict[str, dict[str, str]]) -> Config:
+    return Config.model_validate(
         {
             "APP_NAME": "test",
             "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
@@ -32,7 +32,10 @@ def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
             "DB": {"TYPE": "json", "DATA": {}},
         }
     )
-    return create_engine(config, _mock_db())
+
+
+def _engine_with_languages(languages: dict[str, dict[str, str]]) -> Engine:
+    return create_engine(_config_with_languages(languages), _mock_db())
 
 
 def _mock_db() -> MagicMock:
@@ -83,6 +86,47 @@ class TestPlatzky:
         )
         response = app.test_client().get("/lang/uk", headers={"Host": "example.de"})
         assert response.headers.get("Location") == "http://example.com/uk/"
+
+    def test_engine_from_create_engine_serves_the_page_at_its_home_page_path(self):
+        """An Engine built with its own database shows its home page path at its home."""
+        config = Config.model_validate(
+            {
+                "APP_NAME": "test",
+                "SECRET_KEY": "secret",  # NOSONAR - hardcoded secret acceptable in tests
+                "USE_WWW": False,
+                "DB": {"TYPE": "json", "DATA": {}},
+            }
+        )
+        db = _mock_db()
+        db.site_config.get_localized_content.return_value = LocalizedContent(
+            home_page_path="/hello"
+        )
+        app = create_engine(config, db)
+        app.add_url_rule("/hello", "hello", lambda: "Hello from the home")
+
+        response = app.test_client().get("/")
+
+        assert response.status_code == 200
+        assert response.text == "Hello from the home"
+
+    def test_home_page_path_changed_in_the_database_is_used_on_the_next_request(self):
+        config = _config_with_languages({"en": _EN})
+        db = _mock_db()
+        db.site_config.get_localized_content.return_value = LocalizedContent(
+            home_page_path="/first"
+        )
+        app = create_engine(config, db)
+        app.add_url_rule("/first", "first", lambda: "First page")
+        app.add_url_rule("/second", "second", lambda: "Second page")
+        client = app.test_client()
+
+        before = client.get("/")
+        db.site_config.get_localized_content.return_value = LocalizedContent(
+            home_page_path="/second"
+        )
+        after = client.get("/")
+
+        assert (before.text, after.text) == ("First page", "Second page")
 
     def test_change_language_invalid_locale(self):
         """Test that invalid language codes return 404 and store nothing in the session."""

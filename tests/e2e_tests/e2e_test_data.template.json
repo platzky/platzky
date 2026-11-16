@@ -23,6 +23,7 @@
         ]
       },
       "pl": {
+        "home_page_path": "/blog/",
         "app_description": "To nie tylko platforma do blogowania",
         "footer": {
           "content": "[link url=\"/blog/\"]Polska stopka[/link]",
