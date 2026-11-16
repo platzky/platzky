@@ -137,8 +137,7 @@ def create_blog_blueprint(
             HTTPException: 404 if the post is not in the request's language;
                 403 if the database backend does not accept writes
         """
-        if _get_content_or_404(blog_repository.posts.get, post_slug).language != locale_func():
-            abort(404)
+        _get_content(blog_repository.posts.get, post_slug, "blog.get_post")
         comment = request.form.to_dict()
         try:
             blog_repository.posts.add_comment(
@@ -152,49 +151,31 @@ def create_blog_blueprint(
             abort(403)
         return get_post(post_slug=post_slug)
 
-    def _get_content_or_404(
-        getter_func: Callable[[str], _ContentT],
-        slug: str,
-    ) -> _ContentT:
-        """Fetch content from the database or abort with 404.
-
-        Args:
-            getter_func: Database getter function (e.g., a repository's ``get``)
-            slug: Content slug to fetch
-
-        Returns:
-            The fetched content object
-
-        Raises:
-            HTTPException: 404 if content not found
-        """
-        try:
-            return getter_func(slug)
-        except NotFoundError as e:
-            logger.debug("Content not found for slug '%s': %s", slug, e)
-            abort(404)
-
-    def _get_content_in_request_language(
+    def _get_content(
         getter_func: Callable[[str], _ContentT],
         slug: str,
         endpoint: str,
     ) -> _ContentT:
-        """Fetch content in the request's language, or redirect to the same URL in its own.
+        """Fetch the content to show at the request's URL.
 
         Args:
             getter_func: Database getter function (e.g., a repository's ``get``)
             slug: Content slug to fetch
-            endpoint: Endpoint of the view showing the content; shown from another one, such
-                as the home page, content in another language is not found, as it moves nowhere
+            endpoint: Endpoint of the content's own URL; requested through another one, such as
+                the home page or the comment form, content in another language is not found
 
         Returns:
             The fetched content object
 
         Raises:
             HTTPException: 301 to the content's URL in its language; 404 if content is not
-                found, its language is not served, or it is shown from another endpoint
+                found, its language is not served, or it is requested through another endpoint
         """
-        content = _get_content_or_404(getter_func, slug)
+        try:
+            content = getter_func(slug)
+        except NotFoundError as e:
+            logger.debug("Content not found for slug '%s': %s", slug, e)
+            abort(404)
         if content.language == locale_func():
             return content
         if request.endpoint != endpoint:
@@ -220,9 +201,7 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the blog post
         """
-        post = _get_content_in_request_language(
-            blog_repository.posts.get, post_slug, "blog.get_post"
-        )
+        post = _get_content(blog_repository.posts.get, post_slug, "blog.get_post")
         return render_template(
             "post.html",
             post=post,
@@ -245,9 +224,7 @@ def create_blog_blueprint(
         Returns:
             Rendered HTML template of the page
         """
-        page = _get_content_in_request_language(
-            blog_repository.pages.get, page_slug, "blog.get_page"
-        )
+        page = _get_content(blog_repository.pages.get, page_slug, "blog.get_page")
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",
