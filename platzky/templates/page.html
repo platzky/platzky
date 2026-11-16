@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block head_title %}{{ title }} – {{ app_name }}{% endblock %}
+{% block description %}{{ excerpt or app_description }}{% endblock %}
 {% block head_meta %}{% if css %}<style>{{ css | safe }}</style>{% endif %}{% endblock %}
 
 {% block content %}

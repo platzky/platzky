@@ -4,15 +4,19 @@
   <channel>
     <title>{{_(app_name)}}</title>
     <link>{{ url_for("blog.all_posts", _external=True) }}</link>
-    <description>{{_("Everything about mailings and newsletters")}}</description>
+    <description>{{ blog_meta.description or app_description }}</description>
     {% for post in posts %}
     <item>
       <title>{{ post.title }}</title>
       <link>{{ url_for("blog.get_post", post_slug=post.slug, _external=True) }}</link>
       <description>{{ post.excerpt }}</description>
+      {% if post.coverImage.url %}
       <enclosure url="{{ post.coverImage.url }}" type="image/jpeg" />
+      {% endif %}
       <guid isPermaLink="false">{{ url_for("blog.get_post", post_slug=post.slug, _external=True) }}</guid>
-      <pubDate>{{ post.createdAt }}</pubDate>
+      {% if post.date %}
+      <pubDate>{{ rfc822(post.date) }}</pubDate>
+      {% endif %}
       <source url="{{ url_for('blog.get_post', post_slug=post.slug, _external=True) }}">{{_(app_name)}} feed</source>
     </item>
     {% endfor %}

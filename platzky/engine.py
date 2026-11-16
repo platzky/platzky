@@ -7,6 +7,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, TimeoutError
+from functools import partial
 from typing import TYPE_CHECKING, Any, Optional, cast
 from urllib.parse import urlsplit
 
@@ -539,7 +540,8 @@ class Engine(Flask):
 
         Only localized routes without view arguments, such as the home page or the blog index,
         serve the same page in every language; content pages (posts, pages, tags) differ per
-        language, so they have no equivalents.
+        language, so they have no equivalents. A route with a ``sitemap_provider`` has them only
+        in the languages for which the provider lists it, as it is not served in the others.
 
         Returns:
             Language codes mapped to URLs, or an empty dict when the page has no equivalents.
@@ -547,9 +549,12 @@ class Engine(Flask):
         endpoint = request.endpoint
         if endpoint not in self._localized_endpoints or request.view_args:
             return {}
+        provider = self.sitemap_providers.get(endpoint)
         return {
             lang: self.url_for_language(endpoint, lang, _external=True)
             for lang in self._platzky_config.languages
+            if provider is None
+            or any(provider(lang, partial(self.url_for_language, endpoint, lang, _external=True)))
         }
 
     def _register_language_prefix_processors(self) -> None:

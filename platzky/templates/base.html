@@ -13,7 +13,7 @@
   <!-- Open Graph -->
   <meta property="og:site_name" content="{{ app_name }}">
   <meta property="og:type" content="{% block og_type %}website{% endblock %}">
-  <meta property="og:url" content="{{ request.url }}">
+  <meta property="og:url" content="{{ canonical_url }}">
   <meta property="og:title" content="{{ self.title() | trim }}">
   <meta property="og:description" content="{{ self.description() | trim }}">
   <meta property="og:locale" content="{{ current_language }}_{{ current_lang_country | upper }}">
