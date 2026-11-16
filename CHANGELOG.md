@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## [2.0.0-alpha.21](https://github.com/platzky/platzky/compare/v2.0.0-alpha.20...v2.0.0-alpha.21) (2026-11-16)
+
+
+### Bug Fixes
+
+* **seo:** NOINDEX only sends the header; robots.txt lets crawlers see it ([#349](https://github.com/platzky/platzky/issues/349)) ([49cca97](https://github.com/platzky/platzky/commit/49cca97c59778df43167667369c505f41c7829b5))
+
 ## [2.0.0-alpha.20](https://github.com/platzky/platzky/compare/v2.0.0-alpha.19...v2.0.0-alpha.20) (2026-11-16)
 
 
