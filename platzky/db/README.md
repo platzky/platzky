@@ -45,8 +45,8 @@ in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 | `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
 A post or page has a required `language`, and its `slug` must be unique across
-languages: `get(slug)` takes no language, and the blog views answer 404 when the
-item is in another language than the request's. Nothing checks the uniqueness.
+languages: `get(slug)` takes no language, and the blog views move a request in
+another language to the item's own (301). Nothing checks the uniqueness.
 
 Implementations live in `<backend>_<repo>.py` (for example
 `json_blog_repository.py`, `mongo_plugin_config_repository.py`). Every backend

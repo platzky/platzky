@@ -1316,10 +1316,8 @@ def test_language_without_a_home_page_path_does_not_show_a_default_language_page
 
     assert client.get("/").status_code == 200
     assert b"Hello there" in client.get("/blog/page/about").data
-    assert (client.get("/pl/").status_code, client.get("/pl/blog/page/about").status_code) == (
-        404,
-        404,
-    )
+    assert client.get("/pl/").status_code == 404
+    assert client.get("/pl/blog/page/about").location == "http://localhost/blog/page/about"
 
 
 _POSTS_AND_PAGES = {

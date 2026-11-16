@@ -154,8 +154,8 @@ when the root language shouldn't be the first one listed in ``LANGUAGES``.
     DEFAULT_LANGUAGE: en
 
 A post or page is in exactly one language, stored in its required ``language`` field, and is
-served only under that language's URLs; under another language's URL it is a 404, and a
-comment to it is rejected. Slugs must be unique across languages, as a slug identifies one
+served only under that language's URLs: under another language's URL it moves (301) to its
+own, or is a 404 if its language is not configured, and a comment to it is rejected. Slugs must be unique across languages, as a slug identifies one
 post or page; the application does not check this.
 
 .. warning::
