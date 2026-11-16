@@ -22,6 +22,20 @@ from . import comment_form
 logger = logging.getLogger(__name__)
 
 
+def _abort_unless_in_language(content: Post | Page, language: LanguageCode) -> None:
+    """Abort with 404 if content is in another language.
+
+    Args:
+        content: The post or page requested
+        language: The language of the request
+
+    Raises:
+        HTTPException: 404 if the content is in another language
+    """
+    if content.language != language:
+        abort(404)
+
+
 def create_blog_blueprint(
     blog_repository: BlogRepository,
     blog_prefix: str,
@@ -119,7 +133,7 @@ def create_blog_blueprint(
             HTTPException: 404 if the post is not in the request's language;
                 403 if the database backend does not accept writes
         """
-        _abort_unless_in_request_language(blog_repository.posts.get(post_slug))
+        _abort_unless_in_language(blog_repository.posts.get(post_slug), locale_func())
         comment = request.form.to_dict()
         try:
             blog_repository.posts.add_comment(
@@ -133,18 +147,6 @@ def create_blog_blueprint(
             abort(403)
         return get_post(post_slug=post_slug)
 
-    def _abort_unless_in_request_language(content: Post | Page) -> None:
-        """Abort with 404 if content is in another language than the request's.
-
-        Args:
-            content: The post or page requested
-
-        Raises:
-            HTTPException: 404 if the content is in another language
-        """
-        if content.language != locale_func():
-            abort(404)
-
     @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
         """Display a single blog post with comments.
@@ -156,7 +158,7 @@ def create_blog_blueprint(
             Rendered HTML template of the blog post
         """
         post = blog_repository.posts.get(post_slug)
-        _abort_unless_in_request_language(post)
+        _abort_unless_in_language(post, locale_func())
         return render_template(
             "post.html",
             post=post,
@@ -180,7 +182,7 @@ def create_blog_blueprint(
             Rendered HTML template of the page
         """
         page = blog_repository.pages.get(page_slug)
-        _abort_unless_in_request_language(page)
+        _abort_unless_in_language(page, locale_func())
         cover_image_url = (page.coverImage.url or None) if page.coverImage else None
         return render_template(
             "page.html",

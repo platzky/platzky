@@ -129,8 +129,9 @@ class TestPostWithMinimalFields:
         assert post.coverImage.alternateText == ""
 
     def test_post_without_language_is_rejected(self):
+        data = {k: v for k, v in make_post_data().items() if k != "language"}
         with pytest.raises(ValidationError, match="language"):
-            Post.model_validate({k: v for k, v in make_post_data().items() if k != "language"})
+            Post.model_validate(data)
 
     def test_page_with_minimal_fields(self):
         page = Page(
