@@ -44,6 +44,10 @@ in the attributes `db.blog`, `db.site_config` and `db.plugin_config`:
 | `db.site_config` | `SiteConfigRepository` | `site_config_repository.py` | two methods: `get_site_config()` returns the site-wide `SiteConfig` (texts and logo defaults, favicon, font, colors) and `get_localized_content(lang)` returns the `LocalizedContent` of a language (texts and logo overrides, menu, footer, home page path; empty if the language has none). Both models are in the same file; `SiteSettings.from_layers` combines them |
 | `db.plugin_config` | `PluginConfigRepository` | `plugin_config_repository.py` | plugin configuration |
 
+A post or page has a required `language`, and its `slug` must be unique across
+languages: `get(slug)` takes no language, and the blog views answer 404 when the
+item is in another language than the request's. Nothing checks the uniqueness.
+
 Implementations live in `<backend>_<repo>.py` (for example
 `json_blog_repository.py`, `mongo_plugin_config_repository.py`). Every backend
 (`json`, `graphql`, `mongo`) implements all three. A `DB` subclass builds its

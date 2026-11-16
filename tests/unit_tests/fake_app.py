@@ -49,7 +49,7 @@ def build_test_app(site_config_overrides: dict[str, Any] | None = None) -> Flask
                         },
                         {
                             "title": "test",
-                            "slug": "test",
+                            "slug": "test-pl",
                             "excerpt": "excerpt",
                             "contentInMarkdown": "",
                             "contentInRichText": "test pl",
@@ -59,7 +59,7 @@ def build_test_app(site_config_overrides: dict[str, Any] | None = None) -> Flask
                                 "alternateText": "text which is alternative",
                                 "url": "https://media.graphcms.com/XvmCDUjYTIq4c9wOIseo",
                             },
-                            "language": "en",
+                            "language": "pl",
                             "date": "2021-01-01",
                             "author": "author",
                         },

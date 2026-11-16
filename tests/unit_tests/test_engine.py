@@ -100,7 +100,14 @@ def test_www_redirects(use_www: bool):
             "DATA": {
                 "site_config": {},
                 "blog": {
-                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
+                    "pages": [
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "test",
+                            "language": "en",
+                        }
+                    ],
                 },
             },
         },
@@ -153,6 +160,7 @@ def test_home_page_renders_configured_page():
                 {
                     "title": "About us",
                     "slug": "about",
+                    "language": "en",
                     "contentInMarkdown": "Hello there",
                     "author": "author",
                     "excerpt": "excerpt",
@@ -199,6 +207,7 @@ _ABOUT_PAGES = [
     {
         "title": "About us",
         "slug": "about",
+        "language": "en",
         "contentInMarkdown": "Hello there",
         "author": "author",
         "excerpt": "excerpt",
@@ -206,6 +215,7 @@ _ABOUT_PAGES = [
     {
         "title": "O nas",
         "slug": "o-nas",
+        "language": "pl",
         "contentInMarkdown": "Witaj",
         "author": "author",
         "excerpt": "excerpt",
@@ -637,7 +647,14 @@ def test_is_enabled_with_flag_on():
             "DATA": {
                 "site_config": {},
                 "blog": {
-                    "pages": [{"title": "test", "slug": "test", "contentInMarkdown": "test"}],
+                    "pages": [
+                        {
+                            "title": "test",
+                            "slug": "test",
+                            "contentInMarkdown": "test",
+                            "language": "en",
+                        }
+                    ],
                 },
             },
         },
@@ -670,7 +687,7 @@ def _link_hrefs(response: TestResponse) -> list[str]:
 
 
 def test_domainless_language_prefix_sets_the_locale(test_app: Engine):
-    response = test_app.test_client().get("/pl/blog/page/test")
+    response = test_app.test_client().get("/pl/blog/page/test-pl")
     assert response.status_code == 200
     assert _language_indicator(response) == "pl"
 
@@ -681,7 +698,7 @@ def test_accept_language_does_not_change_the_locale(test_app: Engine):
 
 
 def test_anonymous_page_view_sets_no_cookie(test_app: Engine):
-    response = test_app.test_client().get("/pl/blog/page/test")
+    response = test_app.test_client().get("/pl/blog/page/test-pl")
     assert "Set-Cookie" not in response.headers
 
 
@@ -1022,7 +1039,7 @@ def _build_app_with_domainless_pl_and_en_de_domains() -> Engine:
 
 def test_domainless_language_is_served_on_the_main_host():
     app = _build_app_with_domainless_pl_and_en_de_domains()
-    response = app.test_client().get("/pl/blog/page/about", headers={"Host": "example.com"})
+    response = app.test_client().get("/pl/blog/page/o-nas", headers={"Host": "example.com"})
     assert response.status_code == 200
 
 
@@ -1294,13 +1311,15 @@ def _build_fallback_home_page_test_app() -> Engine:
     )
 
 
-def test_language_without_a_home_page_path_shows_the_default_language_path_in_its_language():
+def test_language_without_a_home_page_path_does_not_show_a_default_language_page():
     client = _build_fallback_home_page_test_app().test_client()
-    home, page = client.get("/pl/"), client.get("/pl/blog/page/about")
 
-    assert (home.status_code, page.status_code) == (200, 200)
-    assert b"Hello there" in page.data
-    assert _main_content(home) == _main_content(page)
+    assert client.get("/").status_code == 200
+    assert b"Hello there" in client.get("/blog/page/about").data
+    assert (client.get("/pl/").status_code, client.get("/pl/blog/page/about").status_code) == (
+        404,
+        404,
+    )
 
 
 _POSTS_AND_PAGES = {

@@ -103,6 +103,7 @@ class TestJsonDb:
         sample_data["blog"]["posts"].append(
             {
                 "slug": "test-post",
+                "language": "en",
                 "author": "Test Author",
                 "contentInMarkdown": "# Test Post",
                 "excerpt": "Test excerpt",
@@ -117,7 +118,7 @@ class TestJsonDb:
         """Pages can be loaded with only required fields.
 
         Regression test for a bug where pages required all Post fields
-        (comments, tags, language, date) even though they should be optional.
+        (comments, tags, date) even though they should be optional.
         """
         minimal_page_data = {
             "site_config": {},
@@ -126,6 +127,7 @@ class TestJsonDb:
                     {
                         "title": "About Us",
                         "slug": "about",
+                        "language": "en",
                         "author": "Site Admin",
                         "contentInMarkdown": "# About\n\nWelcome to our site.",
                         "excerpt": "Learn more about us",

@@ -21,7 +21,14 @@ def test_document_edit_is_visible_to_the_database():
 
     with db.document.edit() as data:
         data["blog"]["pages"].append(
-            {"title": "t", "slug": "added", "contentInMarkdown": "c", "author": "a", "excerpt": "e"}
+            {
+                "title": "t",
+                "slug": "added",
+                "contentInMarkdown": "c",
+                "author": "a",
+                "excerpt": "e",
+                "language": "en",
+            }
         )
 
     assert [page.slug for page in db.blog.pages.get_all("en")] == ["added"]

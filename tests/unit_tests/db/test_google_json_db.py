@@ -39,7 +39,7 @@ class TestGoogleJsonDb:
         mock_blob.download_as_text.return_value = json.dumps(
             {
                 "site_config": {},
-                "blog": {"posts": [{"slug": "post-1", "comments": []}]},
+                "blog": {"posts": [{"slug": "post-1", "language": "en", "comments": []}]},
             }
         )
         mock_bucket.blob.return_value = mock_blob

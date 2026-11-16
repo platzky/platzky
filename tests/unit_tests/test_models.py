@@ -26,6 +26,7 @@ def make_post(**overrides) -> Post:
         "title": "title",
         "contentInMarkdown": "content",
         "excerpt": "excerpt",
+        "language": "en",
     }
     return Post(**{**defaults, **overrides})
 
@@ -109,7 +110,7 @@ class TestPostWithMinimalFields:
     """Test that Post/Page can be created with only required fields.
 
     Regression test for a bug where pages/posts required all fields
-    (comments, tags, language, date) even though they should be optional.
+    (comments, tags, date) even though they should be optional.
     """
 
     def test_post_with_minimal_fields(self):
@@ -127,6 +128,10 @@ class TestPostWithMinimalFields:
         assert post.coverImage.url == ""
         assert post.coverImage.alternateText == ""
 
+    def test_post_without_language_is_rejected(self):
+        with pytest.raises(ValidationError, match="language"):
+            Post.model_validate({k: v for k, v in make_post_data().items() if k != "language"})
+
     def test_page_with_minimal_fields(self):
         page = Page(
             author="author",
@@ -134,6 +139,7 @@ class TestPostWithMinimalFields:
             title="About Us",
             contentInMarkdown="# About\n\nWelcome to our site.",
             excerpt="About page",
+            language="en",
         )
 
         assert page.title == "About Us"

@@ -8,9 +8,8 @@
 
 import datetime
 import logging
-from collections.abc import Mapping
-from typing import Any
 
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
@@ -22,11 +21,23 @@ from platzky.models import LanguageCode, Page, PageMeta, Post, ReadOnlyMapping, 
 logger = logging.getLogger(__name__)
 
 
+class StoredContent(BaseModel):
+    """A post or page as stored: only its ``language`` is checked, the other fields when read.
+
+    Attributes:
+        language: Language the content is in; required, as the content is served only there
+    """
+
+    model_config = ConfigDict(extra="allow", frozen=True)
+
+    language: LanguageCode
+
+
 class BlogSection(StrictModel):
     """The ``blog`` section of a JSON document, as stored.
 
     Unknown keys and null values are errors. Posts and pages are checked one at a time when they
-    are read, so only their being lists of objects is checked here.
+    are read, so only their being lists of objects with a ``language`` is checked here.
 
     Attributes:
         posts: Raw blog posts; each is validated as a `Post` when it is read
@@ -34,8 +45,8 @@ class BlogSection(StrictModel):
         meta: The blog index meta by language code
     """
 
-    posts: tuple[Mapping[str, Any], ...] = ()
-    pages: tuple[Mapping[str, Any], ...] = ()
+    posts: tuple[StoredContent, ...] = ()
+    pages: tuple[StoredContent, ...] = ()
     meta: ReadOnlyMapping[LanguageCode, PageMeta]
 
 
@@ -78,7 +89,7 @@ class _JsonPostRepository(PostRepository):
         return [
             Post.model_validate(post)
             for post in self._section.get("posts", [])
-            if post.get("language", "en") == lang
+            if post["language"] == lang
         ]
 
     @override
@@ -95,7 +106,7 @@ class _JsonPostRepository(PostRepository):
         return [
             Post.model_validate(post)
             for post in self._section.get("posts", [])
-            if tag in (post.get("tags") or ()) and post.get("language", "en") == lang
+            if tag in (post.get("tags") or ()) and post["language"] == lang
         ]
 
     @override
@@ -175,7 +186,7 @@ class _JsonPageRepository(PageRepository):
         return [
             Page.model_validate(page)
             for page in self._section.get("pages", [])
-            if page.get("language", "en") == lang
+            if page["language"] == lang
         ]
 
 

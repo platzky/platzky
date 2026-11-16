@@ -132,8 +132,10 @@ def create_blog_blueprint(
             Rendered HTML template of the blog post with new comment
 
         Raises:
-            HTTPException: 403 if the database backend does not accept writes
+            HTTPException: 404 if the post is not in the request's language;
+                403 if the database backend does not accept writes
         """
+        _get_content_or_404(blog_repository.posts.get, post_slug)
         comment = request.form.to_dict()
         try:
             blog_repository.posts.add_comment(
@@ -151,7 +153,7 @@ def create_blog_blueprint(
         getter_func: Callable[[str], _ContentT],
         slug: str,
     ) -> _ContentT:
-        """Helper to fetch content from database or abort with 404.
+        """Fetch content in the request's language from the database or abort with 404.
 
         Args:
             getter_func: Database getter function (e.g., a repository's ``get``)
@@ -161,13 +163,17 @@ def create_blog_blueprint(
             The fetched content object
 
         Raises:
-            HTTPException: 404 if content not found
+            HTTPException: 404 if content is not found or is in another language
         """
         try:
-            return getter_func(slug)
+            content = getter_func(slug)
         except NotFoundError as e:
             logger.debug("Content not found for slug '%s': %s", slug, e)
             abort(404)
+        if content.language != locale_func():
+            logger.debug("Content '%s' is in %s, not served here", slug, content.language)
+            abort(404)
+        return content
 
     @blog.route("/<post_slug>", methods=["GET"], multilang=True, sitemap_provider=post_entries)
     def get_post(post_slug: str) -> str:
