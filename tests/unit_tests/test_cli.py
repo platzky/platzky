@@ -123,6 +123,16 @@ class TestInit:
         assert "Edited By Hand" in config_file.read_text()
 
 
+_VALID_PAGE = {
+    "slug": "x",
+    "author": "A",
+    "title": "T",
+    "contentInMarkdown": "c",
+    "excerpt": "e",
+    "language": "en",
+}
+
+
 def _check(tmp_path: Path, document: object) -> Result:
     data_file = tmp_path / "data.json"
     data_file.write_text(json.dumps(document), encoding="utf-8")
@@ -163,23 +173,36 @@ class TestCheck:
             "blog.meta.pl.title: Input should be a valid string",
         ]
 
-    def test_posts_and_pages_without_a_language_are_reported_with_their_paths(self, tmp_path: Path):
-        content = {"slug": "x"}
+    def test_invalid_posts_and_pages_are_reported_with_their_paths(self, tmp_path: Path):
+        page = _VALID_PAGE
         result = _check(
             tmp_path,
             {
                 "blog": {
-                    "posts": [{**content, "language": "en"}, content],
-                    "pages": [content],
+                    "posts": [page, {**page, "date": "01-01-2024"}],
+                    "pages": [page, page, page, {**page, "excerpt": None}],
                 }
             },
         )
 
         assert result.exit_code == 1
         assert result.output.splitlines() == [
-            "Error: blog.posts.1.language: Field required",
-            "blog.pages.0.language: Field required",
+            "Error: blog.posts.1.date: Input should be a valid datetime or date, "
+            "invalid character in year",
+            "blog.pages.3.excerpt: Input should be a valid string",
         ]
+
+    def test_page_whose_css_breaks_out_of_its_style_tag_is_reported(self, tmp_path: Path):
+        page = _VALID_PAGE
+        bad = {**page, "css": "</style><script>alert('xss')</script><style>"}
+
+        assert _check(tmp_path, {"blog": {"pages": [page]}}).exit_code == 0
+        result = _check(tmp_path, {"blog": {"pages": [page, bad]}})
+
+        assert result.exit_code == 1
+        assert result.output == (
+            "Error: blog.pages.1.css: Value error, css must not contain a '</style' sequence\n"
+        )
 
     def test_file_that_is_not_json_is_an_error(self, tmp_path: Path):
         data_file = tmp_path / "data.json"

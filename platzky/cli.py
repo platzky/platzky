@@ -89,10 +89,9 @@ def check(file: Path) -> None:
     """Validate the site configuration in a JSON database FILE.
 
     Checks the ``site_config`` section (texts, theme, per-language content) and the ``blog``
-    section (the index meta by language; posts and pages must be lists of objects, each with a
-    ``language``; their other fields are not checked). Prints OK and exits 0 when it is valid;
-    otherwise lists every problem of the first invalid section (``site_config`` before ``blog``)
-    with its path and exits 1.
+    section (the index meta by language, and every post and page in full). Prints OK and exits 0
+    when it is valid; otherwise lists every problem of the first invalid section (``site_config``
+    before ``blog``) with its path and exits 1.
     """
     try:
         document = json.loads(file.read_text(encoding="utf-8"))

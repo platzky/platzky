@@ -63,7 +63,7 @@ class Json(DB):
         Raises:
             InvalidDataError: If the site config or the blog section is invalid. The document
                 is loaded once and only changes through the repositories, so it is checked only
-                here.
+                here; every post and page is checked in full.
         """
         super().__init__()
         document = JsonDocument(store)

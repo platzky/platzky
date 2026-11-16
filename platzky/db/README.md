@@ -63,7 +63,8 @@ Each repository owns its storage and sees nothing else. In the JSON document, ea
 `site_config` (the site-wide keys and `localized_content`) belongs to
 `JsonSiteConfigRepository`, `blog` (`posts`, `pages`, `meta`) to `JsonBlogRepository` and
 `plugins` to `JsonPluginConfigRepository`; the site config and blog repositories validate their own
-section when they are built (unknown keys and nulls are errors). The document is loaded once and
+section when they are built (unknown keys and nulls are errors; every JSON post and page is
+validated in full then). The document is loaded once and
 only changes through the repositories, so it is not validated again; `platzky check` builds the
 `Json` facade from the file. The Mongo repositories have a `validate()` instead, which `MongoDB`
 calls at startup and in `health_check()`, as their data can change underneath. In

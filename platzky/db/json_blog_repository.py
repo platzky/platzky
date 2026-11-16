@@ -9,7 +9,6 @@
 import datetime
 import logging
 
-from pydantic import BaseModel, ConfigDict
 from typing_extensions import override
 
 from platzky.db.blog_repository import BlogRepository, PageRepository, PostRepository
@@ -21,32 +20,19 @@ from platzky.models import LanguageCode, Page, PageMeta, Post, ReadOnlyMapping, 
 logger = logging.getLogger(__name__)
 
 
-class StoredContent(BaseModel):
-    """A post or page as stored: only its ``language`` is checked, the other fields when read.
-
-    Attributes:
-        language: Language the content is in; required, as the content is served only there
-    """
-
-    model_config = ConfigDict(extra="allow", frozen=True)
-
-    language: LanguageCode
-
-
 class BlogSection(StrictModel):
     """The ``blog`` section of a JSON document, as stored.
 
-    Unknown keys and null values are errors. Posts and pages are checked one at a time when they
-    are read, so only their being lists of objects with a ``language`` is checked here.
+    Unknown keys and null values are errors, and so is any invalid post or page.
 
     Attributes:
-        posts: Raw blog posts; each is validated as a `Post` when it is read
-        pages: Raw pages; each is validated as a `Page` when it is read
+        posts: The blog posts
+        pages: The pages
         meta: The blog index meta by language code
     """
 
-    posts: tuple[StoredContent, ...] = ()
-    pages: tuple[StoredContent, ...] = ()
+    posts: tuple[Post, ...] = ()
+    pages: tuple[Page, ...] = ()
     meta: ReadOnlyMapping[LanguageCode, PageMeta]
 
 
@@ -196,8 +182,9 @@ class JsonBlogRepository(BlogRepository):
     def __init__(self, section: JsonSection) -> None:
         """Validate the section and build the post/page repositories over it.
 
-        Posts and pages are read from the section live, as comments change them; each is
-        validated when it is read. The meta does not change after loading, so it is kept parsed.
+        The whole section, every post and page included, is validated here. Posts and pages are
+        then read from the section live, as comments change them; the meta does not change after
+        loading, so it is kept parsed.
 
         Args:
             section: The ``blog`` section of the shared document, the only part of it this

@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import (
@@ -113,6 +112,23 @@ class TestPosts:
         assert [c.comment for c in repository.posts.get("post-1").comments] == ["first", "second"]
         assert repository.posts.get("post-2").comments == []
 
+    def test_added_comment_is_in_every_read_of_the_post(self, repository: JsonBlogRepository):
+        repository.posts.add_comment("Bob", "hi", "post-1")
+
+        posts = repository.posts
+        assert [c.comment for c in posts.get("post-1").comments] == ["hi"]
+        assert [c.comment for c in posts.get_all("en")[0].comments] == ["hi"]
+        assert [c.comment for c in posts.get_by_tag("python", "en")[0].comments] == ["hi"]
+        assert posts.get("post-2").comments == []
+
+    def test_failed_comment_is_not_shown(self):
+        repository = _repository(ReadOnlyStore(sample_data()))
+
+        with pytest.raises(ReadOnlyStorageError):
+            repository.posts.add_comment("Bob", "hi", "post-1")
+
+        assert repository.posts.get("post-1").comments == []
+
     def test_get_by_tag_filters_by_tag_and_language(self, repository: JsonBlogRepository):
         posts = repository.posts.get_by_tag("python", "en")
         assert [p.slug for p in posts] == ["post-1"]
@@ -134,11 +150,11 @@ class TestPosts:
         reloaded = _repository(store).posts.get("post-1")
         assert [(c.author, c.comment) for c in reloaded.comments] == [("Alice", "Nice post!")]
 
-    def test_null_tags_is_treated_as_missing(self):
+    def test_post_without_tags_has_empty_tags(self):
         data = sample_data()
-        data["blog"]["posts"][0]["tags"] = None
+        del data["blog"]["posts"][0]["tags"]
         repository = _repository(MemoryStore(data))
-        assert repository.posts.get_by_tag("python", "en") == []
+        assert repository.posts.get("post-1").tags == []
 
     def test_add_comment_rolls_back_on_save_failure(self):
         data = sample_data()
@@ -187,16 +203,65 @@ class TestMeta:
             _repository(MemoryStore({"blog": {"meta": meta}}))
 
 
-class TestLanguageIsRequired:
+class TestContentIsValidatedWhenLoaded:
     @pytest.mark.parametrize("section", ["posts", "pages"])
-    def test_content_without_language_is_rejected_with_its_path(self, section: str):
+    @pytest.mark.parametrize(
+        ("change", "problem"),
+        [
+            (
+                {"language": None},
+                "blog.{section}.{position}.language: Input should be a valid string",
+            ),
+            ({"date": "01-01-2024"}, "blog.{section}.{position}.date: "),
+            ({"tags": None}, "blog.{section}.{position}.tags: Input should be a valid list"),
+            (
+                {"excerpt": None},
+                "blog.{section}.{position}.excerpt: Input should be a valid string",
+            ),
+            (
+                {"css": "</style><script>alert(1)</script>"},
+                "blog.{section}.{position}.css: Value error, "
+                "css must not contain a '</style' sequence",
+            ),
+        ],
+        ids=["language", "date", "null-tags", "excerpt", "css-breakout"],
+    )
+    def test_invalid_item_fails_loading_with_its_path(
+        self, section: str, change: dict[str, Any], problem: str
+    ):
         data = sample_data()
-        del data["blog"][section][0]["language"]
+        position = len(data["blog"][section])
+        item = {**data["blog"][section][0], "slug": "second", **change}
+        data["blog"][section].append(item)
 
         with pytest.raises(InvalidDataError) as error:
             _repository(MemoryStore(data))
 
-        assert str(error.value) == f"blog.{section}.0.language: Field required"
+        assert str(error.value).startswith(problem.format(section=section, position=position))
+        assert str(error.value).count("\n") == 0
+
+    @pytest.mark.parametrize("section", ["posts", "pages"])
+    @pytest.mark.parametrize("field", ["author", "excerpt", "language"])
+    def test_item_missing_a_required_field_fails_loading_with_its_path(
+        self, section: str, field: str
+    ):
+        data = sample_data()
+        del data["blog"][section][0][field]
+
+        with pytest.raises(InvalidDataError) as error:
+            _repository(MemoryStore(data))
+
+        assert str(error.value) == f"blog.{section}.0.{field}: Field required"
+
+    def test_valid_content_with_a_date_loads(self):
+        data = sample_data()
+        data["blog"]["pages"][0]["date"] = "2024-01-01T00:00:00+00:00"
+
+        repository = _repository(MemoryStore(data))
+
+        assert repository.pages.get("page-1").date == datetime.datetime(
+            2024, 1, 1, tzinfo=datetime.timezone.utc
+        )
 
 
 class TestCreation:
@@ -211,15 +276,6 @@ class TestCreation:
             "blog.meta.pl.title: Input should be a valid string",
             "blog.x: Extra inputs are not permitted",
         ]
-
-    def test_an_invalid_post_fails_only_when_it_is_read(self):
-        data = sample_data()
-        del data["blog"]["posts"][0]["title"]
-        repository = _repository(MemoryStore(data))
-
-        assert repository.posts.get("post-2").slug == "post-2"
-        with pytest.raises(ValidationError):
-            repository.posts.get("post-1")
 
 
 class TestBlogSection:
