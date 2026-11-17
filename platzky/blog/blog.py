@@ -3,6 +3,7 @@
 import logging
 import re
 from collections.abc import Callable
+from email.utils import format_datetime
 from os.path import dirname
 
 from flask import Blueprint, abort, make_response, render_template, request
@@ -14,7 +15,7 @@ from platzky.db.blog_repository import BlogRepository
 from platzky.db.exceptions import ReadOnlyStorageError
 from platzky.models import LanguageCode, Page, Post
 from platzky.shortcodes import ShortcodeError
-from platzky.sitemap import SitemapEntry, UrlFor, single_url
+from platzky.sitemap import SitemapEntry, UrlFor
 from platzky.text_format import MARKDOWN
 
 from . import comment_form
@@ -87,7 +88,11 @@ def create_blog_blueprint(
             for page in blog_repository.pages.get_all(lang)
         ]
 
-    @blog.route("/", methods=["GET"], multilang=True, sitemap_provider=single_url)
+    def index_entries(lang: LanguageCode, url: UrlFor) -> list[SitemapEntry]:
+        """List the blog index for the sitemap in a language with posts, which it 404s without."""
+        return [SitemapEntry(url())] if blog_repository.posts.get_all(lang) else []
+
+    @blog.route("/", methods=["GET"], multilang=True, sitemap_provider=index_entries)
     def all_posts() -> str:
         """Display all blog posts for the current language.
 
@@ -114,7 +119,12 @@ def create_blog_blueprint(
         """
         lang = locale_func()
         response = make_response(
-            render_template("feed.xml", posts=blog_repository.posts.get_all(lang))
+            render_template(
+                "feed.xml",
+                posts=blog_repository.posts.get_all(lang),
+                blog_meta=blog_repository.get_meta(lang),
+                rfc822=format_datetime,
+            )
         )
         response.headers["Content-Type"] = "application/xml"
         return response
@@ -187,6 +197,7 @@ def create_blog_blueprint(
         return render_template(
             "page.html",
             title=page.title,
+            excerpt=page.excerpt,
             css=page.css,
             # Vouched for, as a post body is.
             content=content_transformer(ContentSource(page.contentInMarkdown, MARKDOWN), PAGE),

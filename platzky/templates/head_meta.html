@@ -5,7 +5,9 @@
 {% for lang_code, url in language_alternates.items() %}
 <link rel="alternate" hreflang="{{ lang_code }}" href="{{ url }}"/>
 {% endfor %}
+{% if default_language in language_alternates %}
 <link rel="alternate" hreflang="x-default" href="{{ language_alternates[default_language] }}"/>
+{% endif %}
 {% endif %}
 <link rel="shortcut icon" href="{{ favicon_url }}" type="image/x-icon">
 <link rel="canonical" href="{{ canonical_url }}"/>

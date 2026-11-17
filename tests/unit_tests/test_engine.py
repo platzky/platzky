@@ -223,6 +223,18 @@ _ABOUT_PAGES = [
         "excerpt": "excerpt",
     },
 ]
+# The blog index is served, and so linked as an equivalent, only in a language with posts.
+_POSTS_IN_EVERY_LANGUAGE = [
+    {
+        "title": f"Post {language}",
+        "slug": f"post-{language}",
+        "language": language,
+        "contentInMarkdown": "text",
+        "author": "author",
+        "excerpt": "excerpt",
+    }
+    for language in ("en", "pl", "de")
+]
 
 
 def _build_bilingual_home_page_test_app() -> Engine:
@@ -1041,7 +1053,7 @@ def _build_app_with_domainless_pl_and_en_de_domains() -> Engine:
                     "site_config": {
                         "localized_content": {"en": {"home_page_path": "/blog/page/home"}}
                     },
-                    "blog": {"pages": _ABOUT_PAGES},
+                    "blog": {"pages": _ABOUT_PAGES, "posts": _POSTS_IN_EVERY_LANGUAGE},
                 },
             },
         }
@@ -1194,6 +1206,7 @@ def test_www_domains_serve_and_link_their_languages():
                     "site_config": {
                         "localized_content": {"en": {"home_page_path": "/blog/page/home"}}
                     },
+                    "blog": {"posts": _POSTS_IN_EVERY_LANGUAGE},
                 },
             },
         }
